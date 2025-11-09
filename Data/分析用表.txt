@@ -1,0 +1,450 @@
+-- Table: public.starstyle
+
+-- DROP TABLE IF EXISTS public.starstyle;
+
+CREATE TABLE IF NOT EXISTS public.starstyle
+(
+    mapstar character varying(50) COLLATE pg_catalog."default",
+    mainstar character varying(50) COLLATE pg_catalog."default",
+    "position" real,
+    gd character varying(50) COLLATE pg_catalog."default",
+    bd character varying(50) COLLATE pg_catalog."default",
+    unique_id integer,
+    stardesc character varying(512) COLLATE pg_catalog."default",
+    starbyyear character varying(1024) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.starstyle
+    OWNER to postgres;
+	
+-- Table: public.starstyle
+
+-- DROP TABLE IF EXISTS public.starstyle;
+
+CREATE TABLE IF NOT EXISTS public.starstyle
+(
+    mapstar character varying(50) COLLATE pg_catalog."default",
+    mainstar character varying(50) COLLATE pg_catalog."default",
+    "position" real,
+    gd character varying(50) COLLATE pg_catalog."default",
+    bd character varying(50) COLLATE pg_catalog."default",
+    unique_id integer,
+    stardesc character varying(512) COLLATE pg_catalog."default",
+    starbyyear character varying(1024) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.starstyle
+    OWNER to postgres;
+	
+-- Table: public.先天四化入十二宮
+
+-- DROP TABLE IF EXISTS public."先天四化入十二宮";
+
+CREATE TABLE IF NOT EXISTS public."先天四化入十二宮"
+(
+    mapstar character varying(50) COLLATE pg_catalog."default",
+    mainstar character varying(50) COLLATE pg_catalog."default",
+    "position" integer,
+    gd character varying(64) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."先天四化入十二宮"
+    OWNER to postgres;
+
+-- Table: public.六十甲子日對時
+
+-- DROP TABLE IF EXISTS public."六十甲子日對時";
+
+CREATE TABLE IF NOT EXISTS public."六十甲子日對時"
+(
+    "Sky" character varying(50) COLLATE pg_catalog."default",
+    "Month" character varying(50) COLLATE pg_catalog."default",
+    "time" character varying(50) COLLATE pg_catalog."default",
+    "desc" character varying(256) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."六十甲子日對時"
+    OWNER to postgres;
+
+-- Table: public.十二宮化入十二宮
+
+-- DROP TABLE IF EXISTS public."十二宮化入十二宮";
+
+CREATE TABLE IF NOT EXISTS public."十二宮化入十二宮"
+(
+    mapstar character varying(50) COLLATE pg_catalog."default",
+    mainstar character varying(50) COLLATE pg_catalog."default",
+    "position" integer,
+    gd character varying(50) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."十二宮化入十二宮"
+    OWNER to postgres;
+
+-- Table: public.地支星剎
+
+-- DROP TABLE IF EXISTS public."地支星剎";
+
+CREATE TABLE IF NOT EXISTS public."地支星剎"
+(
+    "KIND" character varying(50) COLLATE pg_catalog."default",
+    "SKYNO" character varying(50) COLLATE pg_catalog."default",
+    "TOSKY" character varying(50) COLLATE pg_catalog."default",
+    "SKYSTAR" character varying(50) COLLATE pg_catalog."default",
+    "TOFLO" character varying(50) COLLATE pg_catalog."default",
+    "FLOSTAR" character varying(50) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."地支星剎"
+    OWNER to postgres;
+
+-- Table: public.天干星剎
+
+-- DROP TABLE IF EXISTS public."天干星剎";
+
+CREATE TABLE IF NOT EXISTS public."天干星剎"
+(
+    "KIND" character varying(50) COLLATE pg_catalog."default",
+    "SKYNO" character varying(50) COLLATE pg_catalog."default",
+    "TOSKY" character varying(50) COLLATE pg_catalog."default",
+    "SKYSTAR" character varying(50) COLLATE pg_catalog."default",
+    "TOFLO" character varying(50) COLLATE pg_catalog."default",
+    "FLOSTAR" character varying(50) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."天干星剎"
+    OWNER to postgres;
+
+-- Table: public.日對時星剎
+
+-- DROP TABLE IF EXISTS public."日對時星剎";
+
+CREATE TABLE IF NOT EXISTS public."日對時星剎"
+(
+    "SkyFloor" character varying(50) COLLATE pg_catalog."default",
+    "position" character varying(50) COLLATE pg_catalog."default",
+    "desc" character varying(256) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."日對時星剎"
+    OWNER to postgres;	
+	
+-- Table: public.日干對地支
+
+-- DROP TABLE IF EXISTS public."日干對地支";
+
+CREATE TABLE IF NOT EXISTS public."日干對地支"
+(
+    "KIND" character varying(50) COLLATE pg_catalog."default",
+    "SKYNO" character varying(50) COLLATE pg_catalog."default",
+    "TOSKY" character varying(50) COLLATE pg_catalog."default",
+    "SKYSTAR" character varying(50) COLLATE pg_catalog."default",
+    "TOFLO" character varying(50) COLLATE pg_catalog."default",
+    "FLOSTAR" character varying(50) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."日干對地支"
+    OWNER to postgres;
+	
+-- Table: public.日柱對月支
+
+-- DROP TABLE IF EXISTS public."日柱對月支";
+
+CREATE TABLE IF NOT EXISTS public."日柱對月支"
+(
+    "SkyFloor" character varying(50) COLLATE pg_catalog."default",
+    "position" character varying(50) COLLATE pg_catalog."default",
+    "desc" character varying(128) COLLATE pg_catalog."default",
+    unique_id integer
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."日柱對月支"
+    OWNER to postgres;
+	
+-- Table: public.易經六十四卦
+
+-- DROP TABLE IF EXISTS public."易經六十四卦";
+
+CREATE TABLE IF NOT EXISTS public."易經六十四卦"
+(
+    gua_id integer,
+    gua_value integer,
+    gua_name character varying(50) COLLATE pg_catalog."default",
+    gua_instruction character varying(256) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."易經六十四卦"
+    OWNER to postgres;
+
+-- Table: public.易經六十四卦分類解說
+
+-- DROP TABLE IF EXISTS public."易經六十四卦分類解說";
+
+CREATE TABLE IF NOT EXISTS public."易經六十四卦分類解說"
+(
+    gua_id integer,
+    gua_value integer,
+    gua_name character varying(50) COLLATE pg_catalog."default",
+    name character varying(50) COLLATE pg_catalog."default",
+    instruction character varying(128) COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."易經六十四卦分類解說"
+    OWNER to postgres;
+
+
+現在已完成排盤,要進入分析階段,我有許多資料表,都是用分析,需要EcanApi 調用,請幫我新增在 原來 Ecanapi 使用,總共用13張表參考附件 分析用表,都已在 posetgres 建立完成,需要你協助在 Ecanapi 新增model control service interface 等  Insert Update Delete, Query 可以調用	
+
+第一步：建立資料模型 (Models) - 讓 C# 程式認識您在 PostgreSQL 中的 13 張新表。
+
+第二步：更新資料庫上下文 (DbContext) - 將這 13 個新模型註冊到 Entity Framework Core 中。
+
+第三步：建立服務層 (Service & Interface) - 撰寫處理資料庫讀寫的核心商業邏輯。
+
+第四步：建立API控制器 (Controller) - 將服務層的功能，透過 API 端點暴露給外部呼叫。
+
+第五步：註冊服務 - 告訴您的 API 專案，有新的服務可以用了。
+
+// --- DayPillarToMonthBranch.cs ---
+[Table("日柱對月支")]
+public class DayPillarToMonthBranch
+{
+    [Key]
+    [Column("unique_id")]
+    public int UniqueId { get; set; }
+    [Column("SkyFloor")]
+    public string? SkyFloor { get; set; }
+    [Column("position")]
+    public string? Position { get; set; }
+    [Column("desc")]
+    public string? Description { get; set; }
+}
+
+// --- IChing64Hexagrams.cs ---
+[Table("易經六十四卦")]
+public class IChing64Hexagrams
+{
+    [Key]
+    [Column("gua_id")]
+    public int GuaId { get; set; }
+    [Column("gua_value")]
+    public int? GuaValue { get; set; }
+    [Column("gua_name")]
+    public string? GuaName { get; set; }
+    [Column("gua_instruction")]
+    public string? GuaInstruction { get; set; }
+}
+
+// --- IChingExplanation.cs ---
+[Table("易經六十四卦分類解說")]
+public class IChingExplanation
+{
+    [Key]
+    [Column("unique_id")]
+    public int UniqueId { get; set; }
+    [Column("gua_id")]
+    public int? GuaId { get; set; }
+    [Column("gua_value")]
+    public int? GuaValue { get; set; }
+    [Column("gua_desc")]
+    public string? GuaDesc { get; set; }
+    [Column("gua_type")]
+    public string? GuaType { get; set; }
+}
+
+// ... 請依照此模式，為您 `分析用表.txt` 中的其餘 9 張表建立對應的模型 ...
+// 為節省篇幅，此處省略，但建立方式完全相同。
+// 若您需要，我可以將全部13個檔案的程式碼都提供給您。
+
+辛苦你了,因為你是專家,請同樣協助修改 新增查詢語法 修改 IAnalysisService、AnalysisService 和 AnalysisController 這三個檔案，升級 查詢功能，使其能夠完全實現如下。
+select * from starstyle where  mainstar like '%相%' and  
+select * from 六十甲子日對時  where "Sky" = '甲' and "Month" = '寅月' and "time" = '甲戌'
+select * from 先天四化入十二宮 where mainstar = '命命' and position = '2'
+select * from 十二宮化入十二宮 where mainstar = '夫命' and position = '4'
+select * from 地支星剎  where "KIND" = '日' and "SKYNO" = '卯'  and "TOFLO" = '寅'  
+select * from 天干星剎  where "KIND" = '日' and "SKYNO" = '甲'  and "TOFLO" = '寅'  
+select * from 日對時星剎  where "SkyFloor" = '甲寅' and "position" = '甲子'
+select * from 日干對地支  where "KIND" = '日' and "SKYNO" = '甲'  and "TOFLO" = '寅' 
+select * from 日柱對月支  where "SkyFloor" = '甲子' and "position" = '巳'
+select * from 易經六十四卦 where "gua_value" = 101111 or 'gua_name' = '火天大有'
+select * from 易經六十四卦分類解說 where "gua_value" = 101111 or 'gua_name' = '火天大有'
+
+----------------------------------------------------
+select * from 六十甲子命主 where rgz = '辛亥' 
+select * from 六十甲子天地變 where s1 = '辛亥' 
+select * from 六十甲子納音 where 干支 = '辛亥' 
+select * from 六神四柱數 where star like '%財%'
+
+using Ecanapi.Models.Analysis;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace Ecanapi.Services
+{
+    public interface IAnalysisService
+    {
+        // --- StarStyle ---
+        Task<IEnumerable<StarStyle>> GetAllStarStylesAsync(float? position, string? mainstar);
+        Task<StarStyle?> GetStarStyleByIdAsync(int id);
+        Task<StarStyle> CreateStarStyleAsync(StarStyle starStyle);
+        Task UpdateStarStyleAsync(StarStyle starStyle);
+        Task<bool> DeleteStarStyleAsync(int id);
+
+        // --- PalaceMainStar ---
+        Task<IEnumerable<PalaceMainStar>> GetAllPalaceMainStarsAsync();
+        // ... (其他 CRUD 方法維持不變)
+
+        // --- 先天四化入十二宮 ---
+        Task<IEnumerable<PreNatalFourTransformations>> GetPreNatalFourTransformationsAsync(string? mainstar, int? position);
+
+        // --- 十二宮化入十二宮 ---
+        Task<IEnumerable<PalaceTransformations>> GetPalaceTransformationsAsync(string? mainstar, int? position);
+
+        // --- 地支星剎 ---
+        Task<IEnumerable<EarthlyBranchStars>> GetEarthlyBranchStarsAsync(string? kind, string? skyno, string? toflo);
+        
+        // --- 天干星剎 ---
+        Task<IEnumerable<HeavenlyStemStars>> GetHeavenlyStemStarsAsync(string? kind, string? skyno, string? toflo);
+
+        // --- 日對時星剎 ---
+        Task<IEnumerable<DayHourStars>> GetDayHourStarsAsync(string? skyFloor, string? position);
+
+
+        // --- 日干對地支 ---
+        Task<IEnumerable<DayStemToBranch>> GetDayStemToBranchAsync(string? kind, string? skyno, string? toflo);
+
+        // --- 六十甲子日對時 ---
+        Task<IEnumerable<SixtyJiaziDayToHour>> GetSixtyJiaziDayToHourAsync(string? sky, string? month, string? time);
+
+        // --- DayPillarToMonthBranch (日柱對月支) ---
+        Task<IEnumerable<DayPillarToMonthBranch>> GetAllDayPillarToMonthBranchesAsync(string? skyFloor, string? position);
+        Task<DayPillarToMonthBranch?> GetDayPillarToMonthBranchByIdAsync(int id);
+        Task<DayPillarToMonthBranch> CreateDayPillarToMonthBranchAsync(DayPillarToMonthBranch dayPillarToMonthBranch);
+        Task UpdateDayPillarToMonthBranchAsync(DayPillarToMonthBranch dayPillarToMonthBranch);
+        Task<bool> DeleteDayPillarToMonthBranchAsync(int id);
+
+        // --- IChing64Hexagrams (易經六十四卦) ---
+        Task<IEnumerable<IChing64Hexagrams>> GetAllIChing64HexagramsAsync(int? guaValue, string? guaName);
+        Task<IChing64Hexagrams?> GetIChing64HexagramsByIdAsync(int id);
+        Task<IChing64Hexagrams> CreateIChing64HexagramsAsync(IChing64Hexagrams iChing64Hexagrams);
+        Task UpdateIChing64HexagramsAsync(IChing64Hexagrams iChing64Hexagrams);
+        Task<bool> DeleteIChing64HexagramsAsync(int id);
+
+        // --- IChingExplanation (易經六十四卦分類解說) ---
+        Task<IEnumerable<IChingExplanation>> GetAllIChingExplanationsAsync(int? guaValue, string? guaName);
+        Task<IChingExplanation?> GetIChingExplanationByIdAsync(int id);
+        Task<IChingExplanation> CreateIChingExplanationAsync(IChingExplanation iChingExplanation);
+        Task UpdateIChingExplanationAsync(IChingExplanation iChingExplanation);
+        Task<bool> DeleteIChingExplanationAsync(int id);
+        
+        // ... 其他所有表的 CRUD 介面都維持原樣 ...
+    }	
+}
+
+          玉洞子 依古審定 精批命書
+		  
+宮位的重要性
+
+（1）宮位與六親：宮位的作用大於星神。年為祖上父母，月為父母兄弟，日為夫妻，時為子孫。父親的宮位占兩個，年柱和月柱；母親的宮位占兩個，月柱和日支。年上印、官、財的肯定為父母。
+
+（2）宮位與人體部位：一般來說，年為腿腳，因年為根；月為軀幹、骨頭；日為心胸內臟；時為五官、手、與外界交流的器官，為門戶，被別人看的原因，同時也主生殖器官。
+有時候年幹和時幹也代表頭（甲木）、臉（己土）。
+
+（3）宮位與其他：年為遠方，父母的出生地；月為祖籍、出生地、父母所在地、同學、老鄉；日支為自己的家；時為門戶。
+
+（4）出遠門看年和時；月日相合，離不開祖籍，月日相沖肯定離開老家；買房子看日支，日支為家之故，印、財、日支是買房的信號；買車看時，印、財、時柱；月日伏吟為搬家、移動、兩處之意；月看娘家，年支看岳父母或公婆；配偶宮與年支發生關係，肯定代表與岳父母、公婆有關，如為刑穿的不好。
+
+
+
+四：宮位干支的對應關係
+
+象數命理看六親與盲派一致，以宮位為主，星位為輔，深刻理解宮位十分重要。看六親以宮位為主，在八字中應驗率較高。
+
+年：祖上、外祖母、足腿、遠方、國外
+月：父母、兄弟、腹胸
+日：自己、配偶、心腦
+時：子女、子孫、頭手、眼臉、遠方門戶、出入年月時比劫為腿腳。
+
+
+年幹：祖上、祖父、國家、遠方、國外，甲木在年幹為頭。
+
+年支：外祖母、足、腿、內部環境。
+
+月幹：父、同性、兄弟、單位外部環境、肩、胸。
+
+月支：母、異性、姊妹、單位內部環境、腹部。
+
+日干：自己、心腦。
+
+日支：自己、身體、配偶、家庭。
+
+時幹：子女、兒子、臉、頭、手、遠方。
+
+時支：子女、女兒、臉、肩、腳
+
+五：宮位時空範圍
+
+四柱中的對應關係宮位的時空範圍劃分是依據傳統命理的劃分方法：
+
+即年柱為根；(1--16歲)代表幼年和少年階段；月柱為莖(17—32歲)代表青少年階段；日柱為花(33—48歲)代表中年時期；時柱為果(49—64歲以後)代表老年階段。
+
+當然這只是一個大體概念上的大致劃分，其中八字六親星以及原神，落在年柱、月柱、還是日柱、時柱，應吉應凶，在斷年齡段上是起很大的暗示參考的！
+
+年、月、日、時四個不同時空是對日主一生資訊的縮影，他們的組合已決定八字日主的吉凶壽夭，富貴貧賤，所以八字資訊的吉凶體現是靠歲運的作用而完成。而各柱限運段，是一個大體的階段易象！
+六：象數命理中祿與刃的正確應用方法
+
+
+祿：祿是天干的延伸,是代表天干入地支行使全力;原身是地支在天干的延伸,是代表地支在天干做事.
+
+此是盲派理論中最重要的論命要點之一,祿為身體，為自己；身弱的八字以祿、印為壽命，八字中不見財，身弱，以祿當財！！！
+
+干支以祿與原身，形態互通,不僅使我們對原局中某一神的作用及它的延伸作用有所瞭解,而且在應期的使用中是最重要的東西.
+
+
+祿神的用法：
+
+原身：甲　乙　丙　丁　戊　己　庚　辛　壬　癸
+祿：　寅　卯　巳　午　巳　午　申　酉　亥　子
+
+
+祿是八字中很重要的東西，盲師派講干祿：丙與戊、丁與己，丁與未、癸與丑、丁見丑是半個祿。
+
+注意:
+
+1.由於午與巳存在有兩個原身,故而天干的丙與戊,丁與己存在著半通祿的象,也就是丙與戊,己與丁有某種兄弟般的親緣關係.
+
+2.未土中有丁火,丁見未是半個祿;同理,癸見丑也是半個祿.
+
+3.辰戌丑未四墓神沒有天干的原身.
+

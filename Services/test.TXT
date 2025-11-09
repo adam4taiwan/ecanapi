@@ -1,0 +1,177 @@
+using Ecanapi.Data; // 請確認這是您 DbContext 所在的正確命名空間
+using Ecanapi.Models.Analysis;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+
+namespace Ecanapi.Services
+{
+    public class AnalysisService : IAnalysisService
+    {
+        private readonly ApplicationDbContext _context; // 請將 ApplicationDbContext 換成您實際的 DbContext 類別名稱
+
+        public AnalysisService(ApplicationDbContext context) // 同上，請換成您實際的 DbContext 類別名稱
+        {
+            _context = context;
+        }
+
+        // --- StarStyle ---
+        public async Task<IEnumerable<StarStyle>> GetAllStarStylesAsync(float? position, string? mainstar)
+        {
+            var query = _context.StarStyles.AsQueryable();
+
+            if (position.HasValue)
+            {
+                query = query.Where(s => s.Position == position.Value);
+            }
+
+            if (!string.IsNullOrEmpty(mainstar))
+            {
+                string reversedMainstar = new string(mainstar.Reverse().ToArray());
+                query = query.Where(s => s.MainStar != null && (s.MainStar.Contains(mainstar) || s.MainStar.Contains(reversedMainstar)));
+            }
+
+            return await query.ToListAsync();
+        }
+        public async Task<IEnumerable<StarStyle>> GetAllStarStylesAsync() => await _context.StarStyles.ToListAsync();
+        public async Task<StarStyle?> GetStarStyleByIdAsync(int id) => await _context.StarStyles.FindAsync(id);
+        public async Task<StarStyle> CreateStarStyleAsync(StarStyle data) { _context.StarStyles.Add(data); await _context.SaveChangesAsync(); return data; }
+        public async Task UpdateStarStyleAsync(StarStyle data) { _context.Entry(data).State = EntityState.Modified; await _context.SaveChangesAsync(); }
+        public async Task<bool> DeleteStarStyleAsync(int id) { var data = await GetStarStyleByIdAsync(id); if (data == null) return false; _context.StarStyles.Remove(data); await _context.SaveChangesAsync(); return true; }
+
+        // --- PalaceMainStar ---
+        public async Task<IEnumerable<PalaceMainStar>> GetAllPalaceMainStarsAsync() => await _context.PalaceMainStars.ToListAsync();
+        public async Task<PalaceMainStar?> GetPalaceMainStarByIdAsync(int id) => await _context.PalaceMainStars.FindAsync(id);
+        public async Task<PalaceMainStar> CreatePalaceMainStarAsync(PalaceMainStar data) { _context.PalaceMainStars.Add(data); await _context.SaveChangesAsync(); return data; }
+        public async Task UpdatePalaceMainStarAsync(PalaceMainStar data) { _context.Entry(data).State = EntityState.Modified; await _context.SaveChangesAsync(); }
+        public async Task<bool> DeletePalaceMainStarAsync(int id) { var data = await GetPalaceMainStarByIdAsync(id); if (data == null) return false; _context.PalaceMainStars.Remove(data); await _context.SaveChangesAsync(); return true; }
+
+        // --- 六十甲子日時查詢 ---
+        public async Task<string> GetSixtyJiaziDayToHourAsync(string sky, string month, string time)
+        {
+            var dayPillar = $"{sky}{month}";
+            var sqlQuery = $"SELECT CONCAT(rgcz,xgfx,aqfx,syfx,cyfx,jkfx) AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz = '{dayPillar}' AND time = '{time}'";
+
+            try
+            {
+                var result = await _context.Database
+                    .SqlQuery<string>(sqlQuery)
+                    .ToListAsync();
+
+                if (result.Count == 1)
+                {
+                    return result[0] ?? "";
+                }
+
+                return "查詢結果多筆或無數據";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        }
+
+        // --- Raw Query ---
+        public async Task<string> ExecuteRawQueryAsync(string sqlQuery)
+        {
+            // 安全性檢查：只允許 SELECT 查詢
+            if (string.IsNullOrWhiteSpace(sqlQuery) ||
+                !sqlQuery.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Error: Only SELECT queries are allowed.";
+            }
+
+            try
+            {
+                var result = await _context.Database
+                    .SqlQuery<string>(sqlQuery)
+                    .ToListAsync();
+
+                if (result.Count == 1)
+                {
+                    return result[0] ?? "";
+                }
+
+                return JsonSerializer.Serialize(result, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        }
+
+        // --- QueryList ---
+        public async Task<string> ExecuteRawQueryListAsync(string sqlQuery)
+        {
+            // 安全性檢查：只允許 SELECT 查詢
+            if (string.IsNullOrWhiteSpace(sqlQuery) ||
+                !sqlQuery.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Error: Only SELECT queries are allowed.";
+            }
+
+            try
+            {
+                await using var connection = _context.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = sqlQuery;
+
+                var resultList = new List<Dictionary<string, object>>();
+
+                await using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var row = new Dictionary<string, object>();
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    }
+                    resultList.Add(row);
+                }
+
+                // 連線由 await using 自動關閉，無需手動 CloseAsync
+
+                return JsonSerializer.Serialize(resultList, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        }
+
+        // --- IChingExplanation (易經六十四卦分類解說) ---
+        public async Task<IEnumerable<IChingExplanation>> GetAllIChingExplanationsAsync(int? guaValue, string? guaName)
+        {
+            var query = _context.IChingExplanations.AsQueryable();
+
+            if (!string.IsNullOrEmpty(guaName))
+            {
+                var hexagram = await _context.IChing64Hexagrams.FirstOrDefaultAsync(h => h.GuaName == guaName);
+                if (hexagram != null)
+                {
+                    query = query.Where(x => x.GuaId == hexagram.GuaId);
+                }
+                else
+                {
+                    return new List<IChingExplanation>();
+                }
+            }
+            else if (guaValue.HasValue)
+            {
+                query = query.Where(x => x.GuaValue == guaValue.Value);
+            }
+
+            return await query.ToListAsync();
+        }
+    }
+}

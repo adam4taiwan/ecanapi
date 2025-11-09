@@ -1,0 +1,205 @@
+using Ecanapi.Models;
+using Ecanapi.Models.Analysis;
+using NPOI.XWPF.UserModel;
+using NPOI.OpenXmlFormats.Wordprocessing;
+using System.IO;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
+using System;
+
+namespace Ecanapi.Services
+{
+    public class AnalysisReportService : IAnalysisReportService
+    {
+        private readonly IAnalysisService _analysisDbService;
+
+        public AnalysisReportService(IAnalysisService analysisDbService)
+        {
+            _analysisDbService = analysisDbService;
+        }
+
+        public async Task<byte[]> GenerateReportAsync(AstrologyChartResult chartData)
+        {
+            using (var memoryStream = new MemoryStream())
+            {
+                using (var document = new XWPFDocument())
+                {
+                    AddCoverPage(document, chartData);
+                    
+                    // 【更新】現在會傳入 request 物件以供分析使用
+                    await AddChapter1(document, chartData, chartData.Request); 
+                    
+                    document.Write(memoryStream);
+                }
+                
+                return memoryStream.ToArray();
+            }
+        }
+
+        private void AddCoverPage(XWPFDocument doc, AstrologyChartResult data)
+        {
+            AddParagraph(doc, $"{data.UserName} 先天神數精批命書", fontSize: 28, isBold: true, alignment: ParagraphAlignment.CENTER, spacingAfter: 600);
+            AddParagraph(doc, "________________________", fontSize: 12, alignment: ParagraphAlignment.CENTER, spacingAfter: 600);
+
+            var table = doc.CreateTable(3, 2);
+            table.Width = 5000;
+            table.GetRow(0).GetCell(0).SetText("姓名");
+            table.GetRow(0).GetCell(1).SetText(data.UserName);
+            table.GetRow(1).GetCell(0).SetText("陽曆生日");
+            table.GetRow(1).GetCell(1).SetText(data.SolarBirthDate.ToString("yyyy年 MM月 dd日 HH時 mm分"));
+            table.GetRow(2).GetCell(0).SetText("農曆生日");
+            table.GetRow(2).GetCell(1).SetText(data.LunarBirthDate);
+
+            doc.CreateParagraph().CreateRun().AddBreak(BreakType.PAGE);
+        }
+
+        private async Task AddChapter1(XWPFDocument doc, AstrologyChartResult data, AstrologyRequest request)
+        {
+            AddParagraph(doc, "第一章：先天格局與本命概論", fontSize: 20, isBold: true, color: "00008B", spacingAfter: 400);
+
+            AddParagraph(doc, "一、八字命盤", fontSize: 16, isBold: true, spacingAfter: 200);
+            var baziTable = doc.CreateTable(4, 5);
+            baziTable.Width = 8000;
+            string[] headers = { "", "時柱", "日柱", "月柱", "年柱" };
+            for(int i=0; i<headers.Length; i++) 
+            {
+                var cell = baziTable.GetRow(0).GetCell(i);
+                cell.SetText(headers[i]);
+                if(cell.GetCTTc().tcPr == null) cell.GetCTTc().AddNewTcPr();
+                cell.GetCTTc().tcPr.AddNewTcW().w = "2000"; 
+            }
+            
+            baziTable.GetRow(1).GetCell(0).SetText("天干");
+            baziTable.GetRow(1).GetCell(1).SetText(data.Bazi.TimePillar.HeavenlyStem);
+            baziTable.GetRow(1).GetCell(2).SetText(data.Bazi.DayPillar.HeavenlyStem);
+            baziTable.GetRow(1).GetCell(3).SetText(data.Bazi.MonthPillar.HeavenlyStem);
+            baziTable.GetRow(1).GetCell(4).SetText(data.Bazi.YearPillar.HeavenlyStem);
+            baziTable.GetRow(2).GetCell(0).SetText("地支");
+            baziTable.GetRow(2).GetCell(1).SetText(data.Bazi.TimePillar.EarthlyBranch);
+            baziTable.GetRow(2).GetCell(2).SetText(data.Bazi.DayPillar.EarthlyBranch);
+            baziTable.GetRow(2).GetCell(3).SetText(data.Bazi.MonthPillar.EarthlyBranch);
+            baziTable.GetRow(2).GetCell(4).SetText(data.Bazi.YearPillar.EarthlyBranch);
+            baziTable.GetRow(3).GetCell(0).SetText("納音");
+            baziTable.GetRow(3).GetCell(1).SetText(data.Bazi.TimePillar.NaYin);
+            baziTable.GetRow(3).GetCell(2).SetText(data.Bazi.DayPillar.NaYin);
+            baziTable.GetRow(3).GetCell(3).SetText(data.Bazi.MonthPillar.NaYin);
+            baziTable.GetRow(3).GetCell(4).SetText(data.Bazi.YearPillar.NaYin);
+            
+            AddParagraph(doc, "");
+
+            AddParagraph(doc, "二、核心資訊", fontSize: 16, isBold: true, spacingAfter: 200);
+            AddParagraph(doc, $"五行局：{data.WuXingJuText}");
+            AddParagraph(doc, $"命主：{data.MingZhu}");
+            AddParagraph(doc, $"身主：{data.ShenZhu}");
+
+            AddParagraph(doc, "");
+
+            // 【更新】實作核心格局論斷
+            AddParagraph(doc, "三、核心格局論斷", fontSize: 16, isBold: true, spacingAfter: 200);
+            string birthMarkAnalysis = AnalyzeBirthMark(data.Bazi.TimePillar.EarthlyBranch, request.Gender, request.Minute);
+            AddParagraph(doc, birthMarkAnalysis);
+            
+            // 執行核心格局分析
+            var patternAnalysis = await AnalyzeCorePattern(data);
+            if (!string.IsNullOrEmpty(patternAnalysis.Title))
+            {
+                AddParagraph(doc, $"格局：{patternAnalysis.Title}", isBold: true, color:"8B0000");
+                AddParagraph(doc, patternAnalysis.Description);
+            }
+            else
+            {
+                AddParagraph(doc, patternAnalysis.Description, isItalic: true, color: "808080");
+            }
+        }
+        
+        // 【新增】核心格局分析邏輯
+        private async Task<(string Title, string Description)> AnalyzeCorePattern(AstrologyChartResult data)
+        {
+            var mingPalace = data.palaces.FirstOrDefault(p => p.PalaceName.Contains("命宮"));
+            if (mingPalace == null) return ("", "無法定位命宮，無法進行格局分析。");
+
+            // 取得三方四正宮位
+            int mingIndex = mingPalace.Index;
+            int caiBoIndex = (mingIndex + 4 - 1) % 12 + 1;
+            int guanLuIndex = (mingIndex + 8 - 1) % 12 + 1;
+            int qianYiIndex = (mingIndex + 6 - 1) % 12 + 1;
+
+            var caiBoPalace = data.palaces.FirstOrDefault(p => p.Index == caiBoIndex);
+            var guanLuPalace = data.palaces.FirstOrDefault(p => p.Index == guanLuIndex);
+            var qianYiPalace = data.palaces.FirstOrDefault(p => p.Index == qianYiIndex);
+
+            // 整合三方四正所有主星
+            var allStars = new List<string>(mingPalace.MajorStars);
+            if (caiBoPalace != null) allStars.AddRange(caiBoPalace.MajorStars);
+            if (guanLuPalace != null) allStars.AddRange(guanLuPalace.MajorStars);
+            if (qianYiPalace != null) allStars.AddRange(qianYiPalace.MajorStars);
+            var uniqueStars = allStars.Distinct().ToList();
+
+            // --- 開始匹配格局 ---
+            // 規則 1: 殺破狼格
+            if (uniqueStars.Contains("殺") && uniqueStars.Contains("破") && uniqueStars.Contains("貪"))
+            {
+                var results = await _analysisDbService.GetAllStarStylesAsync(null, "殺破狼格");
+                var pattern = results.FirstOrDefault();
+                if (pattern != null)
+                {
+                    return ("殺破狼格", pattern.StarDesc ?? "格局資料庫中無此描述。");
+                }
+            }
+
+            // 規則 2: 機月同梁格
+            if (uniqueStars.Contains("機") && uniqueStars.Contains("陰") && uniqueStars.Contains("同") && uniqueStars.Contains("梁"))
+            {
+                var results = await _analysisDbService.GetAllStarStylesAsync(null, "機月同梁格");
+                var pattern = results.FirstOrDefault();
+                if (pattern != null)
+                {
+                    return ("機月同梁格", pattern.StarDesc ?? "格局資料庫中無此描述。");
+                }
+            }
+            
+            // ... 您可以在此處加入更多格局的判斷邏輯 ...
+            
+            // 如果沒有匹配到任何特殊格局
+            return ("", "您的命盤格局均衡，未有明顯特殊格局，待後續章節詳解。");
+        }
+
+
+        private string AnalyzeBirthMark(string timeBranch, int gender, int minute)
+        {
+            // (此函式維持不變)
+            bool isYangHour = "子寅辰午申戌".Contains(timeBranch);
+            bool isYinHour = "丑卯巳未酉亥".Contains(timeBranch);
+            bool hasMark = (gender == 1 && isYinHour) || (gender == 2 && isYangHour);
+            if (!hasMark) return "依四時定數，您天生外觀應無明顯胎記。";
+            string genderText = gender == 1 ? "男孩" : "女孩";
+            string timeTypeText = isYinHour ? "陰時" : "陽時";
+            string markLocation = "";
+            int quarter = (minute / 15) + 1; 
+            if (minute >= 60) quarter = 4;
+            switch (quarter)
+            {
+                case 1: markLocation = "臉上"; break;
+                case 2: markLocation = "身上"; break;
+                case 3: markLocation = "手上"; break;
+                case 4: markLocation = "腳上"; break;
+            }
+            return $"審時聞切，四時定數。您為{genderText}，生於{timeBranch}時({timeTypeText})，此為天定印記之時。依古法推算，您在「{markLocation}」應有胎記或疤痕以為印證。";
+        }
+
+        private XWPFParagraph AddParagraph(XWPFDocument doc, string text, int fontSize = 12, bool isBold = false, bool isItalic = false, string color = "000000", ParagraphAlignment alignment = ParagraphAlignment.LEFT, int spacingAfter = 200)
+        {
+            var p = doc.CreateParagraph();
+            p.Alignment = alignment;
+            p.SpacingAfter = spacingAfter;
+            var run = p.CreateRun();
+            run.SetText(text);
+            run.FontSize = fontSize;
+            run.IsBold = isBold;
+            run.IsItalic = isItalic;
+            run.SetColor(color);
+            return p;
+        }
+    }
+}

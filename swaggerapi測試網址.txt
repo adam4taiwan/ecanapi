@@ -1,0 +1,4 @@
+https://172.22.192.1:32769/swagger/index.html
+
+POST http://172.22.192.1:32776/api/Auth/login
+body: { "username": "123@123.com", "password": "Password123!" }

@@ -1,2 +1,11 @@
-# Ecanapi
-ç‰æ´å­å¤å­¸å ‚å¾Œå°API
+# §Ú ªº .NET 8 ±M®×
+
+³o¬O¤@­Ó¨Ï¥Î .NET 8 ©M Docker ªº½d¨Ò±M®×¡C
+
+## ¦p¦ó°õ¦æ
+
+1.  ¦w¸Ë .NET 8 SDK
+2.  °õ¦æ `dotnet restore`
+3.  °õ¦æ `dotnet run`
+
+## Docker

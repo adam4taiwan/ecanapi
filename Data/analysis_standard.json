@@ -1,0 +1,443 @@
+{
+  "bazi": {
+    "yearPillar": {
+      "heavenlyStem": "癸",
+      "earthlyBranch": "卯",
+      "heavenlyStemLiuShen": "食",
+      "naYin": "金箔金",
+      "hiddenStemLiuShen": [
+        "才",
+        "乙"
+      ]
+    },
+    "monthPillar": {
+      "heavenlyStem": "丁",
+      "earthlyBranch": "巳",
+      "heavenlyStemLiuShen": "殺",
+      "naYin": "沙中土",
+      "hiddenStemLiuShen": [
+        "劫",
+        "庚",
+        "官",
+        "丙",
+        "印",
+        "戊"
+      ]
+    },
+    "dayPillar": {
+      "heavenlyStem": "辛",
+      "earthlyBranch": "亥",
+      "heavenlyStemLiuShen": "",
+      "naYin": "釵釧金",
+      "hiddenStemLiuShen": [
+        "傷",
+        "壬",
+        "財",
+        "甲"
+      ]
+    },
+    "timePillar": {
+      "heavenlyStem": "戊",
+      "earthlyBranch": "戌",
+      "heavenlyStemLiuShen": "印",
+      "naYin": "平地木",
+      "hiddenStemLiuShen": [
+        "印",
+        "戊",
+        "比",
+        "辛",
+        "殺",
+        "丁"
+      ]
+    },
+    "animalSign": "兔",
+    "dayMaster": "辛"
+  },
+  "palaces": [
+    {
+      "index": 1,
+      "palaceName": "奴僕",
+      "palaceStem": "甲",
+      "earthlyBranch": "子 北  方",
+      "majorStars": [
+        "機"
+      ],
+      "secondaryStars": [
+        "昌",
+        "祿"
+      ],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "76-85",
+      "lifeCycleStage": "冠",
+      "mainStarBrightness": "1*",
+      "palaceStemTransformations": "夫遷福田",
+      "goodStars": [],
+      "badStars": [
+        "鈴",
+        "鸞"
+      ],
+      "smallStars": [
+        "博",
+        "德",
+        "咸"
+      ]
+    },
+    {
+      "index": 2,
+      "palaceName": "遷移",
+      "palaceStem": "乙",
+      "earthlyBranch": "丑 北東北",
+      "majorStars": [
+        "紫",
+        "破"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [
+        "祿"
+      ],
+      "decadeAgeRange": "66-75",
+      "lifeCycleStage": "沐",
+      "mainStarBrightness": "3!,3!",
+      "palaceStemTransformations": "奴父遷子",
+      "goodStars": [
+        "恩"
+      ],
+      "badStars": [
+        "羊",
+        "寡"
+      ],
+      "smallStars": [
+        "官",
+        "弔",
+        "月"
+      ]
+    },
+    {
+      "index": 3,
+      "palaceName": "疾厄",
+      "palaceStem": "甲",
+      "earthlyBranch": "寅 東北方",
+      "majorStars": [],
+      "secondaryStars": [
+        "曲"
+      ],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "56-65",
+      "lifeCycleStage": "長",
+      "mainStarBrightness": "",
+      "palaceStemTransformations": "夫遷福田",
+      "goodStars": [],
+      "badStars": [
+        "空"
+      ],
+      "smallStars": [
+        "伏",
+        "病",
+        "亡"
+      ]
+    },
+    {
+      "index": 4,
+      "palaceName": "財帛身",
+      "palaceStem": "乙",
+      "earthlyBranch": "卯 東  方",
+      "majorStars": [
+        "府"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "46-55",
+      "lifeCycleStage": "養",
+      "mainStarBrightness": "3+",
+      "palaceStemTransformations": "奴父遷子",
+      "goodStars": [
+        "貴"
+      ],
+      "badStars": [
+        "虛"
+      ],
+      "smallStars": [
+        "大",
+        "歲",
+        "將"
+      ]
+    },
+    {
+      "index": 5,
+      "palaceName": "子女",
+      "palaceStem": "丙",
+      "earthlyBranch": "辰 東南東",
+      "majorStars": [
+        "陰"
+      ],
+      "secondaryStars": [
+        "魁"
+      ],
+      "annualStarTransformations": [
+        "科"
+      ],
+      "decadeAgeRange": "36-45",
+      "lifeCycleStage": "胎",
+      "mainStarBrightness": "3!",
+      "palaceStemTransformations": "父奴奴夫",
+      "goodStars": [],
+      "badStars": [],
+      "smallStars": [
+        "病",
+        "晦",
+        "鞍"
+      ]
+    },
+    {
+      "index": 6,
+      "palaceName": "夫妻",
+      "palaceStem": "丁",
+      "earthlyBranch": "巳 東南方",
+      "majorStars": [
+        "廉",
+        "貪"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [
+        "忌"
+      ],
+      "decadeAgeRange": "26-35",
+      "lifeCycleStage": "絕",
+      "mainStarBrightness": "0-,0-",
+      "palaceStemTransformations": "子父奴兄",
+      "goodStars": [
+        "八",
+        "壽"
+      ],
+      "badStars": [
+        "孤"
+      ],
+      "smallStars": [
+        "喜",
+        "喪",
+        "驛"
+      ]
+    },
+    {
+      "index": 7,
+      "palaceName": "兄弟",
+      "palaceStem": "戊",
+      "earthlyBranch": "午 南  方",
+      "majorStars": [
+        "巨"
+      ],
+      "secondaryStars": [
+        "鉞"
+      ],
+      "annualStarTransformations": [
+        "權"
+      ],
+      "decadeAgeRange": "16-25",
+      "lifeCycleStage": "墓",
+      "mainStarBrightness": "0+",
+      "palaceStemTransformations": "夫子命奴",
+      "goodStars": [
+        "喜"
+      ],
+      "badStars": [],
+      "smallStars": [
+        "蜚",
+        "貫",
+        "息"
+      ]
+    },
+    {
+      "index": 8,
+      "palaceName": "命宮",
+      "palaceStem": "己",
+      "earthlyBranch": "未 南西南",
+      "majorStars": [
+        "相"
+      ],
+      "secondaryStars": [
+        "左",
+        "右"
+      ],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "6-15",
+      "lifeCycleStage": "死",
+      "mainStarBrightness": "3+",
+      "palaceStemTransformations": "福夫父疾",
+      "goodStars": [
+        "龍",
+        "鳳"
+      ],
+      "badStars": [
+        "火"
+      ],
+      "smallStars": [
+        "奏",
+        "官",
+        "蓋"
+      ]
+    },
+    {
+      "index": 9,
+      "palaceName": "父母",
+      "palaceStem": "庚",
+      "earthlyBranch": "申 西南方",
+      "majorStars": [
+        "同",
+        "梁"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "116-125",
+      "lifeCycleStage": "病",
+      "mainStarBrightness": "3!,3!",
+      "palaceStemTransformations": "田福子父",
+      "goodStars": [],
+      "badStars": [],
+      "smallStars": [
+        "將",
+        "小",
+        "劫"
+      ]
+    },
+    {
+      "index": 10,
+      "palaceName": "福德",
+      "palaceStem": "辛",
+      "earthlyBranch": "酉 西  方",
+      "majorStars": [
+        "武",
+        "殺"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "106-115",
+      "lifeCycleStage": "衰",
+      "mainStarBrightness": "1+,1+",
+      "palaceStemTransformations": "兄田疾奴",
+      "goodStars": [
+        "三",
+        "才"
+      ],
+      "badStars": [
+        "哭"
+      ],
+      "smallStars": [
+        "小",
+        "大",
+        "災"
+      ]
+    },
+    {
+      "index": 11,
+      "palaceName": "田宅",
+      "palaceStem": "壬",
+      "earthlyBranch": "戌 西北西",
+      "majorStars": [
+        "陽"
+      ],
+      "secondaryStars": [],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "96-105",
+      "lifeCycleStage": "帝",
+      "mainStarBrightness": "2!",
+      "palaceStemTransformations": "父遷命福",
+      "goodStars": [],
+      "badStars": [
+        "劫"
+      ],
+      "smallStars": [
+        "青",
+        "龍",
+        "天"
+      ]
+    },
+    {
+      "index": 12,
+      "palaceName": "官祿",
+      "palaceStem": "癸",
+      "earthlyBranch": "亥 西北方",
+      "majorStars": [],
+      "secondaryStars": [],
+      "annualStarTransformations": [],
+      "decadeAgeRange": "86-95",
+      "lifeCycleStage": "臨",
+      "mainStarBrightness": "",
+      "palaceStemTransformations": "遷兄子夫",
+      "goodStars": [],
+      "badStars": [
+        "羅"
+      ],
+      "smallStars": [
+        "力",
+        "虎",
+        "指"
+      ]
+    }
+  ],
+  "wuXingJuText": "火六局",
+  "mingZhu": "武",
+  "shenZhu": "同",
+  "baziLuckCycles": [
+    {
+      "startAge": 1,
+      "endAge": 10,
+      "heavenlyStem": "丙",
+      "earthlyBranch": "辰",
+      "liuShen": "官"
+    },
+    {
+      "startAge": 11,
+      "endAge": 20,
+      "heavenlyStem": "乙",
+      "earthlyBranch": "卯",
+      "liuShen": "才"
+    },
+    {
+      "startAge": 21,
+      "endAge": 30,
+      "heavenlyStem": "甲",
+      "earthlyBranch": "寅",
+      "liuShen": "財"
+    },
+    {
+      "startAge": 31,
+      "endAge": 40,
+      "heavenlyStem": "癸",
+      "earthlyBranch": "丑",
+      "liuShen": "食"
+    },
+    {
+      "startAge": 41,
+      "endAge": 50,
+      "heavenlyStem": "壬",
+      "earthlyBranch": "子",
+      "liuShen": "傷"
+    },
+    {
+      "startAge": 51,
+      "endAge": 60,
+      "heavenlyStem": "辛",
+      "earthlyBranch": "亥",
+      "liuShen": "比"
+    },
+    {
+      "startAge": 61,
+      "endAge": 70,
+      "heavenlyStem": "庚",
+      "earthlyBranch": "戌",
+      "liuShen": "劫"
+    },
+    {
+      "startAge": 71,
+      "endAge": 80,
+      "heavenlyStem": "己",
+      "earthlyBranch": "酉",
+      "liuShen": "梟"
+    }
+  ],
+  "innateHexagram": null,
+  "postnatalHexagram": null,
+  "userName": "adam",
+  "solarBirthDate": "1963-05-08T20:00:00",
+  "lunarBirthDate": "農一九六三年四月十五"
+}

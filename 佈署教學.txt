@@ -1,0 +1,184 @@
+部署到 GitHub 的完整流程與步驟
+這是一個典型的、現代化的部署流程，以將您的應用程式部署到 Azure App Service 為例（這對 .NET 應用程式非常友好），使用 Docker 容器化的方式。
+
+步驟 1：專案準備 (在本機)
+管理資料庫連接字串：
+
+絕對不要 將生產環境的資料庫密碼寫死在程式碼或 appsettings.json 中。
+
+在 appsettings.Development.json 中存放本機開發用的資料庫連線資訊。
+
+生產環境的連線字串將會透過部署平台的環境變數或密鑰管理服務來設定。
+
+appsettings.json 範例：
+
+JSON
+
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=mydatabase;Username=myuser;Password=mypassword"
+  },
+  "Logging": {
+    // ...
+  }
+}
+建立 Dockerfile： 在您的專案根目錄下建立一個名為 Dockerfile (沒有副檔名) 的檔案。這會定義如何將您的應用程式打包成一個標準化的 Docker 映像檔，讓它可以在任何地方一致地運行。
+
+Dockerfile
+
+# Dockerfile for .NET 8 Minimal API
+
+# 1. 指定建置環境的基礎映像檔
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# 2. 複製專案檔並還原 NuGet 套件
+COPY ["YourProjectName.csproj", "."]
+RUN dotnet restore "./YourProjectName.csproj"
+
+# 3. 複製所有原始碼並建置專案
+COPY . .
+WORKDIR "/src/."
+RUN dotnet build "YourProjectName.csproj" -c Release -o /app/build
+
+# 4. 發布專案
+FROM build AS publish
+RUN dotnet publish "YourProjectName.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# 5. 指定最終運行的基礎映像檔 (更輕量)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+
+# 6. 設定容器對外開放的 Port (根據你的應用程式設定)
+EXPOSE 8080
+
+# 7. 容器啟動時執行的命令
+ENTRYPOINT ["dotnet", "YourProjectName.dll"]
+注意: 請將 YourProjectName.csproj 和 YourProjectName.dll 換成您自己的專案名稱。
+
+將程式碼推送到 GitHub：
+
+Bash
+
+git init
+git add .
+git commit -m "Initial commit with .NET project and Dockerfile"
+git remote add origin https://github.com/your-username/your-repository.git
+git push -u origin main
+步驟 2：設定雲端環境 (以 Azure 為例)
+建立 Azure Container Registry (ACR): 這是一個私有的 Docker Hub，用來存放您建置好的 Docker 映像檔。
+
+建立 PostgreSQL 資料庫: 在 Azure 上建立一個 "Azure Database for PostgreSQL" 執行個體。建立後，記下它的主機名稱、使用者名稱、密碼。這就是您生產環境的資料庫。
+
+建立 Azure App Service:
+
+選擇 "Web App for Containers"。
+
+作業系統選擇 Linux。
+
+設定 App Service Plan (決定伺服器等級)。
+
+在「部署」階段可以先跳過，稍後我們會用 GitHub Actions 來處理。
+
+在 App Service 的「組態」 -> 「應用程式設定」中，新增一個名為 ConnectionStrings__DefaultConnection 的設定，其值為您剛剛建立的 Azure PostgreSQL 資料庫的連接字串。（注意 __ 雙底線是用來對應 JSON 的層級結構）。
+
+步驟 3：設定 GitHub Actions (CI/CD 自動化)
+在 GitHub Repository 設定 Secrets:
+
+到您的 GitHub Repo -> Settings -> Secrets and variables -> Actions。
+
+點擊 New repository secret，建立以下密鑰：
+
+AZURE_CREDENTIALS: 這是 Azure 的服務主體 (Service Principal) 憑證，用來授權 GitHub Actions 存取您的 Azure 資源。您需要透過 Azure CLI 來產生。
+
+ACR_LOGIN_SERVER: 您的 Azure Container Registry 的登入伺服器名稱 (例如 yourregistry.azurecr.io)。
+
+ACR_USERNAME: ACR 的使用者名稱。
+
+ACR_PASSWORD: ACR 的密碼。
+
+AZURE_WEBAPP_NAME: 您的 Azure App Service 的名稱。
+
+建立 GitHub Actions Workflow 檔案:
+
+在您的專案根目錄下，建立資料夾 .github/workflows。
+
+在裡面新增一個 YAML 檔案，例如 deploy.yml。
+
+deploy.yml 範例：
+
+YAML
+
+name: Build and Deploy .NET App to Azure
+
+on:
+  push:
+    branches: [ "main" ] # 當 main 分支有更新時觸發
+  workflow_dispatch: # 允許手動觸發
+
+jobs:
+  build-and-push-docker-image:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ secrets.ACR_LOGIN_SERVER }}
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ secrets.ACR_LOGIN_SERVER }}/your-app-name:${{ github.sha }} # 使用 commit SHA 作為標籤
+
+  deploy-to-azure:
+    runs-on: ubuntu-latest
+    needs: build-and-push-docker-image # 等待上一個 job 完成
+    environment:
+      name: 'production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    steps:
+    - name: Log in to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure App Service
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        images: '${{ secrets.ACR_LOGIN_SERVER }}/your-app-name:${{ github.sha }}'
+
+    - name: Logout from Azure
+      run: |
+        az logout
+注意: 請將 your-app-name 換成您想為映像檔設定的名稱。
+
+步驟 4：觸發部署
+現在，當您將任何變更 git push 到 main 分支時，GitHub Actions 就會自動被觸發：
+
+Build Job: 會根據您的 Dockerfile 建置一個新的 Docker 映像檔，並將其推送到您的 Azure Container Registry。
+
+Deploy Job: 會登入 Azure，並告訴您的 App Service 去拉取剛剛推送的最新映像檔來運行。
+
+您的 .NET 應用程式就會在 Azure 上運行，並透過您在 App Service 組態中設定的連接字串，連接到 Azure PostgreSQL 資料庫。
+
+總結
+GitHub: 存放您的 C# 原始碼、Dockerfile，並執行自動化部署流程 (GitHub Actions)。
+
+Docker: 將您的應用程式和其依賴打包成一個標準化、可移植的容器映像檔。
+
+雲端平台 (Azure/AWS/GCP): 提供實際運行 Docker 容器和 PostgreSQL 資料庫的伺服器環境。
+
+這個流程是目前業界的最佳實踐，能確保您的部署過程穩定、可靠且可重複。
