@@ -2,9 +2,14 @@ name: .NET CI/CD with Docker
 
 on:
   push:
-    branches: [ "main" ] # �o�̥i�H�Ȯɧ令 new-ecanapi �i�����
+    branches: [ "main" ] # 這裡可以暫時改成 new-ecanapi 進行測試
   pull_request:
     branches: [ "main" ]
+# ===== 新增此區塊 =====
+permissions:
+  contents: read
+  packages: write
+# ======================
 
 jobs:
   build-and-test:
@@ -48,5 +53,5 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true
-        tags: ghcr.io/${{ github.repository | lower }}:latest
+        push: true 
+        tags: ghcr.io/${{ github.repository }}:latest  

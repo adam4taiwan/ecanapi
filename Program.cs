@@ -131,7 +131,11 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // --- 2. 設定 HTTP 請求管線 ---
-app.UseCors("AllowNextJsLocal");  // 應用新的 CORS 政策
+// 舊程式碼
+// app.UseCors("AllowNextJsLocal");  // 應用新的 CORS 政策
+
+// 新程式碼：確保使用我們在上面定義的變數 AllowFrontendOrigins
+app.UseCors(AllowFrontendOrigins);  // 應用新的 CORS 政策
 
 if (app.Environment.IsDevelopment())
 {
