@@ -10,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using Print2Engine;
 using System.Text;
 using Ecanapi.Models.Analysis;
+using Microsoft.EntityFrameworkCore.Diagnostics; // <-- 【新增】: 為了使用 RelationalEventId
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,9 +18,17 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+{ // <-- 修正：改為塊狀語法
+    options.UseNpgsql(connectionString);
+    // 【新增】: 忽略 Pending Model Changes 警告
+    options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+});
 builder.Services.AddDbContext<CalendarDbContext>(options =>
-    options.UseNpgsql(connectionString));
+{ // <-- 修正：改為塊狀語法
+    options.UseNpgsql(connectionString);
+    // 【新增】: 忽略 Pending Model Changes 警告 (CalendarDbContext 也可能需要)
+    options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -90,16 +99,34 @@ builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
 
 // --- 更新 CORS 配置 ---
+//builder.Services.AddCors(options =>
+//{
+//    options.AddPolicy("AllowNextJsLocal", policy =>
+//    {
+//        policy.WithOrigins("http://localhost:3000")  // 允許 Next.js 本地開發端口
+//              .AllowAnyMethod()  // 允許 GET, POST 等所有方法
+//              .AllowAnyHeader()  // 允許所有標頭（如 Content-Type, Authorization）
+//              .AllowCredentials();  // 支援 JWT 認證（如需要 Cookie 或認證）
+//    });
+//});
+// --- 更新 CORS 配置 ---
+// 將策略名稱更改為更通用的 "AllowFrontend"
+var AllowFrontendOrigins = "AllowFrontendOrigins";
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowNextJsLocal", policy =>
+    // 將策略名稱改為我們新定義的變數名
+    options.AddPolicy(name: AllowFrontendOrigins, policy =>
     {
-        policy.WithOrigins("http://localhost:3000")  // 允許 Next.js 本地開發端口
-              .AllowAnyMethod()  // 允許 GET, POST 等所有方法
-              .AllowAnyHeader()  // 允許所有標頭（如 Content-Type, Authorization）
-              .AllowCredentials();  // 支援 JWT 認證（如需要 Cookie 或認證）
+        // V A L U E S  T O  C H A N G E
+        policy.WithOrigins("http://localhost:3000",                  // 1. Next.js 本地開發端口
+                           "https://myweb.fly.dev")                 // 2. 【新增】：您已部署的前端網址
+             .AllowAnyMethod()
+             .AllowAnyHeader()
+             .AllowCredentials();
     });
 });
+
 
 var app = builder.Build();
 
@@ -117,5 +144,18 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+//// --- 執行自動遷移 ---
+//using (var scope = app.Services.CreateScope())
+//{
+//    // 1. 遷移 ApplicationDbContext (用於 Identity)
+//    var appDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+//    appDb.Database.Migrate();
+
+//    // 2. 遷移 CalendarDbContext (用於 Calendar/日曆資料表)
+//    var calendarDb = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
+//    calendarDb.Database.Migrate();
+//}
+// -----------------------
 
 app.Run();
