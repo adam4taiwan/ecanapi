@@ -10,7 +10,7 @@ using Microsoft.OpenApi.Models;
 using Print2Engine;
 using System.Text;
 using Ecanapi.Models.Analysis;
-using Microsoft.EntityFrameworkCore.Diagnostics; // <-- 【新增】: 為了使用 RelationalEventId
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,22 +18,31 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{ // <-- 修正：改為塊狀語法
+{
     options.UseNpgsql(connectionString);
-    // 【新增】: 忽略 Pending Model Changes 警告
     options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 });
 builder.Services.AddDbContext<CalendarDbContext>(options =>
-{ // <-- 修正：改為塊狀語法
+{
     options.UseNpgsql(connectionString);
-    // 【新增】: 忽略 Pending Model Changes 警告 (CalendarDbContext 也可能需要)
     options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 });
 
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+// 【⭐ 修正 1：放寬 Identity 密碼策略 (解決註冊問題) ⭐】
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    // 將密碼要求放寬到與您前端要求一致，以確保註冊能成功通過 Identity 的檢查
+    options.Password.RequiredLength = 6;            // 最低長度 6 位數
+    options.Password.RequireDigit = false;          // 不強制要求數字
+    options.Password.RequireLowercase = false;      // 不強制要求小寫
+    options.Password.RequireUppercase = false;      // 不強制要求大寫
+    options.Password.RequireNonAlphanumeric = false; // 不強制要求特殊字符
+    options.User.RequireUniqueEmail = true;         // 確保 Email 唯一性
+})
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// JWT 認證配置
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -44,6 +53,18 @@ builder.Services.AddAuthentication(options =>
 {
     options.SaveToken = true;
     options.RequireHttpsMetadata = false;
+
+    // 依您成功的版本，我們優先使用 JWT:Secret
+    var jwtSecret = builder.Configuration["JWT:Secret"];
+
+    // 【💥 修正 2：添加 Null 檢查 (解決 Swagger 崩潰問題) 💥】
+    // 移除危險的 "!" 符號，並用 if 檢查取代，以防配置遺失導致運行時崩潰。
+    if (string.IsNullOrEmpty(jwtSecret))
+    {
+        // 如果為 null，拋出更明確的錯誤，方便您排查 Fly.io 的環境變數設定
+        throw new InvalidOperationException("JWT Secret 配置遺失。請確認 appsettings.json 或 Fly.io 的環境變數 JWT:Secret 是否正確設定。");
+    }
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -52,7 +73,8 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
         ValidAudience = builder.Configuration["JWT:ValidAudience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT__Secret"]!))
+        // 使用我們檢查過且確保非 null 的 jwtSecret 變數
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     };
 });
 
@@ -86,39 +108,24 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// --- 註冊您所有的自訂服務 ---
+// --- 註冊您所有的自訂服務 (保持不變) ---
 builder.Services.AddScoped<Print2Engine.IEcanCalendar, EcanCalendarAdapter>();
 builder.Services.AddScoped<Print2Engine.Print2Engine>();
 builder.Services.AddScoped<ICalendarService, CalendarService>();
 builder.Services.AddScoped<IChartService, ChartService>();
 builder.Services.AddScoped<IAstrologyService, AstrologyService>();
 builder.Services.AddScoped<IExcelExportService, ExcelExportService>();
-// 【新增】註冊新的分析服務
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
-// 【新增】註冊新的斷命分析報告服務
 builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
 
-// --- 更新 CORS 配置 ---
-//builder.Services.AddCors(options =>
-//{
-//    options.AddPolicy("AllowNextJsLocal", policy =>
-//    {
-//        policy.WithOrigins("http://localhost:3000")  // 允許 Next.js 本地開發端口
-//              .AllowAnyMethod()  // 允許 GET, POST 等所有方法
-//              .AllowAnyHeader()  // 允許所有標頭（如 Content-Type, Authorization）
-//              .AllowCredentials();  // 支援 JWT 認證（如需要 Cookie 或認證）
-//    });
-//});
-// --- 更新 CORS 配置 ---
-// 將策略名稱更改為更通用的 "AllowFrontend"
+
+// --- CORS 配置 (保持不變) ---
 var AllowFrontendOrigins = "AllowFrontendOrigins";
 
 builder.Services.AddCors(options =>
 {
-    // 將策略名稱改為我們新定義的變數名
     options.AddPolicy(name: AllowFrontendOrigins, policy =>
     {
-        // V A L U E S  T O  C H A N G E
         policy.WithOrigins("http://localhost:3000",                  // 1. Next.js 本地開發端口
                            "https://myweb.fly.dev")                 // 2. 【新增】：您已部署的前端網址
              .AllowAnyMethod()
@@ -131,11 +138,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // --- 2. 設定 HTTP 請求管線 ---
-// 舊程式碼
-// app.UseCors("AllowNextJsLocal");  // 應用新的 CORS 政策
-
-// 新程式碼：確保使用我們在上面定義的變數 AllowFrontendOrigins
-app.UseCors(AllowFrontendOrigins);  // 應用新的 CORS 政策
+app.UseCors(AllowFrontendOrigins);
 
 if (app.Environment.IsDevelopment())
 {
@@ -148,18 +151,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-//// --- 執行自動遷移 ---
-//using (var scope = app.Services.CreateScope())
-//{
-//    // 1. 遷移 ApplicationDbContext (用於 Identity)
-//    var appDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-//    appDb.Database.Migrate();
-
-//    // 2. 遷移 CalendarDbContext (用於 Calendar/日曆資料表)
-//    var calendarDb = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
-//    calendarDb.Database.Migrate();
-//}
-// -----------------------
 
 app.Run();

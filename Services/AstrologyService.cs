@@ -21,7 +21,7 @@ namespace Ecanapi.Services
 
         #region --- Bazi & Brightness Data ---
         private static readonly Dictionary<string, string> NaYinMap = new Dictionary<string, string> { { "甲子", "海中金" }, { "乙丑", "海中金" }, { "丙寅", "爐中火" }, { "丁卯", "爐中火" }, { "戊辰", "大林木" }, { "己巳", "大林木" }, { "庚午", "路旁土" }, { "辛未", "路旁土" }, { "壬申", "劍鋒金" }, { "癸酉", "劍鋒金" }, { "甲戌", "山頭火" }, { "乙亥", "山頭火" }, { "丙子", "澗下水" }, { "丁丑", "澗下水" }, { "戊寅", "城頭土" }, { "己卯", "城頭土" }, { "庚辰", "白蠟金" }, { "辛巳", "白蠟金" }, { "壬午", "楊柳木" }, { "癸未", "楊柳木" }, { "甲申", "泉中水" }, { "乙酉", "泉中水" }, { "丙戌", "屋上土" }, { "丁亥", "屋上土" }, { "戊子", "霹靂火" }, { "己丑", "霹靂火" }, { "庚寅", "松柏木" }, { "辛卯", "松柏木" }, { "壬辰", "長流水" }, { "癸巳", "長流水" }, { "甲午", "沙中金" }, { "乙未", "沙中金" }, { "丙申", "山下火" }, { "丁酉", "山下火" }, { "戊戌", "平地木" }, { "己亥", "平地木" }, { "庚子", "壁上土" }, { "辛丑", "壁上土" }, { "壬寅", "金箔金" }, { "癸卯", "金箔金" }, { "甲辰", "覆燈火" }, { "乙巳", "覆燈火" }, { "丙午", "天河水" }, { "丁未", "天河水" }, { "戊申", "大驛土" }, { "己酉", "大驛土" }, { "庚戌", "釵釧金" }, { "辛亥", "釵釧金" }, { "壬子", "桑柘木" }, { "癸丑", "桑柘木" }, { "甲寅", "大溪水" }, { "乙卯", "大溪水" }, { "丙辰", "沙中土" }, { "丁巳", "沙中土" }, { "戊午", "天上火" }, { "己未", "天上火" }, { "庚申", "石榴木" }, { "辛酉", "石榴木" }, { "壬戌", "大海水" }, { "癸亥", "大海水" } };
-        private static readonly Dictionary<int, string[]> HiddenStemsMap = new Dictionary<int, string[]> { { 1, new[] { "癸" } }, { 2, new[] { "己", "癸", "辛" } }, { 3, new[] { "戊", "丙", "甲" } }, { 4, new[] { "乙" } }, { 5, new[] { "戊", "乙", "癸" } }, { 6, new[] { "庚", "丙", "戊" } }, { 7, new[] { "丁", "己" } }, { 8, new[] { "己", "丁", "乙" } }, { 9, new[] { "壬", "庚", "戊" } }, { 10, new[] { "辛" } }, { 11, new[] { "戊", "辛", "丁" } }, { 12, new[] { "壬", "甲" } } };
+        private static readonly Dictionary<int, string[]> HiddenStemsMap = new Dictionary<int, string[]> { { 1, new[] { "癸" } }, { 2, new[] { "己", "癸", "辛" } }, { 3, new[] { "甲", "丙", "戊" } }, { 4, new[] { "乙" } }, { 5, new[] { "戊", "乙", "癸" } }, { 6, new[] { "丙", "戊", "庚" } }, { 7, new[] { "丁", "己" } }, { 8, new[] { "己", "乙", "丁" } }, { 9, new[] { "庚", "壬", "戊" } }, { 10, new[] { "辛" } }, { 11, new[] { "戊", "辛", "丁" } }, { 12, new[] { "壬", "甲" } } };
         private string GetLiuShen(string dayMasterGan, string otherGan) { if (dayMasterGan == otherGan) return "比"; int dayMasterIndex = "甲乙丙丁戊己庚辛壬癸".IndexOf(dayMasterGan); int otherIndex = "甲乙丙丁戊己庚辛壬癸".IndexOf(otherGan); int dayMasterWuXing = dayMasterIndex / 2; int otherWuXing = otherIndex / 2; bool isDayMasterYang = dayMasterIndex % 2 == 0; bool isOtherYang = otherIndex % 2 == 0; if (otherWuXing == (dayMasterWuXing + 1) % 5) return isDayMasterYang == isOtherYang ? "食" : "傷"; if (otherWuXing == (dayMasterWuXing + 2) % 5) return isDayMasterYang == isOtherYang ? "才" : "財"; if (otherWuXing == (dayMasterWuXing + 3) % 5) return isDayMasterYang == isOtherYang ? "殺" : "官"; if (otherWuXing == (dayMasterWuXing + 4) % 5) return isDayMasterYang == isOtherYang ? "梟" : "印"; return "劫"; }
         private static readonly string[] S_SKY = { "", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
         private static readonly string[] S_FLOOR = { "", "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
@@ -218,9 +218,29 @@ namespace Ecanapi.Services
             if (yearZhi == 3 || yearZhi == 7 || yearZhi == 11) return 9; // 寅午戌 (3, 7, 11) -> 申 (9)
             if (yearZhi == 9 || yearZhi == 1 || yearZhi == 5) return 3; // 申子辰 (9, 1, 5) -> 寅 (3)
             if (yearZhi == 6 || yearZhi == 10 || yearZhi == 2) return 12; // 巳酉丑 (6, 10, 2) -> 亥 (12)
+            if (yearZhi == 12 || yearZhi == 4 || yearZhi == 8) return 6; // 亥卯未 (12, 4, 8) -> 巳 (6)
             return 6; // 亥卯未 (12, 4, 8) -> 巳 (6)
         }
+        // ==========================================================
+        // 【修正方法】: 根據農曆月份計算天巫位置 (輸入為農曆月份 1-12)
+        // 口訣：正五九月在巳(6)，二六十月在申(9)，三七十一在寅(3)，四八十二在亥(12)。
+        // ==========================================================
+        private int PlaceTienWu(int month)
+        {
+            // 農曆月份 1, 5, 9 -> 巳宮 (6)
+            if (month == 1 || month == 5 || month == 9) return 6;
 
+            // 農曆月份 2, 6, 10 -> 申宮 (9)
+            if (month == 2 || month == 6 || month == 10) return 9;
+
+            // 農曆月份 3, 7, 11 -> 寅宮 (3)
+            if (month == 3 || month == 7 || month == 11) return 3;
+
+            // 農曆月份 4, 8, 12 -> 亥宮 (12)
+            if (month == 4 || month == 8 || month == 12) return 12;
+
+            return 0;
+        }
         // ==========================================================
         // 【新增方法】: 根據生月計算天月位置
         // 口訣：一犬二蛇三在龍四虎五羊六兔宮七豬八羊九在虎十馬冬犬臘寅中
@@ -293,7 +313,85 @@ namespace Ecanapi.Services
                 default: return 0;
             }
         }
+        // ==========================================================
+        // 【新增方法】: 根據生年地支計算火星起點宮位
+        // 口訣：申子辰人寅戌揚（火寅起，鈴戌起），寅午戌人丑卯方（火丑起，鈴卯起）...
+        // 火星：申子辰 -> 寅(3) | 寅午戌 -> 丑(2) | 巳酉丑 -> 卯(4) | 亥卯未 -> 戌(11)
+        // ==========================================================
+        private int PlaceHuoXingStart(int yearZhi)
+        {
+            if (yearZhi == 9 || yearZhi == 1 || yearZhi == 5) return 3; // 申子辰 -> 寅(3)
+            if (yearZhi == 3 || yearZhi == 7 || yearZhi == 11) return 2; // 寅午戌 -> 丑(2)
+            if (yearZhi == 6 || yearZhi == 10 || yearZhi == 2) return 4; // 巳酉丑 -> 卯(4)
+            if (yearZhi == 12 || yearZhi == 4 || yearZhi == 8) return 10; // 亥卯未 -> 戌(11)
+            return 10; // 亥卯未 -> 戌(11)
+        }
 
+        // ==========================================================
+        // 【新增方法】: 根據生年地支計算鈴星起點宮位
+        // 口訣：申子辰人寅戌揚（火寅起，鈴戌起），寅午戌人丑卯方（火丑起，鈴卯起）...
+        // 鈴星：申子辰 -> 戌(11) | 寅午戌 -> 卯(4) | 巳酉丑 -> 戌(11) | 亥卯未 -> 卯(4)
+        // ==========================================================
+        private int PlaceLingXingStart(int yearZhi)
+        {
+            if (yearZhi == 9 || yearZhi == 1 || yearZhi == 5) return 11; // 申子辰 -> 戌(11)
+            if (yearZhi == 3 || yearZhi == 7 || yearZhi == 11) return 4; // 寅午戌 -> 卯(4)
+            if (yearZhi == 6 || yearZhi == 10 || yearZhi == 2) return 11; // 巳酉丑 -> 戌(11)
+            if (yearZhi == 12 || yearZhi == 4 || yearZhi == 8) return 11; // 亥卯未 -> 戌(11)
+            return 4; // 亥卯未 -> 卯(4)
+        }
+        // ==========================================================
+        // 【新增方法】: 根據生年天干計算天魁天鉞位置
+        // 口訣：甲戊庚牛羊，乙己鼠猴鄉，丙丁豬雞位，壬癸兔蛇藏，辛年逢馬虎
+        // ==========================================================
+        private (int KuiPos, int YuePos) PlaceKuiYue(int yearGan)
+        {
+            switch (yearGan)
+            {
+                case 1: // 甲
+                case 5: // 戊
+                case 7: // 庚
+                    return (2, 8); // 丑(牛), 未(羊)
+                case 2: // 乙
+                case 6: // 己
+                    return (1, 9); // 子(鼠), 申(猴)
+                case 3: // 丙
+                case 4: // 丁
+                    return (12, 10); // 亥(豬), 酉(雞)
+                case 9: // 壬
+                case 10: // 癸
+                    return (4, 6); // 卯(兔), 巳(蛇)
+                case 8: // 辛
+                    return (7, 3); // 午(馬), 寅(虎)
+                default:
+                    return (0, 0);
+            }
+        }
+        // ==========================================================
+        // 【新增方法】: 根據生年干支計算旬空位置 (旬中空亡)
+        // 口訣：從年干支順數至癸止，後兩位即是空亡。
+        // ==========================================================
+        private (int Pos1, int Pos2) PlaceXunKong(int yearGan, int yearZhi)
+        {
+            // Start at yearZhi (1-12) with yearGan (1-10).
+            int currentZhi = yearZhi;
+            int currentGan = yearGan;
+
+            // Advance until the stem reaches 癸 (10)
+            while (currentGan <= 10)
+            {
+                currentZhi = PalaceWrap(currentZhi + 1); // Move to the next branch
+                currentGan++; // Move to the next stem
+            }
+
+            // currentZhi is now the branch immediately following 癸. This is the first empty branch.
+            int pos1 = currentZhi;
+
+            // The second empty branch is the one after the first.
+            int pos2 = PalaceWrap(pos1 + 1);
+
+            return (pos1, pos2);
+        }
         // ==========================================================
         // 【新增方法】: 根據生月計算解神位置
         // 口訣：正二在申, 三四在戌, 五六在子, 七八在寅, 九十月坐於辰宮, 十一十二在午宮
@@ -332,18 +430,44 @@ namespace Ecanapi.Services
             int WenChangPos = context.WenChangPos;
             int WenQuPos = context.WenQuPos;
             // context.GoodStars[PalaceWrap(context.WenChangPos + day - 2)] += "恩 "; context.GoodStars[PalaceWrap(context.WenQuPos + day - 2)] += "貴 ";
-            if (yearGan % 2 != 0) { context.SecondaryStars[PalaceWrap(2 + (yearGan + 1) / 2 - 1)] += "魁 "; context.SecondaryStars[PalaceWrap(8 - ((yearGan + 1) / 2 - 1))] += "鉞 "; } else { context.SecondaryStars[PalaceWrap(9 - (yearGan / 2 - 1))] += "魁 "; context.SecondaryStars[PalaceWrap(3 + (yearGan / 2 - 1))] += "鉞 "; }
+            //if (yearGan % 2 != 0) { context.SecondaryStars[PalaceWrap(2 + (yearGan + 1) / 2 - 1)] += "魁 "; context.SecondaryStars[PalaceWrap(8 - ((yearGan + 1) / 2 - 1))] += "鉞 "; } else { context.SecondaryStars[PalaceWrap(9 - (yearGan / 2 - 1))] += "魁 "; context.SecondaryStars[PalaceWrap(3 + (yearGan / 2 - 1))] += "鉞 "; }
+            // ------------------------------------------------------------------
+            // 【修正】天魁、天鉞 (論生年干)
+            // ------------------------------------------------------------------
+            // ------------------------------------------------------------------
+            // 【修正】天魁、天鉞 (論生年干)
+            // ------------------------------------------------------------------
+            var (tiKuiPos, tiYuePos) = PlaceKuiYue(yearGan);
+
+            // 天魁 安入 SmallStars
+            context.SecondaryStars[tiKuiPos] = (string.IsNullOrEmpty(context.SecondaryStars[tiKuiPos]) ? "" : context.SecondaryStars[tiKuiPos] + " ") + "魁";
+            // 天鉞 安入 SmallStars
+            context.SecondaryStars[tiYuePos] = (string.IsNullOrEmpty(context.SecondaryStars[tiYuePos]) ? "" : context.SecondaryStars[tiYuePos] + " ") + "鉞"; 
             int luCunPos = 0; switch (yearGan) { case 1: luCunPos = 3; break; case 2: luCunPos = 4; break; case 3: luCunPos = 6; break; case 4: luCunPos = 7; break; case 5: luCunPos = 6; break; case 6: luCunPos = 7; break; case 7: luCunPos = 9; break; case 8: luCunPos = 10; break; case 9: luCunPos = 12; break; case 10: luCunPos = 1; break; }
             context.LuCunPos = luCunPos;
             context.SecondaryStars[luCunPos] += "祿 "; context.BadStars[PalaceWrap(luCunPos + 1)] += "羊 "; context.BadStars[PalaceWrap(luCunPos - 1)] += "陀 ";
             int huoPosBase = new int[] { 2, 3, 4, 10, 2, 3, 4, 10, 2, 3, 4, 10 }[yearZhi - 1];
             int lingPosBase = new int[] { 4, 11, 11, 11, 4, 11, 11, 11, 4, 11, 11, 11 }[yearZhi - 1];
-            context.BadStars[PalaceWrap(huoPosBase + hour - 1)] += "火 "; context.BadStars[PalaceWrap(lingPosBase - (hour - 1))] += "鈴 ";
-            context.BadStars[hourZhi] += "劫 "; context.BadStars[PalaceWrap(2 + 12 - hourZhi)] += "空 ";
+            // ------------------------------------------------------------------
+            // 【修正】火星、鈴星 (論生年支、生時)
+            // ------------------------------------------------------------------
+            int huoStartPos = PlaceHuoXingStart(yearZhi);
+            int lingStartPos = PlaceLingXingStart(yearZhi);
+
+            // 火星：從起點順數至生時
+            //int huoPos = PalaceWrap(huoStartPos + hourZhi - 1);
+            // 鈴星：從起點順數至生時
+            //int lingPos = PalaceWrap(lingStartPos + hourZhi - 1);
+
+            //context.BadStars[huoPos] += "火 ";
+            // 鈴星 安入 SmallStars
+            //context.SmallStars[lingPos] = (string.IsNullOrEmpty(context.SmallStars[lingPos]) ? "" : context.SmallStars[lingPos] + " ") + "鈴";
+            context.BadStars[PalaceWrap(huoStartPos + hour - 1)] += "火 "; context.BadStars[PalaceWrap(lingStartPos + hour - 1)] += "鈴 ";
+            // context.BadStars[hourZhi] += "劫 "; context.BadStars[PalaceWrap(2 + 12 - hourZhi)] += "空 ";
             System.Action<string, string> AddFourTransformation = (starName, transType) => { for (int i = 1; i <= 12; i++) { string allStarsInPalace = context.CCM[i] + context.CCN[i] + context.SecondaryStars[i]; if (allStarsInPalace.Contains(starName)) { context.FourTransformationStars[i] += transType; return; } } };
             switch (yearGan) { case 1: AddFourTransformation("廉", "祿"); AddFourTransformation("破", "權"); AddFourTransformation("武", "科"); AddFourTransformation("陽", "忌"); break; case 2: AddFourTransformation("機", "祿"); AddFourTransformation("梁", "權"); AddFourTransformation("紫", "科"); AddFourTransformation("陰", "忌"); break; case 3: AddFourTransformation("同", "祿"); AddFourTransformation("機", "權"); AddFourTransformation("昌", "科"); AddFourTransformation("廉", "忌"); break; case 4: AddFourTransformation("陰", "祿"); AddFourTransformation("同", "權"); AddFourTransformation("機", "科"); AddFourTransformation("巨", "忌"); break; case 5: AddFourTransformation("貪", "祿"); AddFourTransformation("陰", "權"); AddFourTransformation("右", "科"); AddFourTransformation("機", "忌"); break; case 6: AddFourTransformation("武", "祿"); AddFourTransformation("貪", "權"); AddFourTransformation("梁", "科"); AddFourTransformation("曲", "忌"); break; case 7: AddFourTransformation("陽", "祿"); AddFourTransformation("武", "權"); AddFourTransformation("陰", "科"); AddFourTransformation("同", "忌"); break; case 8: AddFourTransformation("巨", "祿"); AddFourTransformation("陽", "權"); AddFourTransformation("曲", "科"); AddFourTransformation("昌", "忌"); break; case 9: AddFourTransformation("梁", "祿"); AddFourTransformation("紫", "權"); AddFourTransformation("左", "科"); AddFourTransformation("武", "忌"); break; case 10: AddFourTransformation("破", "祿"); AddFourTransformation("巨", "權"); AddFourTransformation("陰", "科"); AddFourTransformation("貪", "忌"); break; }
 
-            string[] doctorStars = { "博", "力", "青", "小", "將", "奏", "蜚", "喜", "病", "大", "伏", "官" };
+            string[] doctorStars = { "博", "力", "青", "小", "將", "奏", "飛", "吉", "病", "大", "伏", "官" };
             string[] ageStars = { "歲", "晦", "喪", "貫", "官", "小", "大", "龍", "虎", "德", "弔", "病" };
             string[] generalStars = { "將", "鞍", "驛", "息", "蓋", "劫", "災", "天", "指", "咸", "月", "亡" };
             bool isForward = (context.Request.Gender == 1 && (yearGan % 2 != 0)) || (context.Request.Gender == 2 && (yearGan % 2 == 0));
@@ -362,29 +486,29 @@ namespace Ecanapi.Services
             }
 
             context.BadStars[PalaceWrap(5 - yearZhi)] += "鸞 "; context.GoodStars[PalaceWrap(11 - yearZhi)] += "喜 ";
-            context.BadStars[PalaceWrap(7 + yearZhi - 1)] += "哭 "; context.BadStars[PalaceWrap(7 - (yearZhi - 1))] += "虛 ";
+            context.BadStars[PalaceWrap(7 - yearZhi + 1)] += "哭 "; context.BadStars[PalaceWrap(7 + (yearZhi - 1))] += "虛 ";
             context.GoodStars[PalaceWrap(5 + yearZhi - 1)] += "龍 "; context.GoodStars[PalaceWrap(11 - (yearZhi - 1))] += "鳳 ";
             int[] guPosMap = { 3, 3, 3, 6, 6, 6, 9, 9, 9, 12, 12, 12 }; int[] guaPosMap = { 11, 11, 11, 2, 2, 2, 5, 5, 5, 8, 8, 8 };
             context.BadStars[guPosMap[yearZhi - 1]] += "孤 "; context.BadStars[guaPosMap[yearZhi - 1]] += "寡 ";
             context.GoodStars[PalaceWrap(context.ZuoFuPos + day - 1)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day + 1)] += "八 ";
             //少判斷文昌文曲在命宮或身宮時，不加恩貴
-            context.GoodStars[PalaceWrap(WenChangPos + day - 2)] += "恩 "; // context.GoodStars[PalaceWrap(WenQuPos + day)] += "貴 ";
-            if (WenQuPos != -1)
-            {
-                // 1. 從文曲宮(wenQuPos)起算初一
-                // 2. 順數到生日 (lunarDay)
-                // 3. 退一步 (逆數一宮)
-                int stepForward = day - 1; // 從初一(0步)到生日(lunarDay-1步)
-                int tianGuiPos = (WenQuPos + stepForward - 1) % 12 + 1; // 順數到生日所在宮位
+            context.GoodStars[PalaceWrap(WenChangPos + day - 2)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 2)] += "貴 ";
+            //if (WenQuPos != -1)
+            //{
+            //    // 1. 從文曲宮(wenQuPos)起算初一
+            //    // 2. 順數到生日 (lunarDay)
+            //    // 3. 退一步 (逆數一宮)
+            //    int stepForward = day - 1; // 從初一(0步)到生日(lunarDay-1步)
+            //    int tianGuiPos = (WenQuPos + stepForward - 1) % 12 + 1; // 順數到生日所在宮位
 
-                // 再退一步 (逆時針一宮)
-                tianGuiPos = tianGuiPos + 1;
-                if (tianGuiPos == 0) tianGuiPos = 12;
-                context.GoodStars[tianGuiPos] += (string.IsNullOrEmpty(context.GoodStars[tianGuiPos]) ? "" : "貴") ;
-            }
+            //    // 再退一步 (逆時針一宮)
+            //    tianGuiPos = tianGuiPos + 1;
+            //    if (tianGuiPos == 0) tianGuiPos = 12;
+            //    context.GoodStars[tianGuiPos] += (string.IsNullOrEmpty(context.GoodStars[tianGuiPos]) ? "" : "貴") ;
+            //}
             // context.GoodStars[PalaceWrap(context.WenChangPos + day - 2)] += "恩 "; context.GoodStars[PalaceWrap(context.WenQuPos + day - 2)] += "貴 ";
-            context.GoodStars[PalaceWrap(context.MingGongIndex + day - 1)] += "才 ";
-            context.GoodStars[PalaceWrap(context.ShenGongIndex + day - 1)] += "壽 ";
+            context.GoodStars[PalaceWrap(context.MingGongIndex + yearZhi - 1)] += "才 ";
+            context.GoodStars[PalaceWrap(context.ShenGongIndex + yearZhi - 1)] += "壽 ";
 
             // --- 【修正】地劫、天空 (論生時) ---
             // 口訣：亥上起子順安劫，逆去便是地空鄉。
@@ -409,8 +533,8 @@ namespace Ecanapi.Services
                                                         // 封誥：起寅宮(3)順數到生時
             int fengGaoPos = (3 + hourBranchNum - 1) % 12;// + 1; // 3(寅) + hour - 1 (起數在寅=3)
 
-            context.SmallStars[taiFuPos] += (string.IsNullOrEmpty(context.SmallStars[taiFuPos]) ? "" : "|") + "輔";
-            context.SmallStars[fengGaoPos] += (string.IsNullOrEmpty(context.SmallStars[fengGaoPos]) ? "" : "|") + "誥";
+            context.GoodStars[taiFuPos] += (string.IsNullOrEmpty(context.GoodStars[taiFuPos]) ? "" : " ") + "輔";
+            context.GoodStars[fengGaoPos] += (string.IsNullOrEmpty(context.GoodStars[fengGaoPos]) ? "" : " ") + "誥";
 
             // ==========================================================
             // 【新增星曜的安星邏輯】
@@ -418,11 +542,15 @@ namespace Ecanapi.Services
 
             // 1. 天馬 (論年支)
             int tianMaPos = PlaceTienMa(yearZhi);
-            context.SmallStars[tianMaPos] = (string.IsNullOrEmpty(context.SmallStars[tianMaPos]) ? "" : context.SmallStars[tianMaPos] + "|") + "馬";
+            context.GoodStars[tianMaPos] = (string.IsNullOrEmpty(context.GoodStars[tianMaPos]) ? "" : context.GoodStars[tianMaPos] + " ") + "馬";
 
             // 2. 天月 (論生月)
             int tianYuePos = PlaceTienYue(month);
-            context.SmallStars[tianYuePos] = (string.IsNullOrEmpty(context.SmallStars[tianYuePos]) ? "" : context.SmallStars[tianYuePos] + "|") + "月";
+            context.BadStars[tianYuePos] = (string.IsNullOrEmpty(context.BadStars[tianYuePos]) ? "" : context.BadStars[tianYuePos] + " ") + "月";
+
+            // **17. 天巫 (Tien Wu) -> 巫** (修正：使用農曆月份 month)
+            int tienWuPos = PlaceTienWu(month);
+            context.BadStars[tienWuPos] = (string.IsNullOrEmpty(context.BadStars[tienWuPos]) ? "" : context.BadStars[tienWuPos] + " ") + "巫";
 
             // 3. 天哭、天虛 (論年支) (保留原邏輯並加入SmallStars)
             // 原有邏輯：
@@ -431,42 +559,71 @@ namespace Ecanapi.Services
             int tianKuPos = PalaceWrap(7 + yearZhi - 1); // 午(7)起子年，順行年支 (天哭逆行) -> 應為 7 - (yearZhi - 1)
             int tianXuPos = PalaceWrap(7 - (yearZhi - 1)); // 午(7)起子年，逆行年支 (天虛順轉) -> 應為 7 + (yearZhi - 1)
 
-            // 根據「哭逆行兮虛順轉，數到生年便停留」的常見理解：
-            // 午宮起子年（子=1），哭逆轉，虛順轉
-            tianKuPos = PalaceWrap(7 - (yearZhi - 1));
-            tianXuPos = PalaceWrap(7 + (yearZhi - 1));
+            //// 根據「哭逆行兮虛順轉，數到生年便停留」的常見理解：
+            //// 午宮起子年（子=1），哭逆轉，虛順轉
+            //tianKuPos = PalaceWrap(7 + (yearZhi - 1));
+            //tianXuPos = PalaceWrap(7 - (yearZhi - 1));
 
-            context.SmallStars[tianKuPos] = (string.IsNullOrEmpty(context.SmallStars[tianKuPos]) ? "" : context.SmallStars[tianKuPos] + "|") + "哭";
-            context.SmallStars[tianXuPos] = (string.IsNullOrEmpty(context.SmallStars[tianXuPos]) ? "" : context.SmallStars[tianXuPos] + "|") + "虛";
+            //context.BadStars[tianKuPos] = (string.IsNullOrEmpty(context.BadStars[tianKuPos]) ? "" : context.BadStars[tianKuPos] + " ") + "哭";
+            //context.BadStars[tianXuPos] = (string.IsNullOrEmpty(context.BadStars[tianXuPos]) ? "" : context.BadStars[tianXuPos] + " ") + "虛";
 
-            // 4. 旬空 (以截路空亡處理，論年干)
+            // 4. (以截路空亡處理，論年干)
             var (jieLu1, jieLu2) = PlaceJieLuKongWang(yearGan);
-            if (jieLu1 != 0) context.SmallStars[jieLu1] = (string.IsNullOrEmpty(context.SmallStars[jieLu1]) ? "" : context.SmallStars[jieLu1] + "|") + "截";
-            if (jieLu2 != 0) context.SmallStars[jieLu2] = (string.IsNullOrEmpty(context.SmallStars[jieLu2]) ? "" : context.SmallStars[jieLu2] + "|") + "路";
+            if (yearGan == 1 | yearGan == 3 | yearGan == 5 | yearGan == 7 | yearGan == 9 | yearGan == 11)
+            {
+                if (jieLu1 != 0) context.BadStars[jieLu1] = (string.IsNullOrEmpty(context.BadStars[jieLu1]) ? "" : context.BadStars[jieLu1] + " ") + "截";
+            }
+            else
+            {
+                if (jieLu2 != 0) context.BadStars[jieLu2] = (string.IsNullOrEmpty(context.BadStars[jieLu2]) ? "" : context.BadStars[jieLu2] + " ") + "截";
+            }
 
+            // ==========================================================
+            // 【13. 旬空 (Xun Kong) -> 旬 (修正邏輯，放入 BadStars)】
+            // ==========================================================
+            var (xunKongPos1, xunKongPos2) = PlaceXunKong(yearGan, yearZhi);
+            bool isYearGanYang = yearGan % 2 != 0;
+            int xunKongTargetPos = 0;
+
+            // 陽年空陽支 (陽支: 1, 3, 5, 7, 9, 11 - 奇數宮位)
+            // 陰年空陰支 (陰支: 2, 4, 6, 8, 10, 12 - 偶數宮位)
+            if (isYearGanYang)
+            {
+                // 陽年取陽支 (奇數)
+                xunKongTargetPos = (xunKongPos1 % 2 != 0) ? xunKongPos1 : xunKongPos2;
+            }
+            else
+            {
+                // 陰年取陰支 (偶數)
+                xunKongTargetPos = (xunKongPos1 % 2 == 0) ? xunKongPos1 : xunKongPos2;
+            }
+            if (xunKongTargetPos != 0)
+            {
+                context.BadStars[xunKongTargetPos] += "旬 ";
+            }
             // 5. 破碎 (論年支)
             int poSuiPos = PlacePoSui(yearZhi);
-            context.SmallStars[poSuiPos] = (string.IsNullOrEmpty(context.SmallStars[poSuiPos]) ? "" : context.SmallStars[poSuiPos] + "|") + "碎";
+            context.BadStars[poSuiPos] = (string.IsNullOrEmpty(context.BadStars[poSuiPos]) ? "" : context.BadStars[poSuiPos] + " ") + "碎";
 
-            // 6. 天壽 (論身宮，年支) (保留原邏輯並加入SmallStars)
-            // 原有邏輯： context.GoodStars[PalaceWrap(context.ShenGongIndex + day - 1)] += "壽 ";
-            // 修正為：
-            int tianShouPos = PalaceWrap(context.ShenGongIndex + yearZhi - 1); // 身宮起子年，順行年支
-            context.SmallStars[tianShouPos] = (string.IsNullOrEmpty(context.SmallStars[tianShouPos]) ? "" : context.SmallStars[tianShouPos] + "|") + "壽";
+            //// 6. 天壽 (論身宮，年支) (保留原邏輯並加入SmallStars)
+            //// 原有邏輯： context.GoodStars[PalaceWrap(context.ShenGongIndex + day - 1)] += "壽 ";
+            //// 修正為：
+            //int tianShouPos = PalaceWrap(context.ShenGongIndex + yearZhi - 1); // 身宮起子年，順行年支
+            //context.SmallStars[tianShouPos] = (string.IsNullOrEmpty(context.SmallStars[tianShouPos]) ? "" : context.SmallStars[tianShouPos] + " ") + "壽";
 
-            // 7. 天才 (論命宮，年支) (保留原邏輯並加入SmallStars)
-            // 原有邏輯： context.GoodStars[PalaceWrap(context.MingGongIndex + day - 1)] += "才 ";
-            // 修正為：
-            int tianCaiPos = PalaceWrap(context.MingGongIndex + yearZhi - 1); // 命宮起子年，順行年支
-            context.SmallStars[tianCaiPos] = (string.IsNullOrEmpty(context.SmallStars[tianCaiPos]) ? "" : context.SmallStars[tianCaiPos] + "|") + "才";
+            //// 7. 天才 (論命宮，年支) (保留原邏輯並加入SmallStars)
+            //// 原有邏輯： context.GoodStars[PalaceWrap(context.MingGongIndex + day - 1)] += "才 ";
+            //// 修正為：
+            //int tianCaiPos = PalaceWrap(context.MingGongIndex + yearZhi - 1); // 命宮起子年，順行年支
+            //context.SmallStars[tianCaiPos] = (string.IsNullOrEmpty(context.SmallStars[tianCaiPos]) ? "" : context.SmallStars[tianCaiPos] + " ") + "才";
 
             // 8. 陰煞 (論生月)
             int yinShaPos = PlaceYinSha(month);
-            context.SmallStars[yinShaPos] = (string.IsNullOrEmpty(context.SmallStars[yinShaPos]) ? "" : context.SmallStars[yinShaPos] + "|") + "陰";
+            context.BadStars[yinShaPos] = (string.IsNullOrEmpty(context.BadStars[yinShaPos]) ? "" : context.BadStars[yinShaPos] + " ") + "煞";
 
             // 9. 解神 (論生月)
             int jieShenPos = PlaceJieShen(month);
-            context.SmallStars[jieShenPos] = (string.IsNullOrEmpty(context.SmallStars[jieShenPos]) ? "" : context.SmallStars[jieShenPos] + "|") + "解";
+            context.GoodStars[jieShenPos] = (string.IsNullOrEmpty(context.GoodStars[jieShenPos]) ? "" : context.GoodStars[jieShenPos] + " ") + "解";
         }
         private void DetermineDecadeLuckCycles(AstrologyCalculationContext context)
         {
