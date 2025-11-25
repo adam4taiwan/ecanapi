@@ -33,6 +33,7 @@ namespace Ecanapi.Services.AstrologyEngine
         public string WuXingJuText { get; set; }
         public string MingZhu { get; set; }
         public string ShenZhu { get; set; }
+
         public string[] FourTransformationStars { get; set; } = new string[13];
         public string[] SecondaryStars { get; set; } = new string[13];
         public string[] MainStarBrightness { get; set; } = new string[13];
@@ -48,7 +49,8 @@ namespace Ecanapi.Services.AstrologyEngine
         public string[] GoodStars { get; set; } = new string[13];
         public string[] BadStars { get; set; } = new string[13];
         public string[] SmallStars { get; set; } = new string[13];
-
+        public string? LunarBirthDate { get; set; }
+        // ...
         public AstrologyCalculationContext(AstrologyRequest request)
         {
             Request = request;
@@ -69,13 +71,14 @@ namespace Ecanapi.Services.AstrologyEngine
             var emptyPillar = new PillarInfo("", "", "", "", new List<string>());
             var emptyBazi = new BaziInfo(emptyPillar, emptyPillar, emptyPillar, emptyPillar, "", "");
 
-            Result = new AstrologyChartResult(
+        Result = new AstrologyChartResult(
                 emptyBazi,
                 new List<ZiWeiPalace>(),
                 "", // WuXingJuText
                 "", // MingZhu
                 "", // ShenZhu
                 new List< BaziLuckCycle > (), // <--- 新增八字大運列表
+                new List<string>(), //【新增 1：八字星煞】
                 null,
                 null,
                 request.Name,

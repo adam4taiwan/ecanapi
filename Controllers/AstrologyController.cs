@@ -1,5 +1,6 @@
 ﻿using Ecanapi.Models;
 using Ecanapi.Services;
+using Ecanapi.Services.AstrologyEngine;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using System.IO;
@@ -39,6 +40,29 @@ namespace Ecanapi.Controllers
             return Ok(result);
         }
 
+        [HttpPost("calculateFull")]
+        public async Task<IActionResult> CalculateFull([FromBody] AstrologyRequest request, int fromYear, int toYear)
+        {
+            // 呼叫原本的八字命盤分析
+            var context = new AstrologyCalculationContext(request);
+            var chartResult = await _astrologyService.CalculateChartAsync(request);
+            BaziInfo bazi = chartResult.Bazi;
+            string dayStem = bazi.DayPillar.HeavenlyStem;
+            // 從八字 context 取得 cue3（如 context.CUE3 為日主天干index）
+            //string[] GAN = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+            //string dayStem = GAN[context.CUE3];
+
+            // 呼叫新批次流年六神
+            var annualLuckList = _astrologyService.GenerateAnnualLucks(fromYear, toYear, dayStem);
+
+            // 回傳合併內容
+            return Ok(new
+            {
+                Chart = chartResult,
+                AnnualLucks = annualLuckList
+            });
+        }
+
         [HttpPost("export")]
         public async Task<IActionResult> ExportChart([FromBody] AstrologyRequest request)
         {
@@ -74,5 +98,18 @@ namespace Ecanapi.Controllers
             // 4. 將 byte 陣列作為 Word 檔案回傳給前端，觸發下載
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", exportFileName);
         }
+        [HttpGet("ExportAnnualLuckJson")]
+        public IActionResult ExportAnnualLuckJson(int fromYear, int toYear, string fileName, int cue3)
+        {
+            string[] GAN = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+            string dayStem = GAN[cue3]; // cue3 為日干從 0~9
+            var data = _astrologyService.GenerateAnnualLucks(fromYear, toYear, dayStem);
+            string savePath = Path.Combine("D:\\AstroOutput", fileName + ".json");
+            _astrologyService.ExportAnnualLucksJson(data, savePath);
+            return Ok(new { output = savePath, count = data.Count });
+        }
+
+
+
     }
 }

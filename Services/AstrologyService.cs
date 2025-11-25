@@ -1,17 +1,170 @@
 ﻿using Ecan;
 using Ecanapi.Data;
 using Ecanapi.Models;
+using Ecanapi.Models.Ecanapi.Models;
 using Ecanapi.Services.AstrologyEngine;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Ecanapi.Services
 {
     public class AstrologyService : IAstrologyService
     {
+        private static readonly Dictionary<string, List<string>> BranchToHiddenStems = new()
+        {
+            {"子", new List<string> { "癸" }},
+            {"丑", new List<string> { "己", "癸", "辛" }},
+            {"寅", new List<string> { "甲", "丙", "戊" }},
+            {"卯", new List<string> { "乙" }},
+            {"辰", new List<string> { "戊", "乙", "癸" }},
+            {"巳", new List<string> { "丙", "戊", "庚" }},
+            {"午", new List<string> { "丁", "己" }},
+            {"未", new List<string> { "己", "乙", "丁" }},
+            {"申", new List<string> { "庚", "壬", "戊" }},
+            {"酉", new List<string> { "辛" }},
+            {"戌", new List<string> { "戊", "辛", "丁" }},
+            {"亥", new List<string> { "壬", "甲" }},
+        };
+        private static readonly Dictionary<string, Dictionary<string, string>> HeavenlyStemLiuShenTable =
+            new Dictionary<string, Dictionary<string, string>>
+            {
+                ["甲"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "比",
+                    ["乙"] = "劫",
+                    ["丙"] = "食",
+                    ["丁"] = "傷",
+                    ["戊"] = "才",
+                    ["己"] = "財",
+                    ["庚"] = "殺",
+                    ["辛"] = "官",
+                    ["壬"] = "梟",
+                    ["癸"] = "印"
+                },
+                ["乙"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "劫",
+                    ["乙"] = "比",
+                    ["丙"] = "傷",
+                    ["丁"] = "食",
+                    ["戊"] = "才",
+                    ["己"] = "財",
+                    ["庚"] = "殺",
+                    ["辛"] = "官",
+                    ["壬"] = "印",
+                    ["癸"] = "梟"
+                },
+                ["丙"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "印",
+                    ["乙"] = "梟",
+                    ["丙"] = "比",
+                    ["丁"] = "劫",
+                    ["戊"] = "食",
+                    ["己"] = "傷",
+                    ["庚"] = "才",
+                    ["辛"] = "財",
+                    ["壬"] = "殺",
+                    ["癸"] = "官"
+                },
+                ["丁"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "印",
+                    ["乙"] = "梟",
+                    ["丙"] = "劫",
+                    ["丁"] = "比",
+                    ["戊"] = "食",
+                    ["己"] = "傷",
+                    ["庚"] = "才",
+                    ["辛"] = "財",
+                    ["壬"] = "殺",
+                    ["癸"] = "官"
+                },
+                ["戊"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "殺",
+                    ["乙"] = "官",
+                    ["丙"] = "印",
+                    ["丁"] = "梟",
+                    ["戊"] = "比",
+                    ["己"] = "劫",
+                    ["庚"] = "食",
+                    ["辛"] = "傷",
+                    ["壬"] = "才",
+                    ["癸"] = "財"
+                },
+                ["己"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "殺",
+                    ["乙"] = "官",
+                    ["丙"] = "印",
+                    ["丁"] = "梟",
+                    ["戊"] = "劫",
+                    ["己"] = "比",
+                    ["庚"] = "食",
+                    ["辛"] = "傷",
+                    ["壬"] = "才",
+                    ["癸"] = "財"
+                },
+                ["庚"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "才",
+                    ["乙"] = "財",
+                    ["丙"] = "殺",
+                    ["丁"] = "官",
+                    ["戊"] = "印",
+                    ["己"] = "梟",
+                    ["庚"] = "比",
+                    ["辛"] = "劫",
+                    ["壬"] = "食",
+                    ["癸"] = "傷"
+                },
+                ["辛"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "傷",
+                    ["乙"] = "財",
+                    ["丙"] = "官",
+                    ["丁"] = "殺",
+                    ["戊"] = "印",
+                    ["己"] = "梟",
+                    ["庚"] = "比",
+                    ["辛"] = "劫",
+                    ["壬"] = "傷",
+                    ["癸"] = "食"
+                },
+                ["壬"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "食",
+                    ["乙"] = "傷",
+                    ["丙"] = "才",
+                    ["丁"] = "財",
+                    ["戊"] = "殺",
+                    ["己"] = "官",
+                    ["庚"] = "印",
+                    ["辛"] = "梟",
+                    ["壬"] = "比",
+                    ["癸"] = "劫"
+                },
+                ["癸"] = new Dictionary<string, string>
+                {
+                    ["甲"] = "食",
+                    ["乙"] = "傷",
+                    ["丙"] = "才",
+                    ["丁"] = "財",
+                    ["戊"] = "殺",
+                    ["己"] = "官",
+                    ["庚"] = "印",
+                    ["辛"] = "梟",
+                    ["壬"] = "劫",
+                    ["癸"] = "比"
+                }
+            };
+
         private readonly ICalendarService _calendarService;
 
         public AstrologyService(ICalendarService calendarService)
@@ -22,6 +175,14 @@ namespace Ecanapi.Services
         #region --- Bazi & Brightness Data ---
         private static readonly Dictionary<string, string> NaYinMap = new Dictionary<string, string> { { "甲子", "海中金" }, { "乙丑", "海中金" }, { "丙寅", "爐中火" }, { "丁卯", "爐中火" }, { "戊辰", "大林木" }, { "己巳", "大林木" }, { "庚午", "路旁土" }, { "辛未", "路旁土" }, { "壬申", "劍鋒金" }, { "癸酉", "劍鋒金" }, { "甲戌", "山頭火" }, { "乙亥", "山頭火" }, { "丙子", "澗下水" }, { "丁丑", "澗下水" }, { "戊寅", "城頭土" }, { "己卯", "城頭土" }, { "庚辰", "白蠟金" }, { "辛巳", "白蠟金" }, { "壬午", "楊柳木" }, { "癸未", "楊柳木" }, { "甲申", "泉中水" }, { "乙酉", "泉中水" }, { "丙戌", "屋上土" }, { "丁亥", "屋上土" }, { "戊子", "霹靂火" }, { "己丑", "霹靂火" }, { "庚寅", "松柏木" }, { "辛卯", "松柏木" }, { "壬辰", "長流水" }, { "癸巳", "長流水" }, { "甲午", "沙中金" }, { "乙未", "沙中金" }, { "丙申", "山下火" }, { "丁酉", "山下火" }, { "戊戌", "平地木" }, { "己亥", "平地木" }, { "庚子", "壁上土" }, { "辛丑", "壁上土" }, { "壬寅", "金箔金" }, { "癸卯", "金箔金" }, { "甲辰", "覆燈火" }, { "乙巳", "覆燈火" }, { "丙午", "天河水" }, { "丁未", "天河水" }, { "戊申", "大驛土" }, { "己酉", "大驛土" }, { "庚戌", "釵釧金" }, { "辛亥", "釵釧金" }, { "壬子", "桑柘木" }, { "癸丑", "桑柘木" }, { "甲寅", "大溪水" }, { "乙卯", "大溪水" }, { "丙辰", "沙中土" }, { "丁巳", "沙中土" }, { "戊午", "天上火" }, { "己未", "天上火" }, { "庚申", "石榴木" }, { "辛酉", "石榴木" }, { "壬戌", "大海水" }, { "癸亥", "大海水" } };
         private static readonly Dictionary<int, string[]> HiddenStemsMap = new Dictionary<int, string[]> { { 1, new[] { "癸" } }, { 2, new[] { "己", "癸", "辛" } }, { 3, new[] { "甲", "丙", "戊" } }, { 4, new[] { "乙" } }, { 5, new[] { "戊", "乙", "癸" } }, { 6, new[] { "丙", "戊", "庚" } }, { 7, new[] { "丁", "己" } }, { 8, new[] { "己", "乙", "丁" } }, { 9, new[] { "庚", "壬", "戊" } }, { 10, new[] { "辛" } }, { 11, new[] { "戊", "辛", "丁" } }, { 12, new[] { "壬", "甲" } } };
+
+        //public string GetLiuShen(string dayStem, string otherStem)
+        //{
+        //    if (HeavenlyStemLiuShenTable.TryGetValue(dayStem, out var table) && table.TryGetValue(otherStem, out var result))
+        //        return result;
+        //    return "";
+        //}
+
         private string GetLiuShen(string dayMasterGan, string otherGan) { if (dayMasterGan == otherGan) return "比"; int dayMasterIndex = "甲乙丙丁戊己庚辛壬癸".IndexOf(dayMasterGan); int otherIndex = "甲乙丙丁戊己庚辛壬癸".IndexOf(otherGan); int dayMasterWuXing = dayMasterIndex / 2; int otherWuXing = otherIndex / 2; bool isDayMasterYang = dayMasterIndex % 2 == 0; bool isOtherYang = otherIndex % 2 == 0; if (otherWuXing == (dayMasterWuXing + 1) % 5) return isDayMasterYang == isOtherYang ? "食" : "傷"; if (otherWuXing == (dayMasterWuXing + 2) % 5) return isDayMasterYang == isOtherYang ? "才" : "財"; if (otherWuXing == (dayMasterWuXing + 3) % 5) return isDayMasterYang == isOtherYang ? "殺" : "官"; if (otherWuXing == (dayMasterWuXing + 4) % 5) return isDayMasterYang == isOtherYang ? "梟" : "印"; return "劫"; }
         private static readonly string[] S_SKY = { "", "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
         private static readonly string[] S_FLOOR = { "", "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
@@ -36,7 +197,8 @@ namespace Ecanapi.Services
         {
             var context = new AstrologyCalculationContext(request);
             await DetermineCorrectBaziPillars(context);
-
+            // 【新增】在這裡呼叫八字星煞計算
+            DetermineBaziShensha(context); // <--- 在這裡插入新的方法呼叫
             DetermineBaziLuckCycles(context);
 
             RunZiWeiChartCalculations(context);
@@ -48,7 +210,34 @@ namespace Ecanapi.Services
             UpdateFinalResult(context);
             return context.Result;
         }
+        // 檔案: AstrologyService.cs
 
+        // ... (在所有既有方法之後，或在類別底部新增)
+
+        /// <summary>
+        /// 呼叫底層邏輯，計算八字星煞並更新 context.Result
+        /// </summary>
+        private void DetermineBaziShensha(AstrologyCalculationContext context)
+        {
+            // 假設 DetermineCorrectBaziPillars 運行後，Bazi 資訊已存於 context.Result.Bazi
+            if (context.Result.Bazi == null)
+            {
+                // 如果 Bazi 資訊尚未準備好，則跳過
+                context.Result = context.Result with { BaziShensha = new List<string>() };
+                return;
+            }
+
+            var bazi = context.Result.Bazi;
+
+            // 呼叫實際計算邏輯
+            var shenshaList = CalculateBaziShenshaLogic(bazi);
+
+            // 因為 AstrologyChartResult 是 record，使用 'with' 關鍵字進行非破壞性更新
+            context.Result = context.Result with
+            {
+                BaziShensha = shenshaList
+            };
+        }
         private async Task DetermineCorrectBaziPillars(AstrologyCalculationContext context)
         {
             var birthDate = context.Request;
@@ -661,6 +850,125 @@ namespace Ecanapi.Services
             foreach (var star in targetStars) { bool found = false; for (int i = 1; i <= 12; i++) { string allStarsInPalace = context.CCM[i] + context.CCN[i] + context.SecondaryStars[i]; if (allStarsInPalace.Contains(star)) { result.Append(context.PalaceShortNames[i]); found = true; break; } } if (!found) result.Append(" "); }
             return result.ToString();
         }
+
+        public List<AnnualLuck> GenerateAnnualLucks(int fromYear, int toYear, string dayStem)
+        {
+            string[] GAN = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+            string[] ZHI = { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+            var results = new List<AnnualLuck>();
+            for (int y = fromYear; y <= toYear; y++)
+            {
+                int g = (y - 4) % 10;
+                int z = (y - 4) % 12;
+                var currStem = GAN[g];
+                var currBranch = ZHI[z];
+                results.Add(new AnnualLuck
+                {
+                    Year = y,
+                    HeavenlyStem = currStem,
+                    EarthlyBranch = currBranch,
+                    StemLiuShen = GetLiuShen(dayStem, currStem),
+                    BranchLiuShen = GetBranchLiuShenList(dayStem, currBranch),
+                });
+            }
+            return results;
+        }
+
+        // 在 AstrologyService.cs 內新增 private 方法
+        private List<string> GetAnnualInteractions(string annualBranch, List<string> baziBranches)
+        {
+            var interactions = new List<string>();
+            var pillarNames = new[] { "年支", "月支", "日支", "時支" };
+
+            for (int i = 0; i < 4; i++)
+            {
+                string baziBranch = baziBranches[i];
+                string name = pillarNames[i];
+
+                // --- 1. 六沖 (Six Clashes) ---
+                if (GanZhiConstants.SixClashes.TryGetValue(annualBranch, out string clashTarget) && clashTarget == baziBranch ||
+                    GanZhiConstants.SixClashes.TryGetValue(baziBranch, out string clashSource) && clashSource == annualBranch)
+                {
+                    interactions.Add($"與{name}相沖 ({annualBranch}沖{baziBranch})");
+                }
+
+                // --- 2. 六合 (Six Combinations) ---
+                if (GanZhiConstants.SixCombinations.TryGetValue(annualBranch, out string combineTarget) && combineTarget == baziBranch ||
+                    GanZhiConstants.SixCombinations.TryGetValue(baziBranch, out string combineSource) && combineSource == annualBranch)
+                {
+                    interactions.Add($"與{name}六合 ({annualBranch}合{baziBranch})");
+                }
+
+                // --- 3. 自刑 (Self-Punishment): 辰、午、酉、亥 見同支 ---
+                if (annualBranch == baziBranch && ("辰午酉亥").Contains(annualBranch))
+                {
+                    interactions.Add($"與{name}自刑 ({annualBranch}刑{baziBranch})");
+                }
+
+                // ... (在此處添加三刑、三合、六害等邏輯)
+            }
+
+            return interactions.Distinct().ToList();
+        }
+
+        public List<string> GetBranchLiuShenList(string dayStem, string branch)
+        {
+            if (!BranchToHiddenStems.ContainsKey(branch)) return new List<string>();
+            var result = new List<string>();
+            foreach (var stem in BranchToHiddenStems[branch])
+                result.Add(GetLiuShen(dayStem, stem));
+            return result;
+        }
+        public void ExportAnnualLucksJson(List<AnnualLuck> list, string filename)
+        {
+            var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filename, json, Encoding.UTF8);
+        }
+        // 在 AstrologyService.cs 內新增 private 方法
+        private List<string> CalculateBaziShensha(BaziInfo bazi)
+        {
+            var shenshaList = new List<string>();
+            string dayStem = bazi.DayPillar.HeavenlyStem;
+            string yearBranch = bazi.YearPillar.EarthlyBranch;
+
+            var allBranches = new List<string>
+            {
+                bazi.YearPillar.EarthlyBranch,
+                bazi.MonthPillar.EarthlyBranch,
+                bazi.DayPillar.EarthlyBranch,
+                bazi.TimePillar.EarthlyBranch
+            };
+
+            // --- 1. 天乙貴人 (以日干查) ---
+            var tianYiTargets = new List<string>();
+            if (new[] { "甲", "戊", "庚" }.Contains(dayStem)) tianYiTargets.AddRange(GanZhiConstants.ShenshaFromDayStem["天乙貴人_甲戊庚"]);
+            else if (new[] { "乙", "己" }.Contains(dayStem)) tianYiTargets.AddRange(GanZhiConstants.ShenshaFromDayStem["天乙貴人_乙己"]);
+            else if (new[] { "丙", "丁" }.Contains(dayStem)) tianYiTargets.AddRange(GanZhiConstants.ShenshaFromDayStem["天乙貴人_丙丁"]);
+            else if (new[] { "壬", "癸" }.Contains(dayStem)) tianYiTargets.AddRange(GanZhiConstants.ShenshaFromDayStem["天乙貴人_壬癸"]);
+            else if (dayStem == "辛") tianYiTargets.AddRange(GanZhiConstants.ShenshaFromDayStem["天乙貴人_辛"]);
+
+            foreach (var branch in allBranches.Where(b => tianYiTargets.Contains(b)))
+            {
+                shenshaList.Add($"天乙貴人 ({branch}支)");
+            }
+
+            // --- 2. 華蓋 (以年支查) ---
+            // 規則：寅午戌 (戌), 巳酉丑 (丑), 申子辰 (辰), 亥卯未 (未)
+            string huaGaiTarget = "";
+            if (new[] { "寅", "午", "戌" }.Contains(yearBranch)) huaGaiTarget = "戌";
+            else if (new[] { "巳", "酉", "丑" }.Contains(yearBranch)) huaGaiTarget = "丑";
+            else if (new[] { "申", "子", "辰" }.Contains(yearBranch)) huaGaiTarget = "辰";
+            else if (new[] { "亥", "卯", "未" }.Contains(yearBranch)) huaGaiTarget = "未";
+
+            foreach (var branch in allBranches.Where(b => b == huaGaiTarget))
+            {
+                shenshaList.Add($"華蓋 ({branch}支)");
+            }
+
+            // ... 依此類推，加入所有其他神煞的計算邏輯
+
+            return shenshaList.Distinct().ToList();
+        }
         private void UpdateFinalResult(AstrologyCalculationContext context)
         {
             string[] mingZhuMap = { "貪", "巨", "祿", "文", "廉", "武", "破", "武", "廉", "文", "祿", "巨" };
@@ -684,13 +992,384 @@ namespace Ecanapi.Services
                 string palaceStemTrans = CalculatePalaceStemTransformations(context, context.CCO[i]);
                 finalPalaces.Add(palace with { MajorStars = majorStars, SecondaryStars = secondaryStars, AnnualStarTransformations = annualStarTransformations, DecadeAgeRange = context.CCX[i], LifeCycleStage = context.LifeCycleStage[i] ?? "", MainStarBrightness = context.MainStarBrightness[i] ?? "", PalaceStemTransformations = palaceStemTrans, GoodStars = goodStars, BadStars = badStars, SmallStars = smallStars });
             }
+            // 檢查 context.Result 是否包含 LunarBirthDate (它應該在 DetermineCorrectBaziPillars 步驟中獲得)
+            //string lunarBirthDate = context.LunarBirthDate ?? "";
+            var lunarDateString = $"{context.Calendar.ChineseYear}{context.Calendar.ChineseMonth}{context.LunarDay}";
+
+            // 檢查 context.Result 是否包含 BaziShensha (它應該在 DetermineBaziShensha 步驟中計算好)
+            List<string> baziShensha = context.Result.BaziShensha ?? new List<string>();
             context.Result = context.Result with
             {
                 palaces = finalPalaces,
                 WuXingJuText = context.WuXingJuText,
                 MingZhu = context.MingZhu,
-                ShenZhu = context.ShenZhu
+                ShenZhu = context.ShenZhu,
+                // 【修正點】現在可以從 context 中取得值
+                LunarBirthDate = lunarDateString, // <--- 將組合好的字串賦值
+                BaziShensha = baziShensha,
             };
         }
+        /// <summary>
+        /// 實際的星煞計算邏輯，使用 BaziData.cs 中的 GanZhiConstants
+        /// </summary>
+        /// <summary>
+        /// 實際的星煞計算邏輯，使用 BaziData.cs 中的 GanZhiConstants
+        /// 注意：所有對常數的引用皆已修正為 ShenshaFromDayStem 或 ShenshaFromBranch
+        /// </summary>
+        /// <summary>
+        /// 實際的星煞計算邏輯，使用 BaziData.cs 中的 GanZhiConstants
+        /// </summary>
+        // 檔案: AstrologyService.cs
+
+        private List<string> CalculateBaziShenshaLogic(BaziInfo bazi)
+        {
+            var shenshaList = new List<string>();
+
+            // =========================================================================
+            // 1. 基礎資訊及輔助列表定義 (修正 'allStemsAndBranches' 作用域問題)
+            // =========================================================================
+            string dayStem = bazi.DayPillar.HeavenlyStem;
+            string dayPillar = bazi.DayPillar.HeavenlyStem + bazi.DayPillar.EarthlyBranch;
+
+            // 1.1 四柱地支 (用於日干查神煞)
+            List<string> allBranches = new()
+            {
+                bazi.YearPillar.EarthlyBranch,
+                bazi.MonthPillar.EarthlyBranch,
+                bazi.DayPillar.EarthlyBranch,
+                bazi.TimePillar.EarthlyBranch
+            };
+
+            // 1.2 四柱干支總覽 (用於月支查神煞，因月神煞目標可能為天干)
+            List<string> allStemsAndBranches = new()
+            {
+                bazi.YearPillar.HeavenlyStem, bazi.YearPillar.EarthlyBranch,
+                bazi.MonthPillar.HeavenlyStem, bazi.MonthPillar.EarthlyBranch,
+                bazi.DayPillar.HeavenlyStem, bazi.DayPillar.EarthlyBranch,
+                bazi.TimePillar.HeavenlyStem, bazi.TimePillar.EarthlyBranch
+            };
+
+
+            // =========================================================================
+            // 【2. 從日干 (Day Stem) 查神煞】(使用 allBranches)
+            // =========================================================================
+
+            // --- 通用查找方法 (適用於 天乙、文昌、天廚、學堂、紅艶、金輿、祿神、學士、福星、國印、太極、流霞) ---
+            var dayShenshaMappings = new (string Name, string KeyPrefix, bool IsGroupKey)[]
+            {
+                ("天乙貴人", dayStem, false),
+                ("文昌貴人", "文昌", false),
+                ("天廚", "天廚", false),
+                ("學堂", "學堂", false),
+                ("紅艶", "紅艶", false),
+                ("金輿", "金舆", false),
+                ("祿神", "祿神", false),
+                ("學士", "學士", false),
+                ("福星", "福星", false),
+                ("國印", "國印", false),
+                ("太極貴人", "太極", true),
+                ("流霞", "流霞", false),
+            };
+
+            foreach (var mapping in dayShenshaMappings)
+            {
+                string lookupKey = "";
+
+                if (mapping.Name == "天乙貴人")
+                {
+                    lookupKey = dayStem; // 天乙貴人直接用日干
+                }
+                else if (mapping.IsGroupKey) // 太極貴人 (Group Key Logic)
+                {
+                    lookupKey = dayStem switch
+                    {
+                        "甲" or "乙" => $"{mapping.KeyPrefix}_甲",
+                        "丙" or "丁" => $"{mapping.KeyPrefix}_丙",
+                        "戊" or "己" => dayStem == "戊" ? $"{mapping.KeyPrefix}_戊" : $"{mapping.KeyPrefix}_己", // 特殊處理太極貴人戊己
+                        "庚" or "辛" => $"{mapping.KeyPrefix}_庚",
+                        "壬" or "癸" => $"{mapping.KeyPrefix}_壬",
+                        _ => ""
+                    };
+                }
+                else // 其他單干神煞 (如 文昌_甲, 天廚_乙)
+                {
+                    lookupKey = $"{mapping.KeyPrefix}_{dayStem}";
+                }
+
+                // 修正文昌/天廚的特殊合併規則，確保查詢正確
+                if (mapping.Name == "文昌貴人" || mapping.Name == "天廚")
+                {
+                    lookupKey = dayStem switch
+                    {
+                        "戊" => $"{mapping.KeyPrefix}_丙", // 戊對應丙的文昌/天廚地支
+                        "己" => $"{mapping.KeyPrefix}_丁", // 己對應丁的文昌/天廚地支
+                        _ => $"{mapping.KeyPrefix}_{dayStem}"
+                    };
+                }
+
+                // 修正 lookupKey 的最終值
+                if (mapping.Name != "天乙貴人" && !mapping.IsGroupKey)
+                {
+                    lookupKey = $"{mapping.KeyPrefix}_{dayStem}";
+                }
+
+                if (GanZhiConstants.ShenshaFromDayStem.TryGetValue(lookupKey, out string[]? targets))
+                {
+                    foreach (var branch in allBranches)
+                    {
+                        // 排除流霞中非地支的項目 (如: 乙干對應的'戊')
+                        if (targets.Contains(branch) && GanZhiConstants.Zhi.Contains(branch))
+                        {
+                            // 找到該地支出現在哪一柱
+                            string pillarName = GetPillarName(branch, bazi);
+
+                            // 將結果格式化為: "金輿 (亥支 - 日柱)"
+                            shenshaList.Add($"{mapping.Name} ({branch}支 - {pillarName}柱)");
+                            //shenshaList.Add($"{mapping.Name} ({branch}支)");
+                        }
+                    }
+                }
+            }
+
+
+            // --- 羊刃 (Yang Ren) (特殊處理：多個地支) ---
+            string yangRenKey = $"羊刃_{dayStem}";
+            if (GanZhiConstants.ShenshaFromDayStem.TryGetValue(yangRenKey, out string[]? yangRenTargets))
+            {
+                foreach (var branch in allBranches.Where(yangRenTargets.Contains))
+                {
+                    // 找到該地支出現在哪一柱
+                    string pillarName = GetPillarName(branch, bazi);
+                    shenshaList.Add($"羊刃 ({branch}支- {pillarName}柱");
+                }
+            }
+
+            // --- 掃妻 (Sao Qi) (特殊：只看日干，對應的結果為日柱地支) ---
+            string saoQiKey = $"掃妻_{dayStem}";
+            if (GanZhiConstants.ShenshaFromDayStem.TryGetValue(saoQiKey, out string[]? saoQiTargets))
+            {
+                string saoQiTargetBranch = saoQiTargets.First(); // 只有一個目標地支
+                if (bazi.DayPillar.EarthlyBranch == saoQiTargetBranch)
+                {
+                    shenshaList.Add($"掃妻 ({dayPillar}日柱)");
+                }
+            }
+
+            // --- 魁罡 (Kui Gang) (特殊：只看日柱干支組合) ---
+            if (new[] { "庚辰", "庚戌", "壬辰", "戊戌" }.Contains(dayPillar))
+            {
+                shenshaList.Add("魁罡 (日柱)");
+            }
+            // --- 金神 (特殊：只看日柱干支組合) ---
+            if (new[] { "乙丑", "己巳", "癸酉" }.Contains(dayPillar))
+            {
+                shenshaList.Add("金神 (日柱)");
+            }
+
+            // --- 十惡大敗   (特殊：只看日柱干支組合) ---
+            if (new[] { "甲辰","乙巳","丙申","丁亥","戊戌","己丑","庚辰","辛巳","壬申","癸亥" }.Contains(dayPillar))
+            {
+                shenshaList.Add("十惡大敗 (日柱)");
+            }
+            // 陰差陽錯
+            if (new[] { "丙子", "丁丑", "戊寅", "辛卯", "壬辰", "癸巳", "丙午", "丁未", "戊申", "辛酉", "壬戌", "癸亥" }.Contains(dayPillar))
+            {
+                shenshaList.Add("陰差陽錯 (日柱)");
+            }
+            // 八專
+            if (new[] { "甲寅", "乙卯", "丁未", "戊戌", "己未", "庚申", "辛酉", "癸丑" }.Contains(dayPillar))
+            {
+                shenshaList.Add("八專 (日柱)");
+            }
+            // 九醜
+            if (new[] { "戊子","戊午","壬子","壬午","丁卯","己卯","辛卯","丁酉","己酉","辛酉" }.Contains(dayPillar))
+            {
+                shenshaList.Add("九醜 (日柱)");
+            }
+
+            // =========================================================================
+            // 【3. 從月支 (Month Branch) 查神煞】(使用 allStemsAndBranches)
+            // =========================================================================
+
+            string monthBranch = bazi.MonthPillar.EarthlyBranch;
+            string yearBranch = bazi.YearPillar.EarthlyBranch; // 舊的年支查神煞可能還需要
+            string dayBranch = bazi.DayPillar.EarthlyBranch;
+
+            // --- 輔助函式：用於月支查神煞 ---
+            var monthShenshaMappings = new string[]
+            {
+                "天德貴", "月德貴", "月空", "將軍", "德貴", "秀貴", "天德",
+                "月德", "天醫", "陰陽", "斷橋", "牢獄"
+            };
+
+            foreach (var name in monthShenshaMappings)
+            {
+                string lookupKey = $"{name}_{monthBranch}";
+
+                if (GanZhiConstants.ShenshaFromMonthBranch.TryGetValue(lookupKey, out string[]? targets))
+                {
+                    foreach (var element in allStemsAndBranches)
+                    {
+                        if (targets.Contains(element))
+                        {
+                            // 區分是天干還是地支
+                            // 由於 targets 內可能有 '丙丁' 這種組合，我們只檢查 targets 內是否包含單個干或支
+                            string location = GanZhiConstants.Gan.Contains(element) ? "干" : (GanZhiConstants.Zhi.Contains(element) ? "支" : "N/A");
+
+                            if (location != "N/A")
+                            {
+                                // 找到該干支位於哪一柱 (可選，但讓輸出更詳細)
+                                string pillarName = GetPillarName(element, bazi);
+
+                                shenshaList.Add($"{name} ({element}{location} - {pillarName}柱)");
+                            }
+                        }
+                    }
+                }
+            }
+            // --- 輔助函式：用於日支查神煞 ---
+            var dayBranchShenshaMappings = new string[]
+            {
+                "驛馬", "華蓋", "將星", "亡神", "劫煞",
+                "孤辰", "寡宿", "咸池", "天喜", "紅鸞"
+            };
+
+            foreach (var name in dayBranchShenshaMappings)
+            {
+                string lookupKey = $"{name}_{dayBranch}";
+
+                if (GanZhiConstants.ShenshaFromDayBranchLookup.TryGetValue(lookupKey, out string[]? targets))
+                {
+                    foreach (var branch in allBranches)
+                    {
+                        if (targets.Contains(branch))
+                        {
+                            // 找到該地支位於哪一柱
+                            string pillarName = GetPillarName(branch, bazi);
+
+                            // 咸池通常又稱桃花
+                            string displayName = name == "咸池" ? "咸池(桃花)" : name;
+
+                            // 如果神煞所在之地支與發動神煞的日支相同，則明確標註為「日支查自身」
+                            string locationDetails = (branch == dayBranch)
+                                ? $"{branch}支 - 日支查自身"
+                                : $"{branch}支 - {pillarName}柱";
+
+                            shenshaList.Add($"{displayName} (日支起查: {locationDetails})");
+                        }
+                    }
+                }
+            }
+            // =========================================================================
+            // 【2. 從年支 (Year Branch) 查神煞】 (保持不變)
+            // ... (此處省略年支查神煞的邏輯，請保持您原有的實現或根據需求補齊)
+            // =========================================================================
+            // =========================================================================
+            // 【4. 從年支 (Year Branch) 查神煞】(使用 allBranches)
+            // =========================================================================
+
+            // --- 輔助函式：用於年支查神煞 ---
+            var yearShenshaMappings = new string[]
+            {
+                "驛馬", "華蓋", "將星", "亡神", "劫煞", "災煞",
+                "孤辰", "寡宿", "咸池", "天喜", "紅鸞", "喪門", "白虎"
+            };
+
+            foreach (var name in yearShenshaMappings)
+            {
+                string lookupKey = $"{name}_{yearBranch}";
+
+                if (GanZhiConstants.ShenshaFromYearBranch.TryGetValue(lookupKey, out string[]? targets))
+                {
+                    foreach (var branch in allBranches)
+                    {
+                        if (targets.Contains(branch))
+                        {
+                            // 找到該地支位於哪一柱
+                            string pillarName = GetPillarName(branch, bazi);
+
+                            // 咸池通常又稱桃花
+                            string displayName = name == "咸池" ? "咸池(桃花)" : name;
+
+                            shenshaList.Add($"{displayName} ({branch}支 - {pillarName}柱)");
+                        }
+                    }
+                }
+            }
+            // =========================================================================
+            // 【6. 計算空亡 (Kong Wang) 】(以年柱和日柱為準)
+            // =========================================================================
+
+            // 6.1 年柱空亡判斷
+            string yearPillar = bazi.YearPillar.HeavenlyStem + bazi.YearPillar.EarthlyBranch;
+            string yearXunShou = FindXunShou(yearPillar);
+            if (yearXunShou != null && GanZhiConstants.KongWangRules.TryGetValue(yearXunShou, out string[]? yearKongWangBranches))
+            {
+                CheckAndAddKongWang("年柱空亡", yearKongWangBranches, bazi, shenshaList);
+            }
+
+            // 6.2 日柱空亡判斷
+            //string dayPillar = bazi.DayPillar.HeavenlyStem + bazi.DayPillar.EarthlyBranch;
+            string dayXunShou = FindXunShou(dayPillar);
+            if (dayXunShou != null && GanZhiConstants.KongWangRules.TryGetValue(dayXunShou, out string[]? dayKongWangBranches))
+            {
+                CheckAndAddKongWang("日柱空亡", dayKongWangBranches, bazi, shenshaList);
+            }
+            // 確保結果不重複
+            return shenshaList.Distinct().ToList();
+        }
+        private string FindXunShou(string ganZhi)
+        {
+            // 假設 GanZhiConstants.All60GanZhi 包含了完整的 60 甲子順序
+            int index = Array.IndexOf(GanZhiConstants.All60GanZhi, ganZhi);
+
+            if (index == -1) return null;
+
+            // 每 10 個干支為一旬: 0-9 為甲子旬，10-19 為甲戌旬，以此類推
+            int cycleIndex = index / 10;
+
+            // 旬首固定為六甲旬的六個開頭
+            return cycleIndex switch
+            { 0 => "甲子", 1 => "甲戌", 2 => "甲申", 3 => "甲午",4 => "甲辰",5 => "甲寅",_ => null };
+        }
+
+        // 輔助方法：檢查空亡地支並新增到列表
+        private void CheckAndAddKongWang(string kwNamePrefix, string[] kwBranches, BaziInfo bazi, List<string> shenshaList)
+        {
+            // 包含所有四柱地支及其名稱
+            var allPillars = new (string Branch, string PillarName)[]
+            {
+                (bazi.YearPillar.EarthlyBranch, "年"),
+                (bazi.MonthPillar.EarthlyBranch, "月"),
+                (bazi.DayPillar.EarthlyBranch, "日"),
+                (bazi.TimePillar.EarthlyBranch, "時")
+            };
+
+            foreach (var (branch, pillarName) in allPillars)
+            {
+                if (kwBranches.Contains(branch))
+                {
+                    // 範例輸出: 年柱空亡 (戌支 - 月柱)
+                    shenshaList.Add($"{kwNamePrefix} ({branch}支 - {pillarName}柱)");
+                }
+            }
+        }
+        // --- 輔助函式：用來判斷干支在四柱中的位置 (新增此方法到 AstrologyService 類別中) ---
+        private string GetPillarName(string element, BaziInfo bazi)
+        {
+            // 檢查地支
+            if (bazi.YearPillar.EarthlyBranch == element) return "年";
+            if (bazi.MonthPillar.EarthlyBranch == element) return "月";
+            if (bazi.DayPillar.EarthlyBranch == element) return "日";
+            if (bazi.TimePillar.EarthlyBranch == element) return "時";
+
+            // 檢查天干 (如果神煞是以天干為依據)
+            if (bazi.YearPillar.HeavenlyStem == element) return "年";
+            if (bazi.MonthPillar.HeavenlyStem == element) return "月";
+            if (bazi.DayPillar.HeavenlyStem == element) return "日";
+            if (bazi.TimePillar.HeavenlyStem == element) return "時";
+
+            return ""; // 如果找不到，回傳空字串
+        }  
     }
 }
