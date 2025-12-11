@@ -118,7 +118,6 @@ builder.Services.AddScoped<IExcelExportService, ExcelExportService>();
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
 
-
 // --- CORS 配置 (保持不變) ---
 var AllowFrontendOrigins = "AllowFrontendOrigins";
 

@@ -10,6 +10,49 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\BaziAnalysisService.cs" />
+    <Compile Remove="Services\IBaziAnalysisService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Data\calendar.csv" />
+    <None Remove="Data\六十甲子.csv" />
+    <None Remove="Data\六十甲子天地變.csv" />
+    <None Remove="Data\六神四柱數.csv" />
+    <None Remove="Data\六神組.csv" />
+    <None Remove="Data\地支星剎.csv" />
+    <None Remove="Data\天干星剎.csv" />
+    <None Remove="Data\干支組合.csv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Data\calendar.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\六十甲子.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\六十甲子天地變.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\六神四柱數.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\六神組.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\地支星剎.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\天干星剎.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\干支組合.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="ClaudeCodeSdk" Version="0.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
     <PackageReference Include="Microsoft.AspNetCore.Cors" Version="2.3.0" />

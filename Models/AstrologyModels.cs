@@ -87,15 +87,15 @@ namespace Ecanapi.Models
         string MingZhu,
         string ShenZhu,
         List<BaziLuckCycle> BaziLuckCycles,
-
         // 【⭐ 必須新增此行，這是編譯器抱怨 Model 沒有 BaziShensha 的原因 ⭐】
         List<string>? BaziShensha,
-
         IChingHexagram? InnateHexagram,
         IChingHexagram? PostnatalHexagram,
         string UserName,
         DateTime SolarBirthDate,
-        string LunarBirthDate
+        string LunarBirthDate,
+        // 【⭐ 新增：八字簡易分析結果 ⭐】
+        ShiShenResult? BaziAnalysisResult // <--- 新增分析結果欄位
     );
     public class AnnualLuck
     {

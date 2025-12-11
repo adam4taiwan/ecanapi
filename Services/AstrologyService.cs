@@ -15,6 +15,8 @@ namespace Ecanapi.Services
 {
     public class AstrologyService : IAstrologyService
     {
+        // ⭐【新增】BlindSchoolUltimateAnalyzer 欄位
+        private readonly BlindSchoolUltimateAnalyzer _analyzer = new(); // 必須 new 一個實例
         private static readonly Dictionary<string, List<string>> BranchToHiddenStems = new()
         {
             {"子", new List<string> { "癸" }},
@@ -48,16 +50,16 @@ namespace Ecanapi.Services
                 },
                 ["乙"] = new Dictionary<string, string>
                 {
-                    ["甲"] = "劫",
                     ["乙"] = "比",
-                    ["丙"] = "傷",
+                    ["甲"] = "劫",
                     ["丁"] = "食",
-                    ["戊"] = "才",
-                    ["己"] = "財",
-                    ["庚"] = "殺",
-                    ["辛"] = "官",
-                    ["壬"] = "印",
-                    ["癸"] = "梟"
+                    ["丙"] = "傷",
+                    ["己"] = "才",
+                    ["戊"] = "財",
+                    ["辛"] = "殺",
+                    ["庚"] = "官",
+                    ["癸"] = "梟",
+                    ["壬"] = "印"
                 },
                 ["丙"] = new Dictionary<string, string>
                 {
@@ -193,14 +195,49 @@ namespace Ecanapi.Services
         private static readonly string N8S = "府陰貪巨相梁殺破";
         #endregion
 
+        // B. ⭐【新增】`AnalyzeAsync` 方法 (從 BaziAnalysisService 複製過來)
+        // 由於您想在 AstrologyService 內使用這個功能，但 IAstrologyService 介面中沒有這個簽名。
+        // 我將假定您是在 `CalculateChartAsync` 或其他方法中呼叫這個功能。
+        // 為了將功能保留在 AstrologyService 中，您可以新增一個私有方法，或將其合併到現有方法中。
+
+        // 如果您希望它能被外部呼叫，請將此方法簽名加入 IAstrologyService 介面中。
+        // 這裡我們假設您將它作為一個可以在內部被其他方法呼叫的功能：
+        //        private BlindSchoolAnalysisResult AnalyzeBazi(BaziInfo bazi)
+        private ShiShenResult AnalyzeBazi(BaziInfo bazi, CsvDataContainer csvData)
+        {
+            // 1. 將 BaziInfo 中的四柱資訊轉換成干支字串 (Analyzer需要的輸入)
+            string yearPillar = bazi.YearPillar.HeavenlyStem + bazi.YearPillar.EarthlyBranch;
+            string monthPillar = bazi.MonthPillar.HeavenlyStem + bazi.MonthPillar.EarthlyBranch;
+            string dayPillar = bazi.DayPillar.HeavenlyStem + bazi.DayPillar.EarthlyBranch;
+            string timePillar = bazi.TimePillar.HeavenlyStem + bazi.TimePillar.EarthlyBranch;       
+            char shiShenDayStem = bazi.DayMaster[0]; // 取得日主天干
+            // 2. 呼叫核心分析器的同步方法
+            var result = _analyzer.AnalyzeShiShen(yearPillar, monthPillar, dayPillar, timePillar,shiShenDayStem, csvData);
+            //var result = _analyzer.AnalyzeShiShen(yearPillar, monthPillar, dayPillar, timePillar);
+            // 3. 回傳結果
+            return result;
+        }
         public async Task<AstrologyChartResult> CalculateChartAsync(AstrologyRequest request)
         {
             var context = new AstrologyCalculationContext(request);
             await DetermineCorrectBaziPillars(context);
             // 【新增】在這裡呼叫八字星煞計算
-            DetermineBaziShensha(context); // <--- 在這裡插入新的方法呼叫
+            DetermineBaziShensha(context); 
             DetermineBaziLuckCycles(context);
+            // --- 【修正 3：執行盲派八字分析】 ---
+            // ⭐ 1. 【執行檔案 I/O】: 在服務層完成所有非同步查詢讀取相關的csv
+            var ExpData = await LoadRequiredDataAsync(context.Result.Bazi); // 非同步操作
+            var baziAnalysisResult = AnalyzeBazi(context.Result.Bazi, ExpData);
+            context.Result = context.Result with { BaziAnalysisResult = baziAnalysisResult };
+            if (ExpData.LiuShiJiaZiData != null)
+            {
+                context.Result.BaziAnalysisResult.ShiShen += "[年柱(根)]:" + ExpData.LiuShiJiaZiData["YearPillar"]["rgxx"]+ ExpData.LiuShiJiaZiData["YearPillar"]["rgcz"];
+                context.Result.BaziAnalysisResult.ShiShen += "[月柱(苗)]:" + ExpData.LiuShiJiaZiData["MonthPillar"]["rgxx"] + ExpData.LiuShiJiaZiData["MonthPillar"]["rgcz"];
+                context.Result.BaziAnalysisResult.ShiShen += "[日柱(花)]:" + ExpData.LiuShiJiaZiData["DayPillar"]["rgxx"] + ExpData.LiuShiJiaZiData["DayPillar"]["rgcz"];
+                context.Result.BaziAnalysisResult.ShiShen += "[時柱(果)]:" + ExpData.LiuShiJiaZiData["TimePillar"]["rgxx"] + ExpData.LiuShiJiaZiData["TimePillar"]["rgcz"];
+            }
 
+            //      
             RunZiWeiChartCalculations(context);
             DetermineMajorStars(context);
             DetermineAllAuxiliaryAndMinorStars(context);
@@ -1331,6 +1368,176 @@ namespace Ecanapi.Services
             // 旬首固定為六甲旬的六個開頭
             return cycleIndex switch
             { 0 => "甲子", 1 => "甲戌", 2 => "甲申", 3 => "甲午",4 => "甲辰",5 => "甲寅",_ => null };
+        }
+
+        // Ecanapi.Services/AstrologyService.cs
+
+        // ... (FindCsvRowAsync 保持不變)
+
+        /// <summary>
+        /// 非同步載入所有分析所需的 CSV 數據。
+        /// </summary>
+        private async Task<CsvDataContainer> LoadRequiredDataAsync(BaziInfo bazi)
+        {
+            var container = new CsvDataContainer();
+
+            // 1. 定義四柱的干支組合和它們的名稱
+            var pillars = new List<(string Name, string GanZhi)>
+            {
+                // 柱位名稱 (Key) | 干支組合 (Value)
+                ("YearPillar", bazi.YearPillar.HeavenlyStem + bazi.YearPillar.EarthlyBranch),
+                ("MonthPillar", bazi.MonthPillar.HeavenlyStem + bazi.MonthPillar.EarthlyBranch),
+                ("DayPillar", bazi.DayPillar.HeavenlyStem + bazi.DayPillar.EarthlyBranch),
+                ("TimePillar", bazi.TimePillar.HeavenlyStem + bazi.TimePillar.EarthlyBranch)
+            };
+
+            // 查詢的 CSV 檔案資訊
+            // ⭐ 注意：您的範例是 "六十甲子.csv"，請確認正確的檔名是否為 "data-六十甲子.csv"
+            string csvFileName = "六十甲子.csv";
+            string searchColumn = "rgz"; // 查詢欄位是 rgz (干支)
+
+            // --- 查詢 data-六十甲子.csv (四次查詢) ---
+            foreach (var pillar in pillars)
+            {
+                string pillarName = pillar.Name;
+                string ganZhi = pillar.GanZhi;
+
+                // 執行非同步查詢
+                var rowData = await FindCsvRowAsync(csvFileName, searchColumn, ganZhi);
+
+                // 儲存結果到 container.LiuShiJiaZiData
+                if (rowData != null)
+                {
+                    // 將結果以 "YearPillar" 或 "DayPillar" 作為 Key 存入字典
+                    container.LiuShiJiaZiData.Add(pillarName, rowData);
+                }
+                // 如果找不到，該 Key 不會存在於字典中，分析器在使用時需檢查 Key 是否存在。
+            }
+
+            // --- 處理其他 CSV (如 data-干支組合.csv) ...
+            // ...
+
+            return container;
+        }
+
+        // Ecanapi.Services/AstrologyService.cs
+
+        // ... (在 AstrologyService 類別內)
+
+        /// <summary>
+        /// 依據指定的檔案名稱、搜尋欄位和搜尋值，從 CSV 檔案中查找單一資料列。
+        /// </summary>
+        /// <param name="fileName">CSV 檔案名稱，例如 "data-六十甲子.csv" 或 "data-干支組合.csv"。</param>
+        /// <param name="searchColumnName">要搜尋的欄位名稱 (標題列)。</param>
+        /// <param name="searchValue">要搜尋的欄位值。</param>
+        /// <returns>回傳符合條件的資料列，鍵為欄位名稱，值為資料，找不到則回傳 null。</returns>
+        // ... 保持 private 即可
+
+        // Ecanapi.Services/AstrologyService.cs (AstrologyService 類別內部)
+
+        // 假設您的 IWebHostEnvironment 已經注入到 AstrologyService 中
+        //private readonly IWebHostEnvironment _env;
+
+        // ... (其他方法和屬性)
+
+        private async Task<Dictionary<string, string>> FindCsvRowAsync(
+           string fileName,
+           string searchColumnName,
+           string searchValue)
+        {
+            // 1. 構建路徑 (沿用 BaseDirectory 修正)
+            string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            string csvFilePath = Path.Combine(baseDirectory, "Data", fileName);
+
+            if (!File.Exists(csvFilePath))
+            {
+                throw new FileNotFoundException($"CSV 檔案不存在於: {csvFilePath}");
+            }
+
+            // 2. 讀取所有行
+            string[] lines = await File.ReadAllLinesAsync(csvFilePath);
+            if (lines.Length <= 1) return null; // 至少需要標題行和一行資料
+
+            // 3. 獲取標題行
+            string headerLine = lines[0].Trim();
+            var headers = headerLine.Trim('"')
+                                    .Split(new[] { "\",\"" }, StringSplitOptions.None)
+                                    .ToList();
+
+            // 儲存欄位索引
+            int searchColumnIndex = headers.IndexOf(searchColumnName);
+
+            // 4. 檢查欄位是否存在
+            if (searchColumnIndex == -1)
+            {
+                throw new InvalidOperationException($"CSV 檔案標題遺失查詢欄位: {searchColumnName}");
+            }
+
+            // 5. 尋找目標行並合併欄位 (修正跨行邏輯)
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string currentRecord = lines[i];
+
+                // ⭐【核心修正 A】：跨行資料合併邏輯
+                // 檢查：如果當前記錄的引號數是奇數，則表示是一個跨行欄位，需要繼續合併下一行。
+                // 這個邏輯比檢查 StartWith/EndWith 更加通用。
+                int quoteCount = currentRecord.Count(c => c == '"');
+
+                while (quoteCount % 2 != 0 && i < lines.Length - 1)
+                {
+                    i++; // 移動到下一行
+                    currentRecord += "\r\n" + lines[i]; // 合併下一行，並用換行符分隔（保留資料內部的換行）
+                    quoteCount = currentRecord.Count(c => c == '"'); // 重新計算引號數量
+                }
+
+                // currentRecord 現在是一條完整的資料記錄。
+
+                // ⭐【核心修正 B】：精準分割與清除邏輯
+
+                // 1. 移除整行最外層引號（如果存在）
+                string innerContent = currentRecord.Trim();
+                if (innerContent.StartsWith('"') && innerContent.EndsWith('"'))
+                {
+                    // 注意：我們只從頭尾移除一個引號
+                    innerContent = innerContent.Substring(1, innerContent.Length - 2);
+                }
+
+                // 2. 使用 '","' 分隔符號進行分割 (此時 innerContent 應為：1","丙戍","熱情豪爽...)
+                var values = innerContent.Split(new[] { "\",\"" }, StringSplitOptions.None).ToList();
+
+                // 6. 比對搜尋欄位的值
+                if (values.Count > searchColumnIndex)
+                {
+                    string columnValue = values[searchColumnIndex]
+                        .Trim()      // 1. 移除外部空白
+                        .Trim('"')   // 2. 移除欄位兩側的引號（如果存在）
+                        .Trim();     // 3. 再次移除引號內可能存在的空白字元
+
+                    // 進行比對
+                    if (columnValue == searchValue)
+                    {
+                        // 找到目標行，構建結果字典
+                        var result = new Dictionary<string, string>();
+                        for (int j = 0; j < headers.Count; j++)
+                        {
+                            // 檢查 values 數量是否匹配，避免索引超出範圍
+                            if (j < values.Count)
+                            {
+                                // 對所有值進行相同的精準清除
+                                string finalValue = values[j]
+                                    .Trim()
+                                    .Trim('"')
+                                    .Trim();
+                                result.Add(headers[j], finalValue);
+                            }
+                        }
+                        return result;
+                    }
+                }
+                // 如果 values 數量不足，或比對失敗，繼續到下一筆記錄 (外層 for 迴圈)
+            }
+
+            return null; // 找不到符合條件的行
         }
 
         // 輔助方法：檢查空亡地支並新增到列表

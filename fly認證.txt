@@ -94,3 +94,30 @@ git push --set-upstream origin main
 
 
 fly deploy
+https://ecanapi.fly.dev/swagger/index.html
+
+
+這個 .csproj 的變更告訴編譯器：「無論你是在 Debug 還是 Release 模式下發布，都要將這個 Data 資料夾複製到輸出目錄中。」
+
+只要您確認這個 .csproj 的變更已：
+
+在本地 IDE 中設定完成。
+
+執行 git commit。
+
+執行 git push origin main。
+
+那麼，當您執行 fly deploy 時，Fly.io 會使用 Release 模式編譯，並且會自動包含您的 Data/六十甲子.csv 檔案。
+
+✅ 完整部署流程確認
+您可以完全沿用您熟悉的部署步驟，只需確保檔案配置和 Git 步驟無誤即可：
+
+本地開發/測試：使用 Debug 模式 (快速迭代)。
+
+配置 CSV：確認 Data 內 CSV 檔案的屬性設定為 Copy if newer (此變更會寫入 .csproj)。
+
+Git 同步：提交並推送 .csproj 文件和所有 CSV 文件到遠端倉庫。
+
+Fly 部署：在專案根目錄執行 fly deploy。
+
+fly deploy 會自動處理從 Debug 到 Release 的轉換和打包，您無需擔心。

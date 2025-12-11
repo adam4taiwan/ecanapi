@@ -83,7 +83,8 @@ namespace Ecanapi.Services.AstrologyEngine
                 null,
                 request.Name,
                 birthDate,
-                Calendar.ChineseDateString
+                Calendar.ChineseDateString,              
+                null // BaziAnalysisResult
             );
         }
     }
