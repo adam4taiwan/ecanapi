@@ -690,7 +690,42 @@ namespace Ecanapi.Services
             //context.SmallStars[lingPos] = (string.IsNullOrEmpty(context.SmallStars[lingPos]) ? "" : context.SmallStars[lingPos] + " ") + "鈴";
             context.BadStars[PalaceWrap(huoStartPos + hour - 1)] += "火 "; context.BadStars[PalaceWrap(lingStartPos + hour - 1)] += "鈴 ";
             // context.BadStars[hourZhi] += "劫 "; context.BadStars[PalaceWrap(2 + 12 - hourZhi)] += "空 ";
-            System.Action<string, string> AddFourTransformation = (starName, transType) => { for (int i = 1; i <= 12; i++) { string allStarsInPalace = context.CCM[i] + context.CCN[i] + context.SecondaryStars[i]; if (allStarsInPalace.Contains(starName)) { context.FourTransformationStars[i] += transType; return; } } };
+            // 修改四化座標
+            // 定義十四主星，用於比對分流
+            string mainStars = "紫機陽武同廉府陰貪巨相梁殺破";
+
+            System.Action<string, string> AddFourTransformation = (starName, transType) => {
+                bool isMainStar = mainStars.Contains(starName);
+
+                for (int i = 1; i <= 12; i++)
+                {
+                    // 先檢查此星曜是否存在於該宮位
+                    string mainStarsInPalace = (context.CCM[i] ?? "") + (context.CCN[i] ?? "");
+                    string secondaryStarsInPalace = context.SecondaryStars[i] ?? "";
+
+                    if (isMainStar)
+                    {
+                        // 十四主星：維持原邏輯，將四化標記放在 AnnualStarTransformations
+                        if (mainStarsInPalace.Contains(starName))
+                        {
+                            context.FourTransformationStars[i] += transType;
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        // 非十四主星（如：文曲、文昌、左輔、右弼）：
+                        // 將四化標記直接附加在 SecondaryStars 的星曜名稱後，例如 "曲" -> "曲(忌)"
+                        if (secondaryStarsInPalace.Contains(starName))
+                        {
+                            context.SecondaryStars[i] = secondaryStarsInPalace.Replace(starName, $"{starName}({transType})");
+                            return;
+                        }
+                    }
+                }
+            };
+
+            // System.Action<string, string> AddFourTransformation = (starName, transType) => { for (int i = 1; i <= 12; i++) { string allStarsInPalace = context.CCM[i] + context.CCN[i] + context.SecondaryStars[i]; if (allStarsInPalace.Contains(starName)) { context.FourTransformationStars[i] += transType; return; } } };
             switch (yearGan) { case 1: AddFourTransformation("廉", "祿"); AddFourTransformation("破", "權"); AddFourTransformation("武", "科"); AddFourTransformation("陽", "忌"); break; case 2: AddFourTransformation("機", "祿"); AddFourTransformation("梁", "權"); AddFourTransformation("紫", "科"); AddFourTransformation("陰", "忌"); break; case 3: AddFourTransformation("同", "祿"); AddFourTransformation("機", "權"); AddFourTransformation("昌", "科"); AddFourTransformation("廉", "忌"); break; case 4: AddFourTransformation("陰", "祿"); AddFourTransformation("同", "權"); AddFourTransformation("機", "科"); AddFourTransformation("巨", "忌"); break; case 5: AddFourTransformation("貪", "祿"); AddFourTransformation("陰", "權"); AddFourTransformation("右", "科"); AddFourTransformation("機", "忌"); break; case 6: AddFourTransformation("武", "祿"); AddFourTransformation("貪", "權"); AddFourTransformation("梁", "科"); AddFourTransformation("曲", "忌"); break; case 7: AddFourTransformation("陽", "祿"); AddFourTransformation("武", "權"); AddFourTransformation("陰", "科"); AddFourTransformation("同", "忌"); break; case 8: AddFourTransformation("巨", "祿"); AddFourTransformation("陽", "權"); AddFourTransformation("曲", "科"); AddFourTransformation("昌", "忌"); break; case 9: AddFourTransformation("梁", "祿"); AddFourTransformation("紫", "權"); AddFourTransformation("左", "科"); AddFourTransformation("武", "忌"); break; case 10: AddFourTransformation("破", "祿"); AddFourTransformation("巨", "權"); AddFourTransformation("陰", "科"); AddFourTransformation("貪", "忌"); break; }
 
             string[] doctorStars = { "博", "力", "青", "小", "將", "奏", "飛", "吉", "病", "大", "伏", "官" };
