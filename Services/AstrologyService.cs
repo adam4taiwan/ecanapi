@@ -424,7 +424,21 @@ namespace Ecanapi.Services
             switch (naYin.Substring(naYin.Length - 1, 1)) { case "水": context.WuXingJu = 2; wuXingJuText = "水二局"; break; case "木": context.WuXingJu = 3; wuXingJuText = "木三局"; break; case "金": context.WuXingJu = 4; wuXingJuText = "金四局"; break; case "土": context.WuXingJu = 5; wuXingJuText = "土五局"; break; case "火": context.WuXingJu = 6; wuXingJuText = "火六局"; break; }
             context.WuXingJuText = wuXingJuText;
             context.CCB[context.MingGongIndex] = "命宮"; string[] palaceNames = { "兄弟", "夫妻", "子女", "財帛", "疾厄", "遷移", "奴僕", "官祿", "田宅", "福德", "父母" }; int currentPalaceIndex = context.MingGongIndex; foreach (var name in palaceNames) { currentPalaceIndex--; if (currentPalaceIndex < 1) currentPalaceIndex = 12; context.CCB[currentPalaceIndex] = name; }
-            if (context.MingGongIndex != context.ShenGongIndex) { context.CCB[context.ShenGongIndex] += "身"; }
+            // --- 修改點開始 ---
+            // 原始邏輯：if (context.MingGongIndex != context.ShenGongIndex) { context.CCB[context.ShenGongIndex] += "身"; }
+            // 修正為：
+            if (context.MingGongIndex == context.ShenGongIndex)
+            {
+                // 子午時：命身同宮，將名稱改為「命身」
+                context.CCB[context.MingGongIndex] = "命身";
+            }
+            else
+            {
+                // 其他時辰：身宮在其他宮位，維持原邏輯在後方加「身」字
+                context.CCB[context.ShenGongIndex] += "身";
+            }
+            // --- 修改點結束 ---
+            //if (context.MingGongIndex != context.ShenGongIndex) { context.CCB[context.ShenGongIndex] += "身"; }
             for (int i = 1; i <= 12; i++) { context.PalaceShortNames[i] = context.CCB[i].Substring(0, 1); }
             var branchDirections = new Dictionary<int, string> { { 1, "子 北  方" }, { 2, "丑 北東北" }, { 3, "寅 東北方" }, { 4, "卯 東  方" }, { 5, "辰 東南東" }, { 6, "巳 東南方" }, { 7, "午 南  方" }, { 8, "未 南西南" }, { 9, "申 西南方" }, { 10, "酉 西  方" }, { 11, "戌 西北西" }, { 12, "亥 西北方" } }; var palaces = new List<ZiWeiPalace>(); for (int i = 1; i <= 12; i++) { palaces.Add(new ZiWeiPalace(i, context.CCB[i], context.CCO[i], branchDirections[i], new List<string>(), new List<string>(), new List<string>(), "", "", "", "", new List<string>(), new List<string>(), new List<string>())); }
             palaces.Sort((a, b) => a.Index.CompareTo(b.Index)); context.Result = context.Result with { palaces = palaces };
