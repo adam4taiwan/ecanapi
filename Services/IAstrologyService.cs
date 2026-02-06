@@ -10,5 +10,7 @@ namespace Ecanapi.Services
         List<AnnualLuck> GenerateAnnualLucks(int fromYear, int toYear, string dayStem);
 
         void ExportAnnualLucksJson(List<AnnualLuck> list, string filename);
+
+        Task<string> GetAiAnalysisAsync(string chartDataJson, string analysisType, string userQuestion = "");
     }
 }

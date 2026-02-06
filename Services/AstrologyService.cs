@@ -15,6 +15,23 @@ namespace Ecanapi.Services
 {
     public class AstrologyService : IAstrologyService
     {
+        private readonly string _geminiApiKey = "AIzaSyDaOpbK3Unx63Y1jvVGuNwcqcaovrqhY98";
+
+        public async Task<string> GetAiAnalysisAsync(string chartDataJson, string analysisType, string userQuestion = "")
+        {
+            // 這裡放入您在 NotebookLM 測試成功的大師邏輯指令
+            string systemInstruction = analysisType switch
+            {
+                "FullChart" => "你是一位30年命理大師。請根據以下 JSON 格式的命盤數據，進行全面的格局、喜忌與性格分析。格式請用 Markdown 呈現。",
+                "DecadeLuck" => "你是一位大師。請分析該命盤的【十年大運】起伏，並給予具體建議。",
+                "AnnualLuck" => "你是一位大師。請針對流年數據，拆解 12 個月的月運起伏。",
+                _ => "你是一位專業命理師，請回答用戶的問題。"
+            };
+
+            // 呼叫 Gemini API (建議使用 Google.GenAI SDK)
+            // 此處省略具體 SDK 呼叫細節，詳見下方 Controller 整合
+            return "AI 生成的專業分析結果...";
+        }
         // ⭐【新增】BlindSchoolUltimateAnalyzer 欄位
         private readonly BlindSchoolUltimateAnalyzer _analyzer = new(); // 必須 new 一個實例
         private static readonly Dictionary<string, List<string>> BranchToHiddenStems = new()

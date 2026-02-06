@@ -74,39 +74,77 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
         ValidAudience = builder.Configuration["JWT:ValidAudience"],
         // 使用我們檢查過且確保非 null 的 jwtSecret 變數
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        NameClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+    };
+    // 🚩 核心 Debug 點：加入這段 Event
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            // 在這裡打斷點！
+            Console.WriteLine("--- JWT 驗證失敗分析 ---");
+            Console.WriteLine("錯誤原因: " + context.Exception.Message);
+            return Task.CompletedTask;
+        }
     };
 });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddSwaggerGen(c =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Ecanapi", Version = "v1" });
+
+    // 🚩 這段讓 Swagger 支援輸入 JWT Bearer Token
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Description = "請在下方輸入: Bearer {您的Token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
-            new string[] { }
+            new string[] {}
         }
     });
 });
+
+//builder.Services.AddSwaggerGen(options =>
+//{
+//    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+//    {
+//        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+//        Name = "Authorization",
+//        In = ParameterLocation.Header,
+//        Type = SecuritySchemeType.Http,
+//        Scheme = "bearer"
+//    });
+
+//    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+//    {
+//        {
+//            new OpenApiSecurityScheme
+//            {
+//                Reference = new OpenApiReference
+//                {
+//                    Type = ReferenceType.SecurityScheme,
+//                    Id = "Bearer"
+//                }
+//            },
+//            new string[] { }
+//        }
+//    });
+//});
 
 // --- 註冊您所有的自訂服務 (保持不變) ---
 builder.Services.AddScoped<Print2Engine.IEcanCalendar, EcanCalendarAdapter>();
@@ -145,10 +183,32 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
+// 僅在非開發環境 (如 Fly.io) 才強制重定向到 HTTPS
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        // 取得資料庫上下文
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        // 執行自動遷移 (這行會代替 DBeaver 執行 ALTER TABLE)
+        context.Database.Migrate();
+        Console.WriteLine("--- 資料庫遷移成功：points 欄位已同步 ---");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("--- 資料庫遷移失敗: " + ex.Message + " ---");
+    }
+}
 
 app.Run();
