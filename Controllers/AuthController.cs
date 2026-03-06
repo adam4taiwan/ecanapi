@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Ecanapi.Data;
 using System.Threading.Tasks;
@@ -98,6 +99,23 @@ namespace Ecanapi.Controllers
 
             return Unauthorized(new { Message = "使用者或密碼錯誤。" });
         }
+
+        [HttpPut("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel model)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId!);
+            if (user == null)
+                return Unauthorized(new { message = "使用者不存在" });
+
+            var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+            if (result.Succeeded)
+                return Ok(new { message = "密碼修改成功！" });
+
+            var error = result.Errors.FirstOrDefault()?.Description ?? "修改失敗";
+            return BadRequest(new { message = error });
+        }
     }
 
     public class RegisterModel
@@ -111,5 +129,11 @@ namespace Ecanapi.Controllers
     {
         public required string Email { get; set; }
         public required string Password { get; set; }
+    }
+
+    public class ChangePasswordModel
+    {
+        public required string CurrentPassword { get; set; }
+        public required string NewPassword { get; set; }
     }
 }
