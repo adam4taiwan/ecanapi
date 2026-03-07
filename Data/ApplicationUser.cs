@@ -6,14 +6,25 @@ namespace Ecanapi.Data
     // 繼承 IdentityUser 來擴展使用者資料
     public class ApplicationUser : IdentityUser
     {
-        // 新增一個屬性來儲存使用者的姓名
         public required string Name { get; set; }
 
-        // Points 是新加的，對應資料庫您剛才 ALTER 的欄位
         [Column("points")]
         public int Points { get; set; } = 0;
-        // 一個導覽屬性，連結到此使用者擁有的所有客戶
+
         public ICollection<Customer> Customers { get; set; }
+
+        // ── 命理核心生辰資料（nullable，現有帳號不受影響）──
+        public int? BirthYear { get; set; }
+        public int? BirthMonth { get; set; }
+        public int? BirthDay { get; set; }
+        public int? BirthHour { get; set; }
+        public int? BirthMinute { get; set; }
+        /// <summary>1=男(乾造) 0=女(坤造)</summary>
+        public int? BirthGender { get; set; }
+        /// <summary>solar=陽曆 lunar=陰曆</summary>
+        public string? DateType { get; set; }
+        /// <summary>命盤顯示名稱（可與帳號名不同）</summary>
+        public string? ChartName { get; set; }
 
         public bool DeductPoints(int amount)
         {
@@ -21,5 +32,9 @@ namespace Ecanapi.Data
             this.Points -= amount;
             return true;
         }
+
+        /// <summary>是否已填寫生辰資料</summary>
+        public bool HasBirthData =>
+            BirthYear.HasValue && BirthMonth.HasValue && BirthDay.HasValue && BirthHour.HasValue;
     }
 }

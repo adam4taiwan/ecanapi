@@ -116,6 +116,57 @@ namespace Ecanapi.Controllers
             var error = result.Errors.FirstOrDefault()?.Description ?? "修改失敗";
             return BadRequest(new { message = error });
         }
+
+        /// <summary>取得會員基本資料（含生辰）</summary>
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId!);
+            if (user == null) return Unauthorized();
+
+            return Ok(new
+            {
+                name = user.Name,
+                email = user.Email,
+                points = user.Points,
+                hasBirthData = user.HasBirthData,
+                birthYear = user.BirthYear,
+                birthMonth = user.BirthMonth,
+                birthDay = user.BirthDay,
+                birthHour = user.BirthHour,
+                birthMinute = user.BirthMinute,
+                birthGender = user.BirthGender,
+                dateType = user.DateType ?? "solar",
+                chartName = user.ChartName ?? user.Name
+            });
+        }
+
+        /// <summary>儲存／更新會員生辰資料</summary>
+        [HttpPut("profile")]
+        [Authorize]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileModel model)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId!);
+            if (user == null) return Unauthorized();
+
+            if (!string.IsNullOrEmpty(model.ChartName)) user.ChartName = model.ChartName;
+            if (model.BirthYear.HasValue) user.BirthYear = model.BirthYear;
+            if (model.BirthMonth.HasValue) user.BirthMonth = model.BirthMonth;
+            if (model.BirthDay.HasValue) user.BirthDay = model.BirthDay;
+            if (model.BirthHour.HasValue) user.BirthHour = model.BirthHour;
+            if (model.BirthMinute.HasValue) user.BirthMinute = model.BirthMinute;
+            if (model.BirthGender.HasValue) user.BirthGender = model.BirthGender;
+            if (!string.IsNullOrEmpty(model.DateType)) user.DateType = model.DateType;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return BadRequest(new { message = "更新失敗", errors = result.Errors });
+
+            return Ok(new { message = "生辰資料已儲存", hasBirthData = user.HasBirthData });
+        }
     }
 
     public class RegisterModel
@@ -135,5 +186,17 @@ namespace Ecanapi.Controllers
     {
         public required string CurrentPassword { get; set; }
         public required string NewPassword { get; set; }
+    }
+
+    public class UpdateProfileModel
+    {
+        public string? ChartName { get; set; }
+        public int? BirthYear { get; set; }
+        public int? BirthMonth { get; set; }
+        public int? BirthDay { get; set; }
+        public int? BirthHour { get; set; }
+        public int? BirthMinute { get; set; }
+        public int? BirthGender { get; set; }
+        public string? DateType { get; set; }
     }
 }

@@ -194,20 +194,19 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-using (var scope = app.Services.CreateScope())
+// ── 僅本地開發環境自動 migrate，生產環境(NeonDB)由人工執行 SQL ──
+if (app.Environment.IsDevelopment())
 {
-    var services = scope.ServiceProvider;
+    using var scope = app.Services.CreateScope();
     try
     {
-        // 取得資料庫上下文
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        // 執行自動遷移 (這行會代替 DBeaver 執行 ALTER TABLE)
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         context.Database.Migrate();
-        Console.WriteLine("--- 資料庫遷移成功：points 欄位已同步 ---");
+        Console.WriteLine("--- [Dev] 資料庫遷移成功 ---");
     }
     catch (Exception ex)
     {
-        Console.WriteLine("--- 資料庫遷移失敗: " + ex.Message + " ---");
+        Console.WriteLine("--- [Dev] 資料庫遷移失敗: " + ex.Message + " ---");
     }
 }
 
