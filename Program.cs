@@ -193,6 +193,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok("OK"));
 
 // ── 僅本地開發環境自動 migrate，生產環境(NeonDB)由人工執行 SQL ──
 if (app.Environment.IsDevelopment())
