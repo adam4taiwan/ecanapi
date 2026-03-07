@@ -18,8 +18,8 @@ primary_region = 'sin'
   
 [[services.http_checks]]
   interval = "10s"
-  timeout = "2s"
-  path = "/swagger/index.html" # 或者任何您知道會回應 200 OK 的 API 路徑
+  timeout = "5s"
+  path = "/api/Auth/login"
 
 [[vm]]
   memory = '1gb'
