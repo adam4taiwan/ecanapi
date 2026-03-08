@@ -80,7 +80,7 @@ namespace Ecanapi.Controllers
 
 【輸出格式（嚴格遵守，禁止多寫）】
 
-🌟 {todayDateStr} 今日運勢
+=== {todayDateStr} 今日運勢 ===
 
 【總評】一句話點出今日整體氣場（15字以內）
 
@@ -105,7 +105,7 @@ namespace Ecanapi.Controllers
 
 【輸出格式（嚴格遵守，禁止多寫）】
 
-🌟 {todayDateStr} 今日運勢
+=== {todayDateStr} 今日運勢 ===
 
 【總評】一句話點出今日干支整體氣場（15字以內）
 
