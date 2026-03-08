@@ -1,5 +1,6 @@
 ﻿using Ecanapi.Controllers;
 using Ecanapi.Data;
+using Ecanapi.Models;
 using Ecanapi.Models.Analysis;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace Ecanapi.Data
         {
         }
         public DbSet<PointRecord> PointRecords { get; set; }
+        public DbSet<DailyFortune> DailyFortunes { get; set; }
         // 這是您的自定義資料集
         public DbSet<Customer> Customers { get; set; }
         // 【新增】將所有13張分析用表加入到 DbContext
