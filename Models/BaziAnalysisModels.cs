@@ -67,5 +67,9 @@ namespace Ecanapi.Models
                     !IsTrueGod && !IsReal ? "✘ 100%虛假" :
                     !IsTrueGod ? "★★ 假神虛榮" : "★★★ 真神但虛浮");
         }
+        // 新增這兩個欄位來承載旺衰數據
+        public double Score { get; set; } = 0;
+        public string Status { get; set; } = string.Empty;
+        public string SeasonEffect { get; set; } = string.Empty;
     }
 }

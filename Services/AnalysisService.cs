@@ -1,4 +1,5 @@
 ﻿using Ecanapi.Data; // 請確認這是您 DbContext 所在的正確命名空間
+using Ecanapi.Models;
 using Ecanapi.Models.Analysis;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -9,12 +10,18 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
+
 namespace Ecanapi.Services
 {
     public class AnalysisService : IAnalysisService
     {
         private readonly ApplicationDbContext _context; // 請將 ApplicationDbContext 換成您實際的 DbContext 類別名稱
-
+        private System.Data.IDbConnection CreateConnection()
+        {
+            // 從 EF Core 的 DbContext 取得連線字串
+            var connectionString = _context.Database.GetDbConnection().ConnectionString;
+            return new NpgsqlConnection(connectionString);
+        }
         public AnalysisService(ApplicationDbContext context) // 同上，請換成您實際的 DbContext 類別名稱
         {
             _context = context;
@@ -41,6 +48,25 @@ namespace Ecanapi.Services
             }
 
             return await query.ToListAsync();
+        }
+        private float? GetPositionValue(string branch)
+        {
+            return branch switch
+            {
+                "子" => 1.0f,
+                "丑" => 2.0f,
+                "寅" => 3.0f,
+                "卯" => 4.0f,
+                "辰" => 5.0f,
+                "巳" => 6.0f,
+                "午" => 7.0f,
+                "未" => 8.0f,
+                "申" => 9.0f,
+                "酉" => 10.0f,
+                "戌" => 11.0f,
+                "亥" => 12.0f,
+                _ => null
+            };
         }
         public async Task<IEnumerable<StarStyle>> GetAllStarStylesAsync() => await _context.StarStyles.ToListAsync();
         public async Task<StarStyle?> GetStarStyleByIdAsync(int id) => await _context.StarStyles.FindAsync(id);
@@ -566,6 +592,30 @@ namespace Ecanapi.Services
             }
 
             return await query.ToListAsync();
+        }
+        public async Task<StarStyleDesc> GetStarStyleDescAsync(string mainStar, string position)
+        {
+            // 1. 將字串地支 (如 "丑") 轉換為數字 (如 2.0f)
+            float? posValue = GetPositionValue(position);
+
+            if (!posValue.HasValue) return null;
+
+            // 2. 使用 EF 查詢 StarStyles 表 (對應原本取資料邏輯)
+            // 假設您的 StarStyle 欄位名分別為 Mainstar, Position, Gd, Bd, Stardesc, StarByYear
+            var result = await _context.StarStyles
+                .Where(s => s.MainStar == mainStar && s.Position == posValue)
+                .Select(s => new StarStyleDesc
+                {
+                    MainStar = s.MainStar,
+                    Position = s.Position.ToString(), // 轉回字串供顯示使用
+                    Gd = s.Gd,
+                    Bd = s.Bd,
+                    StarDesc = s.StarDesc,
+                    StarByYear = s.StarByYear
+                })
+                .FirstOrDefaultAsync();
+
+            return result;
         }
     }
 }

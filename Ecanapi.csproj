@@ -74,6 +74,9 @@
 
   <ItemGroup>
     <Folder Include="wwwroot\templates\" />
+    <Content Update="wwwroot\images\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

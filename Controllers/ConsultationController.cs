@@ -18,13 +18,15 @@ namespace Ecanapi.Controllers
         private readonly IAstrologyService _astrologyService;
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
-        private static readonly HttpClient _httpClient = new HttpClient();
+        private readonly ILogger<ConsultationController> _logger;
+        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
 
-        public ConsultationController(IAstrologyService astrologyService, ApplicationDbContext context, IConfiguration config)
+        public ConsultationController(IAstrologyService astrologyService, ApplicationDbContext context, IConfiguration config, ILogger<ConsultationController> logger)
         {
             _astrologyService = astrologyService;
             _context = context;
             _config = config;
+            _logger = logger;
         }
 
         [Authorize]
@@ -50,11 +52,11 @@ namespace Ecanapi.Controllers
                 "綜合性命書" or "綜合鑑定" => 50,
                 "大運命書" => (request.FortuneDuration ?? 5) switch
                 {
-                    5 => 30,
-                    10 => 50,
-                    20 => 80,
-                    30 => 120,
-                    _ => 200   // 0 = 終身
+                    5 => 150,
+                    10 => 200,
+                    20 => 250,
+                    30 => 300,
+                    _ => 500   // 0 = 終身
                 },
                 "流年命書" => 20,
                 "問事" => 10,
@@ -90,8 +92,7 @@ namespace Ecanapi.Controllers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"--- 命理鑑定失敗: {ex.Message} ---");
-                Console.WriteLine($"--- StackTrace: {ex.StackTrace} ---");
+                _logger.LogError(ex, "命理鑑定失敗 Type={Type} User={User}", request.Type, identity);
                 return StatusCode(500, new { error = "命理鑑定失敗，請稍後再試", details = ex.Message });
             }
         }
@@ -139,11 +140,11 @@ namespace Ecanapi.Controllers
             string durationLabel = duration == 0 ? "終身" : $"{duration}年";
             string detailLevel = duration switch
             {
-                5 => "請逐月分析，每月列出：月柱干支、六神、與本命合沖刑害破神煞互動、吉凶評分(★)、一句斷語",
-                10 => "請逐月分析，以簡表格式呈現（月份|月柱|六神|重大互動|吉凶★）",
-                20 => "請逐季分析（每季3個月合併），標出各季重點月份，列出每年大運流年互動總評",
-                30 => "請逐年分析，每年列出上下半年重點月份，標注六親財官健康影響",
-                _ => "請逐大運分析，每個大運列出重點年份，標注命主一生重大轉折時點"
+                5 => "請逐月分析，表格欄位名稱固定為：月份、月柱、六神、吉凶、斷語。每格斷語內容不超過30字，表格標題列只寫欄位名稱。",
+                10 => "請逐月分析，表格欄位名稱固定為：月份、月柱、六神、吉凶、斷語。每格斷語內容不超過20字，表格標題列只寫欄位名稱。",
+                20 => "請逐季分析（每季3個月合併），表格欄位名稱固定為：季度、干支、六神、吉凶、重點。每格重點內容不超過30字，表格標題列只寫欄位名稱。",
+                30 => "請逐年分析，表格欄位名稱固定為：年份、干支、六神、吉凶、重點。每格重點內容不超過30字，表格標題列只寫欄位名稱。",
+                _ => "請逐大運分析，表格欄位名稱固定為：大運、干支、重點年份、吉凶、總評。每格總評不超過30字，表格標題列只寫欄位名稱。"
             };
 
             return $@"
@@ -298,8 +299,7 @@ namespace Ecanapi.Controllers
             var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
             var response = await _httpClient.PostAsJsonAsync(url, payload);
             var rawJson = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"--- Gemini HTTP {(int)response.StatusCode} ---");
-            Console.WriteLine(rawJson.Length > 500 ? rawJson[..500] : rawJson);
+            _logger.LogInformation("Gemini HTTP {StatusCode}: {Preview}", (int)response.StatusCode, rawJson.Length > 300 ? rawJson[..300] : rawJson);
             var json = JsonSerializer.Deserialize<JsonElement>(rawJson);
             if (!json.TryGetProperty("candidates", out var candidates))
                 throw new Exception($"Gemini 回傳錯誤: {rawJson[..Math.Min(300, rawJson.Length)]}");
@@ -312,7 +312,7 @@ namespace Ecanapi.Controllers
         public string Type { get; set; }
         public AstrologyRequest ChartRequest { get; set; }
         public int? TargetYear { get; set; }        // 流年命書用
-        public string Topic { get; set; }            // 問事用
+        public string? Topic { get; set; }           // 問事用
         public int? FortuneDuration { get; set; }    // 大運命書年數：5/10/20/30/0=終身
     }
 

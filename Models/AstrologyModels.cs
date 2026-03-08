@@ -11,7 +11,8 @@ namespace Ecanapi.Models
         int Hour,
         int Minute,
         int Gender, // 1: 男, 2: 女
-        string Name
+        string Name,
+        string? DateType = "solar"  // solar: 陽曆, lunar: 農曆
     );
 
     // 單一柱位的詳細資訊

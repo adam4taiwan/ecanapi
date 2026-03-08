@@ -117,6 +117,25 @@ namespace Ecanapi.Controllers
             return BadRequest(new { message = error });
         }
 
+        /// <summary>管理員重設任意帳號密碼（僅限開發測試用）</summary>
+        [HttpPost("admin-reset-password")]
+        public async Task<IActionResult> AdminResetPassword([FromBody] AdminResetPasswordModel model)
+        {
+            if (model.AdminKey != "YuDongZi2026")
+                return Unauthorized(new { message = "無效的管理員金鑰" });
+
+            var user = await _userManager.FindByEmailAsync(model.Email);
+            if (user == null) return NotFound(new { message = "帳號不存在" });
+
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var result = await _userManager.ResetPasswordAsync(user, token, model.NewPassword);
+
+            if (result.Succeeded)
+                return Ok(new { message = $"{model.Email} 密碼已重設成功" });
+
+            return BadRequest(new { message = "重設失敗", errors = result.Errors });
+        }
+
         /// <summary>取得會員基本資料（含生辰）</summary>
         [HttpGet("profile")]
         [Authorize]
@@ -126,6 +145,7 @@ namespace Ecanapi.Controllers
             var user = await _userManager.FindByIdAsync(userId!);
             if (user == null) return Unauthorized();
 
+            var adminEmail = _configuration["Admin:Email"];
             return Ok(new
             {
                 name = user.Name,
@@ -139,7 +159,8 @@ namespace Ecanapi.Controllers
                 birthMinute = user.BirthMinute,
                 birthGender = user.BirthGender,
                 dateType = user.DateType ?? "solar",
-                chartName = user.ChartName ?? user.Name
+                chartName = user.ChartName ?? user.Name,
+                isAdmin = string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase)
             });
         }
 
@@ -185,6 +206,13 @@ namespace Ecanapi.Controllers
     public class ChangePasswordModel
     {
         public required string CurrentPassword { get; set; }
+        public required string NewPassword { get; set; }
+    }
+
+    public class AdminResetPasswordModel
+    {
+        public required string AdminKey { get; set; }
+        public required string Email { get; set; }
         public required string NewPassword { get; set; }
     }
 

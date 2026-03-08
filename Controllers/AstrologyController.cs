@@ -1,9 +1,13 @@
-﻿using Ecanapi.Models;
+﻿using Ecanapi.Data;
+using Ecanapi.Models;
 using Ecanapi.Services;
 using Ecanapi.Services.AstrologyEngine;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.IO;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Ecanapi.Controllers
@@ -14,19 +18,22 @@ namespace Ecanapi.Controllers
     {
         private readonly IAstrologyService _astrologyService;
         private readonly IExcelExportService _excelExportService;
-        private readonly IAnalysisReportService _analysisReportService; // <--- 【關鍵修正】補上這一行宣告
+        private readonly IAnalysisReportService _analysisReportService;
         private readonly IWebHostEnvironment _env;
+        private readonly ApplicationDbContext _context;
 
         public AstrologyController(
             IAstrologyService astrologyService,
             IExcelExportService excelExportService,
-            IAnalysisReportService analysisReportService, // <--- 注入新的服務
-            IWebHostEnvironment env)
+            IAnalysisReportService analysisReportService,
+            IWebHostEnvironment env,
+            ApplicationDbContext context)
         {
             _astrologyService = astrologyService;
             _excelExportService = excelExportService;
-            _analysisReportService = analysisReportService; // <--- 初始化
+            _analysisReportService = analysisReportService;
             _env = env;
+            _context = context;
         }
 
         [HttpPost("calculate")]
@@ -82,20 +89,32 @@ namespace Ecanapi.Controllers
 
             return File(fileBytes, "application/vnd.ms-excel", exportFileName);
         }
-        // 【新增】產生 DOCX 分析報告的 API 端點
+        // 產生專家命書 DOCX 報告（需登入，扣 200 點）
         [HttpPost("analyze")]
+        [Authorize]
         public async Task<IActionResult> AnalyzeChart([FromBody] AstrologyRequest request)
         {
-            // 1. 呼叫現有的服務，產生一份完整的命盤資料
+            const int cost = 200;
+            var identity = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue(ClaimTypes.Name);
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == identity || u.UserName == identity);
+            if (user == null) return Unauthorized(new { error = "找不到用戶" });
+
+            var adminEmail = HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Admin:Email"];
+            if (!string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                return StatusCode(403, new { error = "此功能僅限管理員使用" });
+
+            if (user.Points < cost) return BadRequest(new { error = $"點數不足，此功能需要 {cost} 點" });
+
             var chartData = await _astrologyService.CalculateChartAsync(request);
+            var fileBytes = await _analysisReportService.GenerateReportAsync(chartData, request);
 
-            // 2. 將「命盤資料」和「原始請求」一併傳遞給分析服務
-            var fileBytes = await _analysisReportService.GenerateReportAsync(chartData, request); // <--- 【修改】此處傳入 request
-            
-            // 3. 設定下載檔案的名稱
-            var exportFileName = $"{chartData.UserName}_AnalysisReport.docx";
+            user.Points -= cost;
+            await _context.SaveChangesAsync();
 
-            // 4. 將 byte 陣列作為 Word 檔案回傳給前端，觸發下載
+            var exportFileName = $"{chartData.UserName}_ExpertReport.docx";
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", exportFileName);
         }
         [HttpGet("ExportAnnualLuckJson")]

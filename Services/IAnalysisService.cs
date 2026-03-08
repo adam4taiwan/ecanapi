@@ -1,11 +1,14 @@
 ﻿using Ecanapi.Models.Analysis;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Ecanapi.Models;
 
 namespace Ecanapi.Services
 {
+
     public interface IAnalysisService
     {
+
         // --- StarStyle Methods ---
         // 【修正】讓 GetAllStarStylesAsync 可以接收 position 和 mainstar 兩個可選的查詢參數
         Task<IEnumerable<StarStyle>> GetAllStarStylesAsync(float? position, string? mainstar);
@@ -114,6 +117,11 @@ namespace Ecanapi.Services
         // 【新增】通用的唯讀 SQL 查詢方法
         Task<string> ExecuteRawQueryAsync(string sqlQuery);
         Task<string> ExecuteRawQueryListAsync(string sqlQuery);
+        // 在 IAnalysisService 介面中新增
+        Task<StarStyleDesc> GetStarStyleDescAsync(string mainStar, string position);
+
+        // 在 Models 資料夾新增或放在 Service 檔案上方
+
 
     }
 }
