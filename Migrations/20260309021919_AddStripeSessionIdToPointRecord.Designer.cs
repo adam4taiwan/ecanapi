@@ -3,6 +3,7 @@ using System;
 using Ecanapi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Ecanapi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260309021919_AddStripeSessionIdToPointRecord")]
+    partial class AddStripeSessionIdToPointRecord
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -58,9 +61,6 @@ namespace Ecanapi.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Address")
-                        .HasColumnType("text");
 
                     b.Property<int?>("BirthDay")
                         .HasColumnType("integer");
@@ -118,9 +118,6 @@ namespace Ecanapi.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
 
-                    b.Property<string>("Phone")
-                        .HasColumnType("text");
-
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("text");
 
@@ -131,13 +128,7 @@ namespace Ecanapi.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("points");
 
-                    b.Property<string>("PostalCode")
-                        .HasColumnType("text");
-
                     b.Property<string>("SecurityStamp")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TaxId")
                         .HasColumnType("text");
 
                     b.Property<bool>("TwoFactorEnabled")
@@ -801,54 +792,6 @@ namespace Ecanapi.Migrations
                     b.HasKey("UniqueId");
 
                     b.ToTable("財官總論");
-                });
-
-            modelBuilder.Entity("Ecanapi.Models.AtmPaymentRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AccountLast5")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("AdminNote")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PackageId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Points")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("PriceTwd")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TransferDate")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("AtmPaymentRequests");
                 });
 
             modelBuilder.Entity("Ecanapi.Models.DailyFortune", b =>

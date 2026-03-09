@@ -110,6 +110,12 @@ dotnet ef migrations script <FromMigration> <ToMigration> --context ApplicationD
 | 流年命書 | 20 點 |
 | 專家命書(管理員) | 200 點 |
 
+## 程式碼撰寫規範
+
+- 程式碼只使用英文、數字、ASCII 符號
+- 中文字只使用繁體中文
+- 禁止在程式碼中使用 emoji 或 Unicode 特殊符號
+
 ## 注意事項
 
 - Gemini API 呼叫 timeout 設為 5 分鐘（ConsultationController）、3 分鐘（FortuneController）

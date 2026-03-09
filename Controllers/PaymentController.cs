@@ -1,18 +1,24 @@
-﻿using Ecanapi.Data;
+using Ecanapi.Data;
 using Ecanapi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Stripe;
 using Stripe.Checkout;
+using System.Security.Claims;
 
 namespace Ecanapi.Controllers
 {
-    // 確保 UserName 在 Swagger 可以輸入
-    public class PointPackage
+    public class CheckoutRequest
     {
-        public int Points { get; set; }
-        public int Price { get; set; }
-        public string UserName { get; set; }
+        public string PackageId { get; set; } = string.Empty;
+    }
+
+    public class AtmRequest
+    {
+        public string PackageId { get; set; } = string.Empty;
+        public string TransferDate { get; set; } = string.Empty;
+        public string AccountLast5 { get; set; } = string.Empty;
     }
 
     [ApiController]
@@ -22,50 +28,86 @@ namespace Ecanapi.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
 
+        // Server-side defined valid packages — clients only pass packageId
+        private static readonly Dictionary<string, (int Points, int PriceTwd)> ValidPackages = new()
+        {
+            { "starter",  (50,   500)  },
+            { "popular",  (150,  1350) },
+            { "advanced", (400,  3200) },
+            { "vip",      (1000, 7000) },
+        };
+
         public PaymentController(ApplicationDbContext context, IConfiguration config)
         {
             _context = context;
             _config = config;
         }
 
-        [HttpPost("create-checkout-session")]
-        public async Task<IActionResult> CreateCheckoutSession([FromBody] PointPackage package)
+        [HttpGet("packages")]
+        public IActionResult GetPackages()
         {
-            StripeConfiguration.ApiKey = _config["Stripe:SecretKey"];
-            // 🚩 這裡動態判斷：如果是本地就回 3000，如果是雲端就回您的 Fly.io 網址
-            var origin = Request.Headers["Origin"].ToString();
-            // 如果前端沒傳 Origin，就預設一個回傳路徑
-            var frontendUrl = string.IsNullOrEmpty(origin) ? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}" : origin;
+            var packages = ValidPackages.Select(p => new
+            {
+                id = p.Key,
+                points = p.Value.Points,
+                priceTwd = p.Value.PriceTwd,
+            });
+            return Ok(packages);
+        }
 
-            // 確保回到命盤頁面
-            //var successUrl = $"{frontendUrl}/disk";
-            // 🚩 修改目的：在網址後方加上一個隨機的時間戳記 (Timestamp)
-            // 這樣瀏覽器會認為這是一個「全新的頁面」，從而強制前端執行 useEffect 抓取最新點數
-            var successUrl = $"{frontendUrl}/disk?session_id={{CHECKOUT_SESSION_ID}}&t={DateTime.Now.Ticks}";
-            // 自動抓取當前 Host，避免 Port 變動導致 404
-            var host = HttpContext.Request.Host;
-            var scheme = HttpContext.Request.Scheme;
+        [Authorize]
+        [HttpPost("create-checkout-session")]
+        public async Task<IActionResult> CreateCheckoutSession([FromBody] CheckoutRequest request)
+        {
+            if (!ValidPackages.TryGetValue(request.PackageId, out var pkg))
+                return BadRequest(new { message = "無效的點數套餐" });
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                return Unauthorized();
+
+            StripeConfiguration.ApiKey = _config["Stripe:SecretKey"];
+
+            var origin = Request.Headers["Origin"].ToString();
+            var frontendUrl = string.IsNullOrEmpty(origin)
+                ? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}"
+                : origin;
+
+            var successUrl = $"{frontendUrl}/member?payment=success&session_id={{CHECKOUT_SESSION_ID}}";
+            var cancelUrl  = $"{frontendUrl}/member?payment=cancelled";
 
             var options = new SessionCreateOptions
             {
                 PaymentMethodTypes = new List<string> { "card" },
-                LineItems = new List<SessionLineItemOptions> {
-                    new SessionLineItemOptions {
-                        PriceData = new SessionLineItemPriceDataOptions {
+                LineItems = new List<SessionLineItemOptions>
+                {
+                    new SessionLineItemOptions
+                    {
+                        PriceData = new SessionLineItemPriceDataOptions
+                        {
                             Currency = "twd",
-                            UnitAmount = package.Price * 100,
-                            ProductData = new SessionLineItemPriceDataProductDataOptions { Name = "點數充值" },
+                            UnitAmount = pkg.PriceTwd * 100,
+                            ProductData = new SessionLineItemPriceDataProductDataOptions
+                            {
+                                Name = $"點數儲值 {pkg.Points} 點",
+                            },
                         },
                         Quantity = 1,
                     },
                 },
                 Mode = "payment",
                 SuccessUrl = successUrl,
-                CancelUrl = successUrl,
-                Metadata = new Dictionary<string, string> {
-                    { "UserName", package.UserName },
-                    { "Points", package.Points.ToString() }
-                }
+                CancelUrl  = cancelUrl,
+                Metadata = new Dictionary<string, string>
+                {
+                    { "UserId",    userId },
+                    { "Points",    pkg.Points.ToString() },
+                    { "PackageId", request.PackageId },
+                },
             };
 
             var service = new SessionService();
@@ -73,48 +115,92 @@ namespace Ecanapi.Controllers
             return Ok(new { url = session.Url });
         }
 
+        [Authorize]
+        [HttpPost("atm-request")]
+        public async Task<IActionResult> CreateAtmRequest([FromBody] AtmRequest request)
+        {
+            if (!ValidPackages.TryGetValue(request.PackageId, out var pkg))
+                return BadRequest(new { message = "無效的點數套餐" });
+            if (string.IsNullOrWhiteSpace(request.TransferDate) || string.IsNullOrWhiteSpace(request.AccountLast5))
+                return BadRequest(new { message = "請填寫轉帳日期及帳號後 5 碼" });
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            _context.AtmPaymentRequests.Add(new AtmPaymentRequest
+            {
+                UserId      = userId,
+                PackageId   = request.PackageId,
+                Points      = pkg.Points,
+                PriceTwd    = pkg.PriceTwd,
+                TransferDate  = request.TransferDate,
+                AccountLast5  = request.AccountLast5,
+                Status      = "pending",
+                CreatedAt   = DateTime.UtcNow,
+            });
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "ATM 轉帳申請已提交，審核後點數將自動入帳" });
+        }
+
         [HttpPost("webhook")]
         public async Task<IActionResult> StripeWebhook()
         {
             var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
-            // 在這裡點紅點 (斷點)
-            Console.WriteLine(">>>> [Webhook] 收到請求");
+            Console.WriteLine(">>>> [Webhook] Received request");
 
             try
             {
                 var stripeEvent = EventUtility.ConstructEvent(
-                    json, Request.Headers["Stripe-Signature"], _config["Stripe:WebhookSecret"]);
+                    json,
+                    Request.Headers["Stripe-Signature"],
+                    _config["Stripe:WebhookSecret"]);
 
                 if (stripeEvent.Type == "checkout.session.completed")
                 {
                     var session = stripeEvent.Data.Object as Stripe.Checkout.Session;
-                    var loginName = session.Metadata["UserName"];
+                    if (session == null) return Ok();
+
+                    // Idempotency: skip if already processed
+                    var alreadyProcessed = await _context.PointRecords
+                        .AnyAsync(r => r.StripeSessionId == session.Id);
+                    if (alreadyProcessed)
+                    {
+                        Console.WriteLine($">>>> [Webhook] Session {session.Id} already processed, skipping");
+                        return Ok();
+                    }
+
+                    var userId    = session.Metadata["UserId"];
                     var pointsToAdd = int.Parse(session.Metadata["Points"]);
+                    var packageId = session.Metadata.GetValueOrDefault("PackageId", "");
 
-                    Console.WriteLine($">>>> [Webhook] 準備為用戶 {loginName} 增加 {pointsToAdd} 點");
+                    Console.WriteLine($">>>> [Webhook] Adding {pointsToAdd} points to userId={userId}");
 
-                    // 注意：這裡的大小寫必須與資料庫一致
-                    // 🚩 在 PaymentController.cs 的 Webhook 處修改這行：
-                    // 原本是：u.UserName == loginName
-                    // 修改為：
-                    var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == loginName || u.UserName == loginName);
-                    //var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == loginName);
-                    if (user != null)
+                    var user = await _context.Users.FindAsync(userId);
+                    if (user == null)
                     {
-                        user.Points += pointsToAdd;
-                        await _context.SaveChangesAsync();
-                        Console.WriteLine(">>>> [Webhook] 資料庫更新成功！");
+                        Console.WriteLine($">>>> [Webhook] Error: user not found userId={userId}");
+                        return Ok();
                     }
-                    else
+
+                    user.Points += pointsToAdd;
+                    _context.PointRecords.Add(new PointRecord
                     {
-                        Console.WriteLine($">>>> [Webhook] 錯誤：找不到用戶 {loginName}");
-                    }
+                        UserId          = userId,
+                        Amount          = pointsToAdd,
+                        Description     = $"Stripe {packageId} 套餐儲值",
+                        StripeSessionId = session.Id,
+                        CreatedAt       = DateTime.UtcNow,
+                    });
+
+                    await _context.SaveChangesAsync();
+                    Console.WriteLine($">>>> [Webhook] Success: userId={userId} points={user.Points}");
                 }
+
                 return Ok();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Console.WriteLine($">>>> [Webhook] 驗證失敗: {ex.Message}");
+                Console.WriteLine($">>>> [Webhook] Signature verification failed: {ex.Message}");
                 return BadRequest();
             }
         }

@@ -11,6 +11,11 @@ namespace Ecanapi.Data
         [Column("points")]
         public int Points { get; set; } = 0;
 
+        public string? Phone { get; set; }
+        public string? PostalCode { get; set; }
+        public string? Address { get; set; }
+        public string? TaxId { get; set; }
+
         public ICollection<Customer> Customers { get; set; }
 
         // ── 命理核心生辰資料（nullable，現有帳號不受影響）──
