@@ -153,7 +153,7 @@ namespace Ecanapi.Controllers
             if (file == null || file.Length == 0) return BadRequest(new { message = "no file" });
 
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-            var allowed = new[] { ".csv", ".txt", ".docx", ".xlsx", ".xls" };
+            var allowed = new[] { ".csv", ".txt", ".docx", ".doc", ".xlsx", ".xls" };
             if (!allowed.Contains(ext))
                 return BadRequest(new { message = $"unsupported format: {ext}" });
 
@@ -169,6 +169,7 @@ namespace Ecanapi.Controllers
                     ".csv" => ParseCsv(ms, file.FileName, category, subcategory),
                     ".txt" => ParseTxt(ms, file.FileName, category, subcategory),
                     ".docx" => ParseDocx(ms, file.FileName, category, subcategory),
+                    ".doc" => ParseDoc(ms, file.FileName, category, subcategory),
                     ".xlsx" => ParseXlsx(ms, file.FileName, category, subcategory, false),
                     ".xls" => ParseXlsx(ms, file.FileName, category, subcategory, true),
                     _ => new List<ParsedRule>()
@@ -255,30 +256,58 @@ namespace Ecanapi.Controllers
         private static List<ParsedRule> ParseCsv(Stream stream, string fileName, string category, string? subcategory)
         {
             var rules = new List<ParsedRule>();
-            // Try UTF-8 first, fallback to Big5
-            Encoding enc;
             try
             {
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
                 var bytes = ReadAllBytes(stream);
-                enc = DetectEncoding(bytes);
+                var enc = DetectEncoding(bytes);
                 var text = enc.GetString(bytes);
                 var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 if (lines.Length == 0) return rules;
 
-                // Check if first line is a header
-                var firstLine = lines[0].Trim();
-                bool hasHeader = !firstLine.StartsWith("　") && lines.Length > 1;
-                int start = hasHeader ? 1 : 0;
+                // Detect if the file is multi-column (has real data in col 2+)
+                // by checking whether any non-first-line has a non-empty second column
+                bool isMultiColumn = lines.Skip(1).Take(10).Any(l => {
+                    var c = SplitCsvLine(l);
+                    return c.Count > 1 && !string.IsNullOrWhiteSpace(c[1]);
+                });
+
+                // Skip header only in multi-column files where first row looks like a header
+                int start = 0;
+                if (isMultiColumn)
+                {
+                    var firstCols = SplitCsvLine(lines[0]);
+                    bool firstRowIsHeader = firstCols.Count > 1 && !string.IsNullOrWhiteSpace(firstCols[1])
+                        && !firstCols[0].EndsWith("。") && !firstCols[0].EndsWith("：");
+                    if (firstRowIsHeader) start = 1;
+                }
 
                 for (int i = start; i < lines.Length; i++)
                 {
                     var cols = SplitCsvLine(lines[i]);
                     if (cols.Count == 0) continue;
 
-                    string title = cols.Count > 0 ? cols[0].Trim() : "";
-                    string result = cols.Count > 1 ? string.Join("；", cols.Skip(1).Select(c => c.Trim()).Where(c => c.Length > 0)) : title;
-                    if (cols.Count == 1) { result = title; title = ""; }
+                    string col0 = cols[0].Trim().TrimEnd('\r');
+                    if (string.IsNullOrWhiteSpace(col0)) continue;
+
+                    string title;
+                    string result;
+
+                    if (isMultiColumn)
+                    {
+                        // Multi-column: col0=title, remaining cols=result
+                        var rest = cols.Skip(1).Select(c => c.Trim().TrimEnd('\r')).Where(c => c.Length > 0).ToList();
+                        title = col0;
+                        result = rest.Count > 0 ? string.Join("；", rest) : col0;
+                        if (rest.Count > 0 && result == col0) title = "";
+                    }
+                    else
+                    {
+                        // Single-column (with or without trailing comma): entire col0 is the rule
+                        title = "";
+                        result = col0;
+                    }
+
                     if (string.IsNullOrWhiteSpace(result)) continue;
 
                     rules.Add(new ParsedRule
@@ -300,43 +329,165 @@ namespace Ecanapi.Controllers
 
         private static List<ParsedRule> ParseTxt(Stream stream, string fileName, string category, string? subcategory)
         {
-            var rules = new List<ParsedRule>();
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             var bytes = ReadAllBytes(stream);
             var enc = DetectEncoding(bytes);
             var text = enc.GetString(bytes);
+            return ParseTextContent(text, fileName, category, subcategory);
+        }
 
-            // Split by paragraph (double newline or numbered sections)
-            var paragraphs = Regex.Split(text, @"\r?\n\r?\n+")
-                .Select(p => p.Trim())
-                .Where(p => p.Length > 10)
-                .ToList();
+        private static List<ParsedRule> ParseDoc(Stream stream, string fileName, string category, string? subcategory)
+        {
+            // Extract readable text from .doc binary (OLE2 / Word 97-2003).
+            // Scans for UTF-16LE character runs (the main text storage format in .doc).
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var bytes = ReadAllBytes(stream);
+            var text = ExtractDocText(bytes);
+            if (string.IsNullOrWhiteSpace(text))
+                text = DetectEncoding(bytes).GetString(bytes); // fallback: raw decode
+            return ParseTextContent(text, fileName, category, subcategory);
+        }
 
-            if (paragraphs.Count == 0)
+        private static string ExtractDocText(byte[] bytes)
+        {
+            // Heuristic: scan for UTF-16LE Chinese/ASCII text runs (>= 3 chars).
+            // .doc stores main text as UTF-16LE in the WordDocument stream.
+            var sb = new StringBuilder();
+            int i = 0;
+            while (i < bytes.Length - 1)
             {
-                // fallback: split by single newline
-                paragraphs = text.Split('\n')
+                // Try UTF-16LE run
+                var runSb = new StringBuilder();
+                int j = i;
+                while (j < bytes.Length - 1)
+                {
+                    ushort ch = (ushort)(bytes[j] | (bytes[j + 1] << 8));
+                    // Accept CJK Unified, Basic Latin printable, CJK punctuation
+                    if ((ch >= 0x4E00 && ch <= 0x9FFF) ||   // CJK Unified
+                        (ch >= 0x3000 && ch <= 0x303F) ||   // CJK Symbols
+                        (ch >= 0xFF00 && ch <= 0xFFEF) ||   // Fullwidth
+                        (ch >= 0x0020 && ch <= 0x007E) ||   // ASCII printable
+                        ch == 0x000A || ch == 0x000D)        // newline
+                    {
+                        runSb.Append((char)ch);
+                        j += 2;
+                    }
+                    else break;
+                }
+                if (runSb.Length >= 3)
+                {
+                    sb.Append(runSb);
+                    i = j;
+                }
+                else i++;
+            }
+            // Clean up: remove excessive spaces/control chars
+            var result = Regex.Replace(sb.ToString(), @"[\x00-\x08\x0B\x0C\x0E-\x1F]", "");
+            result = Regex.Replace(result, @" {3,}", " ");
+            return result;
+        }
+
+        // Shared text parser: handles both plain paragraphs and structured "title + body" entries.
+        // Detects the "年干" structure (short title line followed by content lines).
+        private static List<ParsedRule> ParseTextContent(string text, string fileName, string category, string? subcategory)
+        {
+            var rules = new List<ParsedRule>();
+
+            // Normalize line endings
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n");
+
+            // Detect if text has the structured "short title / body" pattern:
+            // A line is a "title" if it's <= 10 chars and the next non-empty line is longer.
+            // Examples: "甲年干", "廉貞化祿", "破軍化權"
+            var allLines = text.Split('\n').Select(l => l.Trim()).ToList();
+            bool isStructured = allLines.Count > 4 &&
+                allLines.Where(l => l.Length > 0 && l.Length <= 10).Count() >= 3;
+
+            if (isStructured)
+            {
+                // Parse as structured title+body pairs
+                string? currentTitle = null;
+                var currentBody = new StringBuilder();
+
+                void FlushStructured()
+                {
+                    var body = currentBody.ToString().Trim();
+                    if (body.Length < 3) { currentBody.Clear(); return; }
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = subcategory,
+                        Title = currentTitle,
+                        ResultText = body,
+                        SourceFile = fileName
+                    });
+                    currentTitle = null;
+                    currentBody.Clear();
+                }
+
+                foreach (var line in allLines)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    // A title line: short (<=12 chars), no sentence-ending punctuation in the middle
+                    bool looksLikeTitle = line.Length <= 12
+                        && !line.Contains("，") && !line.Contains("。")
+                        && !line.Contains("；") && !line.Contains("：");
+
+                    if (looksLikeTitle && currentBody.Length > 0)
+                    {
+                        // Current content is long enough - flush as rule, start new title
+                        FlushStructured();
+                        currentTitle = line;
+                    }
+                    else if (looksLikeTitle && currentBody.Length == 0)
+                    {
+                        // No content yet - set as title
+                        currentTitle = line;
+                    }
+                    else
+                    {
+                        if (currentBody.Length > 0) currentBody.Append('\n');
+                        currentBody.Append(line);
+                    }
+                }
+                FlushStructured();
+            }
+            else
+            {
+                // Parse as double-newline-separated paragraphs
+                var paragraphs = Regex.Split(text, @"\n\n+")
                     .Select(p => p.Trim())
                     .Where(p => p.Length > 10)
                     .ToList();
-            }
 
-            foreach (var para in paragraphs)
-            {
-                var lines = para.Split('\n');
-                var title = lines[0].Trim().Length <= 60 ? lines[0].Trim() : null;
-                var body = title != null && lines.Length > 1 ? string.Join(" ", lines.Skip(1)) : para;
-                if (string.IsNullOrWhiteSpace(body)) body = para;
-
-                rules.Add(new ParsedRule
+                if (paragraphs.Count <= 1)
                 {
-                    Category = category,
-                    Subcategory = subcategory,
-                    Title = title,
-                    ResultText = body.Trim(),
-                    SourceFile = fileName
-                });
+                    // Fallback: single newline split
+                    paragraphs = allLines.Where(l => l.Length > 10).ToList();
+                }
+
+                foreach (var para in paragraphs)
+                {
+                    var lines = para.Split('\n');
+                    var firstLine = lines[0].Trim();
+                    var title = firstLine.Length <= 60 ? firstLine : null;
+                    var body = title != null && lines.Length > 1
+                        ? string.Join(" ", lines.Skip(1).Select(l => l.Trim()).Where(l => l.Length > 0))
+                        : para;
+                    if (string.IsNullOrWhiteSpace(body)) body = para;
+
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = subcategory,
+                        Title = title,
+                        ResultText = body.Trim(),
+                        SourceFile = fileName
+                    });
+                }
             }
+
             return rules;
         }
 
