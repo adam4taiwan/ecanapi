@@ -491,6 +491,10 @@ namespace Ecanapi.Controllers
             return rules;
         }
 
+        // Skip styles that represent chart/table layouts rather than narrative text.
+        private static readonly HashSet<string> SkipStyles = new(StringComparer.OrdinalIgnoreCase)
+            { "af1", "af2", "af3", "af4", "af5" };
+
         private static List<ParsedRule> ParseDocx(Stream stream, string fileName, string category, string? subcategory)
         {
             var rules = new List<ParsedRule>();
@@ -498,52 +502,81 @@ namespace Ecanapi.Controllers
             var body = doc.MainDocumentPart?.Document?.Body;
             if (body == null) return rules;
 
-            var paragraphs = body.Elements<Paragraph>().ToList();
             string? currentTitle = null;
-            var currentContent = new StringBuilder();
+            var pendingShortLines = new List<string>();
 
-            void flush()
-            {
-                var content = currentContent.ToString().Trim();
-                if (content.Length < 5) return;
-                rules.Add(new ParsedRule
-                {
-                    Category = category,
-                    Subcategory = subcategory,
-                    Title = currentTitle,
-                    ResultText = content,
-                    SourceFile = fileName
-                });
-                currentTitle = null;
-                currentContent.Clear();
-            }
-
-            foreach (var para in paragraphs)
+            foreach (var para in body.Elements<Paragraph>())
             {
                 var text = para.InnerText.Trim();
                 if (string.IsNullOrWhiteSpace(text)) continue;
 
-                // Check if this paragraph is a heading (bold or short title)
-                bool isHeading = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value?.StartsWith("Heading") == true;
-                bool isShortBold = text.Length <= 50 && para.Descendants<Bold>().Any();
+                // Skip chart/table layout paragraphs (identified by special styles)
+                var styleId = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
+                if (SkipStyles.Contains(styleId)) continue;
 
-                if (isHeading || isShortBold)
+                bool isHeading = styleId.StartsWith("Heading", StringComparison.OrdinalIgnoreCase)
+                              || styleId.StartsWith("heading", StringComparison.OrdinalIgnoreCase);
+                bool isBold = para.Descendants<Bold>().Any();
+
+                // Determine if this line acts as a section title:
+                // - Explicit Heading style, OR
+                // - Bold + short (<= 30 chars), OR
+                // - Numbered section marker like "1." / "一、" / "第X章"
+                bool looksLikeTitle = isHeading
+                    || (isBold && text.Length <= 30)
+                    || Regex.IsMatch(text, @"^(\d+[\.、]|[一二三四五六七八九十]+[、。]|第[一二三四五六七八九十\d]+[章節])");
+
+                if (looksLikeTitle)
                 {
-                    flush();
+                    // Flush any accumulated pending short lines as their own rule
+                    if (pendingShortLines.Count > 0)
+                    {
+                        var joined = string.Join("；", pendingShortLines);
+                        if (joined.Length >= 5)
+                            rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
+                                Title = currentTitle, ResultText = joined, SourceFile = fileName });
+                        pendingShortLines.Clear();
+                    }
                     currentTitle = text;
                 }
-                else
+                else if (text.Length >= 15)
                 {
-                    if (currentContent.Length > 0) currentContent.Append('\n');
-                    currentContent.Append(text);
-                    // flush if content is long enough to be a standalone rule
-                    if (currentContent.Length > 200 && (text.EndsWith("。") || text.EndsWith(".")))
+                    // Substantial paragraph → standalone rule, flush pending shorts first
+                    if (pendingShortLines.Count > 0)
                     {
-                        flush();
+                        var joined = string.Join("；", pendingShortLines);
+                        if (joined.Length >= 5)
+                            rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
+                                Title = currentTitle, ResultText = joined, SourceFile = fileName });
+                        pendingShortLines.Clear();
                     }
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = subcategory,
+                        Title = currentTitle,
+                        ResultText = text,
+                        SourceFile = fileName
+                    });
+                    // Keep title for next para unless it was already used as a heading
+                    if (!isHeading) currentTitle = null;
+                }
+                else if (text.Length >= 3)
+                {
+                    // Short line — accumulate; will be flushed when next substantial para or title arrives
+                    pendingShortLines.Add(text);
                 }
             }
-            flush();
+
+            // Flush remaining
+            if (pendingShortLines.Count > 0)
+            {
+                var joined = string.Join("；", pendingShortLines);
+                if (joined.Length >= 5)
+                    rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
+                        Title = currentTitle, ResultText = joined, SourceFile = fileName });
+            }
+
             return rules;
         }
 
