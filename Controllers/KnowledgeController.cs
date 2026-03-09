@@ -395,15 +395,48 @@ namespace Ecanapi.Controllers
 
             // Normalize line endings
             text = text.Replace("\r\n", "\n").Replace("\r", "\n");
-
-            // Detect if text has the structured "short title / body" pattern:
-            // A line is a "title" if it's <= 10 chars and the next non-empty line is longer.
-            // Examples: "甲年干", "廉貞化祿", "破軍化權"
             var allLines = text.Split('\n').Select(l => l.Trim()).ToList();
-            bool isStructured = allLines.Count > 4 &&
-                allLines.Where(l => l.Length > 0 && l.Length <= 10).Count() >= 3;
+            var nonEmpty = allLines.Where(l => l.Length > 0).ToList();
 
-            if (isStructured)
+            // Pattern 1: FLAT LIST — each non-empty line is already a complete rule.
+            // Detected when most lines contain content punctuation (：、，) even if short.
+            // Example: "天機：科學儀器、機械" — a single complete rule per line.
+            int linesWithContent = nonEmpty.Count(l => l.Contains("：") || l.Contains("、") || l.Contains("，"));
+            bool isFlatList = nonEmpty.Count >= 5 && (double)linesWithContent / nonEmpty.Count >= 0.5;
+
+            // Pattern 2: STRUCTURED title+body — short pure-label lines (<=12 chars, no content
+            // punctuation) followed by longer body paragraphs. Example: 四化干性.txt
+            var pureTitleLines = nonEmpty.Where(l => l.Length <= 12
+                && !l.Contains("，") && !l.Contains("。")
+                && !l.Contains("；") && !l.Contains("：") && !l.Contains("、")).ToList();
+            bool isStructured = !isFlatList && pureTitleLines.Count >= 3 && nonEmpty.Count > 4;
+
+            if (isFlatList)
+            {
+                // Every non-empty line = one rule
+                string? currentSection = null;
+                foreach (var line in nonEmpty)
+                {
+                    // Section headers: no content punctuation, surrounded by empty lines
+                    bool isSection = !line.Contains("：") && !line.Contains("、")
+                        && !line.Contains("，") && line.Length <= 20;
+
+                    if (isSection)
+                    {
+                        currentSection = line;
+                        continue;
+                    }
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = subcategory ?? currentSection,
+                        Title = currentSection,
+                        ResultText = line,
+                        SourceFile = fileName
+                    });
+                }
+            }
+            else if (isStructured)
             {
                 // Parse as structured title+body pairs
                 string? currentTitle = null;
@@ -429,20 +462,18 @@ namespace Ecanapi.Controllers
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
 
-                    // A title line: short (<=12 chars), no sentence-ending punctuation in the middle
                     bool looksLikeTitle = line.Length <= 12
                         && !line.Contains("，") && !line.Contains("。")
-                        && !line.Contains("；") && !line.Contains("：");
+                        && !line.Contains("；") && !line.Contains("：")
+                        && !line.Contains("、");
 
                     if (looksLikeTitle && currentBody.Length > 0)
                     {
-                        // Current content is long enough - flush as rule, start new title
                         FlushStructured();
                         currentTitle = line;
                     }
                     else if (looksLikeTitle && currentBody.Length == 0)
                     {
-                        // No content yet - set as title
                         currentTitle = line;
                     }
                     else
