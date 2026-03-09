@@ -431,17 +431,17 @@ namespace Ecanapi.Controllers
 
                     if (line.Contains("：："))
                     {
-                        // Pattern A: 職業：：星組合
+                        // Pattern A: 職業：：星組合 → DB: Title=星, ResultText=職業
                         var idx = line.IndexOf("：：", StringComparison.Ordinal);
-                        title = line[..idx].Trim();
-                        result = line[(idx + 2)..].Trim();
+                        result = line[..idx].Trim();   // 職業預測
+                        title  = line[(idx + 2)..].Trim(); // 星組合
                     }
                     else if (line.Contains("：") && line.Length > 0 && char.IsDigit(line[0]))
                     {
-                        // Pattern B: 1、職業名稱：星組合
+                        // Pattern B: 1、職業名稱：星組合 → DB: Title=星, ResultText=職業
                         var idx = line.IndexOf("：", StringComparison.Ordinal);
-                        title = line[..idx].Trim();
-                        result = line[(idx + 1)..].Trim();
+                        result = line[..idx].Trim();   // 職業預測（含序號）
+                        title  = line[(idx + 1)..].Trim(); // 星組合
                     }
                     else
                     {
