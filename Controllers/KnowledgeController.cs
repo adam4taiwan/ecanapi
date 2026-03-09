@@ -413,25 +413,49 @@ namespace Ecanapi.Controllers
 
             if (isFlatList)
             {
-                // Every non-empty line = one rule
+                // Every non-empty line = one rule.
+                // Special colon-split patterns for 職業類 files:
+                //   Pattern A: line has "：：" → split at "：：", left=title(職業), right=result(星)
+                //   Pattern B: line has ONE "：" AND first char is digit → left=title(職業), right=result(星)
+                //   Otherwise: whole line = resultText
                 string? currentSection = null;
                 foreach (var line in nonEmpty)
                 {
-                    // Section headers: no content punctuation, surrounded by empty lines
+                    // Section headers: no content punctuation at all
                     bool isSection = !line.Contains("：") && !line.Contains("、")
                         && !line.Contains("，") && line.Length <= 20;
+                    if (isSection) { currentSection = line; continue; }
 
-                    if (isSection)
+                    string? title = null;
+                    string result;
+
+                    if (line.Contains("：："))
                     {
-                        currentSection = line;
-                        continue;
+                        // Pattern A: 職業：：星組合
+                        var idx = line.IndexOf("：：", StringComparison.Ordinal);
+                        title = line[..idx].Trim();
+                        result = line[(idx + 2)..].Trim();
                     }
+                    else if (line.Contains("：") && line.Length > 0 && char.IsDigit(line[0]))
+                    {
+                        // Pattern B: 1、職業名稱：星組合
+                        var idx = line.IndexOf("：", StringComparison.Ordinal);
+                        title = line[..idx].Trim();
+                        result = line[(idx + 1)..].Trim();
+                    }
+                    else
+                    {
+                        result = line;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(result)) result = line;
+
                     rules.Add(new ParsedRule
                     {
                         Category = category,
                         Subcategory = subcategory ?? currentSection,
-                        Title = currentSection,
-                        ResultText = line,
+                        Title = string.IsNullOrWhiteSpace(title) ? null : title,
+                        ResultText = result,
                         SourceFile = fileName
                     });
                 }
