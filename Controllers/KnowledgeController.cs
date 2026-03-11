@@ -147,7 +147,8 @@ namespace Ecanapi.Controllers
         // POST /api/Knowledge/upload - parse file and return preview (no DB write)
         [HttpPost("upload")]
         [RequestSizeLimit(50 * 1024 * 1024)]
-        public async Task<IActionResult> Upload([FromForm] IFormFile file, [FromForm] string category, [FromForm] string? subcategory)
+        [ApiExplorerSettings(IgnoreApi = true)]
+        public async Task<IActionResult> Upload([FromForm] IFormFile file, [FromForm] string category, [FromForm] string? subcategory, [FromForm] string? parseMode)
         {
             if (!IsAdmin()) return Forbid();
             if (file == null || file.Length == 0) return BadRequest(new { message = "no file" });
@@ -167,8 +168,12 @@ namespace Ecanapi.Controllers
                 parsed = ext switch
                 {
                     ".csv" => ParseCsv(ms, file.FileName, category, subcategory),
-                    ".txt" => ParseTxt(ms, file.FileName, category, subcategory),
-                    ".docx" => ParseDocx(ms, file.FileName, category, subcategory),
+                    ".txt" => parseMode == "chapters"
+                        ? ParseTxtChapters(ms, file.FileName, category)
+                        : ParseTxt(ms, file.FileName, category, subcategory),
+                    ".docx" => parseMode == "chapters"
+                        ? ParseDocxChapters(ms, file.FileName, category)
+                        : ParseDocx(ms, file.FileName, category, subcategory, parseMode),
                     ".doc" => ParseDoc(ms, file.FileName, category, subcategory),
                     ".xlsx" => ParseXlsx(ms, file.FileName, category, subcategory, false),
                     ".xls" => ParseXlsx(ms, file.FileName, category, subcategory, true),
@@ -334,6 +339,154 @@ namespace Ecanapi.Controllers
             var enc = DetectEncoding(bytes);
             var text = enc.GetString(bytes);
             return ParseTextContent(text, fileName, category, subcategory);
+        }
+
+        // Specialized parser for chapter-structured TXT files (e.g., 八字直斷.txt).
+        // Handles three content types:
+        //   1. Chapter/section headers (第X章/節) → set Subcategory
+        //   2. Verse groups (consecutive 16-char lines) → merged under preceding header
+        //   3. Numbered direct-judgment items (N)、or N、) → each becomes one rule
+        //   4. Short title (ends with ：, <=25 chars) followed by content → Title + ResultText
+        private static List<ParsedRule> ParseTxtChapters(Stream stream, string fileName, string category)
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var bytes = ReadAllBytes(stream);
+            var enc = DetectEncoding(bytes);
+            var text = enc.GetString(bytes).Replace("\r\n", "\n").Replace("\r", "\n");
+            var lines = text.Split('\n')
+                .Select(l => l.Trim())
+                .ToList();
+
+            var rules = new List<ParsedRule>();
+            string currentSubcategory = "";
+            string? currentTitle = null;
+            var versePending = new List<string>();   // accumulate consecutive 16-char verse lines
+            var bodyPending = new List<string>();    // accumulate body lines under a short title
+
+            void FlushVerses()
+            {
+                if (versePending.Count == 0) return;
+                rules.Add(new ParsedRule
+                {
+                    Category = category,
+                    Subcategory = currentSubcategory,
+                    Title = currentTitle,
+                    ResultText = string.Join("\n", versePending),
+                    SourceFile = fileName
+                });
+                currentTitle = null;
+                versePending.Clear();
+            }
+
+            void FlushBody()
+            {
+                if (bodyPending.Count == 0 && currentTitle == null) return;
+                var result = string.Join("\n", bodyPending).Trim();
+                if (result.Length < 3) { bodyPending.Clear(); currentTitle = null; return; }
+                rules.Add(new ParsedRule
+                {
+                    Category = category,
+                    Subcategory = currentSubcategory,
+                    Title = currentTitle,
+                    ResultText = result,
+                    SourceFile = fileName
+                });
+                currentTitle = null;
+                bodyPending.Clear();
+            }
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                // --- Chapter/section header: 第X章 / 第X節 ---
+                if (Regex.IsMatch(line, @"第[一二三四五六七八九十百\d]+[章節]"))
+                {
+                    FlushVerses();
+                    FlushBody();
+                    currentSubcategory = line;
+                    currentTitle = null;
+                    continue;
+                }
+
+                // --- Numbered direct-judgment items: "1、xxx" / "1)、xxx" / "(1)xxx" ---
+                var numberedMatch = Regex.Match(line, @"^[\(（]?\d+[\)）]?[、\.]");
+                if (numberedMatch.Success)
+                {
+                    FlushVerses();
+                    FlushBody();
+                    var content = line[numberedMatch.Length..].Trim();
+                    // Look ahead: if next line is a continuation (no number, decent length), merge it
+                    while (i + 1 < lines.Count)
+                    {
+                        var next = lines[i + 1].Trim();
+                        if (string.IsNullOrWhiteSpace(next)) break;
+                        bool nextIsNumbered = Regex.IsMatch(next, @"^[\(（]?\d+[\)）]?[、\.]");
+                        bool nextIsChapter = Regex.IsMatch(next, @"第[一二三四五六七八九十百\d]+[章節]");
+                        bool nextIsShortTitle = next.EndsWith("：") && next.Length <= 25;
+                        if (nextIsNumbered || nextIsChapter || nextIsShortTitle) break;
+                        if (next.Length > 0 && !Regex.IsMatch(next, @"^\d+[、\.]")) { content += "\n" + next; i++; }
+                        else break;
+                    }
+                    if (!string.IsNullOrWhiteSpace(content))
+                        rules.Add(new ParsedRule
+                        {
+                            Category = category,
+                            Subcategory = currentSubcategory,
+                            Title = currentTitle,
+                            ResultText = (numberedMatch.Value.TrimEnd('、', '.') + " " + content).Trim(),
+                            SourceFile = fileName
+                        });
+                    continue;
+                }
+
+                // --- Verse line: exactly 14-18 chars containing punctuation (歌訣) ---
+                bool isVerse = line.Length >= 14 && line.Length <= 20
+                    && (line.Contains("，") || line.Contains("。") || line.Contains("、"))
+                    && !line.Contains("：");
+                if (isVerse)
+                {
+                    FlushBody();
+                    versePending.Add(line);
+                    continue;
+                }
+
+                // --- Short title ending with ：(<= 25 chars) → start of a named group ---
+                if (line.EndsWith("：") && line.Length <= 25)
+                {
+                    FlushVerses();
+                    FlushBody();
+                    currentTitle = line.TrimEnd('：').Trim();
+                    continue;
+                }
+
+                // --- Everything else: content paragraph ---
+                FlushVerses();
+                if (line.Length >= 8)
+                {
+                    FlushBody();
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = currentSubcategory,
+                        Title = currentTitle,
+                        ResultText = line,
+                        SourceFile = fileName
+                    });
+                    currentTitle = null;
+                }
+                else if (line.Length >= 3)
+                {
+                    // Too short to be a standalone rule — treat as a sub-title candidate
+                    FlushBody();
+                    currentTitle = line;
+                }
+            }
+
+            FlushVerses();
+            FlushBody();
+            return rules;
         }
 
         private static List<ParsedRule> ParseDoc(Stream stream, string fileName, string category, string? subcategory)
@@ -550,86 +703,485 @@ namespace Ecanapi.Controllers
         private static readonly HashSet<string> SkipStyles = new(StringComparer.OrdinalIgnoreCase)
             { "af1", "af2", "af3", "af4", "af5" };
 
-        private static List<ParsedRule> ParseDocx(Stream stream, string fileName, string category, string? subcategory)
+        // Specialized parser for chapter-structured .docx files (e.g., 八字直斷核心預測規則指南.docx).
+        // Structure: 第X章 header → Subcategory; non-bullet paragraph → ConditionText (section title);
+        // each bullet point (NumberingProperties != null) → one independent rule.
+        private static List<ParsedRule> ParseDocxChapters(Stream stream, string fileName, string category)
         {
             var rules = new List<ParsedRule>();
             using var doc = WordprocessingDocument.Open(stream, false);
             var body = doc.MainDocumentPart?.Document?.Body;
             if (body == null) return rules;
 
-            string? currentTitle = null;
+            // Remove trailing footnote reference numbers: "...成家 1。" → "...成家"
+            static string Clean(string s)
+                => Regex.Replace(s.Trim(), @"\s*\d+[。\.]\s*$", "").Trim();
+
+            // Collect paragraphs in document order with bullet flag.
+            // Also descend into tables (treat each non-empty cell as a paragraph-like token).
+            var tokens = new List<(string Text, bool IsBullet)>();
+
+            bool IsBulletParagraph(Paragraph p)
+            {
+                // Has list numbering definition → bullet or numbered list item
+                if (p.ParagraphProperties?.NumberingProperties != null) return true;
+                var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
+                // Some templates name bullet styles "ListBullet", "List Bullet", etc.
+                return styleId.Contains("List", StringComparison.OrdinalIgnoreCase)
+                    || styleId.Contains("Bullet", StringComparison.OrdinalIgnoreCase);
+            }
+
+            foreach (var element in body.ChildElements)
+            {
+                if (element is Paragraph para)
+                {
+                    var t = Clean(para.InnerText);
+                    if (!string.IsNullOrWhiteSpace(t))
+                        tokens.Add((t, IsBulletParagraph(para)));
+                }
+                else if (element is DocumentFormat.OpenXml.Wordprocessing.Table tbl)
+                {
+                    foreach (var row in tbl.Elements<TableRow>())
+                    {
+                        // Treat each non-empty cell as a bullet-style item
+                        foreach (var cell in row.Elements<TableCell>())
+                        {
+                            // Merge all paragraphs in cell into one text block
+                            var cellText = string.Join(" ", cell.Elements<Paragraph>()
+                                .Select(p => p.InnerText.Trim())
+                                .Where(t => !string.IsNullOrWhiteSpace(t)));
+                            cellText = Clean(cellText);
+                            if (!string.IsNullOrWhiteSpace(cellText))
+                                tokens.Add((cellText, true)); // table cells = bullet-equivalent
+                        }
+                    }
+                }
+            }
+
+            string currentSubcategory = "";
+            string currentCondition = "";   // section title / condition label (e.g., "子、午、卯、酉時")
+
+            foreach (var (text, isBullet) in tokens)
+            {
+                // Chapter/section header: 第X章 / 第X節 / 第X篇
+                if (Regex.IsMatch(text, @"第[一二三四五六七八九十百\d]+[章節篇]"))
+                {
+                    currentSubcategory = text;
+                    currentCondition = "";
+                    continue;
+                }
+
+                if (isBullet)
+                {
+                    // Each bullet = one rule; use currentCondition as Title + ConditionText
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = currentSubcategory,
+                        Title = string.IsNullOrWhiteSpace(currentCondition) ? null : currentCondition,
+                        ConditionText = string.IsNullOrWhiteSpace(currentCondition) ? null : currentCondition,
+                        ResultText = text,
+                        SourceFile = fileName
+                    });
+                }
+                else
+                {
+                    // Non-bullet, non-chapter paragraph = section condition/title for following bullets
+                    // (e.g., "子、午、卯、酉時" or "甲乙時")
+                    currentCondition = text.TrimEnd('：').Trim();
+                }
+            }
+
+            return rules;
+        }
+
+        private static List<ParsedRule> ParseDocx(Stream stream, string fileName, string category, string? subcategory, string? parseMode = null)
+        {
+            var rules = new List<ParsedRule>();
+            using var doc = WordprocessingDocument.Open(stream, false);
+            var body = doc.MainDocumentPart?.Document?.Body;
+            if (body == null) return rules;
+
+            // "paragraphs" mode: every paragraph becomes one rule; 3-level heading inheritance.
+            // Level 1 (Heading1 / 第X章節) → Subcategory
+            // Level 2 (Heading2 / bold short line) → Title
+            // Level 3 (Heading3+) → ConditionText
+            // Content paragraphs inherit all three running values.
+            if (parseMode == "paragraphs")
+            {
+                // Detect heading level (1/2/3). Text patterns take priority over Word styles
+                // so that mis-styled headings in Chinese docs are still classified correctly.
+                static int HeadingLevel(Paragraph p, string text)
+                {
+                    // 1. Chinese chapter/section keywords (highest priority, override any style)
+                    if (Regex.IsMatch(text, @"^第[一二三四五六七八九十百\d]+[章篇部]")) return 1;
+                    if (Regex.IsMatch(text, @"^第[一二三四五六七八九十百\d]+節")) return 2;
+
+                    var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
+
+                    // 2. Named heading styles: "Heading1", "Heading 1", "标题1", "標題1"
+                    var hm = Regex.Match(styleId, @"(?:[Hh]eading\s*|标题\s*|標題\s*)(\d+)");
+                    if (hm.Success) return Math.Min(int.Parse(hm.Groups[1].Value), 3);
+
+                    // 3. Outline level from paragraph properties (0-based, 9 = body text)
+                    var ol = p.ParagraphProperties?.OutlineLevel?.Val?.Value;
+                    if (ol.HasValue && ol.Value < 9) return Math.Min((int)ol.Value + 1, 3);
+
+                    // 4. Font size from runs (half-points: 32=16pt, 28=14pt, 26=13pt)
+                    int maxSz = p.Descendants<FontSize>()
+                        .Select(fs => { int.TryParse(fs.Val?.Value, out int sz); return sz; })
+                        .DefaultIfEmpty(0).Max();
+                    if (maxSz >= 32) return 1;
+                    if (maxSz >= 28) return 2;
+                    if (maxSz >= 26) return 3;
+
+                    // 5. List indent level from numbering (ilvl 0→level2, 1→level3)
+                    var ilvl = p.ParagraphProperties?.NumberingProperties?.NumberingLevelReference?.Val?.Value;
+                    if (ilvl.HasValue)
+                    {
+                        if (ilvl.Value == 0) return 2;
+                        if (ilvl.Value >= 1) return 3;
+                    }
+
+                    // 6. Bold detection (majority of runs are bold)
+                    var runs = p.Elements<Run>().ToList();
+                    int boldRuns = runs.Count(r => r.RunProperties?.Bold != null
+                        && !(r.RunProperties.Bold.Val?.Value == false));
+                    bool isParagraphBold = runs.Count > 0 && boldRuns >= runs.Count / 2;
+
+                    // 7. Chinese numeral section (一、xxx) → level 2 if bold or very short
+                    bool isCnNumSection = Regex.IsMatch(text, @"^[一二三四五六七八九十]+[、。：]")
+                        && text.Length <= 60;
+                    if (isCnNumSection && (isParagraphBold || text.Length <= 20)) return 2;
+
+                    // 8. Bold short line fallback → level 2
+                    if (isParagraphBold && text.Length <= 50
+                        && !text.Contains("。") && !text.Contains("，")) return 2;
+
+                    return 0;
+                }
+
+                string? curSub  = subcategory;
+                string? curTitle = null;
+                string? curCond  = null;
+
+                foreach (var p in body.Elements<Paragraph>())
+                {
+                    var text = p.InnerText.Trim();
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+                    var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
+                    if (SkipStyles.Contains(styleId)) continue;
+
+                    int level = HeadingLevel(p, text);
+
+                    if (level == 1)
+                    {
+                        // Split "第一章 十干斷易篇" → curSub="第一章", curTitle="十干斷易篇"
+                        var chapterMatch = Regex.Match(text, @"^(第[一二三四五六七八九十百\d]+[章節篇部])\s*(.*)$");
+                        if (chapterMatch.Success)
+                        {
+                            curSub   = chapterMatch.Groups[1].Value.Trim();
+                            curTitle = chapterMatch.Groups[2].Value.Trim();
+                            if (string.IsNullOrWhiteSpace(curTitle)) curTitle = null;
+                        }
+                        else
+                        {
+                            curSub   = text;
+                            curTitle = null;
+                        }
+                        curCond = null;
+                        continue; // heading only updates state, no rule row
+                    }
+                    else if (level == 2)
+                    {
+                        curTitle = text;
+                        curCond  = null;
+                        continue;
+                    }
+                    else if (level == 3)
+                    {
+                        curCond = text;
+                        continue;
+                    }
+
+                    // Content paragraph: save as rule with inherited heading context.
+                    rules.Add(new ParsedRule
+                    {
+                        Category      = category,
+                        Subcategory   = curSub,
+                        Title         = curTitle,
+                        ConditionText = curCond,
+                        ResultText    = text,
+                        SourceFile    = fileName
+                    });
+                }
+                return rules;
+            }
+
+            var paragraphs = body.Elements<Paragraph>()
+                .Select(p => new {
+                    Text = p.InnerText.Trim(),
+                    StyleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "",
+                    IsBold = p.Descendants<Bold>().Any()
+                })
+                .Where(p => !string.IsNullOrWhiteSpace(p.Text) && !SkipStyles.Contains(p.StyleId))
+                .ToList();
+
+            int numberedCount = paragraphs.Count(p => Regex.IsMatch(p.Text, @"^\d+[\.、]"));
+
+            // Detect "格局" style: short lines ending with ： act as titles, followed by multi-paragraph content.
+            // e.g., "紫府同宮格：" (6 chars) → title, next N paragraphs → body merged as one rule.
+            int colonTitles = paragraphs.Count(p => p.Text.EndsWith("：") && p.Text.Length <= 20);
+            bool isColonGrouped = numberedCount < 5 && colonTitles >= 3;
+
+            if (isColonGrouped)
+            {
+                string? currentTitle = null;
+                string? chapterSubCol = subcategory;
+                var bodyParts = new List<string>();
+
+                void FlushColonGroup()
+                {
+                    if (currentTitle == null && bodyParts.Count == 0) return;
+                    var resultText = string.Join("\n", bodyParts).Trim();
+                    if (resultText.Length < 3 && currentTitle == null) { bodyParts.Clear(); return; }
+                    if (string.IsNullOrWhiteSpace(resultText)) resultText = currentTitle ?? "";
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = chapterSubCol,
+                        Title = currentTitle,
+                        ResultText = resultText,
+                        SourceFile = fileName
+                    });
+                    currentTitle = null;
+                    bodyParts.Clear();
+                }
+
+                foreach (var p in paragraphs)
+                {
+                    var text = p.Text;
+                    // Chapter/section header → update subcategory tracking
+                    if (Regex.IsMatch(text, @"^第[一二三四五六七八九十百千\d]+[章節篇]"))
+                    {
+                        FlushColonGroup();
+                        chapterSubCol = text;
+                        continue;
+                    }
+                    // Short line ending with ： → new title
+                    if (text.EndsWith("：") && text.Length <= 20)
+                    {
+                        FlushColonGroup();
+                        currentTitle = text.TrimEnd('：').Trim();
+                    }
+                    else
+                    {
+                        bodyParts.Add(text);
+                    }
+                }
+                FlushColonGroup();
+                return rules;
+            }
+
+            // Detect flat-list docx: most paragraphs are self-contained rules containing "："
+            // e.g., "擎羊星入命宮：直接、衝動、刀子嘴" — each line is one rule regardless of length.
+            int colonLines = paragraphs.Count(p => p.Text.Contains("："));
+            bool isFlatListDocx = numberedCount < 5
+                && colonLines > 0
+                && (double)colonLines / paragraphs.Count >= 0.55;
+
+            if (isFlatListDocx)
+            {
+                string? currentSub = subcategory;
+                foreach (var p in paragraphs)
+                {
+                    var text = p.Text;
+                    if (!text.Contains("："))
+                    {
+                        // Chapter/section header → update subcategory (chapter headers always override)
+                        bool isChapterHeader = Regex.IsMatch(text, @"^第[一二三四五六七八九十百千\d]+[章節篇]");
+                        currentSub = isChapterHeader ? text : (string.IsNullOrWhiteSpace(subcategory) ? text : subcategory);
+                        continue;
+                    }
+                    var colonIdx = text.IndexOf('：');
+                    var title = text[..colonIdx].Trim();
+                    var result = text[(colonIdx + 1)..].Trim();
+                    if (string.IsNullOrWhiteSpace(result)) result = text;
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = currentSub,
+                        Title = string.IsNullOrWhiteSpace(title) ? null : title,
+                        ResultText = result,
+                        SourceFile = fileName
+                    });
+                }
+                return rules;
+            }
+
+            // Detect "title + numbered sub-items" structure (e.g., 生年四化入十二宮.docx)
+            // If many paragraphs start with digits (2.xxx, 3.xxx...), group them under the preceding non-numbered line.
+            if (numberedCount >= 5)
+            {
+                string? sectionSub = subcategory;
+                string? currentTitle = null;
+                var bodyParts = new List<string>();
+
+                void FlushGroup()
+                {
+                    if (bodyParts.Count == 0 && currentTitle == null) return;
+                    var resultText = bodyParts.Count > 0
+                        ? string.Join("\n", bodyParts)
+                        : currentTitle ?? "";
+                    if (resultText.Length < 3) { bodyParts.Clear(); currentTitle = null; return; }
+                    rules.Add(new ParsedRule
+                    {
+                        Category = category,
+                        Subcategory = sectionSub,
+                        Title = currentTitle,
+                        ResultText = resultText,
+                        SourceFile = fileName
+                    });
+                    currentTitle = null;
+                    bodyParts.Clear();
+                }
+
+                foreach (var p in paragraphs)
+                {
+                    var text = p.Text;
+                    // Chapter header: 第X章/節/篇 → update sectionSub and reset title
+                    if (Regex.IsMatch(text, @"^第[一二三四五六七八九十百千\d]+[章節篇]"))
+                    {
+                        FlushGroup();
+                        sectionSub = text;
+                        continue;
+                    }
+                    // Section header: must be "一、〈...〉" (with angle brackets), not "一、「...」"
+                    bool isSectionHeader = Regex.IsMatch(text, @"^[一二三四五六七八九十百千]+[、。][〈《]");
+                    // Numbered sub-item: e.g., "2.xxx" or "2、xxx"
+                    bool isNumberedItem = Regex.IsMatch(text, @"^\d+[\.、]");
+                    // Chinese numeral sub-point inside a note (e.g., "一、「少小看夫妻」：...")
+                    bool isCnNumSub = !isSectionHeader && Regex.IsMatch(text, @"^[一二三四五六七八九十]+[、。]");
+
+                    if (isSectionHeader)
+                    {
+                        FlushGroup();
+                        // Extract palace name from "一、〈命宮〉" or "一、〈命宮 / 事業宮〉"
+                        var m = Regex.Match(text, @"[〈《]([^〉》]+)[〉》]");
+                        sectionSub = m.Success ? m.Groups[1].Value : text;
+                    }
+                    else if (isNumberedItem || isCnNumSub)
+                    {
+                        // Numbered sub-item or Chinese numeral note sub-point → accumulate
+                        bodyParts.Add(text);
+                    }
+                    else
+                    {
+                        // Skip separator / divider lines (e.g., "----", "====")
+                        if (Regex.IsMatch(text, @"^[-=─━─\-]{3,}$")) continue;
+
+                        // Annotation lines (〈注：...〉) → append to current group instead of starting new rule
+                        if (text.StartsWith("〈注") || text.StartsWith("〈說明") || text.StartsWith("※") || text.StartsWith("〈附"))
+                        {
+                            bodyParts.Add(text);
+                            continue;
+                        }
+
+                        // New rule start line: e.g., "生年祿入命：1.主「福」。..."
+                        FlushGroup();
+                        // If the line already contains the first sub-item "1." embedded, split it
+                        var firstItemMatch = Regex.Match(text, @"1[\.、]");
+                        if (firstItemMatch.Success && firstItemMatch.Index > 0)
+                        {
+                            currentTitle = text[..firstItemMatch.Index].TrimEnd('：').Trim();
+                            var firstItem = text[firstItemMatch.Index..].Trim();
+                            if (firstItem.Length > 0) bodyParts.Add(firstItem);
+                        }
+                        else
+                        {
+                            currentTitle = text.TrimEnd('：').Trim();
+                        }
+                    }
+                }
+                FlushGroup();
+                return rules;
+            }
+
+            // Standard mode: heading/bold lines as titles, substantial paragraphs as rules
+            string? stdSub = subcategory;
+            string? stdTitle = null;
             var pendingShortLines = new List<string>();
 
-            foreach (var para in body.Elements<Paragraph>())
+            foreach (var p in paragraphs)
             {
-                var text = para.InnerText.Trim();
-                if (string.IsNullOrWhiteSpace(text)) continue;
-
-                // Skip chart/table layout paragraphs (identified by special styles)
-                var styleId = para.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
-                if (SkipStyles.Contains(styleId)) continue;
-
-                bool isHeading = styleId.StartsWith("Heading", StringComparison.OrdinalIgnoreCase)
-                              || styleId.StartsWith("heading", StringComparison.OrdinalIgnoreCase);
-                bool isBold = para.Descendants<Bold>().Any();
-
-                // Determine if this line acts as a section title:
-                // - Explicit Heading style, OR
-                // - Bold + short (<= 30 chars), OR
-                // - Numbered section marker like "1." / "一、" / "第X章"
+                var text = p.Text;
+                bool isHeading = p.StyleId.StartsWith("Heading", StringComparison.OrdinalIgnoreCase)
+                              || p.StyleId.StartsWith("heading", StringComparison.OrdinalIgnoreCase);
+                bool isChapterHeader = Regex.IsMatch(text, @"^第[一二三四五六七八九十百千\d]+[章節篇]");
                 bool looksLikeTitle = isHeading
-                    || (isBold && text.Length <= 30)
-                    || Regex.IsMatch(text, @"^(\d+[\.、]|[一二三四五六七八九十]+[、。]|第[一二三四五六七八九十\d]+[章節])");
+                    || (p.IsBold && text.Length <= 30)
+                    || Regex.IsMatch(text, @"^([一二三四五六七八九十百千]+[、。〈《]|第[一二三四五六七八九十\d]+[章節篇])");
+
+                if (isChapterHeader)
+                {
+                    // Flush pending lines before updating chapter subcategory
+                    if (pendingShortLines.Count > 0)
+                    {
+                        var joined = string.Join("；", pendingShortLines);
+                        if (joined.Length >= 5)
+                            rules.Add(new ParsedRule { Category = category, Subcategory = stdSub,
+                                Title = stdTitle, ResultText = joined, SourceFile = fileName });
+                        pendingShortLines.Clear();
+                    }
+                    stdSub = text;
+                    stdTitle = null;
+                    continue;
+                }
 
                 if (looksLikeTitle)
                 {
-                    // Flush any accumulated pending short lines as their own rule
                     if (pendingShortLines.Count > 0)
                     {
                         var joined = string.Join("；", pendingShortLines);
                         if (joined.Length >= 5)
-                            rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
-                                Title = currentTitle, ResultText = joined, SourceFile = fileName });
+                            rules.Add(new ParsedRule { Category = category, Subcategory = stdSub,
+                                Title = stdTitle, ResultText = joined, SourceFile = fileName });
                         pendingShortLines.Clear();
                     }
-                    currentTitle = text;
+                    stdTitle = text;
                 }
                 else if (text.Length >= 15)
                 {
-                    // Substantial paragraph → standalone rule, flush pending shorts first
                     if (pendingShortLines.Count > 0)
                     {
                         var joined = string.Join("；", pendingShortLines);
                         if (joined.Length >= 5)
-                            rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
-                                Title = currentTitle, ResultText = joined, SourceFile = fileName });
+                            rules.Add(new ParsedRule { Category = category, Subcategory = stdSub,
+                                Title = stdTitle, ResultText = joined, SourceFile = fileName });
                         pendingShortLines.Clear();
                     }
                     rules.Add(new ParsedRule
                     {
                         Category = category,
-                        Subcategory = subcategory,
-                        Title = currentTitle,
+                        Subcategory = stdSub,
+                        Title = stdTitle,
                         ResultText = text,
                         SourceFile = fileName
                     });
-                    // Keep title for next para unless it was already used as a heading
-                    if (!isHeading) currentTitle = null;
+                    if (!isHeading) stdTitle = null;
                 }
                 else if (text.Length >= 3)
                 {
-                    // Short line — accumulate; will be flushed when next substantial para or title arrives
                     pendingShortLines.Add(text);
                 }
             }
 
-            // Flush remaining
             if (pendingShortLines.Count > 0)
             {
                 var joined = string.Join("；", pendingShortLines);
                 if (joined.Length >= 5)
-                    rules.Add(new ParsedRule { Category = category, Subcategory = subcategory,
-                        Title = currentTitle, ResultText = joined, SourceFile = fileName });
+                    rules.Add(new ParsedRule { Category = category, Subcategory = stdSub,
+                        Title = stdTitle, ResultText = joined, SourceFile = fileName });
             }
 
             return rules;
