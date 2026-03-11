@@ -197,6 +197,15 @@ namespace Ecanapi.Controllers
             });
         }
 
+        // GET /api/Knowledge/check-file?fileName=xxx
+        [HttpGet("check-file")]
+        public async Task<IActionResult> CheckFile([FromQuery] string fileName)
+        {
+            if (!IsAdmin()) return Forbid();
+            var count = await _db.FortuneRules.CountAsync(r => r.SourceFile == fileName);
+            return Ok(new { exists = count > 0, count });
+        }
+
         // POST /api/Knowledge/import - write parsed rules to DB
         [HttpPost("import")]
         public async Task<IActionResult> Import([FromBody] ImportRequest req)
@@ -204,6 +213,15 @@ namespace Ecanapi.Controllers
             if (!IsAdmin()) return Forbid();
             if (req.Rules == null || req.Rules.Count == 0)
                 return BadRequest(new { message = "no rules" });
+
+            // Delete existing records for same file if forceReplace is requested
+            if (req.ForceReplace)
+            {
+                var existing = _db.FortuneRules.Where(r => r.SourceFile == req.FileName);
+                _db.FortuneRules.RemoveRange(existing);
+                var existingDocs = _db.KnowledgeDocuments.Where(d => d.FileName == req.FileName);
+                _db.KnowledgeDocuments.RemoveRange(existingDocs);
+            }
 
             var email = User.FindFirstValue(ClaimTypes.Email);
             var now = DateTime.UtcNow;
@@ -287,41 +305,58 @@ namespace Ecanapi.Controllers
                     if (firstRowIsHeader) start = 1;
                 }
 
+                // Detect column count from first data row
+                int maxCols = lines.Skip(start).Take(10)
+                    .Select(l => SplitCsvLine(l).Count).DefaultIfEmpty(1).Max();
+
                 for (int i = start; i < lines.Length; i++)
                 {
                     var cols = SplitCsvLine(lines[i]);
                     if (cols.Count == 0) continue;
 
-                    string col0 = cols[0].Trim().TrimEnd('\r');
+                    string C(int idx) => idx < cols.Count ? cols[idx].Trim().TrimEnd('\r') : "";
+
+                    string col0 = C(0);
                     if (string.IsNullOrWhiteSpace(col0)) continue;
 
-                    string title;
-                    string result;
+                    string? rowSub, rowTitle, rowCond, rowResult;
 
-                    if (isMultiColumn)
+                    if (maxCols >= 4)
                     {
-                        // Multi-column: col0=title, remaining cols=result
-                        var rest = cols.Skip(1).Select(c => c.Trim().TrimEnd('\r')).Where(c => c.Length > 0).ToList();
-                        title = col0;
-                        result = rest.Count > 0 ? string.Join("；", rest) : col0;
-                        if (rest.Count > 0 && result == col0) title = "";
+                        // 4-column format: Subcategory, Title, ConditionText, ResultText
+                        rowSub    = C(0);
+                        rowTitle  = C(1);
+                        rowCond   = C(2);
+                        rowResult = C(3);
+                    }
+                    else if (isMultiColumn)
+                    {
+                        // 2-3 column: col0=title, remaining=result
+                        rowSub    = null;
+                        rowTitle  = col0;
+                        rowCond   = null;
+                        var rest  = cols.Skip(1).Select(c => c.Trim().TrimEnd('\r')).Where(c => c.Length > 0).ToList();
+                        rowResult = rest.Count > 0 ? string.Join("；", rest) : col0;
                     }
                     else
                     {
-                        // Single-column (with or without trailing comma): entire col0 is the rule
-                        title = "";
-                        result = col0;
+                        // Single-column: entire row = ResultText
+                        rowSub    = null;
+                        rowTitle  = null;
+                        rowCond   = null;
+                        rowResult = col0;
                     }
 
-                    if (string.IsNullOrWhiteSpace(result)) continue;
+                    if (string.IsNullOrWhiteSpace(rowResult)) continue;
 
                     rules.Add(new ParsedRule
                     {
-                        Category = category,
-                        Subcategory = subcategory,
-                        Title = string.IsNullOrWhiteSpace(title) ? null : title,
-                        ResultText = result,
-                        SourceFile = fileName
+                        Category      = category,
+                        Subcategory   = string.IsNullOrWhiteSpace(rowSub) ? subcategory : rowSub,
+                        Title         = string.IsNullOrWhiteSpace(rowTitle) ? null : rowTitle,
+                        ConditionText = string.IsNullOrWhiteSpace(rowCond) ? null : rowCond,
+                        ResultText    = rowResult,
+                        SourceFile    = fileName
                     });
                 }
             }
@@ -849,12 +884,20 @@ namespace Ecanapi.Controllers
                         && !(r.RunProperties.Bold.Val?.Value == false));
                     bool isParagraphBold = runs.Count > 0 && boldRuns >= runs.Count / 2;
 
-                    // 7. Chinese numeral section (一、xxx) → level 2 if bold or very short
+                    // 7. Arabic numeral prefix (1. / 1、/ (1)) → level 2 title
+                    if (Regex.IsMatch(text, @"^\d+[.、）。]\s*\S") && text.Length <= 60) return 2;
+
+                    // 8. Chinese numeral section (一、xxx) → level 2 if bold or very short
                     bool isCnNumSection = Regex.IsMatch(text, @"^[一二三四五六七八九十]+[、。：]")
                         && text.Length <= 60;
                     if (isCnNumSection && (isParagraphBold || text.Length <= 20)) return 2;
 
-                    // 8. Bold short line fallback → level 2
+                    // 9. Palace/condition name: ends with 宮/時/位 and short → level 3 ConditionText
+                    // e.g., "命身宮"(3), "化祿星兄弟宮"(7), "子時"(2)
+                    if (Regex.IsMatch(text, @"[宮時位]$") && text.Length <= 12
+                        && !text.Contains("，") && !text.Contains("。")) return 3;
+
+                    // 10. Bold short line fallback → level 2
                     if (isParagraphBold && text.Length <= 50
                         && !text.Contains("。") && !text.Contains("，")) return 2;
 
@@ -1152,21 +1195,22 @@ namespace Ecanapi.Controllers
                 }
                 else if (text.Length >= 15)
                 {
+                    // Short lines before a long paragraph become ConditionText (not a separate rule).
+                    // e.g., "命身宮" → ConditionText, "福份不錯..." → ResultText (one record).
+                    string? condFromPending = null;
                     if (pendingShortLines.Count > 0)
                     {
-                        var joined = string.Join("；", pendingShortLines);
-                        if (joined.Length >= 5)
-                            rules.Add(new ParsedRule { Category = category, Subcategory = stdSub,
-                                Title = stdTitle, ResultText = joined, SourceFile = fileName });
+                        condFromPending = string.Join("；", pendingShortLines);
                         pendingShortLines.Clear();
                     }
                     rules.Add(new ParsedRule
                     {
-                        Category = category,
-                        Subcategory = stdSub,
-                        Title = stdTitle,
-                        ResultText = text,
-                        SourceFile = fileName
+                        Category      = category,
+                        Subcategory   = stdSub,
+                        Title         = stdTitle,
+                        ConditionText = condFromPending,
+                        ResultText    = text,
+                        SourceFile    = fileName
                     });
                     if (!isHeading) stdTitle = null;
                 }
@@ -1325,6 +1369,7 @@ namespace Ecanapi.Controllers
         public string FileName { get; set; } = string.Empty;
         public string FileType { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
+        public bool ForceReplace { get; set; } = false;
         public List<ParsedRule> Rules { get; set; } = new();
     }
 }
