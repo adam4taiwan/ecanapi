@@ -830,6 +830,38 @@ namespace Ecanapi.Controllers
             return rules;
         }
 
+        // Extract paragraph text, converting soft line breaks (<w:br/>) to '\n'.
+        // p.InnerText concatenates all text ignoring breaks, losing multi-line content
+        // that was split with Shift+Enter in Word.
+        private static string GetParagraphText(Paragraph p)
+        {
+            var sb = new StringBuilder();
+            foreach (var element in p.Descendants<DocumentFormat.OpenXml.OpenXmlElement>())
+            {
+                if (element is Text t)
+                    sb.Append(t.Text);
+                else if (element is Break)
+                    sb.Append('\n');
+            }
+            return sb.ToString().Trim();
+        }
+
+        // Yield all paragraphs in document order, including those inside table cells.
+        // This ensures table-based content is parsed alongside regular paragraphs.
+        private static IEnumerable<Paragraph> AllParagraphsInOrder(Body body)
+        {
+            foreach (var element in body.ChildElements)
+            {
+                if (element is Paragraph p)
+                    yield return p;
+                else if (element is DocumentFormat.OpenXml.Wordprocessing.Table tbl)
+                    foreach (var row in tbl.Elements<TableRow>())
+                        foreach (var cell in row.Elements<TableCell>())
+                            foreach (var cp in cell.Elements<Paragraph>())
+                                yield return cp;
+            }
+        }
+
         private static List<ParsedRule> ParseDocx(Stream stream, string fileName, string category, string? subcategory, string? parseMode = null)
         {
             var rules = new List<ParsedRule>();
@@ -898,8 +930,10 @@ namespace Ecanapi.Controllers
                         && !text.Contains("，") && !text.Contains("。")) return 3;
 
                     // 10. Bold short line fallback → level 2
+                    // Exclude lines with ：followed by content (data entries, not headings)
                     if (isParagraphBold && text.Length <= 50
-                        && !text.Contains("。") && !text.Contains("，")) return 2;
+                        && !text.Contains("。") && !text.Contains("，")
+                        && !Regex.IsMatch(text, @"：\S")) return 2;
 
                     return 0;
                 }
@@ -908,64 +942,100 @@ namespace Ecanapi.Controllers
                 string? curTitle = null;
                 string? curCond  = null;
 
-                foreach (var p in body.Elements<Paragraph>())
+                foreach (var p in AllParagraphsInOrder(body))
                 {
-                    var text = p.InnerText.Trim();
-                    if (string.IsNullOrWhiteSpace(text)) continue;
                     var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
                     if (SkipStyles.Contains(styleId)) continue;
+                    var rawText = GetParagraphText(p);
+                    if (string.IsNullOrWhiteSpace(rawText)) continue;
 
-                    int level = HeadingLevel(p, text);
+                    // Split at soft returns; detect heading from first line only
+                    var softLines = rawText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    int level = HeadingLevel(p, softLines[0]);
 
-                    if (level == 1)
+                    if (level >= 1)
                     {
-                        // Split "第一章 十干斷易篇" → curSub="第一章", curTitle="十干斷易篇"
-                        var chapterMatch = Regex.Match(text, @"^(第[一二三四五六七八九十百\d]+[章節篇部])\s*(.*)$");
-                        if (chapterMatch.Success)
+                        // First line updates heading state
+                        var headText = softLines[0];
+                        if (level == 1)
                         {
-                            curSub   = chapterMatch.Groups[1].Value.Trim();
-                            curTitle = chapterMatch.Groups[2].Value.Trim();
-                            if (string.IsNullOrWhiteSpace(curTitle)) curTitle = null;
+                            // Split "第一章 十干斷易篇" → curSub="第一章", curTitle="十干斷易篇"
+                            var chapterMatch = Regex.Match(headText, @"^(第[一二三四五六七八九十百\d]+[章節篇部])\s*(.*)$");
+                            if (chapterMatch.Success)
+                            {
+                                curSub   = chapterMatch.Groups[1].Value.Trim();
+                                curTitle = chapterMatch.Groups[2].Value.Trim();
+                                if (string.IsNullOrWhiteSpace(curTitle)) curTitle = null;
+                            }
+                            else
+                            {
+                                curSub   = headText;
+                                curTitle = null;
+                            }
+                            curCond = null;
                         }
-                        else
+                        else if (level == 2)
                         {
-                            curSub   = text;
-                            curTitle = null;
+                            curTitle = headText;
+                            curCond  = null;
                         }
-                        curCond = null;
-                        continue; // heading only updates state, no rule row
+                        else // level == 3
+                        {
+                            curCond = headText;
+                        }
+                        // Remaining soft-return lines after the heading → content rules
+                        foreach (var line in softLines.Skip(1))
+                        {
+                            if (string.IsNullOrWhiteSpace(line)) continue;
+                            rules.Add(new ParsedRule
+                            {
+                                Category      = category,
+                                Subcategory   = curSub,
+                                Title         = curTitle,
+                                ConditionText = curCond,
+                                ResultText    = line,
+                                SourceFile    = fileName
+                            });
+                        }
                     }
-                    else if (level == 2)
+                    else
                     {
-                        curTitle = text;
-                        curCond  = null;
-                        continue;
+                        // Content paragraph: each soft-return line = one rule
+                        // If line has "short label：content" pattern, split into Title + ResultText
+                        foreach (var line in softLines)
+                        {
+                            if (string.IsNullOrWhiteSpace(line)) continue;
+                            string lineTitle = curTitle;
+                            string lineResult = line;
+                            var ci = line.IndexOf('：');
+                            if (ci > 0 && ci <= 15 && ci < line.Length - 1)
+                            {
+                                lineTitle  = line[..ci].Trim();
+                                lineResult = line[(ci + 1)..].Trim();
+                            }
+                            rules.Add(new ParsedRule
+                            {
+                                Category      = category,
+                                Subcategory   = curSub,
+                                Title         = lineTitle,
+                                ConditionText = curCond,
+                                ResultText    = lineResult,
+                                SourceFile    = fileName
+                            });
+                        }
                     }
-                    else if (level == 3)
-                    {
-                        curCond = text;
-                        continue;
-                    }
-
-                    // Content paragraph: save as rule with inherited heading context.
-                    rules.Add(new ParsedRule
-                    {
-                        Category      = category,
-                        Subcategory   = curSub,
-                        Title         = curTitle,
-                        ConditionText = curCond,
-                        ResultText    = text,
-                        SourceFile    = fileName
-                    });
                 }
                 return rules;
             }
 
-            var paragraphs = body.Elements<Paragraph>()
-                .Select(p => new {
-                    Text = p.InnerText.Trim(),
-                    StyleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "",
-                    IsBold = p.Descendants<Bold>().Any()
+            var paragraphs = AllParagraphsInOrder(body)
+                .SelectMany(p => {
+                    var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
+                    var isBold = p.Descendants<Bold>().Any();
+                    var raw = GetParagraphText(p);
+                    // Expand soft-return-separated lines into individual entries
+                    return raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                              .Select(line => new { Text = line, StyleId = styleId, IsBold = isBold });
                 })
                 .Where(p => !string.IsNullOrWhiteSpace(p.Text) && !SkipStyles.Contains(p.StyleId))
                 .ToList();
