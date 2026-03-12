@@ -295,7 +295,7 @@ namespace Ecanapi.Controllers
         private async Task<string> CallGeminiApi(string prompt)
         {
             var apiKey = _config["Gemini:ApiKey"];
-            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={apiKey}";
             var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
             var response = await _httpClient.PostAsJsonAsync(url, payload);
             var rawJson = await response.Content.ReadAsStringAsync();
