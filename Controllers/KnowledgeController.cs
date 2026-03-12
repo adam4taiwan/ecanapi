@@ -876,9 +876,25 @@ namespace Ecanapi.Controllers
             // Content paragraphs inherit all three running values.
             if (parseMode == "paragraphs")
             {
+                // Build a styleId → heading level map from the document's styles.xml.
+                // This handles all locales: English ("Heading2"), Chinese ("2"), custom IDs, etc.
+                var headingStyleLevels = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var stylesDoc = doc.MainDocumentPart?.StyleDefinitionsPart?.Styles;
+                if (stylesDoc != null)
+                {
+                    foreach (var style in stylesDoc.Elements<Style>())
+                    {
+                        var sId   = style.StyleId?.Value ?? "";
+                        var sName = style.StyleName?.Val?.Value ?? "";
+                        var hm2 = Regex.Match(sName, @"^heading\s*(\d+)$", RegexOptions.IgnoreCase);
+                        if (hm2.Success && !string.IsNullOrEmpty(sId))
+                            headingStyleLevels[sId] = Math.Min(int.Parse(hm2.Groups[1].Value), 3);
+                    }
+                }
+
                 // Detect heading level (1/2/3). Text patterns take priority over Word styles
                 // so that mis-styled headings in Chinese docs are still classified correctly.
-                static int HeadingLevel(Paragraph p, string text)
+                int HeadingLevel(Paragraph p, string text)
                 {
                     // 1. Chinese chapter/section keywords (highest priority, override any style)
                     if (Regex.IsMatch(text, @"^第[一二三四五六七八九十百\d]+[章篇部]")) return 1;
@@ -886,7 +902,10 @@ namespace Ecanapi.Controllers
 
                     var styleId = p.ParagraphProperties?.ParagraphStyleId?.Val?.Value ?? "";
 
-                    // 2. Named heading styles: "Heading1", "Heading 1", "标题1", "標題1"
+                    // 2. Heading styles resolved from document's styles.xml (locale-independent)
+                    if (headingStyleLevels.TryGetValue(styleId, out int mappedLevel)) return mappedLevel;
+
+                    // 2b. Fallback regex for IDs not in styles.xml
                     var hm = Regex.Match(styleId, @"(?:[Hh]eading\s*|标题\s*|標題\s*)(\d+)");
                     if (hm.Success) return Math.Min(int.Parse(hm.Groups[1].Value), 3);
 
@@ -902,9 +921,10 @@ namespace Ecanapi.Controllers
                     if (maxSz >= 28) return 2;
                     if (maxSz >= 26) return 3;
 
-                    // 5. List indent level from numbering (ilvl 0→level2, 1→level3)
+                    // 5. List indent level from numbering — only for very short label-like entries
+                    // Long numbered items (content rules like "1)柱中正、偏印同透干...") must NOT be headings
                     var ilvl = p.ParagraphProperties?.NumberingProperties?.NumberingLevelReference?.Val?.Value;
-                    if (ilvl.HasValue)
+                    if (ilvl.HasValue && text.Length <= 15 && !text.Contains("：") && !text.Contains("，"))
                     {
                         if (ilvl.Value == 0) return 2;
                         if (ilvl.Value >= 1) return 3;
@@ -916,8 +936,9 @@ namespace Ecanapi.Controllers
                         && !(r.RunProperties.Bold.Val?.Value == false));
                     bool isParagraphBold = runs.Count > 0 && boldRuns >= runs.Count / 2;
 
-                    // 7. Arabic numeral prefix (1. / 1、/ (1)) → level 2 title
-                    if (Regex.IsMatch(text, @"^\d+[.、）。]\s*\S") && text.Length <= 60) return 2;
+                    // 7. Arabic numeral prefix (1. / 1、) → level 2 only if SHORT (title-like, ≤20 chars)
+                    // Long lines like "1)柱中正、偏印同透干、必有生母或養母" are content, not headings
+                    if (Regex.IsMatch(text, @"^\d+[.、）。]\s*\S") && text.Length <= 20) return 2;
 
                     // 8. Chinese numeral section (一、xxx) → level 2 if bold or very short
                     bool isCnNumSection = Regex.IsMatch(text, @"^[一二三四五六七八九十]+[、。：]")
