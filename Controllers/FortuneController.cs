@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 
 namespace Ecanapi.Controllers
@@ -142,6 +143,100 @@ namespace Ecanapi.Controllers
                 _logger.LogError(ex, "每日運勢生成失敗 UserId={UserId}", userId);
                 return StatusCode(500, new { error = "今日運勢生成失敗，請稍後再試" });
             }
+        }
+
+        /// <summary>取得今日個人運勢（純知識庫版，不呼叫 Gemini）</summary>
+        [HttpGet("daily-kb")]
+        [Authorize]
+        public async Task<IActionResult> GetDailyFortuneKb()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var today = DateTime.UtcNow.Date;
+
+            // 檢查今日是否已有快取
+            var cached = await _context.DailyFortunes
+                .FirstOrDefaultAsync(f => f.UserId == userId && f.FortuneDate == today);
+
+            if (cached != null)
+                return Ok(new { content = cached.Content, date = FormatChineseDate(today), cached = true });
+
+            // 計算今日日柱干支
+            string ganZhi = GetGanZhi(today);
+            string tianGan = ganZhi[..1];   // e.g. 壬
+            string diZhi   = ganZhi[1..];   // e.g. 子
+
+            // 查詢知識庫規則
+            var ganRules = await _context.FortuneRules
+                .Where(r => r.Subcategory == "日干" && r.Title == tianGan && r.IsActive)
+                .ToListAsync();
+
+            var zhiRules = await _context.FortuneRules
+                .Where(r => r.Subcategory == "日支" && r.Title == diZhi && r.IsActive)
+                .ToListAsync();
+
+            if (!ganRules.Any() && !zhiRules.Any())
+            {
+                _logger.LogWarning("daily-kb: 知識庫無日柱規則 GanZhi={GanZhi}", ganZhi);
+                return StatusCode(503, new { error = "知識庫尚未建立，請先在後台匯入日柱規則" });
+            }
+
+            // 按 ConditionText 建索引方便取用
+            var gan = ganRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
+            var zhi = zhiRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
+
+            string todayDateStr = today.ToString("yyyy年M月d日");
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"=== {todayDateStr} 今日運勢 ===");
+            sb.AppendLine();
+
+            // 總評：日干為主，日支補充
+            var summary = new StringBuilder();
+            if (gan.TryGetValue("總評", out var ganSummary)) summary.Append(ganSummary);
+            if (zhi.TryGetValue("總評", out var zhiSummary) && zhiSummary != ganSummary)
+            {
+                if (summary.Length > 0) summary.Append("，");
+                summary.Append(zhiSummary);
+            }
+            if (summary.Length > 0)
+                sb.AppendLine($"【總評】{summary}");
+            sb.AppendLine();
+
+            // 財運/事業/感情/健康：以日干規則為主
+            foreach (var domain in new[] { "財運", "事業", "感情", "健康" })
+            {
+                if (gan.TryGetValue(domain, out var val))
+                    sb.AppendLine($"【{domain}】{val}");
+            }
+            sb.AppendLine();
+
+            // 今日提醒：以日支規則為主（日干補充）
+            var reminder = zhi.TryGetValue("提醒", out var zhiReminder) ? zhiReminder
+                         : gan.TryGetValue("提醒", out var ganReminder) ? ganReminder
+                         : null;
+            if (reminder != null)
+                sb.AppendLine($"【今日提醒】{reminder}");
+
+            sb.AppendLine();
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine($"鑑定大師：玉洞子  |  知日善用，趨吉避凶。");
+
+            string content = sb.ToString().TrimEnd();
+
+            // 儲存快取
+            _context.DailyFortunes.Add(new DailyFortune
+            {
+                UserId = userId,
+                FortuneDate = today,
+                Content = content,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+
+            return Ok(new { content, date = FormatChineseDate(today), cached = false });
         }
 
         private string GetGanZhi(DateTime date)
