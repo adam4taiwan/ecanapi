@@ -239,6 +239,164 @@ namespace Ecanapi.Controllers
             return Ok(new { content, date = FormatChineseDate(today), cached = false });
         }
 
+        /// <summary>取得今日個人化運勢（依命主日主計算十神，純知識庫版）</summary>
+        [HttpGet("daily-personal")]
+        [Authorize]
+        public async Task<IActionResult> GetDailyFortunePersonal()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return Unauthorized(new { error = "找不到用戶" });
+
+            if (!user.HasBirthData)
+                return BadRequest(new { error = "請先填寫生辰資料，才能取得個人化運勢" });
+
+            var today = DateTime.UtcNow.Date;
+
+            // 檢查今日是否已有快取（personal 版用不同 key 避免與 daily-kb 快取衝突）
+            var cacheKey = $"personal:{userId}";
+            var cached = await _context.DailyFortunes
+                .FirstOrDefaultAsync(f => f.UserId == cacheKey && f.FortuneDate == today);
+
+            if (cached != null)
+                return Ok(new { content = cached.Content, date = FormatChineseDate(today), cached = true });
+
+            // 計算日主（由生辰日柱天干決定）
+            var birthDate = new DateTime(user.BirthYear!.Value, user.BirthMonth!.Value, user.BirthDay!.Value);
+            string birthGanZhi = GetGanZhi(birthDate);
+            string riZhu = birthGanZhi[..1]; // 日主天干，e.g. 辛
+
+            // 計算今日日柱
+            string todayGanZhi = GetGanZhi(today);
+            string todayTianGan = todayGanZhi[..1];
+            string todayDiZhi   = todayGanZhi[1..];
+
+            // 計算今日天干對日主的十神關係
+            string shiShen = GetShiShen(riZhu, todayTianGan);
+
+            // 查詢今日通用日柱規則（Phase 1）
+            var ganRules = await _context.FortuneRules
+                .Where(r => r.Subcategory == "日干" && r.Title == todayTianGan && r.IsActive)
+                .ToListAsync();
+            var zhiRules = await _context.FortuneRules
+                .Where(r => r.Subcategory == "日支" && r.Title == todayDiZhi && r.IsActive)
+                .ToListAsync();
+
+            // 查詢十神應事規則（Phase 2 個人加成）
+            var shiShenRules = await _context.FortuneRules
+                .Where(r => r.Subcategory == "十神應事" && r.Title == shiShen && r.IsActive)
+                .ToListAsync();
+
+            string todayDateStr = today.ToString("yyyy年M月d日");
+            var sb = new StringBuilder();
+
+            sb.AppendLine($"=== {todayDateStr} 今日運勢 ===");
+            sb.AppendLine();
+
+            // 通用日柱總評
+            var gan = ganRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
+            var zhi = zhiRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
+
+            var summary = new StringBuilder();
+            if (gan.TryGetValue("總評", out var ganSummary)) summary.Append(ganSummary);
+            if (zhi.TryGetValue("總評", out var zhiSummary) && zhiSummary != ganSummary)
+            {
+                if (summary.Length > 0) summary.Append("，");
+                summary.Append(zhiSummary);
+            }
+            if (summary.Length > 0) sb.AppendLine($"【總評】{summary}");
+            sb.AppendLine();
+
+            // 財運/事業/感情/健康
+            foreach (var domain in new[] { "財運", "事業", "感情", "健康" })
+                if (gan.TryGetValue(domain, out var val)) sb.AppendLine($"【{domain}】{val}");
+
+            sb.AppendLine();
+
+            // 今日提醒
+            var reminder = zhi.TryGetValue("提醒", out var zr) ? zr
+                         : gan.TryGetValue("提醒", out var gr) ? gr : null;
+            if (reminder != null) sb.AppendLine($"【今日提醒】{reminder}");
+
+            // === 個人命主加成 ===
+            if (shiShenRules.Any())
+            {
+                sb.AppendLine();
+                sb.AppendLine($"--- 命主加成（日主 {riZhu}，今日十神：{shiShen}）---");
+
+                var good = shiShenRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
+                var bad  = shiShenRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
+
+                if (good != null) sb.AppendLine($"【順勢】{good}");
+                if (bad  != null) sb.AppendLine($"【逆勢】{bad}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine($"鑑定大師：玉洞子  |  知日善用，趨吉避凶。");
+
+            string content = sb.ToString().TrimEnd();
+
+            // 儲存快取
+            _context.DailyFortunes.Add(new DailyFortune
+            {
+                UserId = cacheKey,
+                FortuneDate = today,
+                Content = content,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+
+            return Ok(new { content, date = FormatChineseDate(today), cached = false, riZhu, shiShen });
+        }
+
+        /// <summary>計算天干甲相對日主的十神關係</summary>
+        private static string GetShiShen(string dayMaster, string stem)
+        {
+            if (dayMaster == stem) return "比肩";
+
+            var element = new Dictionary<string, string>
+            {
+                {"甲","木"},{"乙","木"},{"丙","火"},{"丁","火"},
+                {"戊","土"},{"己","土"},{"庚","金"},{"辛","金"},
+                {"壬","水"},{"癸","水"}
+            };
+            var isYang = new Dictionary<string, bool>
+            {
+                {"甲",true},{"乙",false},{"丙",true},{"丁",false},
+                {"戊",true},{"己",false},{"庚",true},{"辛",false},
+                {"壬",true},{"癸",false}
+            };
+            var generates = new Dictionary<string, string>
+                { {"木","火"},{"火","土"},{"土","金"},{"金","水"},{"水","木"} };
+            var controls = new Dictionary<string, string>
+                { {"木","土"},{"土","水"},{"水","火"},{"火","金"},{"金","木"} };
+
+            string dmElem = element[dayMaster];
+            string stElem = element[stem];
+            bool sameYY   = isYang[dayMaster] == isYang[stem];
+
+            if (dmElem == stElem)
+                return sameYY ? "比肩" : "劫財";
+
+            if (generates.TryGetValue(dmElem, out var genTarget) && genTarget == stElem)
+                return sameYY ? "食神" : "傷官";
+
+            if (controls.TryGetValue(dmElem, out var ctrlTarget) && ctrlTarget == stElem)
+                return sameYY ? "偏財" : "正財";
+
+            if (controls.TryGetValue(stElem, out var ctrlMe) && ctrlMe == dmElem)
+                return sameYY ? "七殺" : "正官";
+
+            if (generates.TryGetValue(stElem, out var genMe) && genMe == dmElem)
+                return sameYY ? "偏印" : "正印";
+
+            return "比肩"; // fallback
+        }
+
         private string GetGanZhi(DateTime date)
         {
             // 以1900年1月31日（甲子日）為基準計算日柱干支
