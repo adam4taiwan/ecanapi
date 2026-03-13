@@ -29,7 +29,7 @@ namespace Ecanapi.Controllers
             _logger = logger;
         }
 
-        /// <summary>取得今日個人運勢（每日免費，自動快取）</summary>
+        /// <summary>取得今日個人運勢（有命盤→KB個人化，無命盤→Gemini）</summary>
         [HttpGet("daily")]
         [Authorize]
         public async Task<IActionResult> GetDailyFortune()
@@ -42,6 +42,14 @@ namespace Ecanapi.Controllers
             if (user == null) return Unauthorized(new { error = "找不到用戶" });
 
             var today = DateTime.UtcNow.Date;
+
+            // 有命盤且有生辰 → 導向 KB 個人化版（不呼叫 Gemini）
+            if (user.HasBirthData)
+            {
+                var chartExists = await _context.UserCharts.AnyAsync(c => c.UserId == userId);
+                if (chartExists)
+                    return await GetDailyFortunePersonal();
+            }
 
             // 檢查今日是否已有快取
             var cached = await _context.DailyFortunes
@@ -143,6 +151,27 @@ namespace Ecanapi.Controllers
                 _logger.LogError(ex, "每日運勢生成失敗 UserId={UserId}", userId);
                 return StatusCode(500, new { error = "今日運勢生成失敗，請稍後再試" });
             }
+        }
+
+        /// <summary>清除當前用戶今日運勢快取（更新生辰後呼叫）</summary>
+        [HttpDelete("my-cache-today")]
+        [Authorize]
+        public async Task<IActionResult> ClearMyFortuneToday()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var today = DateTime.UtcNow.Date;
+            var cacheKey = $"personal:{userId}";
+
+            var records = _context.DailyFortunes.Where(f =>
+                f.FortuneDate == today &&
+                (f.UserId == userId || f.UserId == cacheKey));
+
+            _context.DailyFortunes.RemoveRange(records);
+            await _context.SaveChangesAsync();
+            return Ok(new { cleared = true });
         }
 
         /// <summary>取得今日個人運勢（純知識庫版，不呼叫 Gemini）</summary>
@@ -321,22 +350,15 @@ namespace Ecanapi.Controllers
                          : gan.TryGetValue("提醒", out var gr) ? gr : null;
             if (reminder != null) sb.AppendLine($"【今日提醒】{reminder}");
 
-            // === 個人命主加成（十神）===
-            if (shiShenRules.Any())
-            {
-                sb.AppendLine();
-                sb.AppendLine($"--- 命主加成（日主 {riZhu}，今日十神：{shiShen}）---");
+            // === 載入命盤（供 Phase 2/4/5 共用）===
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == userId);
 
-                var good = shiShenRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
-                var bad  = shiShenRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
-
-                if (good != null) sb.AppendLine($"【順勢】{good}");
-                if (bad  != null) sb.AppendLine($"【逆勢】{bad}");
-            }
-
-            // === Phase 4：大運加成 ===
-            var userChart = await _context.UserCharts
-                .FirstOrDefaultAsync(c => c.UserId == userId);
+            // 從 ChartJson 一次性提取所有所需資料
+            string[] chartStems    = Array.Empty<string>();   // [年干, 月干, 時干]
+            string[] chartBranches = Array.Empty<string>();   // [年支, 月支, 日支, 時支]
+            string chartMonthBranch = "";
+            Dictionary<string, string>? chartBranchDict = null;
+            string? daYunLiuShen = null, daYunStem = null, daYunBranch = null;
 
             if (userChart != null && !string.IsNullOrEmpty(userChart.ChartJson))
             {
@@ -345,15 +367,30 @@ namespace Ecanapi.Controllers
                     using var chartDoc = JsonDocument.Parse(userChart.ChartJson);
                     var root = chartDoc.RootElement;
 
-                    if (root.TryGetProperty("baziLuckCycles", out var luckCyclesEl) ||
-                        root.TryGetProperty("BaziLuckCycles", out luckCyclesEl))
+                    // 四柱（calculate API 回傳 "bazi"，前端直接存入 ChartJson）
+                    if (root.TryGetProperty("bazi", out var baziEl) ||
+                        root.TryGetProperty("baziInfo", out baziEl) ||
+                        root.TryGetProperty("BaziInfo", out baziEl))
+                    {
+                        var (yStem, yBranch) = ExtractPillar(baziEl, "yearPillar");
+                        var (mStem, mBranch) = ExtractPillar(baziEl, "monthPillar");
+                        var (dStem, dBranch) = ExtractPillar(baziEl, "dayPillar");
+                        var (tStem, tBranch) = ExtractPillar(baziEl, "timePillar");
+                        chartStems    = new[] { yStem, mStem, tStem };
+                        chartBranches = new[] { yBranch, mBranch, dBranch, tBranch };
+                        chartMonthBranch = mBranch;
+                        chartBranchDict  = new Dictionary<string, string>
+                        {
+                            {"年支", yBranch}, {"月支", mBranch}, {"日支", dBranch}, {"時支", tBranch}
+                        };
+                    }
+
+                    // 大運
+                    if (root.TryGetProperty("baziLuckCycles", out var luckEl) ||
+                        root.TryGetProperty("BaziLuckCycles", out luckEl))
                     {
                         int currentAge = today.Year - user.BirthYear!.Value;
-                        string? daYunLiuShen = null;
-                        string? daYunStem = null;
-                        string? daYunBranch = null;
-
-                        foreach (var cycle in luckCyclesEl.EnumerateArray())
+                        foreach (var cycle in luckEl.EnumerateArray())
                         {
                             int startAge = cycle.TryGetProperty("startAge", out var sa) ? sa.GetInt32() : 0;
                             int endAge   = cycle.TryGetProperty("endAge",   out var ea) ? ea.GetInt32() : 0;
@@ -365,28 +402,91 @@ namespace Ecanapi.Controllers
                                 break;
                             }
                         }
-
-                        if (!string.IsNullOrEmpty(daYunLiuShen))
-                        {
-                            // 縮寫展開為全名
-                            string fullLiuShen = LiuShenFullMap.TryGetValue(daYunLiuShen, out var full) ? full : daYunLiuShen;
-                            var daYunRules = await _context.FortuneRules
-                                .Where(r => r.Subcategory == "十神應事" && r.Title == fullLiuShen && r.IsActive)
-                                .ToListAsync();
-
-                            if (daYunRules.Any())
-                            {
-                                sb.AppendLine();
-                                sb.AppendLine($"--- 大運加成（當前大運：{daYunStem}{daYunBranch} {fullLiuShen}）---");
-                                var good = daYunRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
-                                var bad  = daYunRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
-                                if (good != null) sb.AppendLine($"【大運順勢】{good}");
-                                if (bad  != null) sb.AppendLine($"【大運逆勢】{bad}");
-                            }
-                        }
                     }
                 }
                 catch { /* ChartJson 解析失敗時靜默跳過 */ }
+            }
+
+            // === 個人命主加成（十神 + 身強弱）===
+            if (shiShenRules.Any())
+            {
+                // 計算身強弱
+                string bodyLabel = "";
+                bool? isShun = null; // null = 中和（顯示兩者）
+
+                if (!string.IsNullOrEmpty(chartMonthBranch))
+                {
+                    int score = CalcBodyStrength(riZhu, chartMonthBranch, chartStems, chartBranches);
+                    if (score >= 5)
+                    {
+                        bodyLabel = "身強";
+                        isShun = StrongYongShen.Contains(shiShen);
+                    }
+                    else if (score <= 2)
+                    {
+                        bodyLabel = "身弱";
+                        isShun = WeakYongShen.Contains(shiShen);
+                    }
+                    else
+                    {
+                        bodyLabel = "中和";
+                        isShun = null;
+                    }
+                }
+
+                sb.AppendLine();
+                string headerLabel = bodyLabel != "" ? $" | {bodyLabel}" : "";
+                sb.AppendLine($"--- 命主加成（日主 {riZhu}，今日十神：{shiShen}{headerLabel}）---");
+
+                var good = shiShenRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
+                var bad  = shiShenRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
+
+                if (isShun == null)
+                {
+                    // 中和：顯示兩者
+                    if (good != null) sb.AppendLine($"【順勢】{good}");
+                    if (bad  != null) sb.AppendLine($"【逆勢】{bad}");
+                }
+                else if (isShun == true)
+                {
+                    if (good != null) sb.AppendLine($"【順勢】{good}");
+                }
+                else
+                {
+                    if (bad != null) sb.AppendLine($"【逆勢】{bad}");
+                }
+
+                // 刑沖會合破害：今日日支 vs 命局四柱地支
+                if (chartBranchDict != null && chartBranchDict.Any(kv => !string.IsNullOrEmpty(kv.Value)))
+                {
+                    var relations = BranchRelationModels.BaZiBranchRelation.CalcBranchRelations(
+                        chartBranchDict, todayDiZhi, "今日");
+                    foreach (var rel in relations)
+                    {
+                        string impact = GetRelationImpact(rel.RelationType, isShun);
+                        string dirText = isShun == true ? "順勢" : isShun == false ? "逆勢" : "運勢";
+                        sb.AppendLine($"【今日{todayDiZhi}{rel.RelationType}{rel.TargetPillar}{rel.TargetBranch}】{dirText}受{rel.RelationType}，{impact}");
+                    }
+                }
+            }
+
+            // === Phase 4：大運加成 ===
+            if (!string.IsNullOrEmpty(daYunLiuShen))
+            {
+                string fullLiuShen = LiuShenFullMap.TryGetValue(daYunLiuShen, out var full) ? full : daYunLiuShen;
+                var daYunRules = await _context.FortuneRules
+                    .Where(r => r.Subcategory == "十神應事" && r.Title == fullLiuShen && r.IsActive)
+                    .ToListAsync();
+
+                if (daYunRules.Any())
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"--- 大運加成（當前大運：{daYunStem}{daYunBranch} {fullLiuShen}）---");
+                    var good = daYunRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
+                    var bad  = daYunRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
+                    if (good != null) sb.AppendLine($"【大運順勢】{good}");
+                    if (bad  != null) sb.AppendLine($"【大運逆勢】{bad}");
+                }
             }
 
             // === Phase 3：紫微命宮主星加成 ===
@@ -438,6 +538,141 @@ namespace Ecanapi.Controllers
             {"財","偏財"},{"才","正財"},{"殺","七殺"},{"官","正官"},
             {"梟","偏印"},{"印","正印"}
         };
+
+        // 天干五行對應
+        private static readonly Dictionary<string, string> StemElement = new()
+        {
+            {"甲","木"},{"乙","木"},{"丙","火"},{"丁","火"},
+            {"戊","土"},{"己","土"},{"庚","金"},{"辛","金"},{"壬","水"},{"癸","水"}
+        };
+
+        // 五行相生：木→火→土→金→水→木
+        private static readonly Dictionary<string, string> ElementGenerates = new()
+            { {"木","火"},{"火","土"},{"土","金"},{"金","水"},{"水","木"} };
+
+        // 地支藏干（主氣 8/5、中氣 3/2、餘氣 1，以權重表示）
+        private static readonly Dictionary<string, Dictionary<string, int>> BranchHidden = new()
+        {
+            {"子", new(){{"癸",8}}},
+            {"丑", new(){{"己",5},{"癸",2},{"辛",1}}},
+            {"寅", new(){{"甲",5},{"丙",2},{"戊",1}}},
+            {"卯", new(){{"乙",8}}},
+            {"辰", new(){{"戊",5},{"乙",2},{"癸",1}}},
+            {"巳", new(){{"丙",5},{"戊",2},{"庚",1}}},
+            {"午", new(){{"丁",5},{"己",3}}},
+            {"未", new(){{"己",5},{"丁",2},{"乙",1}}},
+            {"申", new(){{"庚",5},{"壬",2},{"戊",1}}},
+            {"酉", new(){{"辛",8}}},
+            {"戌", new(){{"戊",5},{"辛",2},{"丁",1}}},
+            {"亥", new(){{"壬",5},{"甲",3}}}
+        };
+
+        // 身強用神（順勢）：食傷財官殺
+        private static readonly HashSet<string> StrongYongShen = new()
+            { "食神","傷官","偏財","正財","七殺","正官" };
+
+        // 身弱用神（順勢）：印比劫
+        private static readonly HashSet<string> WeakYongShen = new()
+            { "比肩","劫財","偏印","正印" };
+
+        // 六沖組合（雙向）
+        private static readonly HashSet<string> ChongPairs = new()
+            { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
+
+        /// <summary>計算日主身強弱評分（正值越高越強）</summary>
+        private static int CalcBodyStrength(string dayMaster, string monthBranch,
+            IEnumerable<string> pillarStems, IEnumerable<string> pillarBranches)
+        {
+            int score = 0;
+            if (!StemElement.TryGetValue(dayMaster, out var dmElem)) return 3;
+            string genElem = ElementGenerates.FirstOrDefault(kv => kv.Value == dmElem).Key ?? "";
+
+            // 月令（最大權重）
+            if (BranchHidden.TryGetValue(monthBranch, out var monthH))
+            {
+                foreach (var (stem, w) in monthH)
+                {
+                    if (!StemElement.TryGetValue(stem, out var sElem)) continue;
+                    if (sElem == dmElem)  score += w >= 5 ? 3 : w >= 2 ? 2 : 1; // 比劫
+                    else if (sElem == genElem) score += w >= 5 ? 2 : 1;          // 印星
+                }
+            }
+
+            // 年月時天干幫身
+            foreach (var stem in pillarStems.Where(s => !string.IsNullOrEmpty(s)))
+            {
+                if (!StemElement.TryGetValue(stem, out var sElem)) continue;
+                if (sElem == dmElem || sElem == genElem) score++;
+            }
+
+            // 地支通根
+            var branches = pillarBranches.Where(b => !string.IsNullOrEmpty(b)).ToList();
+            foreach (var br in branches)
+            {
+                if (!BranchHidden.TryGetValue(br, out var bh)) continue;
+                if (bh.Any(kv => StemElement.TryGetValue(kv.Key, out var e) && (e == dmElem || e == genElem)))
+                    score++;
+            }
+
+            // 命局內部六沖扣分（日支被沖-2，月支被沖-1）
+            for (int i = 0; i < branches.Count; i++)
+                for (int j = i + 1; j < branches.Count; j++)
+                    if (ChongPairs.Contains(branches[i] + branches[j]))
+                    {
+                        if (i == 2 || j == 2) score -= 2;
+                        else if (i == 1 || j == 1) score -= 1;
+                    }
+
+            // 三刑扣分
+            var xingGroups = new[] { new[]{"寅","巳","申"}, new[]{"丑","戌","未"} };
+            foreach (var g in xingGroups)
+                if (g.Count(x => branches.Contains(x)) >= 2) score -= 1;
+
+            return score;
+        }
+
+        /// <summary>從 baziInfo JSON 元素中取出單柱天干地支</summary>
+        private static (string stem, string branch) ExtractPillar(JsonElement baziEl, string pillarKey)
+        {
+            JsonElement pillarEl = default;
+            if (!baziEl.TryGetProperty(pillarKey, out pillarEl))
+            {
+                string cap = char.ToUpper(pillarKey[0]) + pillarKey[1..];
+                if (!baziEl.TryGetProperty(cap, out pillarEl)) return ("", "");
+            }
+            string stem = "";
+            string branch = "";
+            if (pillarEl.TryGetProperty("heavenlyStem", out var hs) || pillarEl.TryGetProperty("HeavenlyStem", out hs))
+                stem = hs.GetString() ?? "";
+            if (pillarEl.TryGetProperty("earthlyBranch", out var eb) || pillarEl.TryGetProperty("EarthlyBranch", out eb))
+                branch = eb.GetString() ?? "";
+            return (stem, branch);
+        }
+
+        /// <summary>依關係類型與順逆勢取得影響描述</summary>
+        private static string GetRelationImpact(string relationType, bool? isShun)
+        {
+            string dir = isShun == true ? "順" : isShun == false ? "逆" : "運";
+            return (relationType, dir) switch
+            {
+                ("沖","順") => "能量受阻，好事多折，宜謹慎行事",
+                ("沖","逆") => "壓力加劇，宜低調避衝",
+                ("沖","運") => "氣場波動，宜穩不宜動",
+                ("合","順") => "機遇受合化，方向可能轉變",
+                ("合","逆") => "合化有緩解，壓力稍降",
+                ("合","運") => "合化之日，注意方向轉變",
+                ("刑","順") => "易生波折，計劃易被打斷",
+                ("刑","逆") => "耗損加重，小心意外損傷",
+                ("刑","運") => "暗藏波折，謹慎行事",
+                ("破","順") => "成果易損，防虎頭蛇尾",
+                ("破","逆") => "情況複雜，謹防小人",
+                ("破","運") => "防事情破局",
+                ("害","順") => "暗中阻滯，防無心之失",
+                ("害","逆") => "小人干擾，謹言慎行",
+                ("害","運") => "有隱性阻礙，留意人際",
+                _ => "注意此日干支互動帶來的變數"
+            };
+        }
 
         /// <summary>計算天干甲相對日主的十神關係</summary>
         private static string GetShiShen(string dayMaster, string stem)
