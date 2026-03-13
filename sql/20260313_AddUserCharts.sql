@@ -11,3 +11,7 @@ CREATE TABLE IF NOT EXISTS "UserCharts" (
 );
 
 CREATE INDEX IF NOT EXISTS "IX_UserCharts_UserId" ON "UserCharts" ("UserId");
+
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20260313025235_AddUserCharts', '9.0.8')
+ON CONFLICT DO NOTHING;
