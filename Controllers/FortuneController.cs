@@ -334,9 +334,62 @@ namespace Ecanapi.Controllers
                 if (bad  != null) sb.AppendLine($"【逆勢】{bad}");
             }
 
-            // === Phase 3：紫微命宮主星加成 ===
+            // === Phase 4：大運加成 ===
             var userChart = await _context.UserCharts
                 .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (userChart != null && !string.IsNullOrEmpty(userChart.ChartJson))
+            {
+                try
+                {
+                    using var chartDoc = JsonDocument.Parse(userChart.ChartJson);
+                    var root = chartDoc.RootElement;
+
+                    if (root.TryGetProperty("baziLuckCycles", out var luckCyclesEl) ||
+                        root.TryGetProperty("BaziLuckCycles", out luckCyclesEl))
+                    {
+                        int currentAge = today.Year - user.BirthYear!.Value;
+                        string? daYunLiuShen = null;
+                        string? daYunStem = null;
+                        string? daYunBranch = null;
+
+                        foreach (var cycle in luckCyclesEl.EnumerateArray())
+                        {
+                            int startAge = cycle.TryGetProperty("startAge", out var sa) ? sa.GetInt32() : 0;
+                            int endAge   = cycle.TryGetProperty("endAge",   out var ea) ? ea.GetInt32() : 0;
+                            if (currentAge >= startAge && currentAge <= endAge)
+                            {
+                                daYunLiuShen = cycle.TryGetProperty("liuShen",       out var ls) ? ls.GetString() : null;
+                                daYunStem    = cycle.TryGetProperty("heavenlyStem",   out var hs) ? hs.GetString() : null;
+                                daYunBranch  = cycle.TryGetProperty("earthlyBranch", out var eb) ? eb.GetString() : null;
+                                break;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(daYunLiuShen))
+                        {
+                            // 縮寫展開為全名
+                            string fullLiuShen = LiuShenFullMap.TryGetValue(daYunLiuShen, out var full) ? full : daYunLiuShen;
+                            var daYunRules = await _context.FortuneRules
+                                .Where(r => r.Subcategory == "十神應事" && r.Title == fullLiuShen && r.IsActive)
+                                .ToListAsync();
+
+                            if (daYunRules.Any())
+                            {
+                                sb.AppendLine();
+                                sb.AppendLine($"--- 大運加成（當前大運：{daYunStem}{daYunBranch} {fullLiuShen}）---");
+                                var good = daYunRules.FirstOrDefault(r => r.ConditionText == "喜用")?.ResultText;
+                                var bad  = daYunRules.FirstOrDefault(r => r.ConditionText == "忌用")?.ResultText;
+                                if (good != null) sb.AppendLine($"【大運順勢】{good}");
+                                if (bad  != null) sb.AppendLine($"【大運逆勢】{bad}");
+                            }
+                        }
+                    }
+                }
+                catch { /* ChartJson 解析失敗時靜默跳過 */ }
+            }
+
+            // === Phase 3：紫微命宮主星加成 ===
 
             if (userChart != null && !string.IsNullOrEmpty(userChart.MingGongMainStars))
             {
@@ -378,6 +431,13 @@ namespace Ecanapi.Controllers
 
             return Ok(new { content, date = FormatChineseDate(today), cached = false, riZhu, shiShen });
         }
+
+        private static readonly Dictionary<string, string> LiuShenFullMap = new()
+        {
+            {"比","比肩"},{"劫","劫財"},{"食","食神"},{"傷","傷官"},
+            {"財","偏財"},{"才","正財"},{"殺","七殺"},{"官","正官"},
+            {"梟","偏印"},{"印","正印"}
+        };
 
         /// <summary>計算天干甲相對日主的十神關係</summary>
         private static string GetShiShen(string dayMaster, string stem)

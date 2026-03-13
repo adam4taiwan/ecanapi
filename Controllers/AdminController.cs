@@ -84,6 +84,19 @@ namespace Ecanapi.Controllers
             return Ok(new { isAdmin = true });
         }
 
+        // DELETE /api/Admin/fortune-cache-today - 清除今日所有運勢快取（測試用）
+        [HttpDelete("fortune-cache-today")]
+        public async Task<IActionResult> ClearFortuneCacheToday()
+        {
+            if (!IsAdmin()) return Forbid();
+            var today = DateTime.UtcNow.Date;
+            var records = _context.DailyFortunes.Where(f => f.FortuneDate == today);
+            var count = await records.CountAsync();
+            _context.DailyFortunes.RemoveRange(records);
+            await _context.SaveChangesAsync();
+            return Ok(new { deleted = count, date = today.ToString("yyyy-MM-dd") });
+        }
+
         // GET /api/Admin/stats
         [HttpGet("stats")]
         public async Task<IActionResult> GetStats()
