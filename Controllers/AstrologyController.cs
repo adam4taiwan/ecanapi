@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Ecanapi.Controllers
@@ -183,7 +184,128 @@ namespace Ecanapi.Controllers
             return Ok(new { output = savePath, count = data.Count });
         }
 
+        /// <summary>儲存用戶命盤（供 Phase 3 紫微命宮加成使用）</summary>
+        [HttpPost("save-chart")]
+        [Authorize]
+        public async Task<IActionResult> SaveChart([FromBody] JsonElement chartJson)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { error = "請重新登入" });
 
+            // 從 chartJson 中提取命宮主星
+            string mingGongMainStars = ExtractMingGongMainStars(chartJson);
 
+            string jsonStr = chartJson.GetRawText();
+
+            // 更新或新增
+            var existing = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (existing != null)
+            {
+                existing.MingGongMainStars = mingGongMainStars;
+                existing.ChartJson = jsonStr;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _context.UserCharts.Add(new UserChart
+                {
+                    UserId = userId,
+                    MingGongMainStars = mingGongMainStars,
+                    ChartJson = jsonStr,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { success = true, mingGongMainStars });
+        }
+
+        /// <summary>取得用戶已儲存的命盤</summary>
+        [HttpGet("my-chart")]
+        [Authorize]
+        public async Task<IActionResult> GetMyChart()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var chart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == userId);
+            if (chart == null)
+                return NotFound(new { error = "尚未儲存命盤" });
+
+            return Ok(new
+            {
+                mingGongMainStars = chart.MingGongMainStars,
+                updatedAt = chart.UpdatedAt
+            });
+        }
+
+        private static readonly Dictionary<string, string> StarAbbrevMap = new()
+        {
+            {"紫","紫微"},{"機","天機"},{"陽","太陽"},{"武","武曲"},
+            {"同","天同"},{"廉","廉貞"},{"府","天府"},{"陰","太陰"},
+            {"貪","貪狼"},{"巨","巨門"},{"相","天相"},{"梁","天梁"},
+            {"殺","七殺"},{"破","破軍"}
+        };
+
+        private static string ExtractMingGongMainStars(JsonElement chartJson)
+        {
+            try
+            {
+                // chartJson 結構：{ palaces: [ { palaceName, majorStars, ... } ] }
+                JsonElement palacesEl;
+
+                if (chartJson.TryGetProperty("ziwei", out var ziweiEl) &&
+                    ziweiEl.TryGetProperty("palaces", out palacesEl))
+                {
+                    // nested under ziwei
+                }
+                else if (chartJson.TryGetProperty("Ziwei", out var ziweiElCap) &&
+                         ziweiElCap.TryGetProperty("Palaces", out palacesEl))
+                {
+                    // PascalCase
+                }
+                else if (chartJson.TryGetProperty("palaces", out palacesEl) ||
+                         chartJson.TryGetProperty("Palaces", out palacesEl))
+                {
+                    // top-level palaces
+                }
+                else
+                {
+                    return string.Empty;
+                }
+
+                foreach (var palace in palacesEl.EnumerateArray())
+                {
+                    string palaceName = string.Empty;
+                    if (palace.TryGetProperty("palaceName", out var pn)) palaceName = pn.GetString() ?? "";
+                    else if (palace.TryGetProperty("PalaceName", out var pnCap)) palaceName = pnCap.GetString() ?? "";
+
+                    if (palaceName != "命宮") continue;
+
+                    JsonElement starsEl;
+                    if (!palace.TryGetProperty("majorStars", out starsEl) &&
+                        !palace.TryGetProperty("MajorStars", out starsEl))
+                        return string.Empty;
+
+                    var stars = new List<string>();
+                    foreach (var s in starsEl.EnumerateArray())
+                    {
+                        var abbr = s.GetString();
+                        if (string.IsNullOrEmpty(abbr)) continue;
+                        // 嘗試展開縮寫為全名
+                        stars.Add(StarAbbrevMap.TryGetValue(abbr, out var full) ? full : abbr);
+                    }
+                    return string.Join(",", stars);
+                }
+            }
+            catch
+            {
+                // ignore parse errors
+            }
+            return string.Empty;
+        }
     }
 }

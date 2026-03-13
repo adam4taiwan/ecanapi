@@ -18,6 +18,7 @@ namespace Ecanapi.Data
         public DbSet<AtmPaymentRequest> AtmPaymentRequests { get; set; }
         public DbSet<FortuneRule> FortuneRules { get; set; }
         public DbSet<KnowledgeDocument> KnowledgeDocuments { get; set; }
+        public DbSet<UserChart> UserCharts { get; set; }
         // 這是您的自定義資料集
         public DbSet<Customer> Customers { get; set; }
         // 【新增】將所有13張分析用表加入到 DbContext

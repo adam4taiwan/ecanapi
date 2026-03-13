@@ -321,7 +321,7 @@ namespace Ecanapi.Controllers
                          : gan.TryGetValue("提醒", out var gr) ? gr : null;
             if (reminder != null) sb.AppendLine($"【今日提醒】{reminder}");
 
-            // === 個人命主加成 ===
+            // === 個人命主加成（十神）===
             if (shiShenRules.Any())
             {
                 sb.AppendLine();
@@ -332,6 +332,32 @@ namespace Ecanapi.Controllers
 
                 if (good != null) sb.AppendLine($"【順勢】{good}");
                 if (bad  != null) sb.AppendLine($"【逆勢】{bad}");
+            }
+
+            // === Phase 3：紫微命宮主星加成 ===
+            var userChart = await _context.UserCharts
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+
+            if (userChart != null && !string.IsNullOrEmpty(userChart.MingGongMainStars))
+            {
+                var mingGongStars = userChart.MingGongMainStars.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                var ziweiRules = new List<(string star, string text)>();
+
+                foreach (var star in mingGongStars)
+                {
+                    var rule = await _context.FortuneRules
+                        .FirstOrDefaultAsync(r => r.Subcategory == "命宮主星" && r.Title == star.Trim() && r.IsActive);
+                    if (rule != null)
+                        ziweiRules.Add((star.Trim(), rule.ResultText));
+                }
+
+                if (ziweiRules.Any())
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"--- 紫微命宮加成（命宮主星：{userChart.MingGongMainStars}）---");
+                    foreach (var (star, text) in ziweiRules)
+                        sb.AppendLine($"【{star}】{text}");
+                }
             }
 
             sb.AppendLine();
