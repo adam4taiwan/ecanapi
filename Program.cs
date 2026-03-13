@@ -90,12 +90,14 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Ecanapi", Version = "v1" });
+    c.UseInlineDefinitionsForEnums();
 
     // 🚩 這段讓 Swagger 支援輸入 JWT Bearer Token
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme

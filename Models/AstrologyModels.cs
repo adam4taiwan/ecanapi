@@ -1,8 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Ecanapi.Models
 {
+    public enum DateType
+    {
+        solar,  // 陽曆
+        lunar   // 農曆
+    }
+
+    // 陰陽曆互換請求
+    public class DateExchangeRequest
+    {
+        [Description("陽曆 = solar，農曆 = lunar")]
+        public DateType DateType { get; set; } = DateType.solar;
+
+        [Description("年")]
+        public int Year { get; set; }
+
+        [Description("月")]
+        public int Month { get; set; }
+
+        [Description("日")]
+        public int Day { get; set; }
+
+        [Description("是否為農曆閏月（僅 lunar 模式有效，一般留 false）")]
+        [DefaultValue(false)]
+        public bool IsLeapMonth { get; set; } = false;
+    }
+
     // API 請求的輸入模型
     public record AstrologyRequest(
         int Year,

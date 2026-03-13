@@ -117,6 +117,61 @@ namespace Ecanapi.Controllers
             var exportFileName = $"{chartData.UserName}_ExpertReport.docx";
             return File(fileBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", exportFileName);
         }
+        [HttpPost("ExchangeDate")]
+        public IActionResult ExchangeDate([FromBody] DateExchangeRequest request)
+        {
+            if (request == null)
+                return BadRequest("Invalid request data.");
+
+            try
+            {
+                if (request.DateType == DateType.solar)
+                {
+                    var solarDate = new DateTime(request.Year, request.Month, request.Day);
+                    var cal = new Ecan.EcanChineseCalendar(solarDate);
+                    return Ok(new
+                    {
+                        inputType = "solar (陽曆)",
+                        input = new { year = request.Year, month = request.Month, day = request.Day },
+                        output = new
+                        {
+                            year = cal.ChineseYear,
+                            month = cal.ChineseMonth,
+                            day = cal.ChineseDay,
+                            isLeapMonth = cal.IsChineseLeapMonth,
+                            yearString = cal.ChineseYearString,
+                            monthString = cal.ChineseMonthString,
+                            dayString = cal.ChineseDayString
+                        }
+                    });
+                }
+                else if (request.DateType == DateType.lunar)
+                {
+                    var cal = new Ecan.EcanChineseCalendar(request.Year, request.Month, request.Day, request.IsLeapMonth);
+                    var solar = cal.Date;
+                    return Ok(new
+                    {
+                        inputType = "lunar (農曆)",
+                        input = new { year = request.Year, month = request.Month, day = request.Day, isLeapMonth = request.IsLeapMonth },
+                        output = new
+                        {
+                            year = solar.Year,
+                            month = solar.Month,
+                            day = solar.Day
+                        }
+                    });
+                }
+                else
+                {
+                    return BadRequest(new { error = "dateType must be 'solar' or 'lunar'" });
+                }
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpGet("ExportAnnualLuckJson")]
         public IActionResult ExportAnnualLuckJson(int fromYear, int toYear, string fileName, int cue3)
         {
