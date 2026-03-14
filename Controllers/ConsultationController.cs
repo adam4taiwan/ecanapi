@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Stripe;
 using Stripe.Checkout;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Ecanapi.Controllers
 {
@@ -292,6 +294,478 @@ namespace Ecanapi.Controllers
             return Ok(new { id = session.Id, url = session.Url });
         }
 
+        // ============================================================
+        // KB 綜合命書端點（純知識庫，不呼叫 Gemini）
+        // ============================================================
+        [Authorize]
+        [HttpGet("analyze-kb")]
+        public async Task<IActionResult> GetKbAnalysis()
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            const int cost = 50;
+            if (user.Points < cost)
+                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+
+            try
+            {
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+
+                // === 提取八字四柱 ===
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = bazi.GetProperty("yearPillar");
+                var monthP = bazi.GetProperty("monthPillar");
+                var dayP   = bazi.GetProperty("dayPillar");
+                var timeP  = bazi.GetProperty("timePillar");
+
+                string nianGan = yearP.GetProperty("heavenlyStem").GetString()  ?? "";
+                string nianZhi = yearP.GetProperty("earthlyBranch").GetString() ?? "";
+                string nianSS  = yearP.GetProperty("heavenlyStemLiuShen").GetString() ?? "";
+                string nianNaYin = yearP.GetProperty("naYin").GetString() ?? "";
+
+                string yueGan  = monthP.GetProperty("heavenlyStem").GetString()  ?? "";
+                string yueZhi  = monthP.GetProperty("earthlyBranch").GetString() ?? "";
+                string yueSS   = monthP.GetProperty("heavenlyStemLiuShen").GetString() ?? "";
+                string yueNaYin = monthP.GetProperty("naYin").GetString() ?? "";
+
+                string riGan   = dayP.GetProperty("heavenlyStem").GetString()  ?? "";
+                string riZhi   = dayP.GetProperty("earthlyBranch").GetString() ?? "";
+                string riNaYin = dayP.GetProperty("naYin").GetString() ?? "";
+
+                string shiGan  = timeP.GetProperty("heavenlyStem").GetString()  ?? "";
+                string shiZhi  = timeP.GetProperty("earthlyBranch").GetString() ?? "";
+                string shiSS   = timeP.GetProperty("heavenlyStemLiuShen").GetString() ?? "";
+                string shiNaYin = timeP.GetProperty("naYin").GetString() ?? "";
+
+                string riZhu  = riGan + riZhi;
+                string nianZhu = nianGan + nianZhi;
+                string yueZhu  = yueGan + yueZhi;
+                string shiZhu  = shiGan + shiZhi;
+
+                // 地支主氣十神
+                string nianZhiSS = KbGetFirstHiddenSS(yearP);
+                string yueZhiSS  = KbGetFirstHiddenSS(monthP);
+                string riZhiSS   = KbGetFirstHiddenSS(dayP);
+                string shiZhiSS  = KbGetFirstHiddenSS(timeP);
+
+                // 衍生資訊
+                string riWuXing    = KbStemToElement(riGan);
+                string season      = KbBranchToSeason(yueZhi);
+                string nianShiCombo = nianGan + shiGan;
+                string hourCol     = KbBranchToHourCol(shiZhi);
+                string nianAnimal  = KbBranchToZodiac(nianZhi);
+                string riAnimal    = KbBranchToZodiac(riZhi);
+
+                // 其他欄位：姓名優先用 ChartName（命書用名）
+                string userName    = !string.IsNullOrEmpty(user.ChartName) ? user.ChartName
+                                   : !string.IsNullOrEmpty(user.Name) ? user.Name
+                                   : root.TryGetProperty("userName", out var un) ? un.GetString() ?? "" : "";
+                string solarBirth  = root.TryGetProperty("solarBirthDate", out var sb2) ? sb2.GetString() ?? "" : "";
+                // 農曆轉中文日期格式
+                string lunarRaw    = root.TryGetProperty("lunarBirthDate", out var lb) ? lb.GetString() ?? "" : "";
+                string lunarBirth  = KbLunarToChineseStr(lunarRaw);
+                string wuXingJu    = root.TryGetProperty("wuXingJuText", out var wx)   ? wx.GetString() ?? "" : "";
+                string mingZhu     = root.TryGetProperty("mingZhu", out var mz)   ? mz.GetString() ?? "" : "";
+                string shenZhu     = root.TryGetProperty("shenZhu", out var sz)   ? sz.GetString() ?? "" : "";
+
+                string geJu = "", rootType = "", phenomenon = "";
+                if (root.TryGetProperty("baziAnalysisResult", out var bar))
+                {
+                    geJu       = bar.TryGetProperty("shiShen",   out var ss) ? ss.GetString() ?? "" : "";
+                    rootType   = bar.TryGetProperty("rootType",  out var rt) ? rt.GetString() ?? "" : "";
+                    phenomenon = bar.TryGetProperty("phenomenon",out var ph) ? ph.GetString() ?? "" : "";
+                }
+                // 解析四柱斷語
+                var (pillarHeader, pillarNian, pillarYue, pillarRi, pillarShi) = KbSplitPillars(geJu);
+
+                string mingGongStars = userChart.MingGongMainStars ?? "";
+
+                // 宮位 + 大運
+                var palaces = root.TryGetProperty("palaces", out var pArr) ? pArr : default;
+                int currentAge = user.BirthYear.HasValue ? DateTime.Today.Year - user.BirthYear.Value : 0;
+                var (daYunStem, daYunBranch, daYunSS, daYunStart, daYunEnd) = KbGetCurrentLuck(root, currentAge);
+                string daYunPalace = KbGetLuckPalace(palaces, currentAge);
+
+                // === 查詢 DB ===
+                // 六十甲子命主（各分析欄位）
+                string rgxx  = await KbQuery($"SELECT COALESCE(rgxx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string rgcz  = await KbQuery($"SELECT COALESCE(rgcz,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string rgzfx = await KbQuery($"SELECT COALESCE(rgzfx,'') AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string xgfx  = await KbQuery($"SELECT COALESCE(xgfx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string aqfx  = await KbQuery($"SELECT COALESCE(aqfx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string syfx  = await KbQuery($"SELECT COALESCE(syfx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string cyfx  = await KbQuery($"SELECT COALESCE(cyfx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+                string jkfx  = await KbQuery($"SELECT COALESCE(jkfx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
+
+                // 六十甲子納音
+                string naYinDesc = await KbQuery($"SELECT COALESCE(\"desc\",'') AS \"Value\" FROM public.\"六十甲子納音\" WHERE \"干支\"='{riZhu}'");
+
+                // 三命論會（日干 + 月份 + 時支）
+                string sanMing = await KbQuery($"SELECT COALESCE(\"desc\",'') AS \"Value\" FROM public.\"六十甲子日對時\" WHERE \"Sky\"='{riGan}' AND \"Month\"='{yueZhi}月' AND \"time\" LIKE '%{shiZhi}%'");
+
+                // 五行喜忌（日主五行 + 季節）
+                string xiJi = await KbQuery($"SELECT COALESCE(\"sjrs\",'') AS \"Value\" FROM public.\"五行喜忌\" WHERE \"wh\"='{riWuXing}' AND \"sj\"='{season}'");
+
+                // 六神四柱數
+                string gdNianGan = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='年干{nianSS}'");
+                string gdYueGan  = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='月干{yueSS}'");
+                string gdNianZhi = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='年支{nianZhiSS}'");
+                string gdYueZhi  = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='月支{yueZhiSS}'");
+                string gdRiZhi   = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='日支{riZhiSS}'");
+                string gdShiGan  = await KbQuery($"SELECT COALESCE(\"Desc\",'') AS \"Value\" FROM public.\"六神四柱數\" WHERE \"position\"='時干{shiSS}'");
+
+                // 十二生肖性向（年支 + 日支）
+                string zodiacNian = await KbQuery($"SELECT COALESCE(\"sxgx\",'') AS \"Value\" FROM public.\"十二生肖性向\" WHERE \"sx\" IN ('{nianAnimal}','{nianZhi}') LIMIT 1");
+                string zodiacRi   = await KbQuery($"SELECT COALESCE(\"sxgx\",'') AS \"Value\" FROM public.\"十二生肖性向\" WHERE \"sx\" IN ('{riAnimal}','{riZhi}') LIMIT 1");
+
+                // astro_twoheader（年干+時干）
+                string astroN    = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroM    = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroHour = await KbQuery($"SELECT COALESCE(\"{hourCol}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroR    = await KbQuery($"SELECT COALESCE(\"R\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroX    = await KbQuery($"SELECT COALESCE(\"X\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroZ    = await KbQuery($"SELECT COALESCE(\"Z\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+                string astroT    = await KbQuery($"SELECT COALESCE(\"T\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{nianShiCombo}'");
+
+                // 窮通寶鑑（日干 + 月支）
+                string tongBao = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{riGan}' AND dz='{yueZhi}'");
+
+                // ziwei_patterns_144（各宮主星）
+                string ziweiMing    = await KbZiweiQuery(palaces, "命宮");
+                string ziweiOffStar = KbGetPalaceStars(palaces, "官祿");
+                string ziweiOff     = await KbZiweiQuery(palaces, "官祿");
+                string ziweiWltStar = KbGetPalaceStars(palaces, "財帛");
+                string ziweiWlt     = await KbZiweiQuery(palaces, "財帛");
+                string ziweiSpsStar = KbGetPalaceStars(palaces, "夫妻");
+                string ziweiSps     = await KbZiweiQuery(palaces, "夫妻");
+                string ziweiHltStar = KbGetPalaceStars(palaces, "疾厄");
+                string ziweiHlt     = await KbZiweiQuery(palaces, "疾厄");
+                string ziweiParStar = KbGetPalaceStars(palaces, "父母");
+                string ziweiPar     = await KbZiweiQuery(palaces, "父母");
+                string ziweiCldStar = KbGetPalaceStars(palaces, "子女");
+                string ziweiCld     = await KbZiweiQuery(palaces, "子女");
+                string ziweiLuck    = string.IsNullOrEmpty(daYunPalace) ? "" : await KbZiweiQuery(palaces, daYunPalace);
+
+                // === 組裝命書 ===
+                var sb_out = new StringBuilder();
+
+                sb_out.AppendLine("=== 一、命盤概覽 ===");
+                sb_out.AppendLine($"姓名：{userName}  陽曆：{KbFormatSolarDate(solarBirth)}  農曆：{lunarBirth}");
+                sb_out.AppendLine($"四柱：{nianZhu}年 {yueZhu}月 {riZhu}日 {shiZhu}時");
+                sb_out.AppendLine($"納音：{nianNaYin} · {yueNaYin} · {riNaYin} · {shiNaYin}");
+                sb_out.AppendLine($"日主：{riGan}（{riWuXing}）  五行局：{wuXingJu}");
+                sb_out.AppendLine($"命宮主星：{mingGongStars}  命主星：{mingZhu}  身主星：{shenZhu}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 二、格局用神 ===");
+                // 四柱分行格式
+                if (!string.IsNullOrEmpty(pillarNian))
+                    sb_out.AppendLine(KbFormatPillarLine(pillarNian, "年柱(根)", "祖先及父母", false));
+                if (!string.IsNullOrEmpty(pillarYue))
+                    sb_out.AppendLine(KbFormatPillarLine(pillarYue, "月柱(苗)", "兄弟姊妹", false));
+                if (!string.IsNullOrEmpty(pillarRi))
+                    sb_out.AppendLine(KbFormatPillarLine(pillarRi, "日柱(花)", "本人及配偶", false));
+                if (!string.IsNullOrEmpty(pillarShi))
+                    sb_out.AppendLine(KbFormatPillarLine(pillarShi, "時柱(果)", "子女及晚年", true));
+                if (!string.IsNullOrEmpty(rootType)) sb_out.AppendLine($"【身強弱根源】{rootType}");
+                if (!string.IsNullOrEmpty(phenomenon)) sb_out.AppendLine($"【格局綱領】{phenomenon}");
+                if (!string.IsNullOrEmpty(xiJi))     sb_out.AppendLine($"【用神喜忌】{xiJi}");
+                if (!string.IsNullOrEmpty(tongBao))  sb_out.AppendLine($"【月令精論·窮通寶鑑】{tongBao}");
+                if (!string.IsNullOrEmpty(rgzfx))    sb_out.AppendLine($"【日柱綜合論述】{KbStripHtml(rgzfx)}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 三、性格特質 ===");
+                if (!string.IsNullOrEmpty(rgxx))     sb_out.AppendLine($"【日柱概述】{KbStripHtml(rgxx)}");
+                if (!string.IsNullOrEmpty(naYinDesc)) sb_out.AppendLine($"【納音性情·{riNaYin}】{naYinDesc}");
+                if (!string.IsNullOrEmpty(rgcz))     sb_out.AppendLine($"【坐星詳解】{KbStripHtml(rgcz)}");
+                if (!string.IsNullOrEmpty(xgfx))     sb_out.AppendLine($"【性格分析】{KbStripHtml(xgfx)}");
+                KbAppendGd(sb_out, $"年干{nianSS}", gdNianGan);
+                KbAppendGd(sb_out, $"月干{yueSS}",  gdYueGan);
+                KbAppendGd(sb_out, $"年支{nianZhiSS}", gdNianZhi);
+                KbAppendGd(sb_out, $"月支{yueZhiSS}",  gdYueZhi);
+                KbAppendGd(sb_out, $"日支{riZhiSS}",   gdRiZhi);
+                KbAppendGd(sb_out, $"時干{shiSS}",      gdShiGan);
+                if (!string.IsNullOrEmpty(zodiacNian)) sb_out.AppendLine($"【年支{nianZhi}·{nianAnimal}性向】{KbStripHtml(zodiacNian)}");
+                if (!string.IsNullOrEmpty(zodiacRi))   sb_out.AppendLine($"【日支{riZhi}·{riAnimal}性向】{KbStripHtml(zodiacRi)}");
+                if (!string.IsNullOrEmpty(ziweiMing)) sb_out.AppendLine($"【命宮·{mingGongStars}】{ziweiMing}");
+                if (!string.IsNullOrEmpty(astroN))  sb_out.AppendLine($"【詩評·{astroN}】{KbStripHtml(astroM)}");
+                if (!string.IsNullOrEmpty(astroHour)) sb_out.AppendLine($"【先天緣性】{KbStripHtml(astroHour)}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 四、事業財運 ===");
+                if (!string.IsNullOrEmpty(xiJi))     sb_out.AppendLine($"【六神喜用分析】{xiJi}");
+                if (!string.IsNullOrEmpty(astroR)) sb_out.AppendLine($"【基業發展】{KbStripHtml(astroR)}");
+                if (!string.IsNullOrEmpty(ziweiOff)) sb_out.AppendLine($"【紫微職業·{ziweiOffStar}】{ziweiOff}");
+                if (!string.IsNullOrEmpty(ziweiWlt)) sb_out.AppendLine($"【財帛宮·{ziweiWltStar}】{ziweiWlt}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 五、婚姻感情 ===");
+                if (!string.IsNullOrEmpty(aqfx))   sb_out.AppendLine($"【感情特質】{KbStripHtml(aqfx)}");
+                if (!string.IsNullOrEmpty(astroX)) sb_out.AppendLine($"【婚姻論斷】{KbStripHtml(astroX)}");
+                if (!string.IsNullOrEmpty(ziweiSps)) sb_out.AppendLine($"【夫妻宮·{ziweiSpsStar}】{ziweiSps}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 六、健康壽元 ===");
+                if (!string.IsNullOrEmpty(jkfx))   sb_out.AppendLine($"【健康傾向】{KbStripHtml(jkfx)}");
+                if (!string.IsNullOrEmpty(ziweiHlt)) sb_out.AppendLine($"【疾厄宮·{ziweiHltStar}】{ziweiHlt}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 七、家庭緣份 ===");
+                if (!string.IsNullOrEmpty(astroT)) sb_out.AppendLine($"【兄弟緣份】{KbStripHtml(astroT)}");
+                if (!string.IsNullOrEmpty(astroZ)) sb_out.AppendLine($"【子息緣份】{KbStripHtml(astroZ)}");
+                if (!string.IsNullOrEmpty(ziweiPar)) sb_out.AppendLine($"【父母宮·{ziweiParStar}】{ziweiPar}");
+                if (!string.IsNullOrEmpty(ziweiCld)) sb_out.AppendLine($"【子女宮·{ziweiCldStar}】{ziweiCld}");
+                sb_out.AppendLine();
+
+                sb_out.AppendLine("=== 八、大運流年 ===");
+                if (!string.IsNullOrEmpty(sanMing)) sb_out.AppendLine($"【三命論會】{KbStripHtml(sanMing)}");
+                if (!string.IsNullOrEmpty(daYunStem))
+                {
+                    string daYunFull = KbExpandLiuShen(daYunSS);
+                    sb_out.AppendLine($"【當前大運】{daYunStem}{daYunBranch}（{daYunStart}-{daYunEnd}歲，{daYunFull}）");
+                }
+                if (!string.IsNullOrEmpty(daYunPalace) && !string.IsNullOrEmpty(ziweiLuck))
+                    sb_out.AppendLine($"【大運宮位·{daYunPalace}】{ziweiLuck}");
+                sb_out.AppendLine();
+                sb_out.AppendLine("-----------------------------------------------------------------");
+                sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。");
+
+                user.Points -= cost;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { result = sb_out.ToString(), remainingPoints = user.Points });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KB命理鑑定失敗 User={User}", identity);
+                return StatusCode(500, new { error = "命理鑑定失敗，請稍後再試", details = ex.Message });
+            }
+        }
+
+        // --- KB Helper: 查詢第一筆純文字 ---
+        private async Task<string> KbQuery(string sql)
+        {
+            try
+            {
+                var result = await _context.Database.SqlQueryRaw<string>(sql).FirstOrDefaultAsync();
+                return result ?? "";
+            }
+            catch { return ""; }
+        }
+
+        // --- KB Helper: 取宮位主星縮寫（第一顆）---
+        private static string KbGetPalaceStars(JsonElement palaces, string palaceName)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return "";
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string pname = p.TryGetProperty("palaceName", out var pn) ? pn.GetString() ?? "" :
+                               p.TryGetProperty("name", out var n2) ? n2.GetString() ?? "" : "";
+                if (pname != palaceName) continue;
+                string majorKey = p.TryGetProperty("majorStars", out _) ? "majorStars" : "mainStars";
+                if (p.TryGetProperty(majorKey, out var stars) && stars.ValueKind == JsonValueKind.Array)
+                    return string.Join(",", stars.EnumerateArray().Select(s => s.GetString() ?? ""));
+            }
+            return "";
+        }
+
+        // --- KB Helper: 查 ziwei_patterns_144 ---
+        private async Task<string> KbZiweiQuery(JsonElement palaces, string palaceName)
+        {
+            string stars = KbGetPalaceStars(palaces, palaceName);
+            if (string.IsNullOrEmpty(stars)) return "";
+            string firstStar = stars.Split(',')[0];
+            return await KbQuery($"SELECT content AS \"Value\" FROM ziwei_patterns_144 WHERE major_stars LIKE '%{firstStar}%' AND palace_position='{palaceName}'");
+        }
+
+        // --- KB Helper: 取地支主氣十神 ---
+        private static string KbGetFirstHiddenSS(JsonElement pillar)
+        {
+            if (!pillar.TryGetProperty("hiddenStemLiuShen", out var arr) || arr.ValueKind != JsonValueKind.Array) return "";
+            return arr.EnumerateArray().FirstOrDefault().GetString() ?? "";
+        }
+
+        // --- KB Helper: 取當前八字大運 ---
+        private static (string stem, string branch, string liuShen, int start, int end) KbGetCurrentLuck(JsonElement root, int currentAge)
+        {
+            if (!root.TryGetProperty("baziLuckCycles", out var cycles) || cycles.ValueKind != JsonValueKind.Array)
+                return ("", "", "", 0, 0);
+            foreach (var c in cycles.EnumerateArray())
+            {
+                int s = c.TryGetProperty("startAge", out var sa) ? sa.GetInt32() : 0;
+                int e = c.TryGetProperty("endAge",   out var ea) ? ea.GetInt32() : 0;
+                if (currentAge >= s && currentAge <= e)
+                {
+                    string stem = c.TryGetProperty("heavenlyStem",  out var hs) ? hs.GetString() ?? "" : "";
+                    string bran = c.TryGetProperty("earthlyBranch", out var eb) ? eb.GetString() ?? "" : "";
+                    string ls   = c.TryGetProperty("liuShen",       out var l)  ? l.GetString()  ?? "" : "";
+                    return (stem, bran, ls, s, e);
+                }
+            }
+            return ("", "", "", 0, 0);
+        }
+
+        // --- KB Helper: 取紫微大限宮位 ---
+        private static string KbGetLuckPalace(JsonElement palaces, int currentAge)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return "";
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string range = p.TryGetProperty("decadeAgeRange", out var dr) ? dr.GetString() ?? "" : "";
+                var parts = range.Split('-');
+                if (parts.Length == 2 && int.TryParse(parts[0], out int ps) && int.TryParse(parts[1], out int pe)
+                    && currentAge >= ps && currentAge <= pe)
+                    return p.TryGetProperty("palaceName", out var pn) ? pn.GetString() ?? "" : "";
+            }
+            return "";
+        }
+
+        // --- KB Helper: 附加六神四柱數 ---
+        private static void KbAppendGd(StringBuilder sb, string label, string content)
+        {
+            if (!string.IsNullOrWhiteSpace(content))
+                sb.AppendLine($"【{label}】{content}");
+        }
+
+        // --- KB Helper: 剝除 HTML 標籤 ---
+        private static string KbStripHtml(string input)
+            => Regex.Replace(input, "<.*?>", " ").Replace("  ", " ").Trim();
+
+        // --- KB Helper: 日主天干→五行 ---
+        private static string KbStemToElement(string stem) => stem switch
+        {
+            "甲" or "乙" => "木",
+            "丙" or "丁" => "火",
+            "戊" or "己" => "土",
+            "庚" or "辛" => "金",
+            "壬" or "癸" => "水",
+            _ => ""
+        };
+
+        // --- KB Helper: 月支→季節 ---
+        private static string KbBranchToSeason(string branch) => branch switch
+        {
+            "寅" or "卯" or "辰" => "春",
+            "巳" or "午" or "未" => "夏",
+            "申" or "酉" or "戌" => "秋",
+            "亥" or "子" or "丑" => "冬",
+            _ => "春"
+        };
+
+        // --- KB Helper: 時支→astro_twoheader 欄位 ---
+        private static string KbBranchToHourCol(string branch) => branch switch
+        {
+            "子" or "丑" => "D",
+            "寅" or "卯" => "E",
+            "辰" or "巳" => "G",
+            "午" or "未" => "H",
+            "申" or "酉" => "J",
+            "戌" or "亥" => "K",
+            _ => "D"
+        };
+
+        // --- KB Helper: 農曆轉中文日期（1963415 → 一九六三年四月十五日）---
+        private static string KbLunarToChineseStr(string lunar)
+        {
+            if (string.IsNullOrEmpty(lunar) || lunar.Length < 5) return lunar;
+            string[] digits = { "零","一","二","三","四","五","六","七","八","九" };
+            string year = lunar[..4];
+            string rest = lunar[4..];
+            if (!int.TryParse(rest, out _)) return lunar;
+
+            int month, day;
+            if (rest.Length == 1) { month = int.Parse(rest); day = 0; }
+            else if (rest.Length == 2) { month = int.Parse(rest[..1]); day = int.Parse(rest[1..]); }
+            else if (rest.Length == 3)
+            {
+                // Try 2-digit month first (10,11,12), else 1-digit
+                if (int.TryParse(rest[..2], out int mm) && mm >= 10 && mm <= 12)
+                { month = mm; day = int.Parse(rest[2..]); }
+                else { month = int.Parse(rest[..1]); day = int.Parse(rest[1..]); }
+            }
+            else { month = int.Parse(rest[..2]); day = int.Parse(rest[2..]); }
+
+            string yearCh = string.Concat(year.Select(c => digits[c - '0']));
+            string[] monthNames = { "","正","二","三","四","五","六","七","八","九","十","十一","十二" };
+            string[] dayNames   = { "","初一","初二","初三","初四","初五","初六","初七","初八","初九","初十",
+                                     "十一","十二","十三","十四","十五","十六","十七","十八","十九","二十",
+                                     "二十一","二十二","二十三","二十四","二十五","二十六","二十七","二十八","二十九","三十" };
+            string monthCh = (month >= 1 && month <= 12) ? monthNames[month] : month.ToString();
+            string dayCh   = (day >= 1 && day <= 30)     ? dayNames[day]     : day.ToString();
+            return $"{yearCh}年{monthCh}月{dayCh}日";
+        }
+
+        // --- KB Helper: 陽曆日期格式化（去掉時間部分）---
+        private static string KbFormatSolarDate(string solar)
+        {
+            if (string.IsNullOrEmpty(solar)) return "";
+            // "1963-05-08T20:00:00" → "1963年05月08日"
+            if (DateTime.TryParse(solar, out var dt))
+                return $"{dt.Year}年{dt.Month:D2}月{dt.Day:D2}日";
+            return solar.Split('T')[0];
+        }
+
+        // --- KB Helper: 解析四柱斷語 ---
+        private static (string header, string nian, string yue, string ri, string shi) KbSplitPillars(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return ("", "", "", "", "");
+            var markers = new[] { "[年柱(根)]", "[月柱(苗)]", "[日柱(花)]", "[時柱(果)]" };
+            int[] pos = markers.Select(m => text.IndexOf(m, StringComparison.Ordinal)).ToArray();
+            string header = pos[0] > 0 ? text[..pos[0]].TrimEnd('-', ' ', '\n', '\r') : "";
+            var parts = new string[4];
+            for (int i = 0; i < 4; i++)
+            {
+                if (pos[i] < 0) continue;
+                int start = pos[i] + markers[i].Length;
+                int end = (i < 3 && pos[i + 1] > 0) ? pos[i + 1] : text.Length;
+                parts[i] = text[start..end].TrimStart('：', ':', ' ', '\n', '\r').Trim();
+            }
+            return (header, parts[0], parts[1], parts[2], parts[3]);
+        }
+
+        // --- KB Helper: 格式化單一柱行 ---
+        private static string KbFormatPillarLine(string content, string label, string context, bool isTimePillar)
+        {
+            if (string.IsNullOrEmpty(content)) return "";
+            // 非時柱移除「生時XX，...。」錯誤文句
+            if (!isTimePillar)
+                content = Regex.Replace(content, @"生時[^，,]{1,6}[，,][^。]*。", "", RegexOptions.Singleline);
+            content = KbStripHtml(content).Replace("  ", " ").Trim();
+            return $"[{label}]({context})：{content}";
+        }
+
+        // --- KB Helper: 地支→生肖 ---
+        private static string KbBranchToZodiac(string branch) => branch switch
+        {
+            "子" => "鼠", "丑" => "牛", "寅" => "虎", "卯" => "兔",
+            "辰" => "龍", "巳" => "蛇", "午" => "馬", "未" => "羊",
+            "申" => "猴", "酉" => "雞", "戌" => "狗", "亥" => "豬",
+            _ => ""
+        };
+
+        // --- KB Helper: 十神縮寫展開（大運用）---
+        private static string KbExpandLiuShen(string abbr) => abbr switch
+        {
+            "比" => "比肩", "劫" => "劫財", "食" => "食神", "傷" => "傷官",
+            "財" => "偏財", "才" => "正財", "殺" => "七殺", "官" => "正官",
+            "梟" => "偏印", "印" => "正印",
+            _ => abbr
+        };
+
+        // ============================================================
         private async Task<string> CallGeminiApi(string prompt)
         {
             var apiKey = _config["Gemini:ApiKey"];
