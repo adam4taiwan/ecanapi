@@ -541,7 +541,7 @@ namespace Ecanapi.Controllers
                     sb_out.AppendLine($"【大運宮位·{daYunPalace}】{ziweiLuck}");
                 sb_out.AppendLine();
                 sb_out.AppendLine("-----------------------------------------------------------------");
-                sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。");
+                sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v2.1");
 
                 user.Points -= cost;
                 await _context.SaveChangesAsync();
