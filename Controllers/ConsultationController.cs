@@ -660,21 +660,7 @@ namespace Ecanapi.Controllers
                     sb_out.AppendLine($"【先天化忌警示·{siHuaJiPalace}】{siHuaJi}");
                 sb_out.AppendLine();
 
-                // --- 八、大運流年 ---
-                sb_out.AppendLine("=== 八、大運流年 ===");
-                sb_out.AppendLine("--- 八字大運論 ---");
-                if (!string.IsNullOrEmpty(sanMing)) sb_out.AppendLine($"【三命論會】{KbStripHtml(sanMing)}");
-                if (!string.IsNullOrEmpty(daYunStem))
-                {
-                    string daYunFull = KbExpandLiuShen(daYunSS);
-                    sb_out.AppendLine($"【當前大運】{daYunStem}{daYunBranch}（{daYunStart}-{daYunEnd}歲，{daYunFull}）");
-                }
-                sb_out.AppendLine("--- 紫微大運論 ---");
-                if (!string.IsNullOrEmpty(daYunPalace) && !string.IsNullOrEmpty(ziweiLuck))
-                    sb_out.AppendLine($"【大運宮位·{daYunPalace}】{ziweiLuck}");
-                if (!string.IsNullOrEmpty(siHuaJi) && !string.IsNullOrEmpty(daYunPalace) && siHuaJiPalace == daYunPalace)
-                    sb_out.AppendLine($"【先天化忌警示·大運入{daYunPalace}】{siHuaJi}");
-                sb_out.AppendLine();
+                // 第八章大運流年已移除（綜合命書不含大運，另由大運命書提供）
                 sb_out.AppendLine("-----------------------------------------------------------------");
                 sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v3.0");
 
