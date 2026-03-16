@@ -454,6 +454,8 @@ namespace Ecanapi.Controllers
 
                 // 從命盤取得所有星曜集合（用於過濾 ziwei 條件段落）
                 var chartStars = KbGetAllChartStars(palaces);
+                // 加入先天四化組合（如「貪狼化忌」「破軍化祿」），讓「貪狼化權會照」等非當前年干的條件段落被過濾
+                KbAddActiveTransformations(chartStars, nianGan);
 
                 // 從完整內容拆出各宮段落，並過濾掉命盤中不存在的星的條件段落
                 // 同宮條件用該宮自己的星曜集合；會照/相夾條件用整個命盤星曜集合
@@ -931,6 +933,36 @@ namespace Ecanapi.Controllers
             return result.ToString().TrimEnd();
         }
 
+        // --- KB Helper: 主星全名列表（用於觸發偵測）---
+        private static readonly string[] KnownMainStarFullNames = new[]
+        {
+            "紫微","天機","太陽","武曲","天同","廉貞","天府","太陰","貪狼","巨門","天相","天梁","七殺","破軍"
+        };
+
+        // --- KB Helper: 主星縮寫→全名（用於四化組合展開）---
+        private static readonly Dictionary<string, string> StarAbbrToFull = new()
+        {
+            {"紫","紫微"},{"機","天機"},{"陽","太陽"},{"武","武曲"},{"同","天同"},{"廉","廉貞"},
+            {"府","天府"},{"陰","太陰"},{"貪","貪狼"},{"巨","巨門"},{"相","天相"},{"梁","天梁"},
+            {"殺","七殺"},{"破","破軍"},{"昌","文昌"},{"曲","文曲"},{"輔","左輔"},{"弼","右弼"}
+        };
+
+        // --- KB Helper: 將先天四化組合（如「貪狼化忌」）加入 chartStars，供主星觸發條件過濾使用 ---
+        private static void KbAddActiveTransformations(HashSet<string> chartStars, string yearStem)
+        {
+            if (!YearStemSiHuaMap.TryGetValue(yearStem, out var siHua)) return;
+            string[] abbrList = { siHua.lu, siHua.quan, siHua.ke, siHua.ji };
+            string[] huaList  = { "化祿", "化權", "化科", "化忌" };
+            for (int i = 0; i < 4; i++)
+            {
+                string abbr = abbrList[i];
+                string hua  = huaList[i];
+                chartStars.Add(abbr + hua);  // 縮寫形式，如「貪化忌」
+                if (StarAbbrToFull.TryGetValue(abbr, out var full))
+                    chartStars.Add(full + hua);  // 全名形式，如「貪狼化忌」
+            }
+        }
+
         // --- KB Helper: 偵測行是否為「條件段落標題」，回傳 (觸發星列表, 是否為同宮類型) ---
         private static (List<string> triggers, bool isSameGong)? KbDetectSectionTriggerTyped(string line)
         {
@@ -942,8 +974,28 @@ namespace Ecanapi.Controllers
             bool hasGe = line.Contains("格：") || (line.EndsWith("格") && line.Length < 18);
             if (!hasTrigger && !hasGe) return null;
             var found = new List<string>();
+            // 先檢查副星
             foreach (var star in KnownSecondaryStarNames)
                 if (line.Contains(star)) found.Add(star);
+            // 再檢查主星（僅當行含有 化X 組合時才需精確比對，避免過度過濾）
+            if (found.Count == 0)
+            {
+                bool hasHua = line.Contains("化忌") || line.Contains("化祿") ||
+                              line.Contains("化科") || line.Contains("化權");
+                foreach (var mainStar in KnownMainStarFullNames)
+                {
+                    if (!line.Contains(mainStar)) continue;
+                    if (hasHua)
+                    {
+                        // 主星+四化：觸發 key = "主星名化X"，如「貪狼化權」
+                        string huaType = line.Contains("化忌") ? "化忌" :
+                                         line.Contains("化祿") ? "化祿" :
+                                         line.Contains("化科") ? "化科" : "化權";
+                        found.Add(mainStar + huaType);
+                    }
+                    // 主星單純 會照/相夾 (不含化X) → 主星必在整個命盤中，通常不需過濾
+                }
+            }
             if (hasGe && found.Count == 0)
             {
                 foreach (var kv in FormationStarMap)
