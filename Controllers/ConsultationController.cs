@@ -977,24 +977,53 @@ namespace Ecanapi.Controllers
             // 先檢查副星
             foreach (var star in KnownSecondaryStarNames)
                 if (line.Contains(star)) found.Add(star);
-            // 再檢查主星（僅當行含有 化X 組合時才需精確比對，避免過度過濾）
+            // 再檢查主星
             if (found.Count == 0)
             {
                 bool hasHua = line.Contains("化忌") || line.Contains("化祿") ||
                               line.Contains("化科") || line.Contains("化權");
+                // 是否為「必須在同宮」型觸發（獨坐/坐命/守命/同宮 等）
+                bool isPalaceBound = isSameGong || line.Contains("獨坐") ||
+                                     line.Contains("坐命") || line.Contains("守命") ||
+                                     line.Contains("守度") || line.Contains("入命") ||
+                                     line.Contains("坐宮");
                 foreach (var mainStar in KnownMainStarFullNames)
                 {
                     if (!line.Contains(mainStar)) continue;
                     if (hasHua)
                     {
-                        // 主星+四化：觸發 key = "主星名化X"，如「貪狼化權」
+                        // 主星+四化：觸發 key = "主星名化X"，如「貪狼化權」；對照 allChartStars（含活躍四化）
                         string huaType = line.Contains("化忌") ? "化忌" :
                                          line.Contains("化祿") ? "化祿" :
                                          line.Contains("化科") ? "化科" : "化權";
                         found.Add(mainStar + huaType);
                     }
-                    // 主星單純 會照/相夾 (不含化X) → 主星必在整個命盤中，通常不需過濾
+                    else if (isPalaceBound)
+                    {
+                        // 主星+獨坐/同宮等：必須在該宮才顯示；對照 palaceStars
+                        found.Add(mainStar);
+                    }
+                    // 主星單純 會照/相夾 (不含化X) → 主星必在整個命盤中，一律顯示（不過濾）
                 }
+                // 檢查 [X] / [XY] 括號格式的主星段落標題，如「[廉貪]...」「[七殺]...」
+                if (found.Count == 0 && line.StartsWith("["))
+                {
+                    int closeBracket = line.IndexOf(']');
+                    if (closeBracket > 0 && closeBracket <= 8)
+                    {
+                        string inside = line.Substring(1, closeBracket - 1);
+                        foreach (var kv in StarAbbrToFull)
+                            if (inside.Contains(kv.Key)) found.Add(kv.Value);
+                        // 若括號內只有全名（如[天相]）
+                        if (found.Count == 0)
+                            foreach (var mainStar in KnownMainStarFullNames)
+                                if (inside.Contains(mainStar)) found.Add(mainStar);
+                        // [X] 型一律視為同宮條件（必須在此宮才有效）
+                        if (found.Count > 0) return (found, true);
+                    }
+                }
+                // isSameGong 標記：若觸發來自 isPalaceBound → true；來自 化X → false（對照 allChartStars）
+                if (found.Count > 0 && !hasHua) return (found, true);
             }
             if (hasGe && found.Count == 0)
             {
