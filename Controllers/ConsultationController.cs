@@ -1446,13 +1446,31 @@ namespace Ecanapi.Controllers
                     scored, gender, birthYear);
 
                 var cycleData = scored.Select(c => new {
-                    stem = c.stem, branch = c.branch, startAge = c.startAge, endAge = c.endAge,
+                    stem = c.stem, branch = c.branch, liuShen = c.liuShen,
+                    startAge = c.startAge, endAge = c.endAge,
                     score = c.score, level = c.level
                 }).ToList();
 
+                var baziTable = new {
+                    pillars = new[] {
+                        new { label = "年", stem = yStem, branch = yBranch, stemSS = yStemSS,
+                              naYin = LfPillarNaYin(yearP),
+                              hiddenPairs = LfPillarHiddenPairs(yearP) },
+                        new { label = "月", stem = mStem, branch = mBranch, stemSS = mStemSS,
+                              naYin = LfPillarNaYin(monthP),
+                              hiddenPairs = LfPillarHiddenPairs(monthP) },
+                        new { label = "日", stem = dStem, branch = dBranch, stemSS = "元神",
+                              naYin = LfPillarNaYin(dayP),
+                              hiddenPairs = LfPillarHiddenPairs(dayP) },
+                        new { label = "時", stem = hStem, branch = hBranch, stemSS = hStemSS,
+                              naYin = LfPillarNaYin(timeP),
+                              hiddenPairs = LfPillarHiddenPairs(timeP) },
+                    }
+                };
+
                 user.Points -= cost;
                 await _context.SaveChangesAsync();
-                return Ok(new { result = report, luckCycles = cycleData, remainingPoints = user.Points });
+                return Ok(new { result = report, luckCycles = cycleData, baziTable, remainingPoints = user.Points });
             }
             catch (Exception ex)
             {
@@ -1565,6 +1583,27 @@ namespace Ecanapi.Controllers
             if (p.TryGetProperty("heavenlyStemLiuShen", out var v) || p.TryGetProperty("HeavenlyStemLiuShen", out v))
                 return v.GetString() ?? "";
             return "";
+        }
+
+        private static string LfPillarNaYin(JsonElement p)
+        {
+            if (p.ValueKind == JsonValueKind.Undefined) return "";
+            if (p.TryGetProperty("naYin", out var v) || p.TryGetProperty("NaYin", out v))
+                return v.GetString() ?? "";
+            return "";
+        }
+
+        private static List<object> LfPillarHiddenPairs(JsonElement p)
+        {
+            var result = new List<object>();
+            if (p.ValueKind == JsonValueKind.Undefined) return result;
+            if (!p.TryGetProperty("hiddenStemLiuShen", out var arr) && !p.TryGetProperty("HiddenStemLiuShen", out arr))
+                return result;
+            if (arr.ValueKind != JsonValueKind.Array) return result;
+            var items = arr.EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+            for (int i = 0; i + 1 < items.Count; i += 2)
+                result.Add(new { ss = items[i], stem = items[i + 1] });
+            return result;
         }
 
         private static string LfPillarBranchMainSS(JsonElement p)
@@ -1885,7 +1924,7 @@ namespace Ecanapi.Controllers
             string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
 
             sb.AppendLine("=================================================================");
-            sb.AppendLine("                    終 身 命 書（科學化規則版）");
+            sb.AppendLine("                         八 字 命 書");
             sb.AppendLine("=================================================================");
             sb.AppendLine();
 
@@ -2014,7 +2053,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向的事情，尤其在中凶/大凶運期間。");
             sb.AppendLine();
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 終身命書 科學化規則版 v1.0");
+            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.0");
             return sb.ToString();
         }
 
