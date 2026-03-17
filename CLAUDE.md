@@ -17,6 +17,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - YiJingFramework.Nongli (農曆計算)
 - Docker 部署至 Fly.io
 
+## 本地開發環境
+
+- **本地 API 位址：** `http://localhost:5013`
+- **本地資料庫：** `appsettings.json` 中的 PostgreSQL 連線字串（localhost）
+- **前端 MyWeb：** `http://localhost:3000`（呼叫 `http://localhost:5013/api/...`）
+
 ## 常用指令
 
 ```bash
@@ -24,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 export PATH="$PATH:$HOME/.dotnet/tools"
 dotnet build
 
-# 本地執行（需 appsettings.json）
+# 本地執行（在 port 5013）
 dotnet run
 
 # EF Core migration
