@@ -1365,6 +1365,933 @@ namespace Ecanapi.Controllers
                 throw new Exception($"Gemini 回傳錯誤: {rawJson[..Math.Min(300, rawJson.Length)]}");
             return candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
         }
+
+        // ==========================================
+        // ANALYZE-LIFELONG: 終身命書 (12 章，純規則引擎)
+        // ==========================================
+
+        [HttpGet("analyze-lifelong")]
+        [Authorize]
+        public async Task<IActionResult> GetLifelongAnalysis()
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            const int cost = 50;
+            if (user.Points < cost)
+                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+
+            try
+            {
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                string yStemSS   = LfPillarStemSS(yearP);
+                string mStemSS   = LfPillarStemSS(monthP);
+                string hStemSS   = LfPillarStemSS(timeP);
+                string yBranchSS = LfPillarBranchMainSS(yearP);
+                string mBranchSS = LfPillarBranchMainSS(monthP);
+                string dBranchSS = LfPillarBranchMainSS(dayP);
+                string hBranchSS = LfPillarBranchMainSS(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender    = user.BirthGender ?? 1;
+                var luckCycles = LfExtractLuckCycles(root);
+
+                string dmElem  = KbStemToElement(dStem);
+                var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+                string season  = LfGetSeason(mBranch);
+                string seaLabel = LfGetSeasonLabel(mBranch);
+
+                var (pattern, yongShenElem, yongReason) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season);
+                string jiShenElem = LfGetJiShenElem(yongShenElem);
+
+                var scored = luckCycles.Select(lc =>
+                {
+                    int sc = LfCalcLuckScore(lc.stem, lc.branch, yongShenElem, jiShenElem, season, branches, dStem);
+                    return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
+                }).ToList();
+
+                string report = LfBuildReport(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
+                    pattern, yongShenElem, yongReason, jiShenElem,
+                    scored, gender, birthYear);
+
+                var cycleData = scored.Select(c => new {
+                    stem = c.stem, branch = c.branch, startAge = c.startAge, endAge = c.endAge,
+                    score = c.score, level = c.level
+                }).ToList();
+
+                user.Points -= cost;
+                await _context.SaveChangesAsync();
+                return Ok(new { result = report, luckCycles = cycleData, remainingPoints = user.Points });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "終身命書失敗 User={User}", identity);
+                return StatusCode(500, new { error = "終身命書生成失敗，請稍後再試", details = ex.Message });
+            }
+        }
+
+        // === Lf Static Data Tables ===
+
+        private static readonly Dictionary<string, List<(string stem, double ratio)>> LfBranchHiddenRatio = new()
+        {
+            { "子", new() { ("癸", 1.0) } },
+            { "丑", new() { ("己", 0.5), ("癸", 0.3), ("辛", 0.2) } },
+            { "寅", new() { ("甲", 0.5), ("丙", 0.3), ("戊", 0.2) } },
+            { "卯", new() { ("乙", 1.0) } },
+            { "辰", new() { ("戊", 0.5), ("乙", 0.3), ("癸", 0.2) } },
+            { "巳", new() { ("丙", 0.5), ("戊", 0.3), ("庚", 0.2) } },
+            { "午", new() { ("丁", 0.625), ("己", 0.375) } },
+            { "未", new() { ("己", 0.5), ("丁", 0.3), ("乙", 0.2) } },
+            { "申", new() { ("庚", 0.5), ("壬", 0.3), ("戊", 0.2) } },
+            { "酉", new() { ("辛", 1.0) } },
+            { "戌", new() { ("戊", 0.5), ("辛", 0.3), ("丁", 0.2) } },
+            { "亥", new() { ("壬", 0.625), ("甲", 0.375) } }
+        };
+
+        // 生我 (印): element that generates day master
+        private static readonly Dictionary<string, string> LfGenByElem = new()
+            { { "木", "水" }, { "火", "木" }, { "土", "火" }, { "金", "土" }, { "水", "金" } };
+        // 我生 (食傷): element day master generates
+        private static readonly Dictionary<string, string> LfElemGen = new()
+            { { "木", "火" }, { "火", "土" }, { "土", "金" }, { "金", "水" }, { "水", "木" } };
+        // 我克 (財): element day master overcomes
+        private static readonly Dictionary<string, string> LfElemOvercome = new()
+            { { "木", "土" }, { "火", "金" }, { "土", "水" }, { "金", "木" }, { "水", "火" } };
+        // 克我 (官殺): element that overcomes day master
+        private static readonly Dictionary<string, string> LfElemOvercomeBy = new()
+            { { "木", "金" }, { "火", "水" }, { "土", "木" }, { "金", "火" }, { "水", "土" } };
+
+        private static readonly HashSet<string> LfChong = new()
+            { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
+
+        private static readonly Dictionary<string, (string partner, string elem)> LfHe = new()
+        {
+            { "子", ("丑","土") }, { "丑", ("子","土") }, { "寅", ("亥","木") }, { "亥", ("寅","木") },
+            { "卯", ("戌","火") }, { "戌", ("卯","火") }, { "辰", ("酉","金") }, { "酉", ("辰","金") },
+            { "巳", ("申","水") }, { "申", ("巳","水") }, { "午", ("未","土") }, { "未", ("午","土") }
+        };
+
+        private static readonly List<(string[] branches, string elem)> LfSanHe = new()
+        {
+            (new[] { "申","子","辰" }, "水"), (new[] { "亥","卯","未" }, "木"),
+            (new[] { "寅","午","戌" }, "火"), (new[] { "巳","酉","丑" }, "金")
+        };
+
+        private static readonly List<(string[] branches, string elem)> LfSanHui = new()
+        {
+            (new[] { "亥","子","丑" }, "水"), (new[] { "寅","卯","辰" }, "木"),
+            (new[] { "巳","午","未" }, "火"), (new[] { "申","酉","戌" }, "金")
+        };
+
+        private static readonly HashSet<string> LfHai = new()
+            { "子未","未子","丑午","午丑","寅巳","巳寅","卯辰","辰卯","申亥","亥申","酉戌","戌酉" };
+
+        private static readonly HashSet<string> LfPo = new()
+            { "子酉","酉子","丑辰","辰丑","寅亥","亥寅","卯午","午卯","申巳","巳申","戌未","未戌" };
+
+        private static readonly List<string[]> LfXing = new()
+            { new[] { "寅","巳","申" }, new[] { "丑","戌","未" }, new[] { "子","卯" } };
+
+        private static double LfSeasonMult(string element, string season) => (element, season) switch
+        {
+            ("木","春") => 1.8, ("木","夏") => 1.0, ("木","秋") => 0.2, ("木","冬") => 1.3, ("木","四季") => 0.5,
+            ("火","春") => 1.3, ("火","夏") => 1.8, ("火","秋") => 0.5, ("火","冬") => 0.2, ("火","四季") => 1.0,
+            ("土","春") => 0.2, ("土","夏") => 1.3, ("土","秋") => 1.0, ("土","冬") => 0.5, ("土","四季") => 1.8,
+            ("金","春") => 0.5, ("金","夏") => 0.2, ("金","秋") => 1.8, ("金","冬") => 1.0, ("金","四季") => 1.3,
+            ("水","春") => 1.0, ("水","夏") => 0.5, ("水","秋") => 1.3, ("水","冬") => 1.8, ("水","四季") => 0.2,
+            _ => 1.0
+        };
+
+        // === Lf Pillar Helpers ===
+
+        private static JsonElement LfGetPillar(JsonElement bazi, string key)
+        {
+            if (bazi.TryGetProperty(key, out var p)) return p;
+            string cap = char.ToUpper(key[0]) + key[1..];
+            if (bazi.TryGetProperty(cap, out p)) return p;
+            return default;
+        }
+
+        private static string LfPillarStem(JsonElement p)
+        {
+            if (p.ValueKind == JsonValueKind.Undefined) return "";
+            if (p.TryGetProperty("heavenlyStem", out var v) || p.TryGetProperty("HeavenlyStem", out v))
+                return v.GetString() ?? "";
+            return "";
+        }
+
+        private static string LfPillarBranch(JsonElement p)
+        {
+            if (p.ValueKind == JsonValueKind.Undefined) return "";
+            if (p.TryGetProperty("earthlyBranch", out var v) || p.TryGetProperty("EarthlyBranch", out v))
+                return v.GetString() ?? "";
+            return "";
+        }
+
+        private static string LfPillarStemSS(JsonElement p)
+        {
+            if (p.ValueKind == JsonValueKind.Undefined) return "";
+            if (p.TryGetProperty("heavenlyStemLiuShen", out var v) || p.TryGetProperty("HeavenlyStemLiuShen", out v))
+                return v.GetString() ?? "";
+            return "";
+        }
+
+        private static string LfPillarBranchMainSS(JsonElement p)
+        {
+            if (p.ValueKind == JsonValueKind.Undefined) return "";
+            if (p.TryGetProperty("hiddenStemLiuShen", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                return arr.EnumerateArray().FirstOrDefault().GetString() ?? "";
+            return "";
+        }
+
+        private static List<(string stem, string branch, string liuShen, int startAge, int endAge)> LfExtractLuckCycles(JsonElement root)
+        {
+            var list = new List<(string, string, string, int, int)>();
+            if (!root.TryGetProperty("baziLuckCycles", out var cycles) || cycles.ValueKind != JsonValueKind.Array)
+                return list;
+            foreach (var c in cycles.EnumerateArray())
+            {
+                string s  = c.TryGetProperty("heavenlyStem",  out var hs) ? hs.GetString() ?? "" : "";
+                string b  = c.TryGetProperty("earthlyBranch", out var eb) ? eb.GetString() ?? "" : "";
+                string ls = c.TryGetProperty("liuShen",       out var lv) ? lv.GetString() ?? "" : "";
+                int sa    = c.TryGetProperty("startAge",      out var sa2) ? sa2.GetInt32() : 0;
+                int ea    = c.TryGetProperty("endAge",        out var ea2) ? ea2.GetInt32() : 0;
+                if (!string.IsNullOrEmpty(s)) list.Add((s, b, ls, sa, ea));
+            }
+            return list;
+        }
+
+        // === Lf Core Calculation Methods ===
+
+        private static string LfGetSeason(string mb) => mb switch
+        {
+            "寅" or "卯" => "春", "巳" or "午" => "夏",
+            "申" or "酉" => "秋", "亥" or "子" => "冬",
+            _ => "四季"
+        };
+
+        private static string LfGetSeasonLabel(string mb) => mb switch
+        {
+            "亥" or "子" or "丑" => "寒凍", "巳" or "午" or "未" => "炎熱",
+            "寅" or "卯" or "辰" => "濕木", _ => "燥金"
+        };
+
+        private static double LfGetBranchMult(string branch, string[] allBranches)
+        {
+            double m = 1.0;
+            // 三會 highest priority
+            foreach (var (brs, _) in LfSanHui)
+                if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 2.5; break; }
+            // 三合
+            foreach (var (brs, _) in LfSanHe)
+                if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 2.0; break; }
+            // 六合
+            if (LfHe.TryGetValue(branch, out var heI) && allBranches.Contains(heI.partner)) m *= 1.10;
+            // 六沖
+            if (allBranches.Where(b => b != branch).Any(b => LfChong.Contains(branch + b))) m *= 0.50;
+            // 三刑
+            foreach (var xg in LfXing)
+                if (xg.Contains(branch) && xg.Count(x => allBranches.Contains(x)) >= 2) { m *= 0.60; break; }
+            // 六害
+            if (allBranches.Where(b => b != branch).Any(b => LfHai.Contains(branch + b))) m *= 0.70;
+            // 六破
+            if (allBranches.Where(b => b != branch).Any(b => LfPo.Contains(branch + b))) m *= 0.75;
+            return m;
+        }
+
+        private static Dictionary<string, double> LfCalcWuXingMatrix(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch)
+        {
+            string season = LfGetSeason(mBranch);
+            var scores = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+
+            void AddStem(string stem, double pts)
+            {
+                string elem = KbStemToElement(stem);
+                if (!string.IsNullOrEmpty(elem)) scores[elem] += pts * LfSeasonMult(elem, season);
+            }
+
+            void AddBranch(string branch, double totalPts)
+            {
+                if (!LfBranchHiddenRatio.TryGetValue(branch, out var hidden)) return;
+                double brMult = LfGetBranchMult(branch, branches);
+                foreach (var (stem, ratio) in hidden)
+                {
+                    string elem = KbStemToElement(stem);
+                    if (!string.IsNullOrEmpty(elem))
+                        scores[elem] += totalPts * ratio * LfSeasonMult(elem, season) * brMult;
+                }
+            }
+
+            AddStem(yStem, 10); AddStem(mStem, 10); AddStem(dStem, 10); AddStem(hStem, 10);
+            AddBranch(yBranch, 10); AddBranch(dBranch, 10); AddBranch(hBranch, 10);
+            AddBranch(mBranch, 30);
+
+            double total = scores.Values.Sum();
+            if (total > 0)
+                foreach (var k in scores.Keys.ToList()) scores[k] = Math.Round(scores[k] / total * 100, 1);
+            return scores;
+        }
+
+        private static double LfGetBodyStrengthPct(string dmElem, Dictionary<string, double> wuXing)
+        {
+            if (string.IsNullOrEmpty(dmElem)) return 50;
+            string inElem   = LfGenByElem.GetValueOrDefault(dmElem, "");
+            string outElem  = LfElemGen.GetValueOrDefault(dmElem, "");
+            string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+            string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            double biJi  = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(inElem, 0);
+            double xieKe = wuXing.GetValueOrDefault(outElem, 0) + wuXing.GetValueOrDefault(caiElem, 0) + wuXing.GetValueOrDefault(guanElem, 0);
+            double total = biJi + xieKe;
+            return total == 0 ? 50 : Math.Round(biJi / total * 100, 1);
+        }
+
+        private static string LfGetBodyStrengthLabel(double pct) => pct switch
+        {
+            >= 70 => "身強（極強）", >= 60 => "身強", >= 45 => "中和", >= 35 => "身弱", _ => "身弱（極弱）"
+        };
+
+        private static string LfGetJiShenElem(string yongShenElem)
+            => LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+
+        // exact Ten God using yin-yang distinction
+        private static string LfStemShiShen(string stem, string dStem)
+        {
+            if (string.IsNullOrEmpty(stem) || string.IsNullOrEmpty(dStem)) return "";
+            string sElem  = KbStemToElement(stem);
+            string dmElem = KbStemToElement(dStem);
+            if (string.IsNullOrEmpty(sElem) || string.IsNullOrEmpty(dmElem)) return "";
+            bool sYang  = "甲丙戊庚壬".Contains(stem);
+            bool dmYang = "甲丙戊庚壬".Contains(dStem);
+            bool same   = sYang == dmYang;
+            if (sElem == dmElem)  return same ? "比肩" : "劫財";
+            if (sElem == LfGenByElem.GetValueOrDefault(dmElem, ""))    return same ? "偏印" : "正印";
+            if (sElem == LfElemGen.GetValueOrDefault(dmElem, ""))      return same ? "食神" : "傷官";
+            if (sElem == LfElemOvercome.GetValueOrDefault(dmElem, "")) return same ? "偏財" : "正財";
+            if (sElem == LfElemOvercomeBy.GetValueOrDefault(dmElem, "")) return same ? "七殺" : "正官";
+            return "";
+        }
+
+        private static (string pattern, string yongShenElem, string reason) LfDetectGeJuAndYongShen(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string season)
+        {
+            // Determine month branch main stem and its Ten God
+            string mBranchMainStem = LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0 ? mH[0].stem : "";
+            string mBranchMainSS   = LfStemShiShen(mBranchMainStem, dStem);
+
+            string pattern = mBranchMainSS switch
+            {
+                "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
+                "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
+                "比肩" => "建祿格", "劫財" => "月劫格", _ => "普通格"
+            };
+
+            // Check special patterns
+            if (bodyPct <= 20)
+            {
+                double oppPct = wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0)
+                              + wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0)
+                              + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
+                if (oppPct >= 70) pattern = "從強格";
+            }
+            else if (bodyPct >= 80)
+            {
+                double sameElem = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+                if (sameElem >= 75) pattern = "從旺格";
+            }
+
+            string yongShenElem;
+            string reason;
+
+            if (season == "冬")
+            { yongShenElem = "火"; reason = "調候（冬月用火暖局）"; }
+            else if (season == "夏")
+            { yongShenElem = "水"; reason = "調候（夏月用水消暑）"; }
+            else if (pattern == "從強格")
+            {
+                yongShenElem = new[] { LfElemGen.GetValueOrDefault(dmElem,""), LfElemOvercome.GetValueOrDefault(dmElem,""), LfElemOvercomeBy.GetValueOrDefault(dmElem,"") }
+                    .OrderByDescending(e => wuXing.GetValueOrDefault(e, 0)).First();
+                reason = "從強格（順旺勢）";
+            }
+            else if (pattern == "從旺格")
+            { yongShenElem = dmElem; reason = "從旺格（順旺勢）"; }
+            else if (bodyPct >= 60)
+            {
+                string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+                yongShenElem = wuXing.GetValueOrDefault(guanElem, 0) >= 10 ? guanElem : caiElem;
+                reason = "扶抑法（身強，取官殺/財洩耗）";
+            }
+            else if (bodyPct <= 40)
+            {
+                string inElem = LfGenByElem.GetValueOrDefault(dmElem, "");
+                yongShenElem = wuXing.GetValueOrDefault(inElem, 0) >= 10 ? inElem : dmElem;
+                reason = "扶抑法（身弱，取印比生扶）";
+            }
+            else
+            {
+                yongShenElem = string.IsNullOrEmpty(KbStemToElement(mBranchMainStem)) ? dmElem : KbStemToElement(mBranchMainStem);
+                reason = "中和格（月令用神為主）";
+            }
+
+            if (string.IsNullOrEmpty(yongShenElem)) yongShenElem = dmElem;
+            return (pattern, yongShenElem, reason);
+        }
+
+        private static int LfCalcLuckScore(
+            string lcStem, string lcBranch, string yongShenElem, string jiShenElem,
+            string season, string[] chartBranches, string dStem)
+        {
+            // Build luck cycle five element profile
+            var lcWx = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
+            string lcStemElem = KbStemToElement(lcStem);
+            if (!string.IsNullOrEmpty(lcStemElem)) lcWx[lcStemElem] += 10 * LfSeasonMult(lcStemElem, season);
+            if (LfBranchHiddenRatio.TryGetValue(lcBranch, out var lcH))
+                foreach (var (stem, ratio) in lcH)
+                {
+                    string e = KbStemToElement(stem);
+                    if (!string.IsNullOrEmpty(e)) lcWx[e] += 10 * ratio * LfSeasonMult(e, season);
+                }
+            double lcTotal = lcWx.Values.Sum();
+            if (lcTotal > 0) foreach (var k in lcWx.Keys.ToList()) lcWx[k] = lcWx[k] / lcTotal * 100;
+
+            double yongPct = lcWx.GetValueOrDefault(yongShenElem, 0);
+            double jiPct   = lcWx.GetValueOrDefault(jiShenElem, 0);
+            double baseScore = yongPct - jiPct + 50;
+
+            double adj = 0;
+            // 三會
+            foreach (var (brs, elem) in LfSanHui)
+                if (brs.Contains(lcBranch) && brs.Count(b => b != lcBranch && chartBranches.Contains(b)) == 2)
+                    adj += elem == yongShenElem ? 30 : (elem == jiShenElem ? -30 : 0);
+            // 三合
+            foreach (var (brs, elem) in LfSanHe)
+                if (brs.Contains(lcBranch) && brs.Count(b => b != lcBranch && chartBranches.Contains(b)) == 2)
+                    adj += elem == yongShenElem ? 25 : (elem == jiShenElem ? -25 : 0);
+            // 六合
+            if (LfHe.TryGetValue(lcBranch, out var heInfo) && chartBranches.Contains(heInfo.partner))
+                adj += heInfo.elem == yongShenElem ? 15 : (heInfo.elem == jiShenElem ? -10 : 0);
+            // 六沖
+            foreach (var cb in chartBranches)
+                if (LfChong.Contains(lcBranch + cb))
+                {
+                    string cbMainElem = LfBranchHiddenRatio.TryGetValue(cb, out var cbH) && cbH.Count > 0 ? KbStemToElement(cbH[0].stem) : "";
+                    adj += cbMainElem == jiShenElem ? 10 : (cbMainElem == yongShenElem ? -20 : 0);
+                }
+            // 三刑
+            foreach (var xg in LfXing)
+                if (xg.Contains(lcBranch) && xg.Count(b => chartBranches.Contains(b)) >= 1) adj -= 12;
+            // 六害
+            if (chartBranches.Any(b => LfHai.Contains(lcBranch + b))) adj -= 10;
+            // 六破
+            if (chartBranches.Any(b => LfPo.Contains(lcBranch + b))) adj -= 8;
+            // 天克地沖日柱
+            if (LfChong.Contains(lcBranch + chartBranches[2]))
+            {
+                string lcStemSS = LfStemShiShen(lcStem, dStem);
+                if (lcStemSS is "七殺" or "正官") adj -= 20;
+            }
+
+            return (int)Math.Round(Math.Clamp(baseScore + adj, 0, 100));
+        }
+
+        private static string LfLuckLevel(int score) => score switch
+        {
+            >= 85 => "大吉運", >= 70 => "中吉運", >= 50 => "平運", >= 30 => "中凶運", _ => "大凶運"
+        };
+
+        private static int LfCalcRelativeScore(
+            string stemSS, string branchSS, string yongShenElem, string jiShenElem,
+            string pillarStem, string pillarBranch, string[] allBranches)
+        {
+            int score = 70;
+            string stemElem = KbStemToElement(pillarStem);
+            if (stemElem == yongShenElem) score += 15;
+            else if (stemElem == jiShenElem) score -= 15;
+            string brMainElem = LfBranchHiddenRatio.TryGetValue(pillarBranch, out var bh) && bh.Count > 0
+                ? KbStemToElement(bh[0].stem) : "";
+            if (brMainElem == yongShenElem) score += 10;
+            else if (brMainElem == jiShenElem) score -= 10;
+            if (LfHe.TryGetValue(pillarBranch, out var heI) && allBranches.Contains(heI.partner)) score += 10;
+            foreach (var (brs, elem) in LfSanHui)
+                if (brs.Contains(pillarBranch) && brs.Count(b => b != pillarBranch && allBranches.Contains(b)) >= 2 && elem == yongShenElem) score += 20;
+            foreach (var (brs, elem) in LfSanHe)
+                if (brs.Contains(pillarBranch) && brs.Count(b => b != pillarBranch && allBranches.Contains(b)) >= 2 && elem == yongShenElem) score += 15;
+            if (allBranches.Where(b => b != pillarBranch).Any(b => LfChong.Contains(pillarBranch + b))) score -= 18;
+            foreach (var xg in LfXing)
+                if (xg.Contains(pillarBranch) && xg.Count(b => allBranches.Contains(b)) >= 2) { score -= 15; break; }
+            if (allBranches.Where(b => b != pillarBranch).Any(b => LfHai.Contains(pillarBranch + b))) score -= 10;
+            if (allBranches.Where(b => b != pillarBranch).Any(b => LfPo.Contains(pillarBranch + b))) score -= 8;
+            return Math.Clamp(score, 0, 100);
+        }
+
+        private static string LfRelativeLevel(int score) => score switch
+        {
+            >= 80 => "緣深", >= 60 => "緣中", >= 40 => "緣薄", >= 20 => "緣弱", _ => "無緣"
+        };
+
+        // === Lf Report Builder ===
+
+        private static string LfBuildReport(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string bodyLabel,
+            string season, string seaLabel, string pattern, string yongShenElem, string yongReason,
+            string jiShenElem,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
+            int gender, int birthYear)
+        {
+            var sb = new StringBuilder();
+            string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+            string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
+            string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+
+            sb.AppendLine("=================================================================");
+            sb.AppendLine("                    終 身 命 書（科學化規則版）");
+            sb.AppendLine("=================================================================");
+            sb.AppendLine();
+
+            // === Ch.1 命盤基本資訊 ===
+            sb.AppendLine("【第一章：命盤基本資訊】");
+            sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
+            sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
+            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
+            sb.AppendLine($"日主：{dStem}（{dmElem}）");
+            if (scored.Count > 0)
+                sb.AppendLine($"大運起運：{scored[0].startAge} 歲，共 {scored.Count} 步大運");
+            sb.AppendLine();
+
+            // === Ch.2 命局體性 ===
+            sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
+            sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
+            if (seaLabel == "寒凍")
+                sb.AppendLine("最喜：丙丁巳午火暖局。最忌：壬癸亥子水助寒。調候急用：丙丁火。");
+            else if (seaLabel == "炎熱")
+                sb.AppendLine("最喜：壬癸亥子水消暑，庚辛申酉金。最忌：丙丁巳午火助熱。調候急用：壬癸水。");
+            else
+                sb.AppendLine("體性溫和，以日主強弱論用神，無需特別調候。");
+            sb.AppendLine();
+
+            // === Ch.3 日主強弱 ===
+            sb.AppendLine("【第三章：日主強弱判定】");
+            sb.AppendLine($"日干 {dStem}（{dmElem}），月令 {mBranch}（{season}季）。");
+            sb.AppendLine($"五行分布：{wx}");
+            double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%");
+            sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
+            sb.AppendLine();
+
+            // === Ch.4 格局與用神 ===
+            sb.AppendLine("【第四章：格局與用神判定】");
+            sb.AppendLine($"格局：【{pattern}】");
+            sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
+            sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
+            sb.AppendLine($"忌神：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine();
+
+            // === Ch.5 六親論斷 ===
+            sb.AppendLine("【第五章：六親論斷（量化版）】");
+            int yrSc  = LfCalcRelativeScore(yStemSS, yBranchSS, yongShenElem, jiShenElem, yStem, yBranch, branches);
+            int moSc  = LfCalcRelativeScore(mStemSS, mBranchSS, yongShenElem, jiShenElem, mStem, mBranch, branches);
+            int daySc = LfCalcRelativeScore(dBranchSS, dBranchSS, yongShenElem, jiShenElem, dStem, dBranch, branches);
+            int hrSc  = LfCalcRelativeScore(hStemSS, hBranchSS, yongShenElem, jiShenElem, hStem, hBranch, branches);
+            sb.AppendLine($"年柱·出身祖業（{yStem}{yBranch}）：緣分 {yrSc} 分（{LfRelativeLevel(yrSc)}）");
+            sb.AppendLine($"  {LfYearDesc(yrSc)}");
+            sb.AppendLine($"月柱·父母兄弟（{mStem}{mBranch}）：緣分 {moSc} 分（{LfRelativeLevel(moSc)}）");
+            sb.AppendLine($"  {LfMonthDesc(moSc)}");
+            sb.AppendLine($"日支·配偶緣分（{dBranch}）：緣分 {daySc} 分（{LfRelativeLevel(daySc)}）");
+            sb.AppendLine($"  {LfDayDesc(daySc, gender)}");
+            sb.AppendLine($"時柱·子女晚運（{hStem}{hBranch}）：緣分 {hrSc} 分（{LfRelativeLevel(hrSc)}）");
+            sb.AppendLine($"  {LfHourDesc(hrSc)}");
+            string rules = LfApplyRules(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                dmElem, wuXing, gender, pattern, bodyPct, branches);
+            if (!string.IsNullOrEmpty(rules)) sb.AppendLine(rules);
+            sb.AppendLine();
+
+            // === Ch.6 性格志向 ===
+            sb.AppendLine("【第六章：性格志向】");
+            sb.AppendLine($"日主 {dStem}（{dmElem}），格局為{pattern}，日主{bodyLabel}（{bodyPct:F0}%）。");
+            sb.AppendLine(LfPersonalityDesc(dmElem, pattern, bodyPct));
+            sb.AppendLine();
+
+            // === Ch.7 事業財運 ===
+            sb.AppendLine("【第七章：事業財運】");
+            sb.AppendLine($"格局：{pattern}，天生適合{LfCareerDesc(pattern)}。");
+            double caiPct = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"財星（{LfElemOvercome.GetValueOrDefault(dmElem,"")}）占命局 {caiPct:F0}%，日主強弱 {bodyPct:F0}%。");
+            sb.AppendLine(LfWealthDesc(caiPct, bodyPct, wuXing.GetValueOrDefault(dmElem, 0)));
+            sb.AppendLine($"開運方位：{LfElemDir(yongShenElem)}  開運色彩：{LfElemColor(yongShenElem)}");
+            sb.AppendLine();
+
+            // === Ch.8 婚姻感情 ===
+            sb.AppendLine("【第八章：婚姻感情】");
+            string spouseElem = gender == 1 ? LfElemOvercome.GetValueOrDefault(dmElem,"") : LfElemOvercomeBy.GetValueOrDefault(dmElem,"");
+            double spousePct  = wuXing.GetValueOrDefault(spouseElem, 0);
+            string spouseStar = gender == 1 ? "妻星（財）" : "夫星（官殺）";
+            sb.AppendLine($"{spouseStar}五行：{spouseElem}，占命局 {spousePct:F0}%。");
+            sb.AppendLine(LfMarriageDesc(spousePct, dBranch, dStem, dmElem, gender, branches));
+            sb.AppendLine();
+
+            // === Ch.9 健康壽元 ===
+            sb.AppendLine("【第九章：健康壽元】");
+            sb.AppendLine($"命局五行：{wx}");
+            sb.AppendLine(LfHealthDesc(wuXing, seaLabel));
+            sb.AppendLine();
+
+            // === Ch.10 大運逐運 ===
+            sb.AppendLine("【第十章：大運逐運論斷（百分制評分）】");
+            foreach (var c in scored)
+            {
+                string lcSS = LfStemShiShen(c.stem, dStem);
+                sb.AppendLine($"{c.startAge}-{c.endAge} 歲 大運：{c.stem}{c.branch}（{lcSS}）  評分：{c.score} 分（{c.level}）");
+                sb.AppendLine($"  {LfLuckDesc(c.score, c.level)}");
+            }
+            sb.AppendLine();
+
+            // === Ch.11 流年重點 ===
+            sb.AppendLine("【第十一章：流年重點吉凶】");
+            sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
+            sb.AppendLine();
+
+            // === Ch.12 總評 ===
+            sb.AppendLine("【第十二章：一生命運總評】");
+            double earlyAvg = scored.Where(c => c.endAge <= 30).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
+            double midAvg   = scored.Where(c => c.startAge >= 31 && c.endAge <= 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
+            double lateAvg  = scored.Where(c => c.startAge > 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
+            sb.AppendLine($"前運（0-30 歲）平均 {earlyAvg:F0} 分：{LfPeriodDesc(earlyAvg)}");
+            sb.AppendLine($"中運（31-50 歲）平均 {midAvg:F0} 分：{LfPeriodDesc(midAvg)}");
+            sb.AppendLine($"後運（51 歲後）平均 {lateAvg:F0} 分：{LfPeriodDesc(lateAvg)}");
+            if (scored.Count > 0)
+            {
+                var best  = scored.MaxBy(c => c.score)!;
+                var worst = scored.MinBy(c => c.score)!;
+                sb.AppendLine($"人生最佳期：{best.startAge}-{best.endAge} 歲 {best.stem}{best.branch}（{best.score} 分）");
+                sb.AppendLine($"人生考驗期：{worst.startAge}-{worst.endAge} 歲 {worst.stem}{worst.branch}（{worst.score} 分）");
+            }
+            sb.AppendLine($"財富等級：{LfWealthLevel(caiPct, bodyPct)}  功名等級：{LfFameLevel(pattern)}");
+            sb.AppendLine($"命主喜走{yongShenElem}方位（{LfElemDir(yongShenElem)}），從事{LfElemCareer(yongShenElem)}為吉。");
+            sb.AppendLine($"人生最重要提醒：善加把握【{yongShenElem}】所代表的人事物。");
+            sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向的事情，尤其在中凶/大凶運期間。");
+            sb.AppendLine();
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("命理大師：玉洞子 | 終身命書 科學化規則版 v1.0");
+            return sb.ToString();
+        }
+
+        // === Lf Text Helpers ===
+
+        private static string LfElemStems(string elem) => elem switch
+        { "木"=>"甲乙","火"=>"丙丁","土"=>"戊己","金"=>"庚辛","水"=>"壬癸",_=>"" };
+
+        private static string LfElemBranches(string elem) => elem switch
+        { "木"=>"寅卯辰","火"=>"巳午未","土"=>"辰戌丑未","金"=>"申酉戌","水"=>"亥子丑",_=>"" };
+
+        private static string LfPatternDesc(string pattern) => pattern switch
+        {
+            "正官格" => "命主天生具官貴氣質，一生有制度保障，適合公職管理，貴人多助。",
+            "七殺格" => "命主魄力十足，敢冒險衝刺，適合軍警競爭行業，需注意制殺方能建功。",
+            "正印格" => "命主學識深厚，貴人多助，一生靠學識名聲立足，財運平穩。",
+            "偏印格" => "命主思想特殊，多才多藝，孤僻獨立，適合宗教、藝術、特殊技能方向。",
+            "正財格" => "命主務實勤勞，財富穩定，重物質生活，一生衣食不缺。",
+            "偏財格" => "命主豪爽善交際，善於冒險理財，財來財去，貿易業務見長。",
+            "食神格" => "命主隨和享受，具藝術才能，適合餐飲、技術、創意行業。",
+            "傷官格" => "命主聰明叛逆，才華橫溢，適合技藝創意自由業，婚姻感情需謹慎。",
+            "建祿格" => "命主自強不息，靠自身努力打拼，財富靠雙手掙來，不喜依賴他人。",
+            "月劫格" => "命主個性剛強，競爭意識強，財路需防劫財耗損，合夥宜謹慎。",
+            "從強格" => "命主以從旺勢為吉，順從主流大方向，不宜逆勢而行。",
+            "從旺格" => "命主極強，一生宜自主掌控，忌受人管束，順其旺勢大展。",
+            _ => "命主格局中正，宜均衡發展，隨機應變。"
+        };
+
+        private static string LfPersonalityDesc(string dmElem, string pattern, double bodyPct)
+        {
+            string baseChar = dmElem switch
+            {
+                "木" => "仁慈上進，有理想有原則，固執但有方向感。",
+                "火" => "熱情開朗，重視禮儀，感情豐富，但性子急躁。",
+                "土" => "穩重誠信，待人厚道，保守踏實，但反應較慢。",
+                "金" => "果決義氣，剛強有原則，重然諾，但有時過於強硬。",
+                "水" => "聰明靈活，多謀善慮，思維廣博，但有時多慮患得患失。",
+                _ => ""
+            };
+            string strChar = bodyPct >= 60 ? "個性較強硬主觀，自信有領導慾，宜學習傾聽。" :
+                             bodyPct <= 40 ? "個性較保守依賴，情緒易受外界影響，宜培養自信。" :
+                             "個性均衡適應力強，能隨機應變，圓融處世。";
+            string patChar = pattern switch
+            {
+                "正官格" => "規矩守法，重視名譽，適合在制度環境中發揮。",
+                "七殺格" => "魄力十足，敢衝敢拚，但須注意控制衝動。",
+                "食神格" => "喜享受，有藝術氣質，待人隨和。",
+                "傷官格" => "聰明才俊，有叛逆性，不喜受約束。",
+                "正財格" => "務實重物質，勤勞踏實，穩健理財。",
+                _ => ""
+            };
+            return $"{baseChar} {strChar}{(string.IsNullOrEmpty(patChar) ? "" : " " + patChar)}";
+        }
+
+        private static string LfCareerDesc(string pattern) => pattern switch
+        {
+            "正官格" => "公職、管理、制度性工作",
+            "七殺格" => "軍警、競爭性行業、創業",
+            "食神格" => "餐飲、藝術、技術性工作",
+            "傷官格" => "技藝、創意、自由業",
+            "正財格" => "商業、財務、穩定收入行業",
+            "偏財格" => "貿易、業務、投機性財富行業",
+            "正印格" => "學術、教育、文職",
+            "偏印格" => "宗教、藝術、特殊技能",
+            _ => "多元發展方向"
+        };
+
+        private static string LfWealthDesc(double caiPct, double bodyPct, double biPct)
+        {
+            if (caiPct >= 25 && bodyPct >= 60) return "財多身強，財富豐厚，一生衣食無憂，能守住財富。";
+            if (caiPct >= 25 && bodyPct < 40)  return "財多身弱，雖有財路但難以守住，辛苦奔波，錢財易散，宜節流。";
+            if (biPct >= 30 && caiPct < 15)    return "比劫奪財，財路受阻，合夥易損，獨立經營較佳，防借財給人。";
+            if (caiPct < 15 && bodyPct >= 60)  return "財星偏弱，守成有餘進財不足，宜穩健理財，不宜冒進。";
+            return "財富中等，靠自身努力積累，運勢起伏時注意守財。";
+        }
+
+        private static string LfMarriageDesc(double spousePct, string dBranch, string dStem, string dmElem, int gender, string[] branches)
+        {
+            string star = gender == 1 ? "妻緣" : "夫緣";
+            bool anyChong = branches.Where(b => b != dBranch).Any(b => LfChong.Contains(dBranch + b));
+            string result = spousePct >= 20
+                ? $"{star}不弱，感情豐富，異性緣佳，婚姻較有依靠。"
+                : $"{star}偏薄，感情波折較多，緣分需珍惜，婚姻宜謹慎選擇。";
+            if (anyChong) result += " 日支逢沖，婚姻有波折，夫妻易有摩擦或分離之象，需多包容。";
+            string dBranchMainElem = LfBranchHiddenRatio.TryGetValue(dBranch, out var bhe) && bhe.Count > 0 ? KbStemToElement(bhe[0].stem) : "";
+            string dStemElem = KbStemToElement(dStem);
+            if (gender == 1 && LfElemOvercome.GetValueOrDefault(dStemElem, "") == dBranchMainElem)
+                result += " 日干克日支，婚後夫妻個性有差異，需多體諒包容。";
+            return result;
+        }
+
+        private static string LfHealthDesc(Dictionary<string, double> wuXing, string seaLabel)
+        {
+            var sb = new StringBuilder();
+            var organMap = new Dictionary<string, string>
+            {
+                { "木","肝膽、眼睛、筋骨" }, { "火","心臟、血液、血壓" },
+                { "土","脾胃、消化系統、肌肉" }, { "金","肺、呼吸系統、皮膚" }, { "水","腎臟、膀胱、骨骼" }
+            };
+            foreach (var (elem, organ) in organMap)
+            {
+                double pct = wuXing.GetValueOrDefault(elem, 0);
+                if (pct >= 35) sb.AppendLine($"  {elem}旺（{pct:F0}%）：{organ}易亢進，注意過旺之症。");
+                else if (pct <= 8) sb.AppendLine($"  {elem}弱（{pct:F0}%）：{organ}易虛損，注意補養。");
+            }
+            if (seaLabel == "炎熱") sb.AppendLine("  體性炎熱：易有心血管、高血壓問題，年老後尤需注意防暑。");
+            if (seaLabel == "寒凍") sb.AppendLine("  體性寒凍：易有腎虛、關節退化、循環系統問題，注意保暖。");
+            if (sb.Length == 0) sb.AppendLine("  五行分布均衡，體質較為平和，注意日常保健即可。");
+            sb.Append("  （注：以保健提醒為主，不作疾病診斷）");
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string LfLuckDesc(int score, string level) => level switch
+        {
+            "大吉運" => "黃金發展期，事業財運大展，宜積極進取，把握機遇擴展版圖。",
+            "中吉運" => "穩步上升，有貴人助力，宜積極行動，可有所成就。",
+            "平運"   => "平穩守成，無大得失，宜穩健行事，蓄勢待發，厚積薄發。",
+            "中凶運" => "有阻礙波折，宜謹慎行事，低調蓄積，避免冒進投資。",
+            "大凶運" => "事業財運受阻，健康需注意，宜保守守成，謹防重大損失。",
+            _ => ""
+        };
+
+        private static string LfKeyYears(
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
+            int birthYear, string yongElem, string jiElem)
+        {
+            var sb = new StringBuilder();
+            var good = scored.Where(c => c.score >= 70).OrderByDescending(c => c.score).Take(2).ToList();
+            var bad  = scored.Where(c => c.score < 50).OrderBy(c => c.score).Take(3).ToList();
+            if (good.Count > 0)
+            {
+                sb.AppendLine("重點吉運建議把握：");
+                foreach (var c in good)
+                    sb.AppendLine($"  {birthYear + c.startAge}-{birthYear + c.endAge} 年（{c.startAge}-{c.endAge} 歲）{c.stem}{c.branch}大運 {c.score} 分：宜積極擴展事業、財運、感情。");
+            }
+            if (bad.Count > 0)
+            {
+                sb.AppendLine("重點凶運需謹慎：");
+                foreach (var c in bad)
+                    sb.AppendLine($"  {birthYear + c.startAge}-{birthYear + c.endAge} 年（{c.startAge}-{c.endAge} 歲）{c.stem}{c.branch}大運 {c.score} 分：此期宜保守守成，防財損、健康、人際波折。");
+            }
+            if (sb.Length == 0) sb.Append("整體大運尚稱平穩，依各大運評分適度調整行事策略。");
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string LfPeriodDesc(double avg) => avg switch
+        {
+            >= 70 => "整體走勢佳，運勢蒸蒸日上，把握機遇積極發展。",
+            >= 50 => "整體平穩，有起有伏，宜穩中求進。",
+            _ => "整體考驗較多，宜低調蓄積，靜待轉機。"
+        };
+
+        private static string LfWealthLevel(double caiPct, double bodyPct)
+        {
+            if (caiPct >= 25 && bodyPct >= 60) return "豐厚";
+            if (caiPct >= 15) return "中等";
+            return "平淡";
+        }
+
+        private static string LfFameLevel(string pattern) => pattern switch
+        {
+            "正官格" or "七殺格" => "顯達", "正印格" or "偏財格" or "食神格" => "小成", _ => "平凡"
+        };
+
+        private static string LfElemDir(string elem) => elem switch
+        { "木"=>"東方","火"=>"南方","土"=>"中央","金"=>"西方","水"=>"北方",_=>"" };
+
+        private static string LfElemColor(string elem) => elem switch
+        { "木"=>"綠色、青色","火"=>"紅色、橙色","土"=>"黃色、棕色","金"=>"白色、金色","水"=>"黑色、深藍色",_=>"" };
+
+        private static string LfElemCareer(string elem) => elem switch
+        {
+            "木" => "教育、文學、醫療、植物相關行業",
+            "火" => "表演、能源、食品、熱門行業",
+            "土" => "房地產、農業、建設、倉儲行業",
+            "金" => "金融、機械、法律、IT 行業",
+            "水" => "貿易、流通、餐飲、娛樂行業",
+            _ => ""
+        };
+
+        private static string LfYearDesc(int score) => score >= 70
+            ? "早年家境良好，祖業有助，父母有力，出身較佳。"
+            : score >= 50 ? "早年家境平常，父母中等，靠自身努力為主。"
+            : "早年家境較艱苦，父母緣薄，少有祖業蔭助，自力更生。";
+
+        private static string LfMonthDesc(int score) => score >= 70
+            ? "父母感情和睦，兄弟姐妹有情誼，青年期（16-31 歲）發展順利。"
+            : score >= 50 ? "父母關係尚可，兄弟各有際遇，青年期有波折但能克服。"
+            : "父母緣分較薄，兄弟感情不睦，青年期多有挫折，需自強。";
+
+        private static string LfDayDesc(int score, int gender) => gender == 1
+            ? (score >= 70 ? "妻星有力，感情豐富，婚姻和諧，妻子賢良有助力。"
+               : score >= 50 ? "妻緣尚可，婚姻有小波折，夫妻需多包容溝通。"
+               : "妻緣偏弱，感情路多曲折，婚姻需謹慎選擇。")
+            : (score >= 70 ? "夫星有力，夫緣深厚，丈夫能幹有助力，婚姻和諧。"
+               : score >= 50 ? "夫緣尚可，婚姻有小磨擦，需多溝通包容。"
+               : "夫緣偏弱，感情路多波折，婚姻宜謹慎。");
+
+        private static string LfHourDesc(int score) => score >= 70
+            ? "子女孝順賢能，晚年（48-65 歲）有子女助力，老年生活安康。"
+            : score >= 50 ? "子女緣中等，晚年尚有依靠，但需自己多積蓄。"
+            : "子女緣薄，晚年多靠自身，需提前做好晚年規劃。";
+
+        // === Appendix E Rule Engine ===
+
+        private static string LfApplyRules(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, Dictionary<string, double> wuXing, int gender,
+            string pattern, double bodyPct, string[] branches)
+        {
+            var sb = new StringBuilder();
+
+            // E-1 Father rules
+            if ((yStemSS is "比肩" or "劫財") && (yBranchSS is "比肩" or "劫財"))
+                sb.AppendLine("  【F01 父緣】年柱干支皆比劫，比劫奪財，父緣薄或早年少父蔭。");
+            if (yStemSS == "偏財" && !branches.Where(b => b != yBranch).Any(b => LfChong.Contains(yBranch + b)))
+                sb.AppendLine("  【F04 父緣】年干偏財透出且根穩，父親有財有能力，早年家境良好。");
+
+            // E-1 Mother rules
+            bool hasZhengYin = yStemSS == "正印" || mStemSS == "正印" || hStemSS == "正印";
+            bool mBranchChong = branches.Where(b => b != mBranch).Any(b => LfChong.Contains(mBranch + b));
+            if (hasZhengYin && !mBranchChong)
+                sb.AppendLine("  【M01 母緣】正印星透出有力，母親賢慧，早年得母助，與母感情深厚。");
+
+            // E-2 Sibling rules
+            double biPct = wuXing.GetValueOrDefault(dmElem, 0);
+            if (biPct >= 30 && (mStemSS is "比肩" or "劫財") && (mBranchSS is "比肩" or "劫財"))
+                sb.AppendLine("  【B01 兄弟】比劫旺且月柱皆比劫，兄弟多但財路易受影響，合夥需謹慎。");
+            if (biPct < 8)
+                sb.AppendLine("  【B04 兄弟】比劫偏弱，兄弟緣薄，孤立無援，少有兄弟助力。");
+            if (LfChong.Contains(mBranch + dBranch))
+                sb.AppendLine("  【B03 兄弟】月支沖日支，與兄弟分離之象，少年時期即各奔東西。");
+
+            // E-3 Spouse rules
+            if (branches.Any(b => b != dBranch && LfChong.Contains(dBranch + b)))
+                sb.AppendLine("  【S01 配偶】日支逢沖，夫妻有分離之象，婚姻多波折，需多包容。");
+            if (gender == 1)
+            {
+                string dStemElem = KbStemToElement(dStem);
+                string dBrMainElem = LfBranchHiddenRatio.TryGetValue(dBranch, out var bhe) && bhe.Count > 0
+                    ? KbStemToElement(bhe[0].stem) : "";
+                if (LfElemOvercome.GetValueOrDefault(dStemElem, "") == dBrMainElem)
+                    sb.AppendLine("  【S02 配偶】日干克日支（男命），有剋妻之象，妻身體偏弱或婚後多摩擦。");
+                bool hasZhengCai = yStemSS == "正財" || mStemSS == "正財" || hStemSS == "正財";
+                bool hasPianCai  = yStemSS == "偏財" || mStemSS == "偏財" || hStemSS == "偏財";
+                if (hasZhengCai && hasPianCai)
+                    sb.AppendLine("  【S05 配偶】正偏財均透干，二婚之象或感情複雜，需謹慎對待感情。");
+            }
+            else if (pattern == "傷官格")
+                sb.AppendLine("  【S06 配偶】傷官格（女命），傷官見官，婚姻多波折，較晚婚或有離婚之象。");
+
+            // E-4 Children rules
+            if (LfChong.Contains(hBranch + dBranch))
+                sb.AppendLine("  【C01/C02 子女】時支沖日支，子女與父母緣薄，晚年需自立自強。");
+            string childElem = gender == 1 ? LfElemGen.GetValueOrDefault(dmElem, "") : LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            if (wuXing.GetValueOrDefault(childElem, 0) < 8)
+                sb.AppendLine("  【C03 子女】子女星五行偏弱，子女緣薄，少子或晚得子。");
+
+            // E-5 Career/Wealth rules
+            double caiPct = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0);
+            if (caiPct >= 25 && bodyPct >= 60)
+                sb.AppendLine("  【W01 財運】財多身強，財富豐厚，一生衣食無憂。");
+            else if (caiPct >= 25 && bodyPct < 40)
+                sb.AppendLine("  【W02 財運】財多身弱，雖有財路但難守住，需強化理財觀念。");
+            if (biPct >= 30 && caiPct < 15)
+                sb.AppendLine("  【W03 財運】比劫奪財，財路受阻，合夥易損，獨立經營較佳。");
+
+            // E-6 Health rules
+            foreach (var xg in new[] { new[] { "寅","巳","申" }, new[] { "丑","戌","未" } })
+                if (xg.All(b => branches.Contains(b)))
+                    sb.AppendLine("  【H01 健康】三刑齊全，開刀手術之象，一生宜留意外傷或手術風險。");
+
+            return sb.ToString().TrimEnd();
+        }
     }
 
     public class AiRequest
