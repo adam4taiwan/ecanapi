@@ -187,8 +187,9 @@ namespace Ecanapi.Controllers
                 ? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}"
                 : origin;
 
-            var returnUrl     = _config["ECPay:ReturnUrl"] ?? "https://ecanapi.fly.dev/api/Payment/ecpay-return";
-            var clientBackUrl = $"{frontendUrl}/disk?payment=success";
+            var returnUrl      = _config["ECPay:ReturnUrl"] ?? "https://ecanapi.fly.dev/api/Payment/ecpay-return";
+            var ecpapiBase     = _config["ECPay:ApiBase"] ?? "https://ecanapi.fly.dev";
+            var orderResultUrl = $"{ecpapiBase}/api/Payment/ecpay-result?redirect={Uri.EscapeDataString($"{frontendUrl}/disk")}";
 
             var parameters = new Dictionary<string, string>
             {
@@ -200,7 +201,7 @@ namespace Ecanapi.Controllers
                 { "TradeDesc",         "Astrology Points" },
                 { "ItemName",          $"Points {pkg.Points}" },
                 { "ReturnURL",         returnUrl },
-                { "ClientBackURL",     clientBackUrl },
+                { "OrderResultURL",    orderResultUrl },
                 { "ChoosePayment",     "Credit" },
                 { "EncryptType",       "1" },
                 { "CustomField1",      userId },
