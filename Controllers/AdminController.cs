@@ -289,5 +289,151 @@ namespace Ecanapi.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "已拒絕" });
         }
+
+        // ─── Product catalog management ───────────────────────────────────────
+
+        // GET /api/Admin/products
+        [HttpGet("products")]
+        public async Task<IActionResult> GetProducts()
+        {
+            if (!IsAdmin()) return Forbid();
+            var products = await _context.Products.OrderBy(p => p.SortOrder).ToListAsync();
+            return Ok(products);
+        }
+
+        // PUT /api/Admin/products/{code}
+        [HttpPut("products/{code}")]
+        public async Task<IActionResult> UpdateProduct(string code, [FromBody] ProductUpdateRequest req)
+        {
+            if (!IsAdmin()) return Forbid();
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Code == code);
+            if (product == null) return NotFound();
+            if (req.Name != null) product.Name = req.Name;
+            if (req.PointCost.HasValue) product.PointCost = req.PointCost;
+            if (req.PriceTwd.HasValue) product.PriceTwd = req.PriceTwd;
+            if (req.IsActive.HasValue) product.IsActive = req.IsActive.Value;
+            if (req.Description != null) product.Description = req.Description;
+            if (req.SortOrder.HasValue) product.SortOrder = req.SortOrder.Value;
+            product.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "商品已更新", product });
+        }
+
+        // POST /api/Admin/products
+        [HttpPost("products")]
+        public async Task<IActionResult> CreateProduct([FromBody] Product product)
+        {
+            if (!IsAdmin()) return Forbid();
+            if (await _context.Products.AnyAsync(p => p.Code == product.Code))
+                return BadRequest(new { message = "商品代碼已存在" });
+            product.UpdatedAt = DateTime.UtcNow;
+            _context.Products.Add(product);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "商品已建立", product });
+        }
+
+        // ─── Membership plan management ───────────────────────────────────────
+
+        // GET /api/Admin/plans
+        [HttpGet("plans")]
+        public async Task<IActionResult> GetPlans()
+        {
+            if (!IsAdmin()) return Forbid();
+            var plans = await _context.MembershipPlans
+                .OrderBy(p => p.SortOrder)
+                .Include(p => p.Benefits)
+                .ToListAsync();
+            return Ok(plans);
+        }
+
+        // PUT /api/Admin/plans/{code}
+        [HttpPut("plans/{code}")]
+        public async Task<IActionResult> UpdatePlan(string code, [FromBody] PlanUpdateRequest req)
+        {
+            if (!IsAdmin()) return Forbid();
+            var plan = await _context.MembershipPlans.FirstOrDefaultAsync(p => p.Code == code);
+            if (plan == null) return NotFound();
+            if (req.Name != null) plan.Name = req.Name;
+            if (req.PriceTwd.HasValue) plan.PriceTwd = req.PriceTwd.Value;
+            if (req.IsActive.HasValue) plan.IsActive = req.IsActive.Value;
+            if (req.Description != null) plan.Description = req.Description;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "套餐已更新", plan });
+        }
+
+        // POST /api/Admin/plans/{code}/benefits
+        [HttpPost("plans/{code}/benefits")]
+        public async Task<IActionResult> AddPlanBenefit(string code, [FromBody] MembershipPlanBenefit benefit)
+        {
+            if (!IsAdmin()) return Forbid();
+            var plan = await _context.MembershipPlans.FirstOrDefaultAsync(p => p.Code == code);
+            if (plan == null) return NotFound();
+            benefit.PlanId = plan.Id;
+            _context.MembershipPlanBenefits.Add(benefit);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "福利已新增", benefit });
+        }
+
+        // DELETE /api/Admin/plans/benefits/{id}
+        [HttpDelete("plans/benefits/{id}")]
+        public async Task<IActionResult> DeletePlanBenefit(int id)
+        {
+            if (!IsAdmin()) return Forbid();
+            var benefit = await _context.MembershipPlanBenefits.FindAsync(id);
+            if (benefit == null) return NotFound();
+            _context.MembershipPlanBenefits.Remove(benefit);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "福利已刪除" });
+        }
+
+        // ─── Subscription management ──────────────────────────────────────────
+
+        // POST /api/Admin/users/{id}/grant-subscription
+        [HttpPost("users/{id}/grant-subscription")]
+        public async Task<IActionResult> GrantSubscription(string id, [FromBody] GrantSubscriptionRequest req)
+        {
+            if (!IsAdmin()) return Forbid();
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null) return NotFound();
+            var plan = await _context.MembershipPlans.FirstOrDefaultAsync(p => p.Code == req.PlanCode && p.IsActive);
+            if (plan == null) return BadRequest(new { message = "套餐不存在" });
+            var now = DateTime.UtcNow;
+            _context.UserSubscriptions.Add(new UserSubscription
+            {
+                UserId     = id,
+                PlanId     = plan.Id,
+                StartDate  = now,
+                ExpiryDate = now.AddDays(plan.DurationDays),
+                Status     = "active",
+                PaymentRef = req.Note ?? "admin-grant",
+                CreatedAt  = now
+            });
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"已為用戶開通 {plan.Name}" });
+        }
+    }
+
+    public class ProductUpdateRequest
+    {
+        public string? Name { get; set; }
+        public int? PointCost { get; set; }
+        public int? PriceTwd { get; set; }
+        public bool? IsActive { get; set; }
+        public string? Description { get; set; }
+        public int? SortOrder { get; set; }
+    }
+
+    public class PlanUpdateRequest
+    {
+        public string? Name { get; set; }
+        public int? PriceTwd { get; set; }
+        public bool? IsActive { get; set; }
+        public string? Description { get; set; }
+    }
+
+    public class GrantSubscriptionRequest
+    {
+        public string PlanCode { get; set; } = "";
+        public string? Note { get; set; }
     }
 }

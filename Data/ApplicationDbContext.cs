@@ -42,6 +42,14 @@ namespace Ecanapi.Data
         public DbSet<DayHourStars> DayHourStars { get; set; }
         public DbSet<DayStemToBranch> DayStemToBranches { get; set; }
         public DbSet<SixtyJiaziDayToHour> SixtyJiaziDayToHours { get; set; }
+
+        // Membership & product catalog
+        public DbSet<Product> Products { get; set; }
+        public DbSet<MembershipPlan> MembershipPlans { get; set; }
+        public DbSet<MembershipPlanBenefit> MembershipPlanBenefits { get; set; }
+        public DbSet<UserSubscription> UserSubscriptions { get; set; }
+        public DbSet<UserSubscriptionClaim> UserSubscriptionClaims { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
