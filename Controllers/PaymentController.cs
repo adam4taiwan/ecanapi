@@ -170,6 +170,9 @@ namespace Ecanapi.Controllers
         [HttpPost("create-ecpay-checkout")]
         public async Task<IActionResult> CreateEcpayCheckout([FromBody] CheckoutRequest request)
         {
+            if (!(_config.GetValue<bool?>("ECPay:Enabled") ?? false))
+                return BadRequest(new { message = "儲值功能暫時停用，請稍後再試" });
+
             if (!ValidPackages.TryGetValue(request.PackageId, out var pkg))
                 return BadRequest(new { message = "無效的點數套餐" });
 
@@ -220,6 +223,9 @@ namespace Ecanapi.Controllers
         [HttpPost("ecpay-return")]
         public async Task<IActionResult> EcpayReturn([FromForm] IFormCollection form)
         {
+            if (!(_config.GetValue<bool?>("ECPay:Enabled") ?? false))
+                return Content("1|OK");
+
             var formParams = form.ToDictionary(k => k.Key, v => v.Value.ToString());
 
             var receivedMac = formParams.GetValueOrDefault("CheckMacValue", "");
