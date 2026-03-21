@@ -17,6 +17,11 @@ namespace Ecanapi.Controllers
         public string PackageId { get; set; } = string.Empty;
     }
 
+    public class SubscriptionCheckoutRequest
+    {
+        public string PlanCode { get; set; } = string.Empty;
+    }
+
     public class AtmRequest
     {
         public string PackageId { get; set; } = string.Empty;
@@ -220,6 +225,60 @@ namespace Ecanapi.Controllers
             return Ok(new { actionUrl = paymentUrl, parameters });
         }
 
+        // ─── ECPay Subscription Checkout ──────────────────────────────────────
+
+        [Authorize]
+        [HttpPost("create-subscription-checkout")]
+        public async Task<IActionResult> CreateSubscriptionCheckout([FromBody] SubscriptionCheckoutRequest request)
+        {
+            if (!(_config.GetValue<bool?>("ECPay:Enabled") ?? false))
+                return BadRequest(new { message = "訂閱付款功能即將開放，敬請期待" });
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var plan = await _context.MembershipPlans
+                .FirstOrDefaultAsync(p => p.Code == request.PlanCode && p.IsActive);
+            if (plan == null) return BadRequest(new { message = "訂閱方案不存在" });
+
+            var tradeNo   = $"SUB{DateTime.Now:yyyyMMddHHmmss}{new Random().Next(10, 99)}";
+            var tradeDate = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+
+            var origin = Request.Headers["Origin"].ToString();
+            var frontendUrl = string.IsNullOrEmpty(origin)
+                ? $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}"
+                : origin;
+
+            var returnUrl      = _config["ECPay:ReturnUrl"] ?? "https://ecanapi.fly.dev/api/Payment/ecpay-return";
+            var ecpapiBase     = _config["ECPay:ApiBase"] ?? "https://ecanapi.fly.dev";
+            var orderResultUrl = $"{ecpapiBase}/api/Payment/ecpay-result?redirect={Uri.EscapeDataString($"{frontendUrl}/member")}";
+
+            var parameters = new Dictionary<string, string>
+            {
+                { "MerchantID",        _config["ECPay:MerchantID"] ?? "2000132" },
+                { "MerchantTradeNo",   tradeNo },
+                { "MerchantTradeDate", tradeDate },
+                { "PaymentType",       "aio" },
+                { "TotalAmount",       plan.PriceTwd.ToString() },
+                { "TradeDesc",         "Membership Subscription" },
+                { "ItemName",          $"{plan.Name} 年訂閱" },
+                { "ReturnURL",         returnUrl },
+                { "OrderResultURL",    orderResultUrl },
+                { "ChoosePayment",     "Credit" },
+                { "EncryptType",       "1" },
+                { "CustomField1",      userId },
+                { "CustomField2",      plan.DurationDays.ToString() },
+                { "CustomField3",      $"SUB_{plan.Code}" },
+            };
+
+            parameters["CheckMacValue"] = EcpayCheckMac(parameters);
+
+            var paymentUrl = _config["ECPay:PaymentUrl"]
+                ?? "https://payment-stage.ecpay.com.tw/Cashier/AioCheckout/V5";
+
+            return Ok(new { actionUrl = paymentUrl, parameters });
+        }
+
         [HttpPost("ecpay-return")]
         public async Task<IActionResult> EcpayReturn([FromForm] IFormCollection form)
         {
@@ -240,17 +299,53 @@ namespace Ecanapi.Controllers
 
             var tradeNo   = formParams.GetValueOrDefault("MerchantTradeNo", "");
             var userId    = formParams.GetValueOrDefault("CustomField1", "");
-            var pointsStr = formParams.GetValueOrDefault("CustomField2", "0");
-            var packageId = formParams.GetValueOrDefault("CustomField3", "");
-
-            if (!int.TryParse(pointsStr, out var pointsToAdd) || pointsToAdd <= 0)
-                return Content("0|Invalid Points");
-
-            var alreadyProcessed = await _context.PointRecords.AnyAsync(r => r.StripeSessionId == tradeNo);
-            if (alreadyProcessed) return Content("1|OK");
+            var field2    = formParams.GetValueOrDefault("CustomField2", "");
+            var field3    = formParams.GetValueOrDefault("CustomField3", "");
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null) return Content("0|User Not Found");
+
+            // ── Subscription purchase (CustomField3 starts with "SUB_") ───────
+            if (field3.StartsWith("SUB_"))
+            {
+                var planCode = field3.Substring(4); // e.g. "GOLD"
+                var alreadyProcessed = await _context.UserSubscriptions
+                    .AnyAsync(s => s.PaymentRef == tradeNo);
+                if (alreadyProcessed) return Content("1|OK");
+
+                var plan = await _context.MembershipPlans
+                    .FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive);
+                if (plan == null) return Content("0|Plan Not Found");
+
+                var now = DateTime.UtcNow;
+                // Extend from existing expiry if still active, else from now
+                var existingSub = await _context.UserSubscriptions
+                    .Where(s => s.UserId == userId && s.Status == "active" && s.ExpiryDate > now)
+                    .OrderByDescending(s => s.ExpiryDate)
+                    .FirstOrDefaultAsync();
+                var startDate = existingSub?.ExpiryDate ?? now;
+
+                _context.UserSubscriptions.Add(new UserSubscription
+                {
+                    UserId     = userId,
+                    PlanId     = plan.Id,
+                    StartDate  = startDate,
+                    ExpiryDate = startDate.AddDays(plan.DurationDays),
+                    Status     = "active",
+                    PaymentRef = tradeNo,
+                    CreatedAt  = now
+                });
+                await _context.SaveChangesAsync();
+                return Content("1|OK");
+            }
+
+            // ── Point purchase ────────────────────────────────────────────────
+            var packageId = field3;
+            if (!int.TryParse(field2, out var pointsToAdd) || pointsToAdd <= 0)
+                return Content("0|Invalid Points");
+
+            var alreadyPointProcessed = await _context.PointRecords.AnyAsync(r => r.StripeSessionId == tradeNo);
+            if (alreadyPointProcessed) return Content("1|OK");
 
             user.Points += pointsToAdd;
             _context.PointRecords.Add(new PointRecord
