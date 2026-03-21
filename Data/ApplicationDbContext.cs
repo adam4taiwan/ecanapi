@@ -50,6 +50,9 @@ namespace Ecanapi.Data
         public DbSet<UserSubscription> UserSubscriptions { get; set; }
         public DbSet<UserSubscriptionClaim> UserSubscriptionClaims { get; set; }
 
+        // Booking requests (blessing services + consultation appointments)
+        public DbSet<BookingRequest> BookingRequests { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

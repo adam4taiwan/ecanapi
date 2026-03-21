@@ -411,6 +411,34 @@ namespace Ecanapi.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = $"已為用戶開通 {plan.Name}" });
         }
+
+        // ─── Booking request management ───────────────────────────────────────
+
+        // GET /api/Admin/bookings?type=&status=&page=1
+        [HttpGet("bookings")]
+        public async Task<IActionResult> GetBookings([FromQuery] string? type, [FromQuery] string? status, [FromQuery] int page = 1)
+        {
+            if (!IsAdmin()) return Forbid();
+            var query = _context.BookingRequests.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(type)) query = query.Where(b => b.ServiceType == type);
+            if (!string.IsNullOrWhiteSpace(status)) query = query.Where(b => b.Status == status);
+            var total = await query.CountAsync();
+            var items = await query.OrderByDescending(b => b.CreatedAt).Skip((page - 1) * 20).Take(20).ToListAsync();
+            return Ok(new { total, page, items });
+        }
+
+        // PUT /api/Admin/bookings/{id}/status
+        [HttpPut("bookings/{id}/status")]
+        public async Task<IActionResult> UpdateBookingStatus(int id, [FromBody] BookingStatusUpdateRequest req)
+        {
+            if (!IsAdmin()) return Forbid();
+            var booking = await _context.BookingRequests.FindAsync(id);
+            if (booking == null) return NotFound();
+            if (req.Status != null) booking.Status = req.Status;
+            if (req.AdminNote != null) booking.AdminNote = req.AdminNote;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "預約狀態已更新", booking });
+        }
     }
 
     public class ProductUpdateRequest
@@ -435,5 +463,11 @@ namespace Ecanapi.Controllers
     {
         public string PlanCode { get; set; } = "";
         public string? Note { get; set; }
+    }
+
+    public class BookingStatusUpdateRequest
+    {
+        public string? Status { get; set; }   // pending / confirmed / completed / cancelled
+        public string? AdminNote { get; set; }
     }
 }

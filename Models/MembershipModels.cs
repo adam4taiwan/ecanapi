@@ -108,4 +108,46 @@ namespace Ecanapi.Models
         public int? ClaimYear { get; set; }            // for annual quota checks
         public DateTime ClaimedAt { get; set; } = DateTime.UtcNow;
     }
+
+    // Records booking requests for blessing services and consultation appointments
+    public class BookingRequest
+    {
+        public int Id { get; set; }
+
+        public string? UserId { get; set; }            // null if submitted without login
+
+        [Required, MaxLength(20)]
+        public string ServiceType { get; set; } = ""; // blessing / consultation
+
+        [MaxLength(50)]
+        public string? ServiceCode { get; set; }       // BLESSING_ANTAISUI / BLESSING_LIGHT / etc.
+
+        [Required, MaxLength(100)]
+        public string Name { get; set; } = "";
+
+        [MaxLength(200)]
+        public string? ContactInfo { get; set; }       // LINE ID / WeChat / phone number
+
+        [MaxLength(20)]
+        public string? ContactType { get; set; }       // line / wechat / phone
+
+        [MaxLength(20)]
+        public string? BirthDate { get; set; }         // free-form date string
+
+        public bool IsLunar { get; set; } = false;     // whether BirthDate is lunar calendar
+
+        [MaxLength(500)]
+        public string? Notes { get; set; }             // user's message / question topic
+
+        [MaxLength(50)]
+        public string? PreferredDate { get; set; }     // preferred appointment date range
+
+        [MaxLength(20)]
+        public string Status { get; set; } = "pending"; // pending / confirmed / completed / cancelled
+
+        [MaxLength(200)]
+        public string? AdminNote { get; set; }
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
 }
