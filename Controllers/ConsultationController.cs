@@ -2545,9 +2545,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向的事情，尤其在中凶/大凶運期間。");
             sb.AppendLine();
 
-            // === Ch.13 事業格局·過三關鑑定 ===
-            sb.AppendLine("【第十三章：事業格局·過三關鑑定】");
-            sb.AppendLine("（依「八字過三關」方法論，分析家裡vs外面資源分布、皇糧格局、職業取象）");
+            // === Ch.13 事業格局鑑定（過三關方法論）===
+            sb.AppendLine("【第十三章：事業格局鑑定】");
             sb.AppendLine();
             sb.AppendLine(KbSanmenCareer(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -2593,12 +2592,12 @@ namespace Ecanapi.Controllers
             bool isDayStemYang = "甲丙戊庚壬".Contains(dStem);
 
             // 列出年月/日時柱資源
-            sb.AppendLine("【外面（年月柱·社會資源）】");
-            sb.AppendLine($"  年柱 {yStem}{yBranch}：年干十神={yStemSS}，年支十神={yBranchSS}");
-            sb.AppendLine($"  月柱 {mStem}{mBranch}：月干十神={mStemSS}，月支十神={mBranchSS}");
-            sb.AppendLine("【家裡（日時柱·個人資源）】");
-            sb.AppendLine($"  日支 {dBranch}：十神={dBranchSS}");
-            sb.AppendLine($"  時柱 {hStem}{hBranch}：時干十神={hStemSS}，時支十神={hBranchSS}");
+            sb.AppendLine("【外面（社會資源）】");
+            sb.AppendLine($"  年柱 {yStem}{yBranch}：年干={yStemSS}，年支={yBranchSS}");
+            sb.AppendLine($"  月柱 {mStem}{mBranch}：月干={mStemSS}，月支={mBranchSS}");
+            sb.AppendLine("【家裡（個人資源）】");
+            sb.AppendLine($"  日支 {dBranch}：{dBranchSS}");
+            sb.AppendLine($"  時柱 {hStem}{hBranch}：時干={hStemSS}，時支={hBranchSS}");
             sb.AppendLine();
 
             // 皇糧格局判斷
@@ -2614,7 +2613,7 @@ namespace Ecanapi.Controllers
             if (shaYinSamePillar && (hasGuan || hasSha) && hasYin)
             {
                 isHuangliang = true;
-                huangliangType = "殺印同宮（官印相生同柱，頂格皇糧）";
+                huangliangType = "殺印同宮（官印相生同柱）";
             }
             else if ((hasGuan || hasSha) && hasYin)
             {
@@ -2642,32 +2641,32 @@ namespace Ecanapi.Controllers
             // 格局結論
             if (isHuangliang)
             {
-                sb.AppendLine("【皇糧格局判定·結論：吃皇糧命格】");
-                sb.AppendLine($"  命局形成【{huangliangType}】，屬一線吃皇糧命格。");
+                sb.AppendLine("【事業格局判定·結論：公家政府命格】");
+                sb.AppendLine($"  命局形成【{huangliangType}】，屬公家政府命格。");
                 sb.AppendLine("  適合公職、體制內受薪、國營企業，或掛靠大型機構的穩定白領路線。");
                 if (outerGuan || outerSha)
-                    sb.AppendLine("  官殺星現於年月（外面），代表社會賦予的職位與名銜，天生與官場有緣。");
+                    sb.AppendLine("  官殺星現於外面（社會），代表社會賦予的職位與名銜，天生與官場有緣。");
                 if (outerYin)
-                    sb.AppendLine("  印星出現在外面（年月），代表外部學歷/資格/長輩護持，有利晉升。");
+                    sb.AppendLine("  印星出現在外面（社會），代表外部學歷/資格/長輩護持，有利晉升。");
                 if (isYangZhiYin)
-                    sb.AppendLine($"  日主 {dStem} 為陽干、陽制陰，加上皇糧格局，具備公安、司法、軍警、執法方面的潛力。");
+                    sb.AppendLine($"  命主 {dStem} 日主為陽干，具備公安、司法、軍警、執法方面的潛力。");
                 sb.AppendLine();
                 sb.AppendLine("【自營 vs 打工】結論：宜受薪/體制內，不宜冒進自營。");
             }
             else if (isZiYing)
             {
                 sb.AppendLine("【事業格局判定·結論：自營創業命格】");
-                sb.AppendLine($"  格局為【{pattern}】，屬自營/創業命格，財星活絡，資源在家裡（個人主導）。");
+                sb.AppendLine($"  格局為【{pattern}】，屬自營/創業命格，財星活絡，資源由個人主導。");
                 sb.AppendLine("  天生具備生意眼光與人際資源，適合自行創業、業務、自由業。");
                 if (innerCai)
-                    sb.AppendLine("  日時柱見財星，財落家中，賺的錢歸自己掌控，經商或自營為宜。");
+                    sb.AppendLine("  財星落於個人（家裡），賺的錢歸自己掌控，經商或自營為宜。");
                 sb.AppendLine();
                 sb.AppendLine("【自營 vs 打工】結論：宜自營創業，打工難以發揮潛力。");
             }
             else if (isZiYingPartial)
             {
                 sb.AppendLine("【事業格局判定·結論：自營潛力，需等大運】");
-                sb.AppendLine("  命局偏財+食傷同現，有自營潛力，但需等用神大運到來方能發力。");
+                sb.AppendLine("  命局財星與食傷同現，有自營潛力，但需等用神大運到來方能發力。");
                 sb.AppendLine("  建議先累積資本（打工/受薪），用神大運期再轉型自營。");
                 sb.AppendLine();
                 sb.AppendLine("【自營 vs 打工】結論：先打工積累，大運到來再轉型。");
@@ -2675,7 +2674,7 @@ namespace Ecanapi.Controllers
             else
             {
                 sb.AppendLine("【事業格局判定·結論：技術/專業受薪命格】");
-                sb.AppendLine("  命局財官兼具但無明顯皇糧或自營結構，屬中階受薪或技術型從業人員命格。");
+                sb.AppendLine("  命局財官兼具但無明顯公家政府或自營結構，屬中階受薪或技術型從業人員命格。");
                 sb.AppendLine("  安穩打工、累積專業技能，方能穩步晉升。");
                 sb.AppendLine();
                 sb.AppendLine("【自營 vs 打工】結論：技術/專業受薪為正路，合夥自營需謹慎。");
@@ -2726,10 +2725,10 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"  用神{yongShenElem}取象：{yongJob}");
 
             if (isYangZhiYin)
-                sb.AppendLine("  陽制陰特殊格：公安、司法、軍警、仲裁等執法類職業，天生具有優勢。");
+                sb.AppendLine("  公安、司法、軍警、仲裁等執法類職業，命主天生具有優勢。");
 
             if (isHuangliang)
-                sb.AppendLine("  皇糧命格提醒：優先選擇有編制、有保障的體制內職位，切忌輕易放棄穩定。");
+                sb.AppendLine("  提醒：優先選擇有編制、有保障的公家政府職位，切忌輕易放棄穩定。");
 
             return sb.ToString();
         }
