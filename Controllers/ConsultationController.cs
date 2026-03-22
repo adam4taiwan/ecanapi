@@ -1626,8 +1626,64 @@ namespace Ecanapi.Controllers
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     scored, gender, birthYear);
 
+                var cycleData = scored.Select(c => new {
+                    stem = c.stem, branch = c.branch, liuShen = c.liuShen,
+                    startAge = c.startAge, endAge = c.endAge,
+                    score = c.score, level = c.level
+                }).ToList();
+
+                var baziTable = new {
+                    pillars = new[] {
+                        new { label = "年", stem = yStem, branch = yBranch, stemSS = yStemSS,
+                              naYin = LfPillarNaYin(yearP),
+                              hiddenPairs = LfPillarHiddenPairs(yearP) },
+                        new { label = "月", stem = mStem, branch = mBranch, stemSS = mStemSS,
+                              naYin = LfPillarNaYin(monthP),
+                              hiddenPairs = LfPillarHiddenPairs(monthP) },
+                        new { label = "日", stem = dStem, branch = dBranch, stemSS = "元神",
+                              naYin = LfPillarNaYin(dayP),
+                              hiddenPairs = LfPillarHiddenPairs(dayP) },
+                        new { label = "時", stem = hStem, branch = hBranch, stemSS = hStemSS,
+                              naYin = LfPillarNaYin(timeP),
+                              hiddenPairs = LfPillarHiddenPairs(timeP) },
+                    }
+                };
+
+                string tuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+                string jiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+                string ClsFor(string elem) {
+                    if (elem == jiShenElem) return "X";
+                    if (elem == yongShenElem || elem == fuYiElem ||
+                        (!string.IsNullOrEmpty(tuneElem) && elem == tuneElem)) return "○";
+                    if (elem == jiYongElem && jiYongElem != jiShenElem) return "△忌";
+                    return "△";
+                }
+                string[] allStems = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                string[] allBrs   = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                var yongJiTable = new {
+                    stems = allStems.Select(s => new {
+                        stem = s,
+                        elem = KbStemToElement(s),
+                        shiShen = LfStemShiShen(s, dStem),
+                        cls = ClsFor(KbStemToElement(s))
+                    }).ToArray(),
+                    branches = allBrs.Select(br => {
+                        string brElem = LfBranchHiddenRatio.TryGetValue(br, out var bh) && bh.Count > 0
+                            ? KbStemToElement(bh[0].stem) : "-";
+                        string brMs = LfBranchHiddenRatio.TryGetValue(br, out var bh2) && bh2.Count > 0 ? bh2[0].stem : "";
+                        string brSS = !string.IsNullOrEmpty(brMs) ? LfStemShiShen(brMs, dStem) : "-";
+                        return new {
+                            branch = br,
+                            elem = brElem,
+                            shiShen = brSS,
+                            cls = brElem != "-" ? ClsFor(brElem) : "-",
+                            inChart = branches.Contains(br)
+                        };
+                    }).ToArray()
+                };
+
                 // 管理員免費，不扣點
-                return Ok(new { result = report, remainingPoints = user.Points });
+                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
             }
             catch (Exception ex)
             {
