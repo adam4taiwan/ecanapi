@@ -2569,6 +2569,13 @@ namespace Ecanapi.Controllers
                 dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
                 wuXing, season, seaLabel, scored));
 
+            // === Ch.16 居家風水鑑定 ===
+            sb.AppendLine("【第十六章：居家風水鑑定】");
+            sb.AppendLine();
+            sb.AppendLine(KbSanmenFengShui(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, bodyPct, yongShenElem, jiShenElem, wuXing, scored));
+
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
             return sb.ToString();
@@ -3102,6 +3109,159 @@ namespace Ecanapi.Controllers
             >= 25 => "偏弱",
             _     => "弱"
         };
+
+        // === 居家風水鑑定 ===
+
+        private static string KbSanmenFengShui(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string dmElem, double bodyPct,
+            string yongShenElem, string jiShenElem,
+            Dictionary<string, double> wuXing,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored)
+        {
+            var sb = new StringBuilder();
+
+            // 天干類象（住宅環境原型）
+            var stemImage = new Dictionary<string, string>
+            {
+                { "甲", "東方高地、樹木茂盛、背山面向寬闊之地，適合依山傍水的環境" },
+                { "乙", "東方平地、花草樹木旁、安靜舒適的住宅區" },
+                { "丙", "南方、向陽採光充足、鄰近熱鬧商業區或廣場" },
+                { "丁", "南方、室內燈光溫暖、有爐灶廚房，溫馨居家型" },
+                { "戊", "中央高地、山腹、田園廣闊，穩重厚實的環境" },
+                { "己", "中央平原、農地、安靜的鄉村或郊區環境" },
+                { "庚", "西方、鄰近道路交通要道、金屬工業區附近，利於外出發展" },
+                { "辛", "西方、鬧中取靜、精緻住宅、商業區中的高樓" },
+                { "壬", "北方、鄰近河流湖泊，或背水的開闊地帶" },
+                { "癸", "北方、地勢低窪、近水源，需注意防潮防濕" },
+            };
+
+            // 地支類象（周邊環境特徵）
+            var branchImage = new Dictionary<string, string>
+            {
+                { "子", "北方水氣重，宜注意防潮，鄰近水源有利但需防漏水" },
+                { "丑", "東北方、倉儲型環境，周邊安靜，適合儲蓄型居所" },
+                { "寅", "東北方山地，高地背山，採光好，生命力旺盛的社區" },
+                { "卯", "正東方、住宅有大窗或大門向東，採光明亮，鄰近公園綠地" },
+                { "辰", "東南方、潮濕土地或水庫附近，注意濕氣，適合近水的田園" },
+                { "巳", "東南方、採光好、電氣設備齊全，近市場或商業區" },
+                { "午", "正南方、陽光充足、門窗向南，開闊明亮，夏季較熱" },
+                { "未", "西南方、田園花圃旁，安靜優雅的文化住宅區" },
+                { "申", "正西方、鄰近道路或交通要道，金屬建材，現代感強" },
+                { "酉", "正西方、鬧中有靜，廚房設備完善，精緻格局" },
+                { "戌", "西北方高地、乾燥通風，適合山上或丘陵地帶的住宅" },
+                { "亥", "正北方、近河流或地下水源，需注意防水防潮" },
+            };
+
+            // 五行方位
+            var elemDir = new Dictionary<string, (string dir, string env, string avoid)>
+            {
+                { "木", ("東方", "鄰近公園、綠地、樹木茂盛之處；住宅宜木質裝潢，客廳擺植物，以東方窗採光為主", "西方金屬感重的環境、少植物的空間") },
+                { "火", ("南方", "採光充足、向陽明亮；客廳宜偏暖色調，增加燈光亮度，擺放紅色或橙色裝飾", "北方陰暗潮濕的環境、光線不足的住宅") },
+                { "土", ("中央、西南、東北", "平穩寬闊的住宅，不宜太多玻璃或流動感；黃色或米色系裝潢，擺放石材或陶瓷擺件", "頻繁搬遷、流動性過大的居住環境") },
+                { "金", ("西方、西北", "整潔現代感的住宅，金屬裝潢，客廳簡約利落；白色或銀灰色調，擺放金屬或石材飾品", "東方木質感過重、雜亂零散的環境") },
+                { "水", ("北方", "北方採光或水景設計；藍色或黑色系點綴，可在北方位置擺放水族箱或流水擺件", "南方正對烈日、過度乾燥炎熱的環境") },
+            };
+
+            // === 先天住宅原型分析（天干地支類象還原）===
+            sb.AppendLine("【先天住宅原型（四柱天干地支類象）】");
+            sb.AppendLine($"  年柱 {yStem}{yBranch}（出身/祖宅環境）：");
+            sb.AppendLine($"    天干 {yStem}：{stemImage.GetValueOrDefault(yStem, "")}");
+            sb.AppendLine($"    地支 {yBranch}：{branchImage.GetValueOrDefault(yBranch, "")}");
+            sb.AppendLine($"  月柱 {mStem}{mBranch}（成長/父母宅環境）：");
+            sb.AppendLine($"    天干 {mStem}：{stemImage.GetValueOrDefault(mStem, "")}");
+            sb.AppendLine($"    地支 {mBranch}：{branchImage.GetValueOrDefault(mBranch, "")}");
+            sb.AppendLine($"  日柱 {dStem}{dBranch}（本命/配偶宅環境）：");
+            sb.AppendLine($"    天干 {dStem}：{stemImage.GetValueOrDefault(dStem, "")}");
+            sb.AppendLine($"    地支 {dBranch}：{branchImage.GetValueOrDefault(dBranch, "")}");
+            sb.AppendLine($"  時柱 {hStem}{hBranch}（晚年/子女宅環境）：");
+            sb.AppendLine($"    天干 {hStem}：{stemImage.GetValueOrDefault(hStem, "")}");
+            sb.AppendLine($"    地支 {hBranch}：{branchImage.GetValueOrDefault(hBranch, "")}");
+            sb.AppendLine();
+
+            // === 用神吉方（最適合居住的方位與環境）===
+            sb.AppendLine("【用神吉方（最適合居住的方位與環境）】");
+            if (elemDir.TryGetValue(yongShenElem, out var yongDir))
+            {
+                sb.AppendLine($"  命主用神為【{yongShenElem}】，最適合居住的方位：{yongDir.dir}。");
+                sb.AppendLine($"  理想住宅特徵：{yongDir.env}。");
+                sb.AppendLine($"  住宅座向建議：大門或主臥窗戶朝向{yongDir.dir}，引入{yongShenElem}氣助運。");
+            }
+            sb.AppendLine();
+
+            // === 忌神凶方（應避免的方位與環境）===
+            sb.AppendLine("【忌神凶方（應避免的方位與環境）】");
+            if (elemDir.TryGetValue(jiShenElem, out var jiDir))
+            {
+                sb.AppendLine($"  命主忌神為【{jiShenElem}】，需迴避的方位：{jiDir.dir}。");
+                sb.AppendLine($"  應避免：{jiDir.avoid}。");
+                sb.AppendLine($"  若不得已住在忌神方位，可在該方位加強制化：擺放{yongShenElem}五行對應的物品化解。");
+            }
+            sb.AppendLine();
+
+            // === 家居開運佈置建議 ===
+            sb.AppendLine("【家居開運佈置建議】");
+            string openColor = yongShenElem switch
+            {
+                "木" => "綠色、青色",
+                "火" => "紅色、橙色、紫色",
+                "土" => "黃色、米色、咖啡色",
+                "金" => "白色、銀色、金色",
+                "水" => "藍色、黑色、深灰色",
+                _    => "中性色調"
+            };
+            string openMat = yongShenElem switch
+            {
+                "木" => "木質家具、植物盆栽、竹製品",
+                "火" => "暖色燈光、蠟燭、紅色裝飾品",
+                "土" => "陶瓷擺件、石材裝飾、黃色織品",
+                "金" => "金屬擺件、銀色框架、白色石材",
+                "水" => "水族箱、流水擺件、藍色掛畫",
+                _    => "中性自然材質"
+            };
+            sb.AppendLine($"  開運色彩：{openColor}（{yongShenElem}行對應）");
+            sb.AppendLine($"  開運材質：{openMat}");
+            sb.AppendLine($"  主臥建議：床頭朝向{(elemDir.TryGetValue(yongShenElem, out var d) ? d.dir : "")}，避免床頭朝向{(elemDir.TryGetValue(jiShenElem, out var jd) ? jd.dir : "")}。");
+
+            // 根據日主強弱給出特別建議
+            if (bodyPct <= 35)
+            {
+                sb.AppendLine($"  元神偏弱建議：住宅宜選小而溫馨的格局，光線充足但不宜過大過空曠，聚氣為要。");
+                sb.AppendLine($"  避免住在通風過強、過高或過空曠的住宅，以免洩氣。");
+            }
+            else if (bodyPct >= 65)
+            {
+                sb.AppendLine($"  元神旺盛建議：住宅可選寬闊開揚的格局，有助洩旺氣、達到平衡。");
+                sb.AppendLine($"  高樓或面向開闊視野的住宅，有助於旺氣流動發展。");
+            }
+            sb.AppendLine();
+
+            // === 搬遷吉運期 ===
+            sb.AppendLine("【搬遷吉運期（大運時機）】");
+            var moveLucks = scored.Where(lc => lc.score >= 70).OrderByDescending(lc => lc.score).Take(3).ToList();
+            if (moveLucks.Count > 0)
+            {
+                sb.AppendLine("  以下大運為運勢高峰期，適合搬遷新宅或裝潢改造：");
+                foreach (var lc in moveLucks)
+                    sb.AppendLine($"  - {lc.startAge}-{lc.endAge} 歲（{lc.stem}{lc.branch} 大運，評分 {lc.score} 分）：此期搬遷或置產，有助鎖住好運。");
+            }
+            else
+            {
+                var bestLuck = scored.OrderByDescending(lc => lc.score).FirstOrDefault();
+                if (bestLuck != default)
+                    sb.AppendLine($"  最佳搬遷時機：{bestLuck.startAge}-{bestLuck.endAge} 歲（{bestLuck.stem}{bestLuck.branch} 大運，評分 {bestLuck.score} 分）。");
+            }
+            var avoidMoveLucks = scored.Where(lc => lc.score < 45).ToList();
+            if (avoidMoveLucks.Count > 0)
+            {
+                sb.AppendLine("  以下大運運勢偏弱，不建議大幅搬遷或動土裝修：");
+                foreach (var lc in avoidMoveLucks)
+                    sb.AppendLine($"  - {lc.startAge}-{lc.endAge} 歲（{lc.stem}{lc.branch} 大運，評分 {lc.score} 分）：宜守舊，避免大動土木。");
+            }
+
+            return sb.ToString();
+        }
 
         // === Lf Text Helpers ===
 
