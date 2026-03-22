@@ -2553,6 +2553,14 @@ namespace Ecanapi.Controllers
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing));
 
+            // === Ch.14 六親緣分·婚姻深度鑑定 ===
+            sb.AppendLine("【第十四章：六親緣分·婚姻深度鑑定】");
+            sb.AppendLine();
+            sb.AppendLine(KbSanmenSixRelatives(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing, gender, birthYear, scored));
+
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
             return sb.ToString();
@@ -2729,6 +2737,190 @@ namespace Ecanapi.Controllers
 
             if (isHuangliang)
                 sb.AppendLine("  提醒：優先選擇有編制、有保障的公家政府職位，切忌輕易放棄穩定。");
+
+            return sb.ToString();
+        }
+
+        // === 六親緣分·婚姻深度鑑定 ===
+
+        private static string KbSanmenSixRelatives(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, string pattern, double bodyPct,
+            string yongShenElem, string jiShenElem, Dictionary<string, double> wuXing,
+            int gender, int birthYear,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored)
+        {
+            var sb = new StringBuilder();
+
+            // 各柱六親宮位
+            // 外面（社會/原生家庭）
+            sb.AppendLine("【六親宮位分布】");
+            sb.AppendLine($"  祖緣宮（年柱 {yStem}{yBranch}）：{yStemSS}／{yBranchSS}");
+            sb.AppendLine($"  父母宮（月柱 {mStem}{mBranch}）：{mStemSS}／{mBranchSS}");
+            sb.AppendLine($"  夫妻宮（日支 {dBranch}）：{dBranchSS}");
+            sb.AppendLine($"  子女宮（時柱 {hStem}{hBranch}）：{hStemSS}／{hBranchSS}");
+            sb.AppendLine();
+
+            // 配偶星定義
+            string spouseElem  = gender == 1
+                ? LfElemOvercome.GetValueOrDefault(dmElem, "")   // 男：財星為妻
+                : LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 女：官殺為夫
+            string spouseStar  = gender == 1 ? "妻星（財）" : "夫星（官殺）";
+            double spousePct   = wuXing.GetValueOrDefault(spouseElem, 0);
+
+            // 父星 = 偏財（異性父）；母星 = 正印（同性母）
+            string fatherElem  = LfElemOvercome.GetValueOrDefault(dmElem, ""); // 偏財=父
+            string motherElem  = LfGenByElem.GetValueOrDefault(dmElem, "");    // 印=母
+            double fatherPct   = wuXing.GetValueOrDefault(fatherElem, 0);
+            double motherPct   = wuXing.GetValueOrDefault(motherElem, 0);
+
+            // 兄弟星 = 比劫
+            double siblingPct  = wuXing.GetValueOrDefault(dmElem, 0);
+
+            // 子女星 = 食傷
+            string childElem   = LfElemGen.GetValueOrDefault(dmElem, "");
+            double childPct    = wuXing.GetValueOrDefault(childElem, 0);
+
+            // === 父母緣 ===
+            sb.AppendLine("【父母緣】");
+            string momLevel = motherPct >= 20 ? "深厚" : motherPct >= 10 ? "一般" : "較薄";
+            string dadLevel = fatherPct >= 20 ? "深厚" : fatherPct >= 10 ? "一般" : "較薄";
+            sb.AppendLine($"  母緣：印星（{motherElem}）占命局 {motherPct:F0}%，母子緣分【{momLevel}】。");
+            sb.AppendLine(motherPct >= 15
+                ? "  印星有力，母親影響力大，早年得母蔭護持，學歷資格有依靠。"
+                : motherPct >= 8
+                ? "  印星適中，與母親緣分尚可，情感有聯繫但自主性較強。"
+                : "  印星偏弱，與母親聚少離多，或早年需自立，母緣較淡。");
+            sb.AppendLine($"  父緣：財星（{fatherElem}）占命局 {fatherPct:F0}%，父子緣分【{dadLevel}】。");
+            sb.AppendLine(fatherPct >= 15
+                ? "  財星有力，父親資源豐厚，有機會繼承家業或得父親經濟支援。"
+                : fatherPct >= 8
+                ? "  財星適中，與父親關係正常，各自打拼為主。"
+                : "  財星偏弱，父緣較淡，或父親早離、緣分不深，需靠自力更生。");
+            // 月柱為父母宮，印/財入月吉
+            bool yinInMonth   = mStemSS is "正印" or "偏印" || mBranchSS is "正印" or "偏印";
+            bool caiInMonth   = mStemSS is "正財" or "偏財" || mBranchSS is "正財" or "偏財";
+            if (yinInMonth)  sb.AppendLine("  印星現於父母宮（月柱），與母親關係尤為緊密，學識靠母方傳承。");
+            if (caiInMonth)  sb.AppendLine("  財星現於父母宮（月柱），父親具財富資源，家境相對寬裕。");
+            sb.AppendLine();
+
+            // === 兄弟姐妹緣 ===
+            sb.AppendLine("【兄弟姐妹緣】");
+            string sibLevel = siblingPct >= 25 ? "深厚，兄弟姐妹情義濃" : siblingPct >= 15 ? "一般，情義有但各自獨立" : "較淡，獨立自主，少依賴手足";
+            sb.AppendLine($"  比劫（{dmElem}）占命局 {siblingPct:F0}%，手足緣分【{sibLevel}】。");
+            bool biInYear  = yStemSS is "比肩" or "劫財" || yBranchSS is "比肩" or "劫財";
+            bool biInMonth = mStemSS is "比肩" or "劫財" || mBranchSS is "比肩" or "劫財";
+            if (biInYear || biInMonth)
+                sb.AppendLine("  比劫現於外面（年月），手足對命主社會發展有直接影響，需注意合夥或財務往來的得失。");
+            else
+                sb.AppendLine("  比劫多在個人（日時），手足情感在，但事業財務宜各自獨立，勿輕易合夥。");
+            if (siblingPct >= 30)
+                sb.AppendLine("  比劫過旺，手足競爭意識強，需防財務上的耗損或兄弟間利益衝突。");
+            sb.AppendLine();
+
+            // === 婚姻深度論斷 ===
+            sb.AppendLine("【婚姻深度論斷】");
+            sb.AppendLine($"  配偶星：{spouseStar}，五行 {spouseElem}，占命局 {spousePct:F0}%。");
+            sb.AppendLine($"  夫妻宮（日支 {dBranch}）：{dBranchSS}。");
+
+            // 配偶星強弱論斷
+            string spouseLevel = spousePct >= 20 ? "旺" : spousePct >= 10 ? "適中" : "弱";
+            if (spousePct >= 20)
+                sb.AppendLine("  配偶星旺，感情機緣多，異性緣佳，擇偶條件好，婚姻資源豐富。");
+            else if (spousePct >= 8)
+                sb.AppendLine("  配偶星適中，緣分自然到來，婚姻情況穩定，無過多干擾。");
+            else
+                sb.AppendLine("  配偶星偏弱，感情緣分需耐心等候，或需主動創造機緣，切勿急於一時。");
+
+            // 配偶星位置（在外面/家裡）
+            bool spouseInOuter = false;
+            bool spouseInInner = false;
+            var allSS = new[] { yStemSS, yBranchSS, mStemSS, mBranchSS, dBranchSS, hStemSS, hBranchSS };
+            var outerSSArr = new[] { yStemSS, yBranchSS, mStemSS, mBranchSS };
+            var innerSSArr = new[] { dBranchSS, hStemSS, hBranchSS };
+            if (gender == 1)
+            {
+                spouseInOuter = outerSSArr.Any(ss => ss is "正財" or "偏財");
+                spouseInInner = innerSSArr.Any(ss => ss is "正財" or "偏財");
+            }
+            else
+            {
+                spouseInOuter = outerSSArr.Any(ss => ss is "正官" or "七殺");
+                spouseInInner = innerSSArr.Any(ss => ss is "正官" or "七殺");
+            }
+
+            if (spouseInOuter && !spouseInInner)
+                sb.AppendLine("  配偶星落於外面（社會），另一半多為社會上認識，工作或公眾場合中有緣相遇。");
+            else if (spouseInInner && !spouseInOuter)
+                sb.AppendLine("  配偶星落於個人（日時），另一半多為生活圈認識，青梅竹馬或私下牽線。");
+            else if (spouseInOuter && spouseInInner)
+                sb.AppendLine("  配偶星在外面與個人皆有，感情機緣來自多方，桃花旺盛。");
+
+            // 日支吉凶
+            bool dayBranchIsGood = dBranchSS == yongShenElem || dBranchSS == "正印" || dBranchSS == "食神";
+            bool dayBranchIsBad  = dBranchSS == jiShenElem || dBranchSS == "七殺" || dBranchSS == "傷官";
+            if (dayBranchIsGood)
+                sb.AppendLine($"  夫妻宮日支 {dBranch} 屬吉，婚後生活穩固，另一半有助於命主運勢提升。");
+            else if (dayBranchIsBad)
+                sb.AppendLine($"  夫妻宮日支 {dBranch} 屬忌，婚姻中需多溝通磨合，宜選擇五行互補的另一半。");
+            sb.AppendLine();
+
+            // === 婚期推算 ===
+            sb.AppendLine("【婚期推算（大運時機）】");
+            var marriageLucks = scored.Where(lc =>
+            {
+                string lcStemSS   = LfStemShiShen(lc.stem, dStem);
+                string lcBrMs     = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
+                string lcBranchSS = !string.IsNullOrEmpty(lcBrMs) ? LfStemShiShen(lcBrMs, dStem) : "";
+                bool hasSpouse = gender == 1
+                    ? lcStemSS is "正財" or "偏財" || lcBranchSS is "正財" or "偏財"
+                    : lcStemSS is "正官" or "七殺" || lcBranchSS is "正官" or "七殺";
+                return hasSpouse && lc.score >= 50;
+            }).ToList();
+
+            if (marriageLucks.Count > 0)
+            {
+                sb.AppendLine($"  命局中，以下大運期間配偶星入運，為感情婚姻最佳時機窗：");
+                foreach (var lc in marriageLucks)
+                    sb.AppendLine($"  - {lc.startAge}-{lc.endAge} 歲（{lc.stem}{lc.branch} 大運，評分 {lc.score} 分），{(gender == 1 ? "財星" : "官星")}有力，適合建立穩定感情或論及婚嫁。");
+            }
+            else
+            {
+                // 找評分最高且含配偶星的大運
+                var bestLuck = scored.Where(lc =>
+                {
+                    string lcStemSS = LfStemShiShen(lc.stem, dStem);
+                    string lcBrMs   = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
+                    string lcBrSS   = !string.IsNullOrEmpty(lcBrMs) ? LfStemShiShen(lcBrMs, dStem) : "";
+                    return gender == 1
+                        ? lcStemSS is "正財" or "偏財" || lcBrSS is "正財" or "偏財"
+                        : lcStemSS is "正官" or "七殺" || lcBrSS is "正官" or "七殺";
+                }).OrderByDescending(lc => lc.score).FirstOrDefault();
+
+                if (bestLuck != default)
+                    sb.AppendLine($"  {bestLuck.startAge}-{bestLuck.endAge} 歲（{bestLuck.stem}{bestLuck.branch} 大運）配偶星入運，雖整體運勢需留意，但感情緣分仍可把握。");
+                else
+                    sb.AppendLine($"  命局配偶星較隱，感情緣分需靠流年時機（{spouseElem}年）主動創造，切勿守株待兔。");
+            }
+
+            // === 子女緣 ===
+            sb.AppendLine();
+            sb.AppendLine("【子女緣】");
+            string childLevel = childPct >= 20 ? "深厚" : childPct >= 10 ? "一般" : "較薄";
+            sb.AppendLine($"  子女星（食傷，{childElem}）占命局 {childPct:F0}%，子女緣分【{childLevel}】。");
+            bool childInHour  = hStemSS is "食神" or "傷官" || hBranchSS is "食神" or "傷官";
+            if (childPct >= 15)
+                sb.AppendLine("  食傷有力，子女緣深，子女能力強，晚年受子女照顧。");
+            else if (childPct >= 8)
+                sb.AppendLine("  食傷適中，子女緣尚可，與子女情感平穩。");
+            else
+                sb.AppendLine("  食傷偏弱，子女緣較淡，或子女較少，亦可能晚婚晚育。");
+            if (childInHour)
+                sb.AppendLine($"  子女星現於時柱（子女宮），子女對命主晚年影響大，晚運多靠子女帶動。");
+            sb.AppendLine();
 
             return sb.ToString();
         }
@@ -4373,7 +4565,7 @@ namespace Ecanapi.Controllers
         [Authorize]
         public async Task<IActionResult> GetTopicAnalysis([FromQuery] string topic = "")
         {
-            var validTopics = new[] { "事業", "婚姻", "財運", "子女", "學業", "買房", "投資", "住宅風水", "合夥", "出國", "開店", "健康" };
+            var validTopics = new[] { "事業", "婚姻", "財運", "子女", "父母", "兄妹", "學業", "買房", "投資", "住宅風水", "合夥", "出國", "開店", "健康" };
             if (string.IsNullOrWhiteSpace(topic) || !Array.Exists(validTopics, t => t == topic))
                 return BadRequest(new { error = "請選擇有效的問事主題" });
 
