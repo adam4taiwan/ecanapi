@@ -2544,8 +2544,193 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"人生最重要提醒：善加把握【{yongShenElem}】所代表的人事物。");
             sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向的事情，尤其在中凶/大凶運期間。");
             sb.AppendLine();
+
+            // === Ch.13 事業格局·過三關鑑定 ===
+            sb.AppendLine("【第十三章：事業格局·過三關鑑定】");
+            sb.AppendLine("（依「八字過三關」方法論，分析家裡vs外面資源分布、皇糧格局、職業取象）");
+            sb.AppendLine();
+            sb.AppendLine(KbSanmenCareer(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing));
+
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.0");
+            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
+            return sb.ToString();
+        }
+
+        // === 過三關·事業格局分析 ===
+
+        private static string KbSanmenCareer(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, string pattern, double bodyPct,
+            string yongShenElem, string jiShenElem, Dictionary<string, double> wuXing)
+        {
+            var sb = new StringBuilder();
+
+            // 外面 = 年月柱（社會/公共資源）；家裡 = 日時柱（個人/私領域）
+            var outerSS = new[] { yStemSS, yBranchSS, mStemSS, mBranchSS };
+            var innerSS = new[] { dBranchSS, hStemSS, hBranchSS };
+            var allSS   = new[] { yStemSS, yBranchSS, mStemSS, mBranchSS, dBranchSS, hStemSS, hBranchSS };
+
+            bool hasGuan      = allSS.Any(ss => ss == "正官");
+            bool hasSha       = allSS.Any(ss => ss == "七殺");
+            bool hasYin       = allSS.Any(ss => ss == "正印" || ss == "偏印");
+            bool hasShiShen   = allSS.Any(ss => ss == "食神");
+            bool hasShangGuan = allSS.Any(ss => ss == "傷官");
+            bool hasShiShang  = hasShiShen || hasShangGuan;
+            bool hasPianCai   = allSS.Any(ss => ss == "偏財");
+            bool hasZhengCai  = allSS.Any(ss => ss == "正財");
+
+            bool outerGuan = outerSS.Any(ss => ss == "正官");
+            bool outerSha  = outerSS.Any(ss => ss == "七殺");
+            bool outerYin  = outerSS.Any(ss => ss == "正印" || ss == "偏印");
+            bool innerCai  = innerSS.Any(ss => ss == "偏財" || ss == "正財");
+
+            bool isDayStemYang = "甲丙戊庚壬".Contains(dStem);
+
+            // 列出年月/日時柱資源
+            sb.AppendLine("【外面（年月柱·社會資源）】");
+            sb.AppendLine($"  年柱 {yStem}{yBranch}：年干十神={yStemSS}，年支十神={yBranchSS}");
+            sb.AppendLine($"  月柱 {mStem}{mBranch}：月干十神={mStemSS}，月支十神={mBranchSS}");
+            sb.AppendLine("【家裡（日時柱·個人資源）】");
+            sb.AppendLine($"  日支 {dBranch}：十神={dBranchSS}");
+            sb.AppendLine($"  時柱 {hStem}{hBranch}：時干十神={hStemSS}，時支十神={hBranchSS}");
+            sb.AppendLine();
+
+            // 皇糧格局判斷
+            bool isHuangliang = false;
+            string huangliangType = "";
+
+            // 殺印同宮（最強皇糧）
+            bool shaYinSamePillar =
+                (IsGuanSha(yStemSS) && IsYin(yBranchSS)) || (IsYin(yStemSS) && IsGuanSha(yBranchSS)) ||
+                (IsGuanSha(mStemSS) && IsYin(mBranchSS)) || (IsYin(mStemSS) && IsGuanSha(mBranchSS)) ||
+                (IsGuanSha(hStemSS) && IsYin(hBranchSS)) || (IsYin(hStemSS) && IsGuanSha(hBranchSS));
+
+            if (shaYinSamePillar && (hasGuan || hasSha) && hasYin)
+            {
+                isHuangliang = true;
+                huangliangType = "殺印同宮（官印相生同柱，頂格皇糧）";
+            }
+            else if ((hasGuan || hasSha) && hasYin)
+            {
+                isHuangliang = true;
+                huangliangType = "化官生印（官印雙全）";
+            }
+            else if (hasSha && hasShiShen)
+            {
+                isHuangliang = true;
+                huangliangType = "食神制殺（以食制殺，競爭性公職）";
+            }
+            else if (hasYin && (pattern == "建祿格" || pattern == "月劫格"))
+            {
+                isHuangliang = true;
+                huangliangType = "印祿相隨（印比扶身，穩定薪水公職）";
+            }
+
+            // 陽制陰特殊格局（公安/司法/執法）
+            bool isYangZhiYin = isDayStemYang && isHuangliang;
+
+            // 自營傾向判定
+            bool isZiYing        = pattern is "偏財格" or "食神格" or "傷官格";
+            bool isZiYingPartial = hasPianCai && hasShiShang && !isHuangliang;
+
+            // 格局結論
+            if (isHuangliang)
+            {
+                sb.AppendLine("【皇糧格局判定·結論：吃皇糧命格】");
+                sb.AppendLine($"  命局形成【{huangliangType}】，屬一線吃皇糧命格。");
+                sb.AppendLine("  適合公職、體制內受薪、國營企業，或掛靠大型機構的穩定白領路線。");
+                if (outerGuan || outerSha)
+                    sb.AppendLine("  官殺星現於年月（外面），代表社會賦予的職位與名銜，天生與官場有緣。");
+                if (outerYin)
+                    sb.AppendLine("  印星出現在外面（年月），代表外部學歷/資格/長輩護持，有利晉升。");
+                if (isYangZhiYin)
+                    sb.AppendLine($"  日主 {dStem} 為陽干、陽制陰，加上皇糧格局，具備公安、司法、軍警、執法方面的潛力。");
+                sb.AppendLine();
+                sb.AppendLine("【自營 vs 打工】結論：宜受薪/體制內，不宜冒進自營。");
+            }
+            else if (isZiYing)
+            {
+                sb.AppendLine("【事業格局判定·結論：自營創業命格】");
+                sb.AppendLine($"  格局為【{pattern}】，屬自營/創業命格，財星活絡，資源在家裡（個人主導）。");
+                sb.AppendLine("  天生具備生意眼光與人際資源，適合自行創業、業務、自由業。");
+                if (innerCai)
+                    sb.AppendLine("  日時柱見財星，財落家中，賺的錢歸自己掌控，經商或自營為宜。");
+                sb.AppendLine();
+                sb.AppendLine("【自營 vs 打工】結論：宜自營創業，打工難以發揮潛力。");
+            }
+            else if (isZiYingPartial)
+            {
+                sb.AppendLine("【事業格局判定·結論：自營潛力，需等大運】");
+                sb.AppendLine("  命局偏財+食傷同現，有自營潛力，但需等用神大運到來方能發力。");
+                sb.AppendLine("  建議先累積資本（打工/受薪），用神大運期再轉型自營。");
+                sb.AppendLine();
+                sb.AppendLine("【自營 vs 打工】結論：先打工積累，大運到來再轉型。");
+            }
+            else
+            {
+                sb.AppendLine("【事業格局判定·結論：技術/專業受薪命格】");
+                sb.AppendLine("  命局財官兼具但無明顯皇糧或自營結構，屬中階受薪或技術型從業人員命格。");
+                sb.AppendLine("  安穩打工、累積專業技能，方能穩步晉升。");
+                sb.AppendLine();
+                sb.AppendLine("【自營 vs 打工】結論：技術/專業受薪為正路，合夥自營需謹慎。");
+            }
+
+            // 五行職業取象
+            sb.AppendLine();
+            sb.AppendLine("【五行職業取象（適合行業）】");
+            sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, isHuangliang, isYangZhiYin));
+
+            return sb.ToString();
+        }
+
+        private static bool IsGuanSha(string ss) => ss == "正官" || ss == "七殺";
+        private static bool IsYin(string ss)     => ss == "正印" || ss == "偏印";
+
+        private static string KbSanmenJobByElem(
+            string dmElem, string pattern, string yongShenElem,
+            bool isHuangliang, bool isYangZhiYin)
+        {
+            var sb = new StringBuilder();
+
+            string patternJob = pattern switch
+            {
+                "正官格" => "政府機關、行政管理、財務會計、法務合規",
+                "七殺格" => "軍警執法、管理顧問、外科醫療、競技運動",
+                "正印格" => "教育學術、文化出版、醫療護理、策略研究",
+                "偏印格" => "宗教藝術、技術研發、特殊技能、諮詢顧問",
+                "正財格" => "金融財務、財務管理、穩定商業、行政辦事",
+                "偏財格" => "商貿業務、房產仲介、投資理財、貿易進出口",
+                "食神格" => "餐飲美食、技藝創作、設計藝術、娛樂表演",
+                "傷官格" => "科技研發、創意設計、律師顧問、才藝自由業",
+                "建祿格" => "專業技術、工程製造、自主事業、中小企業主",
+                "月劫格" => "競爭性行業、業務銷售、投資合夥、體育競技",
+                _        => "多元發展，依大運時機選擇方向"
+            };
+            sb.AppendLine($"  格局取象：{patternJob}");
+
+            string yongJob = yongShenElem switch
+            {
+                "木" => "教育文化、出版傳媒、木工園藝、環保文創、農林種植",
+                "火" => "科技電子、能源照明、廚藝餐飲、娛樂演藝、電力暖氣",
+                "土" => "建築房產、土木工程、農業農業、仲介保險、倉儲物流",
+                "金" => "金融證券、機械製造、法律司法、珠寶冶金、軍警執法",
+                "水" => "IT資訊、數據分析、航運物流、命理諮詢、傳播媒體",
+                _    => "綜合型行業"
+            };
+            sb.AppendLine($"  用神{yongShenElem}取象：{yongJob}");
+
+            if (isYangZhiYin)
+                sb.AppendLine("  陽制陰特殊格：公安、司法、軍警、仲裁等執法類職業，天生具有優勢。");
+
+            if (isHuangliang)
+                sb.AppendLine("  皇糧命格提醒：優先選擇有編制、有保障的體制內職位，切忌輕易放棄穩定。");
+
             return sb.ToString();
         }
 
