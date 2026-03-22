@@ -166,7 +166,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: AllowFrontendOrigins, policy =>
     {
         policy.WithOrigins("http://localhost:3000",                  // 1. Next.js 本地開發端口
-                           "https://myweb.fly.dev")                 // 2. 【新增】：您已部署的前端網址
+                           "https://myweb.fly.dev",                 // 2. Fly.io 預設網址
+                           "https://yudongzi.tw",                   // 3. 正式網域
+                           "https://www.yudongzi.tw")               // 4. www 子網域
              .AllowAnyMethod()
              .AllowAnyHeader()
              .AllowCredentials();
