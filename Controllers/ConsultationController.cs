@@ -61,7 +61,7 @@ namespace Ecanapi.Controllers
                     _ => 500   // 0 = 終身
                 },
                 "流年命書" => 20,
-                "問事" => 80,
+                "問事" => 20,
                 _ => 50
             };
 
@@ -4205,7 +4205,7 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            const int cost = 80;
+            const int cost = 20;
             if (user.Points < cost)
                 return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
 
