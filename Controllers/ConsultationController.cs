@@ -61,7 +61,7 @@ namespace Ecanapi.Controllers
                     _ => 500   // 0 = 終身
                 },
                 "流年命書" => 20,
-                "問事" => 10,
+                "問事" => 80,
                 _ => 50
             };
 
@@ -235,36 +235,62 @@ namespace Ecanapi.Controllers
 ";
 
         private string BuildTopicPrompt(string chartJson, string topic) => $@"
-你是一位精通《三命通會》與《紫微斗數》的命理鑑定大師『玉洞子』。
-請根據以下 JSON 命盤數據，專門針對命主的【{topic}】問題進行深度鑑定，
-給出明確、直接、可執行的命理建議。
+你是一位精通《三命通會》《滴天髓》《紫微斗數》的命理鑑定大師『玉洞子』。
+請根據以下命盤數據，專門針對命主的【{topic}】課題，進行五章式深度命書鑑定。
+
+嚴守以下規則：
+1. 每個論斷必須同時引用八字與紫微雙系統佐證，不可只談其中一方
+2. 嚴禁使用「可能」「或許」「也許」等模糊詞，必須用明確斷語
+3. 時機分析需給出具體年份，不可泛論
+4. 建議必須具體可執行，不可空泛
 
 ### 命盤數據：
 {chartJson}
 
 ### 問事主題：{topic}
 
-### 輸出格式：
+---
 
-一、{topic} 命格基礎
-【命盤顯示】：(此命盤在{topic}方面的先天條件，從八字與紫微雙角度分析)
-【喜忌分析】：(哪些五行/星曜對{topic}有利，哪些有害)
+## 主題命書：{topic}
 
-二、{topic} 深度研判
-【吉象】：(命盤中有利於{topic}的具體星曜/干支，明確說明)
-【凶象】：(命盤中不利於{topic}的阻礙，明確說明)
-【綜合評斷】：(用一句話斷死{topic}的整體格局，嚴禁使用「可能」或「或許」)
+### 第一章　命主概況
 
-三、{topic} 時機研判
-【最佳行動年份】：(從當前大運流年分析，哪幾年最適合)
-【需要迴避時段】：(哪幾年不宜輕舉妄動)
+【八字格局】：(日主五行、身強/身弱判定、格局名稱，一句定位)
+【紫微命宮】：(命宮主星及其性質，一句定位)
+【核心特質】：(整合八字與紫微，用兩句話說出此命主最鮮明的人格特質)
 
-四、{topic} 具體行動建議
-【立即可做】：(現在就能執行的三件事)
-【長期規劃】：(未來 3-5 年的策略方向)
-【開運化煞】：(針對{topic}的具體風水或擇日建議)
+### 第二章　{topic} 先天格局
 
------------------------------------------------------------------
+【八字論斷】：
+  - 哪個干支/用神最直接影響{topic}（需說出具體天干地支）
+  - {topic}的先天優勢與先天制約各為何
+
+【紫微論斷】：
+  - 與{topic}最相關的宮位（如財帛宮/夫妻宮/官祿宮/田宅宮等）的主星組合
+  - 四化飛入此宮的影響（有則說，無則略）
+
+【格局定論】：(八字與紫微雙系統交叉後，給出{topic}整體先天格局的一句斷語)
+
+### 第三章　{topic} 深度研判
+
+【有利因素】：(列出命盤中對{topic}有利的2-3項具體元素)
+【不利因素】：(列出命盤中對{topic}的2-3項阻礙)
+【輕重比較】：(吉凶相較，{topic}整體偏順還是偏阻？給出明確結論)
+
+### 第四章　時機推算
+
+【當前大運】：(目前走哪個大運，此大運對{topic}的影響)
+【近三年流年】：(針對未來3年每年給出具體{topic}走勢預測，格式：「YYYY年：...」)
+【最佳行動窗口】：(在可見的大運流年中，哪一年最適合在{topic}上採取重大行動)
+【需要謹慎年份】：(哪年不宜在{topic}上輕舉妄動，說明原因)
+
+### 第五章　趨吉行動方案
+
+【立即行動】：(現在就能執行的2-3件具體事項)
+【中期佈局】：(未來1-3年的策略方向)
+【化煞開運】：(針對{topic}的具體化解建議，含五行補強或擇日方向)
+
+---
 鑑定大師：玉洞子  |  問事明心，決策有據。
 ";
 
@@ -4155,6 +4181,49 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine($"命理大師：玉洞子 | 流年命書 v1.0 | {year} 年");
             return sb.ToString();
+        }
+
+        // ── analyze-topic ────────────────────────────────────────────────
+        [HttpGet("analyze-topic")]
+        [Authorize]
+        public async Task<IActionResult> GetTopicAnalysis([FromQuery] string topic = "")
+        {
+            var validTopics = new[] { "事業", "婚姻", "財運", "子女", "學業", "買房", "投資", "住宅風水", "合夥", "出國", "開店", "健康" };
+            if (string.IsNullOrWhiteSpace(topic) || !Array.Exists(validTopics, t => t == topic))
+                return BadRequest(new { error = "請選擇有效的問事主題" });
+
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            const int cost = 80;
+            if (user.Points < cost)
+                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+
+            try
+            {
+                string prompt = BuildTopicPrompt(userChart.ChartJson, topic);
+                string aiResult = await CallGeminiApi(prompt);
+
+                user.Points -= cost;
+                await _context.SaveChangesAsync();
+
+                return Ok(new { result = aiResult, remainingPoints = user.Points });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "主題命書失敗 Topic={Topic} User={User}", topic, identity);
+                return StatusCode(500, new { error = "主題命書生成失敗，請稍後再試", details = ex.Message });
+            }
         }
     }
 
