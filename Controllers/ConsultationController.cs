@@ -234,7 +234,7 @@ namespace Ecanapi.Controllers
 鑑定大師：玉洞子  |  知運在先，趨吉避凶。
 ";
 
-        private string BuildTopicPrompt(string chartJson, string topic) => $@"
+        private string BuildTopicPrompt(string chartJson, string topic, string kbFacts = "") => $@"
 你是一位精通《三命通會》《滴天髓》《紫微斗數》的命理鑑定大師『玉洞子』。
 請根據以下命盤數據，專門針對命主的【{topic}】課題，進行五章式深度命書鑑定。
 
@@ -243,8 +243,9 @@ namespace Ecanapi.Controllers
 2. 嚴禁使用「可能」「或許」「也許」等模糊詞，必須用明確斷語
 3. 時機分析需給出具體年份，不可泛論
 4. 建議必須具體可執行，不可空泛
-
-### 命盤數據：
+5. 流年吉凶評斷必須與「命理系統預算數據」中的交叉評斷完全一致，不可自行重新推算
+{(string.IsNullOrEmpty(kbFacts) ? "" : kbFacts)}
+### 完整命盤數據（含八字與紫微）：
 {chartJson}
 
 ### 問事主題：{topic}
@@ -4211,7 +4212,69 @@ namespace Ecanapi.Controllers
 
             try
             {
-                string prompt = BuildTopicPrompt(userChart.ChartJson, topic);
+                // ── 使用與流年/大運命書相同的計算方法，確保結論一致 ──
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                string dmElem = KbStemToElement(dStem);
+                var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
+                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+                string season    = LfGetSeason(mBranch);
+                var (pattern, yongShenElem, fuYiElem, _) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+
+                var luckCycles = LfExtractLuckCycles(root);
+                bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
+
+                // 當前大運
+                int currentYear = DateTime.Today.Year;
+                int currentAge  = currentYear - birthYear;
+                var curLuck = luckCycles.FirstOrDefault(lc => currentAge >= lc.startAge && currentAge < lc.endAge);
+                string daiyunStem   = curLuck.stem   ?? "";
+                string daiyunBranch = curLuck.branch ?? "";
+                string daiyunSS     = !string.IsNullOrEmpty(daiyunStem) ? LfStemShiShen(daiyunStem, dStem) : "";
+
+                // 近3年流年評分（與大運/流年命書完全相同演算法）
+                var yearLines = new System.Text.StringBuilder();
+                for (int y = currentYear; y <= currentYear + 2; y++)
+                {
+                    var (flStem, flBranch) = DyGetYearStemBranch(y);
+                    int flAge = y - birthYear;
+                    int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, yongShenElem, fuYiElem, jiShenElem, season, branches);
+                    int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
+                    string flCross   = DyCrossClass(flBaziScore, flZiweiScore);
+                    string flSS      = LfStemShiShen(flStem, dStem);
+                    yearLines.AppendLine($"  - {y}年 {flStem}{flBranch}（{flSS}）：{flCross}｜八字分={flBaziScore}，紫微分={flZiweiScore}，年齡={flAge}歲");
+                }
+
+                // 建立含 KB 預算數據的 prompt
+                string kbFacts = $@"
+### 本命盤命理系統預算數據（必須以此為唯一基礎，不可自行推翻）
+- 格局：{pattern}
+- 日主（{dStem}）五行：{dmElem}，身強弱：{bodyLabel}
+- 用神元素：{yongShenElem}（對此命主有利的五行）
+- 忌神元素：{jiShenElem}（對此命主有害的五行）
+- 當前大運：{daiyunStem}{daiyunBranch}（十神：{daiyunSS}），{curLuck.startAge}-{curLuck.endAge}歲
+- 近三年流年交叉評斷：
+{yearLines}";
+
+                string prompt = BuildTopicPrompt(userChart.ChartJson, topic, kbFacts);
                 string aiResult = await CallGeminiApi(prompt);
 
                 user.Points -= cost;
