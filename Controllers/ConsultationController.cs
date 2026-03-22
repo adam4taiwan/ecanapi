@@ -2561,6 +2561,14 @@ namespace Ecanapi.Controllers
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing, gender, birthYear, scored));
 
+            // === Ch.15 疾厄壽元鑑定 ===
+            sb.AppendLine("【第十五章：疾厄壽元鑑定】");
+            sb.AppendLine();
+            sb.AppendLine(KbSanmenHealthLongevity(
+                yStem, mStem, hStem, yBranch, mBranch, dBranch, hBranch,
+                dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
+                wuXing, season, seaLabel, scored));
+
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
             return sb.ToString();
@@ -2924,6 +2932,176 @@ namespace Ecanapi.Controllers
 
             return sb.ToString();
         }
+
+        // === 疾厄壽元鑑定 ===
+
+        private static string KbSanmenHealthLongevity(
+            string yStem, string mStem, string hStem,
+            string yBranch, string mBranch, string dBranch, string hBranch,
+            string dStem, string dmElem, double bodyPct,
+            string yongShenElem, string jiShenElem,
+            Dictionary<string, double> wuXing, string season, string seaLabel,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored)
+        {
+            var sb = new StringBuilder();
+
+            // 制神 = 剋住壞神（忌神）的五行
+            string zhiShenElem = LfElemOvercomeBy.GetValueOrDefault(jiShenElem, "");
+            double yongPct = wuXing.GetValueOrDefault(yongShenElem, 0);
+            double jiPct   = wuXing.GetValueOrDefault(jiShenElem, 0);
+            double zhiPct  = wuXing.GetValueOrDefault(zhiShenElem, 0);
+
+            // === 元神/扶神/制神/壞神 ===
+            sb.AppendLine("【元神·扶神·制神·壞神 四象定位】");
+            sb.AppendLine($"  元神（生命核心）：{dmElem}（日主 {dStem}），元神{KbBodyStrengthShort(bodyPct)}。");
+            sb.AppendLine($"  扶神（護持元神）：{yongShenElem}，占命局 {yongPct:F0}%，{(yongPct >= 15 ? "扶神有力，元神受護" : "扶神偏弱，護力不足")}。");
+            sb.AppendLine($"  壞神（傷害命局）：{jiShenElem}，占命局 {jiPct:F0}%，{(jiPct >= 20 ? "壞神旺，對健康影響大" : "壞神偏弱，影響有限")}。");
+            if (!string.IsNullOrEmpty(zhiShenElem))
+                sb.AppendLine($"  制神（制住壞神）：{zhiShenElem}，占命局 {zhiPct:F0}%，{(zhiPct >= 10 ? "制神有力，壞神受制" : "制神弱，壞神難被壓制")}。");
+            sb.AppendLine();
+
+            // === 壽元強弱 ===
+            sb.AppendLine("【壽元強弱判定】");
+            string longevityLevel = bodyPct switch
+            {
+                >= 70 => "上等（元神極旺，生命力充沛，體質佳）",
+                >= 55 => "中上（元神旺，體質良好，保養得當則壽元無虞）",
+                >= 40 => "中等（元神適中，需注意忌神大運期的健康耗損）",
+                >= 25 => "中下（元神偏弱，體質較虛，需積極保健）",
+                _     => "偏弱（元神不足，早年需調養，避免大運忌神期透支）"
+            };
+            sb.AppendLine($"  壽元等級：【{longevityLevel}】");
+            if (bodyPct >= 55)
+                sb.AppendLine("  元神充足，先天體質良好，即使遭逢忌神大運也有較強的恢復力。");
+            else if (bodyPct >= 40)
+                sb.AppendLine("  元神尚可，體質平穩，忌神期需特別注意作息與飲食，不可過度消耗。");
+            else
+                sb.AppendLine($"  元神偏弱，宜多補養{yongShenElem}方向的食物與環境，嚴格避免{jiShenElem}方向進一步消耗。");
+            sb.AppendLine();
+
+            // === 乾坤戰識別 ===
+            sb.AppendLine("【乾坤戰識別（陰陽五行激烈對抗）】");
+            var sortedElems = wuXing.OrderByDescending(kv => kv.Value).ToList();
+            bool qiankunZhan = false;
+            string qiankunDesc = "";
+            for (int i = 0; i < sortedElems.Count - 1 && !qiankunZhan; i++)
+            {
+                for (int j = i + 1; j < sortedElems.Count && !qiankunZhan; j++)
+                {
+                    string e1 = sortedElems[i].Key, e2 = sortedElems[j].Key;
+                    double p1 = sortedElems[i].Value, p2 = sortedElems[j].Value;
+                    bool isClash = LfElemOvercome.GetValueOrDefault(e1, "") == e2
+                                || LfElemOvercome.GetValueOrDefault(e2, "") == e1;
+                    if (isClash && p1 >= 25 && p2 >= 20 && Math.Abs(p1 - p2) <= 20)
+                    {
+                        qiankunZhan = true;
+                        qiankunDesc = $"{e1}（{p1:F0}%）與{e2}（{p2:F0}%）激烈對抗";
+                    }
+                }
+            }
+            // 天干沖（四天干中任兩個形成對沖）
+            var stemClashPairs = new HashSet<string> { "甲庚","庚甲","乙辛","辛乙","丙壬","壬丙","丁癸","癸丁" };
+            var stems4 = new[] { yStem, mStem, dStem, hStem };
+            bool stemClash = false;
+            for (int i = 0; i < stems4.Length && !stemClash; i++)
+                for (int j = i + 1; j < stems4.Length && !stemClash; j++)
+                    if (stemClashPairs.Contains(stems4[i] + stems4[j])) stemClash = true;
+            // 地支六沖
+            var branchClashPairs = new HashSet<string> { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
+            var branches4 = new[] { yBranch, mBranch, dBranch, hBranch };
+            bool branchClash = false;
+            string clashBranches = "";
+            for (int i = 0; i < branches4.Length && !branchClash; i++)
+                for (int j = i + 1; j < branches4.Length && !branchClash; j++)
+                    if (branchClashPairs.Contains(branches4[i] + branches4[j]))
+                    { branchClash = true; clashBranches = $"{branches4[i]}{branches4[j]}"; }
+
+            if (qiankunZhan)
+                sb.AppendLine($"  命局形成五行對抗：{qiankunDesc}，氣機起伏不穩，情緒波動易影響健康。");
+            if (stemClash)
+                sb.AppendLine("  天干形成激沖，命局動盪，情緒壓力大，易有因壓力引發的身心症狀。");
+            if (branchClash)
+                sb.AppendLine($"  地支 {clashBranches} 形成對沖，臟腑能量不穩，每逢沖剋流年症狀易加重。");
+            if (!qiankunZhan && !stemClash && !branchClash)
+                sb.AppendLine("  命局陰陽五行相對和諧，無激烈對抗，體質穩定，氣機平順。");
+            sb.AppendLine();
+
+            // === 五行臟腑深度分析 ===
+            sb.AppendLine("【五行臟腑深度分析】");
+            var organMap = new Dictionary<string, (string organs, string symptoms, string care)>
+            {
+                { "木", ("肝膽、眼睛、筋骨", "眼疾、肝炎、筋骨酸痛、情緒焦慮", "規律作息勿熬夜、多吃綠色蔬菜護肝") },
+                { "火", ("心臟、血液、血壓", "心悸、失眠、高血壓、貧血", "保持情緒平穩、適度有氧運動護心") },
+                { "土", ("脾胃、消化系統", "消化不良、胃潰瘍、血糖偏高", "飲食規律、避免生冷寒涼、多吃黃色食物") },
+                { "金", ("肺、大腸、皮膚", "咳嗽、鼻敏感、皮膚病、便秘", "注意呼吸道保健、遠離空汙、少吃辛辣") },
+                { "水", ("腎臟、膀胱、骨骼", "腎虛、腰酸、骨質疏鬆、耳鳴", "充足睡眠養腎、多喝水、保暖護腰") },
+            };
+            string weakestElem  = wuXing.MinBy(kv => kv.Value).Key;
+            foreach (var (elem, (organs, symptoms, care)) in organMap)
+            {
+                double pct = wuXing.GetValueOrDefault(elem, 0);
+                if (pct >= 35)
+                    sb.AppendLine($"  {elem}旺（{pct:F0}%）→ {organs}：易有{symptoms.Split('、')[0]}等亢進症狀，需節制。");
+                else if (pct <= 8)
+                    sb.AppendLine($"  {elem}弱（{pct:F0}%）→ {organs}：易有{symptoms}，保健建議：{care}。");
+            }
+            if (wuXing.Values.All(v => v > 8 && v < 35))
+                sb.AppendLine("  五行分布均衡，臟腑整體和諧，日常保健維持即可。");
+            sb.AppendLine($"  一生最需保養重點：{weakestElem}（{wuXing.GetValueOrDefault(weakestElem, 0):F0}%）對應之{organMap.GetValueOrDefault(weakestElem).organs}系統。");
+            sb.AppendLine();
+
+            // 體性調候影響
+            if (seaLabel == "寒凍")
+            {
+                sb.AppendLine("【體性寒凍提醒】");
+                sb.AppendLine("  命局體性偏寒，血液循環偏弱，腎虛、關節退化為主要風險。");
+                sb.AppendLine("  宜居溫暖環境，多吃溫補食物（薑、桂圓、羊肉），避免冷飲冰品。");
+                sb.AppendLine();
+            }
+            else if (seaLabel == "炎熱")
+            {
+                sb.AppendLine("【體性炎熱提醒】");
+                sb.AppendLine("  命局體性偏熱，心火旺盛，心血管、高血壓、失眠為主要風險。");
+                sb.AppendLine("  宜居涼爽環境，多吃清熱食物（冬瓜、綠豆、蓮子），避免燥熱刺激物。");
+                sb.AppendLine();
+            }
+
+            // === 大運健康風險期 ===
+            sb.AppendLine("【大運健康風險期】");
+            var riskLucks = scored.Where(lc =>
+            {
+                string lcStemElem   = KbStemToElement(lc.stem);
+                string lcBrMs       = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
+                string lcBranchElem = !string.IsNullOrEmpty(lcBrMs) ? KbStemToElement(lcBrMs) : "";
+                bool hasJi = lcStemElem == jiShenElem || lcBranchElem == jiShenElem;
+                return hasJi && lc.score < 60;
+            }).ToList();
+
+            if (riskLucks.Count > 0)
+            {
+                sb.AppendLine($"  以下大運忌神（{jiShenElem}）入運且運分偏低，為健康需特別留意的時期：");
+                foreach (var lc in riskLucks)
+                    sb.AppendLine($"  - {lc.startAge}-{lc.endAge} 歲（{lc.stem}{lc.branch} 大運，評分 {lc.score} 分）：建議加強保健、定期體檢、作息規律。");
+            }
+            else
+            {
+                sb.AppendLine($"  大運中忌神（{jiShenElem}）整體影響尚可，無特別突出的高風險期。");
+                sb.AppendLine("  維持健康習慣，定期保健即可。");
+            }
+            sb.AppendLine();
+            sb.AppendLine("（以上為命理保健提醒，非醫療診斷，如有不適請就醫）");
+
+            return sb.ToString();
+        }
+
+        private static string KbBodyStrengthShort(double bodyPct) => bodyPct switch
+        {
+            >= 70 => "極旺",
+            >= 55 => "旺",
+            >= 40 => "適中",
+            >= 25 => "偏弱",
+            _     => "弱"
+        };
 
         // === Lf Text Helpers ===
 
