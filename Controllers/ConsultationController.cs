@@ -1552,6 +1552,90 @@ namespace Ecanapi.Controllers
             }
         }
 
+        [HttpGet("analyze-yudongzi")]
+        [Authorize]
+        public async Task<IActionResult> GetYudongziAnalysis()
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            if (identity != "adam4taiwan@gmail.com")
+                return StatusCode(403, new { error = "此功能僅限管理員使用" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            try
+            {
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                string yStemSS   = LfPillarStemSS(yearP);
+                string mStemSS   = LfPillarStemSS(monthP);
+                string hStemSS   = LfPillarStemSS(timeP);
+                string yBranchSS = LfPillarBranchMainSS(yearP);
+                string mBranchSS = LfPillarBranchMainSS(monthP);
+                string dBranchSS = LfPillarBranchMainSS(dayP);
+                string hBranchSS = LfPillarBranchMainSS(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender    = user.BirthGender ?? 1;
+                var luckCycles = LfExtractLuckCycles(root);
+
+                string dmElem  = KbStemToElement(dStem);
+                var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+                string season  = LfGetSeason(mBranch);
+                string seaLabel = LfGetSeasonLabel(mBranch);
+
+                var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+
+                var scored = luckCycles.Select(lc =>
+                {
+                    int sc = LfCalcLuckScore(lc.stem, lc.branch, yongShenElem, fuYiElem, jiShenElem, season, branches, dStem);
+                    return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
+                }).ToList();
+
+                string report = LfBuildYudongziReport(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
+                    pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
+                    scored, gender, birthYear);
+
+                // 管理員免費，不扣點
+                return Ok(new { result = report, remainingPoints = user.Points });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "玉洞子命書失敗 User={User}", identity);
+                return StatusCode(500, new { error = "玉洞子命書生成失敗，請稍後再試", details = ex.Message });
+            }
+        }
+
         // === Dy (大運命書) Endpoint ===
 
         [HttpGet("analyze-daiyun")]
@@ -2545,39 +2629,117 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向的事情，尤其在中凶/大凶運期間。");
             sb.AppendLine();
 
-            // === Ch.13 事業格局鑑定（過三關方法論）===
-            sb.AppendLine("【第十三章：事業格局鑑定】");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
+            return sb.ToString();
+        }
+
+        // === 玉洞子命書（八章版，管理員內部）===
+
+        private static string LfBuildYudongziReport(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string bodyLabel,
+            string season, string seaLabel, string pattern, string yongShenElem, string fuYiElem,
+            string yongReason, string jiShenElem,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
+            int gender, int birthYear)
+        {
+            var sb = new StringBuilder();
+            string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+            string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
+            string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+
+            sb.AppendLine("=================================================================");
+            sb.AppendLine("                      玉 洞 子 命 書");
+            sb.AppendLine("=================================================================");
+            sb.AppendLine();
+
+            // === Ch.1 命盤基本資訊 ===
+            sb.AppendLine("【第一章：命盤基本資訊】");
+            sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
+            sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
+            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
+            sb.AppendLine($"日主：{dStem}（{dmElem}）");
+            if (scored.Count > 0)
+                sb.AppendLine($"大運起運：{scored[0].startAge} 歲，共 {scored.Count} 步大運");
+            sb.AppendLine();
+
+            // === Ch.2 命局體性 ===
+            sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
+            sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
+            if (seaLabel == "寒凍")
+                sb.AppendLine("最喜：丙丁巳午火暖局。最忌：壬癸亥子水助寒。調候急用：丙丁火。");
+            else if (seaLabel == "炎熱")
+                sb.AppendLine("最喜：壬癸亥子水消暑，庚辛申酉金。最忌：丙丁巳午火助熱。調候急用：壬癸水。");
+            else
+                sb.AppendLine("體性溫和，以日主強弱論用神，無需特別調候。");
+            sb.AppendLine();
+
+            // === Ch.3 日主強弱 ===
+            sb.AppendLine("【第三章：日主強弱判定】");
+            sb.AppendLine($"日干 {dStem}（{dmElem}），月令 {mBranch}（{season}季）。");
+            sb.AppendLine($"五行分布：{wx}");
+            double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%");
+            sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
+            sb.AppendLine();
+
+            // === Ch.4 格局與用神 ===
+            sb.AppendLine("【第四章：格局與用神判定】");
+            sb.AppendLine($"格局：【{pattern}】");
+            sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
+            sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
+            if (fuYiElem != yongShenElem)
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+            string tuneElemDisp = season == "冬" ? "火" : season == "夏" ? "水" : "";
+            if (!string.IsNullOrEmpty(tuneElemDisp) && tuneElemDisp != yongShenElem && tuneElemDisp != fuYiElem)
+                sb.AppendLine($"調候喜神：【{tuneElemDisp}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
+            string jiYongElemDisp = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+            sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
+            if (!string.IsNullOrEmpty(jiYongElemDisp) && jiYongElemDisp != jiShenElem)
+                sb.AppendLine($"次忌(△忌)：{jiYongElemDisp}，天干 {LfElemStems(jiYongElemDisp)}，地支 {LfElemBranches(jiYongElemDisp)}（克用神{yongShenElem}）");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine();
+            sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
+            sb.AppendLine();
+
+            // === Ch.5 事業格局鑑定 ===
+            sb.AppendLine("【第五章：事業格局鑑定】");
             sb.AppendLine();
             sb.AppendLine(KbSanmenCareer(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing));
 
-            // === Ch.14 六親緣分·婚姻深度鑑定 ===
-            sb.AppendLine("【第十四章：六親緣分·婚姻深度鑑定】");
+            // === Ch.6 六親緣分·婚姻深度鑑定 ===
+            sb.AppendLine("【第六章：六親緣分·婚姻深度鑑定】");
             sb.AppendLine();
             sb.AppendLine(KbSanmenSixRelatives(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing, gender, birthYear, scored));
 
-            // === Ch.15 疾厄壽元鑑定 ===
-            sb.AppendLine("【第十五章：疾厄壽元鑑定】");
+            // === Ch.7 疾厄壽元鑑定 ===
+            sb.AppendLine("【第七章：疾厄壽元鑑定】");
             sb.AppendLine();
             sb.AppendLine(KbSanmenHealthLongevity(
                 yStem, mStem, hStem, yBranch, mBranch, dBranch, hBranch,
                 dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
                 wuXing, season, seaLabel, scored));
 
-            // === Ch.16 居家風水鑑定 ===
-            sb.AppendLine("【第十六章：居家風水鑑定】");
+            // === Ch.8 居家風水鑑定 ===
+            sb.AppendLine("【第八章：居家風水鑑定】");
             sb.AppendLine();
             sb.AppendLine(KbSanmenFengShui(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 dmElem, bodyPct, yongShenElem, jiShenElem, wuXing, scored));
 
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
+            sb.AppendLine("命理大師：玉洞子 | 玉洞子命書 v1.0（內部版）");
             return sb.ToString();
         }
 
