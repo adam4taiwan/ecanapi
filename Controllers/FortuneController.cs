@@ -75,6 +75,9 @@ namespace Ecanapi.Controllers
                 int gender = user.BirthGender ?? 1;
                 string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
                 int age = today.Year - birthYear;
+                bool geminiSkipGanQing = age < 16 || age >= 75;
+                string geminiGanQingLine = geminiSkipGanQing ? "" : "【感情】具體斷語，20字以內，直接說吉或凶及原因\n";
+                string geminiAgeNote = GetGeminiAgeNote(age);
 
                 prompt = $@"你是命理鑑定大師『玉洞子』。請根據命主生辰與今日干支，給出簡潔有力的今日運勢指引。
 
@@ -82,7 +85,7 @@ namespace Ecanapi.Controllers
 生辰：{birthYear}年{birthMonth}月{birthDay}日 {birthHour}時
 性別：{genderText}
 今年歲數：約 {age} 歲
-
+{geminiAgeNote}
 【今日資訊】
 日期：{todayDateStr}
 日柱干支：{todayGanZhi}
@@ -95,8 +98,7 @@ namespace Ecanapi.Controllers
 
 【財運】具體斷語，20字以內，直接說吉或凶及原因
 【事業】具體斷語，20字以內，直接說吉或凶及原因
-【感情】具體斷語，20字以內，直接說吉或凶及原因
-【健康】具體斷語，20字以內，點出需注意部位
+{geminiGanQingLine}【健康】具體斷語，20字以內，點出需注意部位
 
 【今日提醒】一句可執行的建議（20字以內）
 
@@ -192,6 +194,10 @@ namespace Ecanapi.Controllers
             if (cached != null)
                 return Ok(new { content = cached.Content, date = FormatChineseDate(today), cached = true });
 
+            // 載入用戶取得年齡（供年齡適切性過濾）
+            var kbUser = await _context.Users.FindAsync(userId);
+            int kbAge = (kbUser?.BirthYear != null) ? today.Year - kbUser.BirthYear.Value : 30;
+
             // 計算今日日柱干支
             string ganZhi = GetGanZhi(today);
             string tianGan = ganZhi[..1];   // e.g. 壬
@@ -234,9 +240,11 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"【總評】{summary}");
             sb.AppendLine();
 
-            // 財運/事業/感情/健康：以日干規則為主
+            // 財運/事業/感情/健康（感情視年齡過濾）
+            bool kbSkipGanQing = kbAge < 16 || kbAge >= 75;
             foreach (var domain in new[] { "財運", "事業", "感情", "健康" })
             {
+                if (domain == "感情" && kbSkipGanQing) continue;
                 if (gan.TryGetValue(domain, out var val))
                     sb.AppendLine($"【{domain}】{val}");
             }
@@ -284,6 +292,7 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "請先填寫生辰資料，才能取得個人化運勢" });
 
             var today = DateTime.UtcNow.Date;
+            int currentAge = today.Year - user.BirthYear!.Value;
 
             // 檢查今日是否已有快取（personal 版用不同 key 避免與 daily-kb 快取衝突）
             var cacheKey = $"personal:{userId}";
@@ -325,6 +334,14 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"=== {todayDateStr} 今日運勢 ===");
             sb.AppendLine();
 
+            // 年齡適切性提示
+            string ageHint = GetDailyAgeTopicHint(currentAge);
+            if (!string.IsNullOrEmpty(ageHint))
+            {
+                sb.AppendLine(ageHint);
+                sb.AppendLine();
+            }
+
             // 通用日柱總評
             var gan = ganRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
             var zhi = zhiRules.ToDictionary(r => r.ConditionText ?? "", r => r.ResultText);
@@ -339,9 +356,13 @@ namespace Ecanapi.Controllers
             if (summary.Length > 0) sb.AppendLine($"【總評】{summary}");
             sb.AppendLine();
 
-            // 財運/事業/感情/健康
+            // 財運/事業/感情/健康（感情視年齡過濾）
+            bool skipGanQing = currentAge < 16 || currentAge >= 75;
             foreach (var domain in new[] { "財運", "事業", "感情", "健康" })
+            {
+                if (domain == "感情" && skipGanQing) continue;
                 if (gan.TryGetValue(domain, out var val)) sb.AppendLine($"【{domain}】{val}");
+            }
 
             sb.AppendLine();
 
@@ -389,7 +410,6 @@ namespace Ecanapi.Controllers
                     if (root.TryGetProperty("baziLuckCycles", out var luckEl) ||
                         root.TryGetProperty("BaziLuckCycles", out luckEl))
                     {
-                        int currentAge = today.Year - user.BirthYear!.Value;
                         foreach (var cycle in luckEl.EnumerateArray())
                         {
                             int startAge = cycle.TryGetProperty("startAge", out var sa) ? sa.GetInt32() : 0;
@@ -530,6 +550,26 @@ namespace Ecanapi.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { content, date = FormatChineseDate(today), cached = false, riZhu, shiShen });
+        }
+
+        /// <summary>依年齡取得今日運勢開頭提示（對應 ConsultationController.LfAgeTopicHint）</summary>
+        private static string GetDailyAgeTopicHint(int age)
+        {
+            if (age <= 15) return "【年齡提示】學習成長期，今日重點：學業、家庭支持、品格養成。";
+            if (age <= 25) return "【年齡提示】青年起步期，今日重點：事業初探、感情萌芽。";
+            if (age <= 60) return "";
+            if (age <= 70) return "【年齡提示】熟齡階段，今日重點：健康養護、財庫穩定、子女孫輩。";
+            if (age <= 80) return "【年齡提示】長者階段，今日重點：健康長壽、財庫守護。";
+            return "【年齡提示】高齡養生，今日重點：健康養生、財庫守護。";
+        }
+
+        /// <summary>依年齡取得 Gemini prompt 中的年齡注意事項</summary>
+        private static string GetGeminiAgeNote(int age)
+        {
+            if (age <= 15) return "注意事項：命主年幼，禁止談感情婚姻，著重學業、家庭庇蔭、品格養成。";
+            if (age >= 75) return "注意事項：命主高齡，禁止談感情婚姻，著重健康長壽、財庫守護。";
+            if (age >= 61) return "注意事項：命主熟齡，著重健康財庫，感情部分可簡略。";
+            return "";
         }
 
         private static readonly Dictionary<string, string> LiuShenFullMap = new()
