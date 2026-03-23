@@ -201,6 +201,45 @@ namespace Ecanapi.Controllers
             return Ok(new { message = $"{product.Name} 免費額度已兌換" });
         }
 
+        // ─── Dev-only: create a test subscription (admin only) ───────────────
+        // POST /api/Subscription/dev-create?planCode=BRONZE|SILVER|GOLD
+        [Authorize]
+        [HttpPost("dev-create")]
+        public async Task<IActionResult> DevCreateSubscription([FromQuery] string planCode = "SILVER")
+        {
+            // Only available in development environment
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+            if (env != "Development")
+                return NotFound();
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var plan = await _context.MembershipPlans.FirstOrDefaultAsync(p => p.Code == planCode && p.IsActive);
+            if (plan == null) return BadRequest(new { message = $"Plan {planCode} not found" });
+
+            var now = DateTime.UtcNow;
+            // Remove existing active subscriptions for this user
+            var existing = await _context.UserSubscriptions
+                .Where(s => s.UserId == userId && s.Status == "active")
+                .ToListAsync();
+            foreach (var s in existing) s.Status = "cancelled";
+
+            _context.UserSubscriptions.Add(new UserSubscription
+            {
+                UserId = userId,
+                PlanId = plan.Id,
+                StartDate = now,
+                ExpiryDate = now.AddDays(365),
+                Status = "active",
+                PaymentRef = "DEV_TEST",
+                CreatedAt = now
+            });
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"Test subscription created: {plan.Name}", planCode = plan.Code });
+        }
+
         // ─── Helper to get effective price for a user/product ────────────────
 
         // GET /api/Subscription/price?productCode=BOOK_BAZI
