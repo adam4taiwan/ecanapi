@@ -2926,6 +2926,7 @@ namespace Ecanapi.Controllers
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
             string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+            int currentAge = DateTime.Today.Year - birthYear;
 
             sb.AppendLine("=================================================================");
             sb.AppendLine("                         八 字 命 書");
@@ -2989,12 +2990,31 @@ namespace Ecanapi.Controllers
             int hrSc  = LfCalcRelativeScore(hStemSS, hBranchSS, yongShenElem, jiShenElem, hStem, hBranch, branches);
             sb.AppendLine($"年柱·出身祖業（{yStem}{yBranch}）：緣分 {yrSc} 分（{LfRelativeLevel(yrSc)}）");
             sb.AppendLine($"  {LfYearDesc(yrSc)}");
-            sb.AppendLine($"月柱·父母兄弟（{mStem}{mBranch}）：緣分 {moSc} 分（{LfRelativeLevel(moSc)}）");
-            sb.AppendLine($"  {LfMonthDesc(moSc)}");
-            sb.AppendLine($"日支·配偶緣分（{dBranch}）：緣分 {daySc} 分（{LfRelativeLevel(daySc)}）");
-            sb.AppendLine($"  {LfDayDesc(daySc, gender)}");
-            sb.AppendLine($"時柱·子女晚運（{hStem}{hBranch}）：緣分 {hrSc} 分（{LfRelativeLevel(hrSc)}）");
-            sb.AppendLine($"  {LfHourDesc(hrSc)}");
+            if (!LfShouldSkipPalace("父母宮", currentAge))
+            {
+                sb.AppendLine($"月柱·父母兄弟（{mStem}{mBranch}）：緣分 {moSc} 分（{LfRelativeLevel(moSc)}）");
+                sb.AppendLine($"  {LfMonthDesc(moSc)}");
+            }
+            else
+            {
+                sb.AppendLine($"月柱·{LfPalaceAgeLabel("父母宮", currentAge)}（{mStem}{mBranch}）：緣分 {moSc} 分（{LfRelativeLevel(moSc)}）");
+                sb.AppendLine($"  {LfMonthDesc(moSc)}");
+            }
+            if (!LfShouldSkipPalace("夫妻宮", currentAge))
+            {
+                sb.AppendLine($"日支·配偶緣分（{dBranch}）：緣分 {daySc} 分（{LfRelativeLevel(daySc)}）");
+                sb.AppendLine($"  {LfDayDesc(daySc, gender)}");
+            }
+            if (!LfShouldSkipPalace("子女宮", currentAge))
+            {
+                sb.AppendLine($"時柱·子女晚運（{hStem}{hBranch}）：緣分 {hrSc} 分（{LfRelativeLevel(hrSc)}）");
+                sb.AppendLine($"  {LfHourDesc(hrSc)}");
+            }
+            else
+            {
+                sb.AppendLine($"時柱·{LfPalaceAgeLabel("子女宮", currentAge)}（{hStem}{hBranch}）：緣分 {hrSc} 分（{LfRelativeLevel(hrSc)}）");
+                sb.AppendLine($"  {LfHourDesc(hrSc)}");
+            }
             string rules = LfApplyRules(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, wuXing, gender, pattern, bodyPct, branches);
@@ -3019,13 +3039,16 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.8 婚姻感情 ===
-            sb.AppendLine("【第八章：婚姻感情】");
-            string spouseElem = gender == 1 ? LfElemOvercome.GetValueOrDefault(dmElem,"") : LfElemOvercomeBy.GetValueOrDefault(dmElem,"");
-            double spousePct  = wuXing.GetValueOrDefault(spouseElem, 0);
-            string spouseStar = gender == 1 ? "妻星（財）" : "夫星（官殺）";
-            sb.AppendLine($"{spouseStar}五行：{spouseElem}，占命局 {spousePct:F0}%。");
-            sb.AppendLine(LfMarriageDesc(spousePct, dBranch, dStem, dmElem, gender, branches));
-            sb.AppendLine();
+            if (!LfShouldSkipPalace("夫妻宮", currentAge))
+            {
+                sb.AppendLine("【第八章：婚姻感情】");
+                string spouseElem = gender == 1 ? LfElemOvercome.GetValueOrDefault(dmElem,"") : LfElemOvercomeBy.GetValueOrDefault(dmElem,"");
+                double spousePct  = wuXing.GetValueOrDefault(spouseElem, 0);
+                string spouseStar = gender == 1 ? "妻星（財）" : "夫星（官殺）";
+                sb.AppendLine($"{spouseStar}五行：{spouseElem}，占命局 {spousePct:F0}%。");
+                sb.AppendLine(LfMarriageDesc(spousePct, dBranch, dStem, dmElem, gender, branches));
+                sb.AppendLine();
+            }
 
             // === Ch.9 健康壽元 ===
             sb.AppendLine("【第九章：健康壽元】");
@@ -3035,6 +3058,10 @@ namespace Ecanapi.Controllers
 
             // === Ch.10 大運逐運 ===
             sb.AppendLine("【第十章：大運逐運論斷（百分制評分）】");
+            {
+                string ageHint = LfAgeTopicHint(currentAge);
+                if (!string.IsNullOrEmpty(ageHint)) sb.AppendLine(ageHint);
+            }
             string[] branchSSArr = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
             foreach (var c in scored)
             {
@@ -3101,6 +3128,7 @@ namespace Ecanapi.Controllers
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
             string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+            int currentAgeYdz = DateTime.Today.Year - birthYear;
 
             sb.AppendLine("=================================================================");
             sb.AppendLine("                      玉 洞 子 命 書");
@@ -3167,6 +3195,10 @@ namespace Ecanapi.Controllers
             // === Ch.6 六親緣分·婚姻深度鑑定 ===
             sb.AppendLine("【第六章：六親緣分·婚姻深度鑑定】");
             sb.AppendLine();
+            {
+                string ageHintYdz = LfAgeTopicHint(currentAgeYdz);
+                if (!string.IsNullOrEmpty(ageHintYdz)) sb.AppendLine(ageHintYdz);
+            }
             sb.AppendLine(KbSanmenSixRelatives(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
