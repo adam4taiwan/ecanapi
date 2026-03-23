@@ -65,7 +65,11 @@ namespace Ecanapi.Controllers
                 _ => 50
             };
 
-            if (user.Points < cost) return BadRequest(new { error = $"點數不足，此功能需要 {cost} 點" });
+            string analyzeProductType = request.Type is "問事" ? "consultation" : "book";
+            decimal analyzeDiscountRate = await GetSubscriptionDiscountRate(user.Id, analyzeProductType);
+            int effectiveCost = (int)Math.Ceiling(cost * analyzeDiscountRate);
+
+            if (user.Points < effectiveCost) return BadRequest(new { error = $"點數不足，此功能需要 {effectiveCost} 點" });
 
             try
             {
@@ -87,7 +91,7 @@ namespace Ecanapi.Controllers
 
                 string aiResult = await CallGeminiApi(prompt);
 
-                user.Points -= cost;
+                user.Points -= effectiveCost;
                 await _context.SaveChangesAsync();
 
                 return Ok(new { result = aiResult, remainingPoints = user.Points });
@@ -342,8 +346,10 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "no_chart" });
 
             const int cost = 50;
-            if (user.Points < cost)
-                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+            decimal kbDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
+            int kbEffectiveCost = (int)Math.Ceiling(cost * kbDiscountRate);
+            if (user.Points < kbEffectiveCost)
+                return BadRequest(new { error = $"點數不足，需要 {kbEffectiveCost} 點" });
 
             try
             {
@@ -691,7 +697,7 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine("-----------------------------------------------------------------");
                 sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v3.0");
 
-                user.Points -= cost;
+                user.Points -= kbEffectiveCost;
                 await _context.SaveChangesAsync();
 
                 return Ok(new { result = sb_out.ToString(), remainingPoints = user.Points });
@@ -1427,8 +1433,10 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "no_chart" });
 
             const int cost = 50;
-            if (user.Points < cost)
-                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+            decimal lfDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
+            int lfEffectiveCost = (int)Math.Ceiling(cost * lfDiscountRate);
+            if (user.Points < lfEffectiveCost)
+                return BadRequest(new { error = $"點數不足，需要 {lfEffectiveCost} 點" });
 
             try
             {
@@ -1541,7 +1549,7 @@ namespace Ecanapi.Controllers
                     }).ToArray()
                 };
 
-                user.Points -= cost;
+                user.Points -= lfEffectiveCost;
                 await _context.SaveChangesAsync();
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
             }
@@ -1712,8 +1720,10 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "no_chart" });
 
             int cost = years switch { 5 => 150, 10 => 200, 20 => 250, 30 => 300, _ => 500 };
-            if (user.Points < cost)
-                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+            decimal dyDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
+            int dyEffectiveCost = (int)Math.Ceiling(cost * dyDiscountRate);
+            if (user.Points < dyEffectiveCost)
+                return BadRequest(new { error = $"點數不足，需要 {dyEffectiveCost} 點" });
 
             try
             {
@@ -1863,7 +1873,7 @@ namespace Ecanapi.Controllers
                     ziweiFullContent, chartStars,
                     gender, birthYear, years, branches, dStem);
 
-                user.Points -= cost;
+                user.Points -= dyEffectiveCost;
                 await _context.SaveChangesAsync();
                 return Ok(new { result = report, annualForecasts, baziTable, luckCycles = scoredCycles, remainingPoints = user.Points });
             }
@@ -4350,8 +4360,10 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "no_chart" });
 
             const int cost = 100;
-            if (user.Points < cost)
-                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+            decimal lnDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
+            int lnEffectiveCost = (int)Math.Ceiling(cost * lnDiscountRate);
+            if (user.Points < lnEffectiveCost)
+                return BadRequest(new { error = $"點數不足，需要 {lnEffectiveCost} 點" });
 
             try
             {
@@ -4518,7 +4530,7 @@ namespace Ecanapi.Controllers
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
                     branches, dStem);
 
-                user.Points -= cost;
+                user.Points -= lnEffectiveCost;
                 await _context.SaveChangesAsync();
                 return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles, remainingPoints = user.Points });
             }
@@ -5139,8 +5151,10 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "no_chart" });
 
             const int cost = 20;
-            if (user.Points < cost)
-                return BadRequest(new { error = $"點數不足，需要 {cost} 點" });
+            decimal topicDiscountRate = await GetSubscriptionDiscountRate(user.Id, "consultation");
+            int topicEffectiveCost = (int)Math.Ceiling(cost * topicDiscountRate);
+            if (user.Points < topicEffectiveCost)
+                return BadRequest(new { error = $"點數不足，需要 {topicEffectiveCost} 點" });
 
             try
             {
@@ -5209,7 +5223,7 @@ namespace Ecanapi.Controllers
                 string prompt = BuildTopicPrompt(userChart.ChartJson, topic, kbFacts);
                 string aiResult = await CallGeminiApi(prompt);
 
-                user.Points -= cost;
+                user.Points -= topicEffectiveCost;
                 await _context.SaveChangesAsync();
 
                 return Ok(new { result = aiResult, remainingPoints = user.Points });
@@ -5219,6 +5233,30 @@ namespace Ecanapi.Controllers
                 _logger.LogError(ex, "主題命書失敗 Topic={Topic} User={User}", topic, identity);
                 return StatusCode(500, new { error = "主題命書生成失敗，請稍後再試", details = ex.Message });
             }
+        }
+
+        // ── Subscription discount helper ────────────────────────────────────
+        // Returns discount rate (e.g. 0.8 for 20% off) for the given product type.
+        // Returns 1.0 if no active subscription or no matching discount benefit.
+        private async Task<decimal> GetSubscriptionDiscountRate(string userId, string productType)
+        {
+            var now = DateTime.UtcNow;
+            var sub = await _context.UserSubscriptions
+                .Where(s => s.UserId == userId && s.Status == "active" && s.ExpiryDate > now)
+                .OrderByDescending(s => s.ExpiryDate)
+                .Include(s => s.Plan)
+                .ThenInclude(p => p.Benefits)
+                .FirstOrDefaultAsync();
+
+            if (sub == null) return 1.0m;
+
+            var discount = sub.Plan.Benefits.FirstOrDefault(b =>
+                b.BenefitType == "discount" && b.ProductType == productType);
+
+            if (discount != null && decimal.TryParse(discount.BenefitValue, out var rate))
+                return rate;
+
+            return 1.0m;
         }
     }
 
