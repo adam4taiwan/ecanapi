@@ -1474,7 +1474,7 @@ namespace Ecanapi.Controllers
                 string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
-                var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
@@ -1616,7 +1616,7 @@ namespace Ecanapi.Controllers
                 string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
-                var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
@@ -1759,7 +1759,7 @@ namespace Ecanapi.Controllers
                 string season    = LfGetSeason(mBranch);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
 
-                var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
@@ -2225,27 +2225,128 @@ namespace Ecanapi.Controllers
         private static readonly HashSet<string> LfWuXingGeJuSet =
             new() { "曲直格", "炎上格", "稼穡格", "從革格", "潤下格" };
 
-        private static (string pattern, string yongShenElem, string fuYiElem, string reason) LfDetectGeJuAndYongShen(
+        // 十天干調候用神表：dStem → mBranch → [調候干, 優先序從高到低]
+        private static readonly Dictionary<string, Dictionary<string, string[]>> LfTiaoHou = new()
+        {
+            { "甲", new() {
+                { "寅", new[] { "丙","癸" } }, { "卯", new[] { "庚","丙","丁" } }, { "辰", new[] { "庚","丁","壬" } },
+                { "巳", new[] { "癸","丁","庚" } }, { "午", new[] { "癸","丁","庚" } }, { "未", new[] { "癸","丁","庚" } },
+                { "申", new[] { "庚","丁","丙" } }, { "酉", new[] { "庚","丁","丙" } }, { "戌", new[] { "庚","丁","丙" } },
+                { "亥", new[] { "丙" } }, { "子", new[] { "丙" } }, { "丑", new[] { "丙" } },
+            }},
+            { "乙", new() {
+                { "寅", new[] { "丙","癸" } }, { "卯", new[] { "丙","癸" } }, { "辰", new[] { "癸","丙" } },
+                { "巳", new[] { "癸","丙" } }, { "午", new[] { "癸","丙" } }, { "未", new[] { "癸","丙" } },
+                { "申", new[] { "癸","丙" } }, { "酉", new[] { "癸","丙" } }, { "戌", new[] { "癸","丙" } },
+                { "亥", new[] { "丙" } }, { "子", new[] { "丙" } }, { "丑", new[] { "丙" } },
+            }},
+            { "丙", new() {
+                { "寅", new[] { "壬","庚" } }, { "卯", new[] { "壬","庚" } }, { "辰", new[] { "壬","甲" } },
+                { "巳", new[] { "壬","庚" } }, { "午", new[] { "壬","庚" } }, { "未", new[] { "壬","庚" } },
+                { "申", new[] { "壬","甲" } }, { "酉", new[] { "壬","甲" } }, { "戌", new[] { "壬","甲" } },
+                { "亥", new[] { "甲","庚" } }, { "子", new[] { "甲","庚" } }, { "丑", new[] { "甲","庚" } },
+            }},
+            { "丁", new() {
+                { "寅", new[] { "庚","甲" } }, { "卯", new[] { "庚","甲" } }, { "辰", new[] { "甲","庚" } },
+                { "巳", new[] { "壬","庚" } }, { "午", new[] { "壬","庚" } }, { "未", new[] { "壬","庚" } },
+                { "申", new[] { "甲","庚" } }, { "酉", new[] { "甲","庚" } }, { "戌", new[] { "甲","庚" } },
+                { "亥", new[] { "甲","庚" } }, { "子", new[] { "甲","庚" } }, { "丑", new[] { "甲","庚" } },
+            }},
+            { "戊", new() {
+                { "寅", new[] { "丙","甲","癸" } }, { "卯", new[] { "丙","甲","癸" } }, { "辰", new[] { "甲","丙","癸" } },
+                { "巳", new[] { "癸","丙" } }, { "午", new[] { "癸","丙" } }, { "未", new[] { "癸","丙" } },
+                { "申", new[] { "丙","癸" } }, { "酉", new[] { "丙","癸" } }, { "戌", new[] { "丙","癸" } },
+                { "亥", new[] { "丙","甲" } }, { "子", new[] { "丙","甲" } }, { "丑", new[] { "丙","甲" } },
+            }},
+            { "己", new() {
+                { "寅", new[] { "丙","庚" } }, { "卯", new[] { "甲","癸","丙" } }, { "辰", new[] { "丙","癸","甲" } },
+                { "巳", new[] { "癸","丙" } }, { "午", new[] { "癸","丙" } }, { "未", new[] { "癸","丙" } },
+                { "申", new[] { "丙","癸" } }, { "酉", new[] { "丙","癸" } }, { "戌", new[] { "丙","癸" } },
+                { "亥", new[] { "丙","甲" } }, { "子", new[] { "丙","甲" } }, { "丑", new[] { "丙","甲" } },
+            }},
+            { "庚", new() {
+                { "寅", new[] { "丙","甲","己" } }, { "卯", new[] { "丁","甲","庚" } }, { "辰", new[] { "甲","丁" } },
+                { "巳", new[] { "壬","癸" } }, { "午", new[] { "壬","癸" } }, { "未", new[] { "壬","癸" } },
+                { "申", new[] { "丁","甲" } }, { "酉", new[] { "丁","甲" } }, { "戌", new[] { "丁","甲" } },
+                { "亥", new[] { "丙","丁" } }, { "子", new[] { "丙","丁" } }, { "丑", new[] { "丙","丁" } },
+            }},
+            { "辛", new() {
+                { "寅", new[] { "己","壬","庚" } }, { "卯", new[] { "壬","甲" } }, { "辰", new[] { "壬","甲" } },
+                { "巳", new[] { "壬","癸" } }, { "午", new[] { "壬","癸" } }, { "未", new[] { "壬","癸" } },
+                { "申", new[] { "壬","甲" } }, { "酉", new[] { "壬","甲" } }, { "戌", new[] { "壬","甲" } },
+                { "亥", new[] { "丙","壬" } }, { "子", new[] { "丙","壬" } }, { "丑", new[] { "丙","壬" } },
+            }},
+            { "壬", new() {
+                { "寅", new[] { "庚","丙" } }, { "卯", new[] { "庚","辛" } }, { "辰", new[] { "甲","庚" } },
+                { "巳", new[] { "辛","壬" } }, { "午", new[] { "辛","壬" } }, { "未", new[] { "辛","壬" } },
+                { "申", new[] { "丁","甲" } }, { "酉", new[] { "丁","甲" } }, { "戌", new[] { "丁","甲" } },
+                { "亥", new[] { "丙","丁" } }, { "子", new[] { "丙","丁" } }, { "丑", new[] { "丙","丁" } },
+            }},
+            { "癸", new() {
+                { "寅", new[] { "辛","丙" } }, { "卯", new[] { "庚","辛" } }, { "辰", new[] { "丙","庚","甲" } },
+                { "巳", new[] { "庚","辛" } }, { "午", new[] { "庚","辛" } }, { "未", new[] { "庚","辛" } },
+                { "申", new[] { "丁","甲" } }, { "酉", new[] { "丁","甲" } }, { "戌", new[] { "丁","甲" } },
+                { "亥", new[] { "丙","丁" } }, { "子", new[] { "丙","丁" } }, { "丑", new[] { "丙","丁" } },
+            }},
+        };
+
+        // 計算天干在四柱地支中的根氣總分（本氣=3，中氣=2，餘氣=1）
+        private static int LfStemRootScore(string stem, string[] allBranches)
+        {
+            int score = 0;
+            string stemElem = KbStemToElement(stem);
+            foreach (var branch in allBranches)
+            {
+                if (!LfBranchHiddenRatio.TryGetValue(branch, out var hidden)) continue;
+                for (int i = 0; i < hidden.Count; i++)
+                {
+                    if (KbStemToElement(hidden[i].stem) == stemElem)
+                    {
+                        score += Math.Max(0, 3 - i); // 本氣=3, 中氣=2, 餘氣=1
+                        break;
+                    }
+                }
+            }
+            return score;
+        }
+
+        private static (string pattern, string yongShenElem, string fuYiElem, string reason, string tiaoHouElem) LfDetectGeJuAndYongShen(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
             string dmElem, Dictionary<string, double> wuXing, double bodyPct, string season)
         {
-            // 取格四步驟：月支本氣透干 → 藏干透干 → 皆不透取本氣 → 比劫改外格
-            // Rule 1: 月支本氣透出天干 → 優先取格
-            // Rule 2: 本氣未透，藏干透出 → 取透干為格（兩干並透取有力者）
-            // Rule 3: 皆不透 → 取月支本氣（最有力藏干）
+            // 取格優先順序：透干 → [調候優先 > 根氣最強] → 皆不透取根氣最強藏干 → 比劫改外格
             var allHeavenStems = new[] { yStem, mStem, hStem };
+            var allBranches    = new[] { yBranch, mBranch, dBranch, hBranch };
+
+            // 取得調候用神表（dStem × mBranch）
+            string[] tiaoHouList = LfTiaoHou.TryGetValue(dStem, out var th1) && th1.TryGetValue(mBranch, out var th2)
+                ? th2 : Array.Empty<string>();
+            // 調候補用神元素（首位調候干的五行，供命書標注）
+            string tiaoHouElem = tiaoHouList.Length > 0 ? KbStemToElement(tiaoHouList[0]) : "";
+
             string chosenStem = "";
             if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                if (allHeavenStems.Contains(mH[0].stem))
-                    chosenStem = mH[0].stem;  // 本氣透干
+                // 找出所有「透干」的月支藏干
+                var transparentHidden = mH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
+
+                if (transparentHidden.Count == 0)
+                {
+                    // 無透干：取月支藏干中根氣最強者
+                    chosenStem = mH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                }
+                else if (transparentHidden.Count == 1)
+                {
+                    // 單一透干：直接取
+                    chosenStem = transparentHidden[0].stem;
+                }
                 else
                 {
-                    var secondaryTransparent = mH.Skip(1).FirstOrDefault(h => allHeavenStems.Contains(h.stem));
-                    chosenStem = secondaryTransparent != default
-                        ? secondaryTransparent.stem  // 藏干透干
-                        : mH[0].stem;                // 皆不透，取本氣
+                    // 多干透出：調候優先，其次根氣
+                    string? tiaoHouMatch = tiaoHouList.FirstOrDefault(t => transparentHidden.Any(h => h.stem == t));
+                    chosenStem = tiaoHouMatch
+                        ?? transparentHidden.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
                 }
             }
             string chosenSS = LfStemShiShen(chosenStem, dStem);
@@ -2352,7 +2453,10 @@ namespace Ecanapi.Controllers
 
             if (string.IsNullOrEmpty(yongShenElem)) yongShenElem = dmElem;
             if (string.IsNullOrEmpty(fuYiElem)) fuYiElem = yongShenElem;
-            return (pattern, yongShenElem, fuYiElem, reason);
+            // 附加調候補用神到 reason（若與主用神不同才標注）
+            if (!string.IsNullOrEmpty(tiaoHouElem) && tiaoHouElem != yongShenElem)
+                reason += $"；調候補用：{tiaoHouElem}";
+            return (pattern, yongShenElem, fuYiElem, reason, tiaoHouElem);
         }
 
         private static int LfCalcLuckScore(
@@ -4492,7 +4596,7 @@ namespace Ecanapi.Controllers
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string season    = LfGetSeason(mBranch);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
-                var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
@@ -5274,7 +5378,7 @@ namespace Ecanapi.Controllers
                 double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string season    = LfGetSeason(mBranch);
-                var (pattern, yongShenElem, fuYiElem, _) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, _, _) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
