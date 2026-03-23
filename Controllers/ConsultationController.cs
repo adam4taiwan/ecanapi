@@ -540,6 +540,12 @@ namespace Ecanapi.Controllers
                 // === 組裝命書 ===
                 var sb_out = new StringBuilder();
 
+                // --- 年齡適切性提示（高齡者提醒）---
+                {
+                    string kbAgeHint = LfAgeTopicHint(currentAge);
+                    if (!string.IsNullOrEmpty(kbAgeHint)) sb_out.AppendLine(kbAgeHint);
+                }
+
                 // --- 一、命盤概覽 ---
                 sb_out.AppendLine("=== 一、命盤概覽 ===");
                 sb_out.AppendLine($"姓名：{userName}  陽曆：{KbFormatSolarDate(solarBirth)}  農曆：{lunarBirth}");
@@ -643,26 +649,29 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine();
 
                 // --- 五、婚姻感情 ---
-                sb_out.AppendLine("=== 五、婚姻感情 ===");
-                sb_out.AppendLine("--- 八字婚姻感情論 ---");
-                if (!string.IsNullOrEmpty(aqfx))   sb_out.AppendLine($"【感情特質】{KbStripHtml(aqfx)}");
-                if (!string.IsNullOrEmpty(astroX)) sb_out.AppendLine($"【婚姻論斷】{KbStripHtml(astroX)}");
-                sb_out.AppendLine("--- 紫微婚姻感情論 ---");
-                // 夫妻宮12宮星情 + 宮位四化飛出 + 主星入宮
-                if (!string.IsNullOrEmpty(ziweiSps))     sb_out.AppendLine($"【夫妻宮·{ziweiSpsStar}】{ziweiSps}");
-                if (!string.IsNullOrEmpty(starDescSps))  sb_out.AppendLine($"【夫妻星性】{starDescSps}");
-                if (!string.IsNullOrEmpty(spsLuContent)) sb_out.AppendLine($"【夫妻宮化祿飛{spsLuPalace}】{spsLuContent}");
-                if (!string.IsNullOrEmpty(spsJiContent)) sb_out.AppendLine($"【夫妻宮化忌飛{spsJiPalace}】{spsJiContent}");
-                // 先天四化入夫妻宮
-                if (!string.IsNullOrEmpty(siHuaLu) && siHuaLuPalace == "夫妻宮")
-                    sb_out.AppendLine($"【先天化祿加成·夫妻宮】{siHuaLu}");
-                if (!string.IsNullOrEmpty(siHuaJi) && siHuaJiPalace == "夫妻宮")
-                    sb_out.AppendLine($"【先天化忌警示·夫妻宮】{siHuaJi}");
-                bool ch5BaziHas  = !string.IsNullOrEmpty(aqfx) || !string.IsNullOrEmpty(astroX);
-                bool ch5ZiweiHas = !string.IsNullOrEmpty(ziweiSps);
-                if (ch5BaziHas && ch5ZiweiHas) sb_out.AppendLine("【婚姻感情交叉驗證】八字與紫微雙重印證，感情婚姻論斷可信度高。");
-                else if (ch5BaziHas && !ch5ZiweiHas) sb_out.AppendLine("【婚姻感情交叉驗證】八字論據清晰；紫微夫妻宮資料待補充。");
-                sb_out.AppendLine();
+                if (!LfShouldSkipPalace("夫妻宮", currentAge))
+                {
+                    sb_out.AppendLine("=== 五、婚姻感情 ===");
+                    sb_out.AppendLine("--- 八字婚姻感情論 ---");
+                    if (!string.IsNullOrEmpty(aqfx))   sb_out.AppendLine($"【感情特質】{KbStripHtml(aqfx)}");
+                    if (!string.IsNullOrEmpty(astroX)) sb_out.AppendLine($"【婚姻論斷】{KbStripHtml(astroX)}");
+                    sb_out.AppendLine("--- 紫微婚姻感情論 ---");
+                    // 夫妻宮12宮星情 + 宮位四化飛出 + 主星入宮
+                    if (!string.IsNullOrEmpty(ziweiSps))     sb_out.AppendLine($"【夫妻宮·{ziweiSpsStar}】{ziweiSps}");
+                    if (!string.IsNullOrEmpty(starDescSps))  sb_out.AppendLine($"【夫妻星性】{starDescSps}");
+                    if (!string.IsNullOrEmpty(spsLuContent)) sb_out.AppendLine($"【夫妻宮化祿飛{spsLuPalace}】{spsLuContent}");
+                    if (!string.IsNullOrEmpty(spsJiContent)) sb_out.AppendLine($"【夫妻宮化忌飛{spsJiPalace}】{spsJiContent}");
+                    // 先天四化入夫妻宮
+                    if (!string.IsNullOrEmpty(siHuaLu) && siHuaLuPalace == "夫妻宮")
+                        sb_out.AppendLine($"【先天化祿加成·夫妻宮】{siHuaLu}");
+                    if (!string.IsNullOrEmpty(siHuaJi) && siHuaJiPalace == "夫妻宮")
+                        sb_out.AppendLine($"【先天化忌警示·夫妻宮】{siHuaJi}");
+                    bool ch5BaziHas  = !string.IsNullOrEmpty(aqfx) || !string.IsNullOrEmpty(astroX);
+                    bool ch5ZiweiHas = !string.IsNullOrEmpty(ziweiSps);
+                    if (ch5BaziHas && ch5ZiweiHas) sb_out.AppendLine("【婚姻感情交叉驗證】八字與紫微雙重印證，感情婚姻論斷可信度高。");
+                    else if (ch5BaziHas && !ch5ZiweiHas) sb_out.AppendLine("【婚姻感情交叉驗證】八字論據清晰；紫微夫妻宮資料待補充。");
+                    sb_out.AppendLine();
+                }
 
                 // --- 六、健康壽元 ---
                 sb_out.AppendLine("=== 六、健康壽元 ===");
@@ -685,12 +694,22 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine("=== 七、家庭緣份 ===");
                 sb_out.AppendLine("--- 八字家庭緣份論 ---");
                 if (!string.IsNullOrEmpty(astroT)) sb_out.AppendLine($"【兄弟緣份】{KbStripHtml(astroT)}");
-                if (!string.IsNullOrEmpty(astroZ)) sb_out.AppendLine($"【子息緣份】{KbStripHtml(astroZ)}");
+                // 子息緣份：未成年者不談子女
+                if (!LfShouldSkipPalace("子女宮", currentAge) && !string.IsNullOrEmpty(astroZ))
+                    sb_out.AppendLine($"【{LfPalaceAgeLabel("子女宮", currentAge)}緣份】{KbStripHtml(astroZ)}");
                 sb_out.AppendLine("--- 紫微家庭緣份論 ---");
-                if (!string.IsNullOrEmpty(ziweiPar)) sb_out.AppendLine($"【父母宮·{ziweiParStar}】{ziweiPar}");
-                if (!string.IsNullOrEmpty(ziweiCld)) sb_out.AppendLine($"【子女宮·{ziweiCldStar}】{ziweiCld}");
+                // 父母宮：65歲以上改標籤，已在 LfShouldSkipPalace 以 65 為界
+                if (!LfShouldSkipPalace("父母宮", currentAge) && !string.IsNullOrEmpty(ziweiPar))
+                    sb_out.AppendLine($"【{LfPalaceAgeLabel("父母宮", currentAge)}·{ziweiParStar}】{ziweiPar}");
+                if (!LfShouldSkipPalace("子女宮", currentAge) && !string.IsNullOrEmpty(ziweiCld))
+                    sb_out.AppendLine($"【{LfPalaceAgeLabel("子女宮", currentAge)}·{ziweiCldStar}】{ziweiCld}");
                 if (!string.IsNullOrEmpty(siHuaJi) && (siHuaJiPalace == "父母宮" || siHuaJiPalace == "子女宮"))
-                    sb_out.AppendLine($"【先天化忌警示·{siHuaJiPalace}】{siHuaJi}");
+                {
+                    bool jiFatherOk = siHuaJiPalace == "父母宮" && !LfShouldSkipPalace("父母宮", currentAge);
+                    bool jiChildOk  = siHuaJiPalace == "子女宮" && !LfShouldSkipPalace("子女宮", currentAge);
+                    if (jiFatherOk || jiChildOk)
+                        sb_out.AppendLine($"【先天化忌警示·{siHuaJiPalace}】{siHuaJi}");
+                }
                 sb_out.AppendLine();
 
                 // 第八章大運流年已移除（綜合命書不含大運，另由大運命書提供）
