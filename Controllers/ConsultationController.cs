@@ -1477,7 +1477,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var scored = luckCycles.Select(lc =>
                 {
@@ -1619,7 +1619,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var scored = luckCycles.Select(lc =>
                 {
@@ -1762,7 +1762,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
@@ -2138,8 +2138,14 @@ namespace Ecanapi.Controllers
             return false;
         }
 
-        private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct)
+        private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct, string pattern = "")
         {
+            // 五行從旺格/從旺格：忌神=克日干之元素（破格之神）
+            if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
+                return LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            // 從強格：忌神=印/比劫（不可幫身對抗旺勢）
+            if (pattern == "從強格")
+                return dmElem;  // 比劫（自身力量，逆旺勢）
             // 身弱：大忌 = 克我（官殺），直接傷身
             // 身強：大忌 = 印星（生我讓身更旺，助力太多反被騙）
             if (bodyPct <= 40)
@@ -2165,23 +2171,100 @@ namespace Ecanapi.Controllers
             return "";
         }
 
+        // 五行從旺外格偵測（曲直/炎上/稼穡/從革/潤下）
+        // Returns pattern name if matched, empty string otherwise.
+        private static string LfDetectWuXingGeJu(
+            string dmElem, string mBranch, string[] stems, string[] branches)
+        {
+            // Count how many branches from a given set appear in the chart
+            int CountBranches(string[] set) => branches.Count(b => set.Contains(b));
+            // Check if any forbidden stem or branch-element appears in the chart
+            bool HasForbidden(string[] fStems, string[] fBranches) =>
+                stems.Any(s => fStems.Contains(s)) || branches.Any(b => fBranches.Contains(b));
+
+            return dmElem switch
+            {
+                // 曲直格: 甲乙日干, 生春月, 支全寅卯辰或亥卯未, 無庚辛申酉
+                "木" when new[] { "寅","卯","辰" }.Contains(mBranch)
+                    && (CountBranches(new[] { "寅","卯","辰" }) >= 2
+                        || CountBranches(new[] { "亥","卯","未" }) >= 2)
+                    && !HasForbidden(new[] { "庚","辛" }, new[] { "申","酉" })
+                    => "曲直格",
+
+                // 炎上格: 丙丁日干, 生夏月, 支全巳午未或寅午戌, 無壬癸亥子
+                "火" when new[] { "巳","午","未" }.Contains(mBranch)
+                    && (CountBranches(new[] { "巳","午","未" }) >= 2
+                        || CountBranches(new[] { "寅","午","戌" }) >= 2)
+                    && !HasForbidden(new[] { "壬","癸" }, new[] { "亥","子" })
+                    => "炎上格",
+
+                // 稼穡格: 戊己日干, 生四季月, 支全辰戌丑未, 無甲乙寅卯
+                "土" when new[] { "辰","戌","丑","未" }.Contains(mBranch)
+                    && CountBranches(new[] { "辰","戌","丑","未" }) >= 3
+                    && !HasForbidden(new[] { "甲","乙" }, new[] { "寅","卯" })
+                    => "稼穡格",
+
+                // 從革格: 庚辛日干, 生秋月, 支全申酉戌或巳酉丑, 無丙丁午未
+                "金" when new[] { "申","酉","戌" }.Contains(mBranch)
+                    && (CountBranches(new[] { "申","酉","戌" }) >= 2
+                        || CountBranches(new[] { "巳","酉","丑" }) >= 2)
+                    && !HasForbidden(new[] { "丙","丁" }, new[] { "午","未" })
+                    => "從革格",
+
+                // 潤下格: 壬癸日干, 生冬月, 支全亥子丑或申子辰, 無戊己未戌
+                "水" when new[] { "亥","子","丑" }.Contains(mBranch)
+                    && (CountBranches(new[] { "亥","子","丑" }) >= 2
+                        || CountBranches(new[] { "申","子","辰" }) >= 2)
+                    && !HasForbidden(new[] { "戊","己" }, new[] { "未","戌" })
+                    => "潤下格",
+
+                _ => ""
+            };
+        }
+
+        private static readonly HashSet<string> LfWuXingGeJuSet =
+            new() { "曲直格", "炎上格", "稼穡格", "從革格", "潤下格" };
+
         private static (string pattern, string yongShenElem, string fuYiElem, string reason) LfDetectGeJuAndYongShen(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
             string dmElem, Dictionary<string, double> wuXing, double bodyPct, string season)
         {
-            // Determine month branch main stem and its Ten God
-            string mBranchMainStem = LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0 ? mH[0].stem : "";
-            string mBranchMainSS   = LfStemShiShen(mBranchMainStem, dStem);
+            // 取格四步驟：月支本氣透干 → 藏干透干 → 皆不透取本氣 → 比劫改外格
+            // Rule 1: 月支本氣透出天干 → 優先取格
+            // Rule 2: 本氣未透，藏干透出 → 取透干為格（兩干並透取有力者）
+            // Rule 3: 皆不透 → 取月支本氣（最有力藏干）
+            var allHeavenStems = new[] { yStem, mStem, hStem };
+            string chosenStem = "";
+            if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
+            {
+                if (allHeavenStems.Contains(mH[0].stem))
+                    chosenStem = mH[0].stem;  // 本氣透干
+                else
+                {
+                    var secondaryTransparent = mH.Skip(1).FirstOrDefault(h => allHeavenStems.Contains(h.stem));
+                    chosenStem = secondaryTransparent != default
+                        ? secondaryTransparent.stem  // 藏干透干
+                        : mH[0].stem;                // 皆不透，取本氣
+                }
+            }
+            string chosenSS = LfStemShiShen(chosenStem, dStem);
 
-            string pattern = mBranchMainSS switch
+            // Rule 4: 比劫不取八格，改外格（建祿格/月刃格）
+            string pattern = chosenSS switch
             {
                 "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
                 "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
-                "比肩" => "建祿格", "劫財" => "月劫格", _ => "普通格"
+                "比肩" => "建祿格", "劫財" => "月刃格", _ => "普通格"
             };
 
-            // Check special patterns
+            // Check 五行從旺外格（優先於一般外格判斷）
+            string wuXingGeJu = LfDetectWuXingGeJu(
+                dmElem, mBranch, allHeavenStems, new[] { yBranch, mBranch, dBranch, hBranch });
+            if (!string.IsNullOrEmpty(wuXingGeJu))
+                pattern = wuXingGeJu;
+
+            // Check 從格/從旺格（體極弱/極強時順旺勢）
             if (bodyPct <= 20)
             {
                 double oppPct = wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0)
@@ -2204,8 +2287,8 @@ namespace Ecanapi.Controllers
             if (pattern == "從強格")
                 fuYiElemCalc = new[] { LfElemGen.GetValueOrDefault(dmElem,""), LfElemOvercome.GetValueOrDefault(dmElem,""), LfElemOvercomeBy.GetValueOrDefault(dmElem,"") }
                     .OrderByDescending(e => wuXing.GetValueOrDefault(e, 0)).First();
-            else if (pattern == "從旺格")
-                fuYiElemCalc = dmElem;
+            else if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
+                fuYiElemCalc = dmElem;  // 五行從旺/從旺格：用神=日干本元素
             else if (bodyPct >= 60)
             {
                 string outElem  = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（洩秀）
@@ -2214,7 +2297,7 @@ namespace Ecanapi.Controllers
                 // 月令格局優先：印格/食傷格 → 食傷洩秀；比劫格 → 官殺或食傷
                 if (pattern is "偏印格" or "正印格" or "食神格" or "傷官格")
                     fuYiElemCalc = outElem;
-                else if (pattern is "建祿格" or "月劫格")
+                else if (pattern is "建祿格" or "月刃格")
                     fuYiElemCalc = (LfElemHasRoot(guanElem, yBranch, mBranch, dBranch, hBranch)
                                   || wuXing.GetValueOrDefault(guanElem, 0) >= 10) ? guanElem : outElem;
                 else
@@ -2247,12 +2330,13 @@ namespace Ecanapi.Controllers
             }
             if (pattern == "從強格") reason = "從強格（順旺勢）";
             else if (pattern == "從旺格") reason = "從旺格（順旺勢）";
+            else if (LfWuXingGeJuSet.Contains(pattern)) reason = $"{pattern}（五行純粹，順旺勢）";
 
             // fuYiElem = 另一個扶身元素（身弱：印/比劫互補；身強：官/財互補）
             string inElemLocal  = LfGenByElem.GetValueOrDefault(dmElem, "");
             string guanElemLocal = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
             string caiElemLocal  = LfElemOvercome.GetValueOrDefault(dmElem, "");
-            if (pattern is "從強格" or "從旺格")
+            if (pattern is "從強格" or "從旺格" || LfWuXingGeJuSet.Contains(pattern))
                 fuYiElem = yongShenElem;
             else if (bodyPct <= 40)
                 fuYiElem = yongShenElem == inElemLocal ? dmElem : inElemLocal;   // 印/比劫互補
@@ -2876,7 +2960,7 @@ namespace Ecanapi.Controllers
                 isHuangliang = true;
                 huangliangType = "食神制殺（以食制殺，競爭性公職）";
             }
-            else if (hasYin && (pattern == "建祿格" || pattern == "月劫格"))
+            else if (hasYin && (pattern == "建祿格" || pattern == "月刃格"))
             {
                 isHuangliang = true;
                 huangliangType = "印祿相隨（印比扶身，穩定薪水公職）";
@@ -2959,7 +3043,12 @@ namespace Ecanapi.Controllers
                 "食神格" => "餐飲美食、技藝創作、設計藝術、娛樂表演",
                 "傷官格" => "科技研發、創意設計、律師顧問、才藝自由業",
                 "建祿格" => "專業技術、工程製造、自主事業、中小企業主",
-                "月劫格" => "競爭性行業、業務銷售、投資合夥、體育競技",
+                "月刃格" => "競爭性行業、業務銷售、投資合夥、體育競技",
+                "曲直格" => "文教藝術、環保農林、設計創作、人文服務",
+                "炎上格" => "科技電子、娛樂傳媒、能源照明、演藝創業",
+                "稼穡格" => "農業地產、仲介保險、建材工程、農產食品",
+                "從革格" => "金融財務、機械製造、法律軍警、珠寶精密",
+                "潤下格" => "IT資訊、流通貿易、金融運輸、命理咨詢",
                 _        => "多元發展，依大運時機選擇方向"
             };
             sb.AppendLine($"  格局取象：{patternJob}");
@@ -3510,9 +3599,14 @@ namespace Ecanapi.Controllers
             "食神格" => "命主隨和享受，具藝術才能，適合餐飲、技術、創意行業。",
             "傷官格" => "命主聰明叛逆，才華橫溢，適合技藝創意自由業，婚姻感情需謹慎。",
             "建祿格" => "命主自強不息，靠自身努力打拼，財富靠雙手掙來，不喜依賴他人。",
-            "月劫格" => "命主個性剛強，競爭意識強，財路需防劫財耗損，合夥宜謹慎。",
+            "月刃格" => "命主個性剛強，競爭意識強，財路需防劫財耗損，合夥宜謹慎。",
             "從強格" => "命主以從旺勢為吉，順從主流大方向，不宜逆勢而行。",
             "從旺格" => "命主極強，一生宜自主掌控，忌受人管束，順其旺勢大展。",
+            "曲直格" => "命主木氣純粹，性格仁慈溫和，具人文藝術涵養，一生宜順木性發展。",
+            "炎上格" => "命主火氣純粹，熱情積極，才華外顯，一生光芒四射，忌水剋而滅。",
+            "稼穡格" => "命主土氣純粹，性格敦厚踏實，重情重義，一生宜從事土地農業相關。",
+            "從革格" => "命主金氣純粹，性格剛毅果斷，有魄力，宜從事金融法律軍政。",
+            "潤下格" => "命主水氣純粹，智慧流通，善變通達，宜從事流通貿易資訊行業。",
             _ => "命主格局中正，宜均衡發展，隨機應變。"
         };
 
@@ -4401,7 +4495,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
@@ -5183,7 +5277,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, _) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
