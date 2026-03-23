@@ -1774,6 +1774,7 @@ namespace Ecanapi.Controllers
                 int startYear = DateTime.Today.Year;
                 int endYear   = years == 0 ? Math.Max(startYear + 1, birthYear + 80) : startYear + years - 1;
 
+                var chartStems3 = new[] { yStem, mStem, dStem, hStem };
                 var annualDetails = new List<(int year, int age, string flStem, string flBranch,
                     string daiyunStem, string daiyunBranch,
                     int baziScore, int ziweiScore, string crossClass,
@@ -1788,7 +1789,8 @@ namespace Ecanapi.Controllers
                     string daiyunStem   = curLuck.stem   ?? "";
                     string daiyunBranch = curLuck.branch ?? "";
 
-                    int baziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, yongShenElem, fuYiElem, jiShenElem, season, branches);
+                    int baziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems3);
                     int ziweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
                     string crossClass = DyCrossClass(baziScore, ziweiScore);
 
@@ -1853,7 +1855,6 @@ namespace Ecanapi.Controllers
                 };
 
                 // luckCycles（前端大運走勢圖）
-                var chartStems3 = new[] { yStem, mStem, dStem, hStem };
                 var scoredCycles = luckCycles.Select(lc => {
                     int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems3, dStem);
@@ -2495,6 +2496,16 @@ namespace Ecanapi.Controllers
                 "從殺格" => (new[] { dmKe, keDm },        new[] { genDm, dmElem }),
                 "從兒格" => (new[] { dmGen, dmKe },       new[] { keDm, genDm }),
                 "從旺格" => (new[] { genDm, dmElem },     new[] { dmKe, keDm, dmGen }),
+                // 從強格：日主順從旺勢（yongShenElem為旺元素），善=生旺+旺+旺所生，惡=克旺
+                "從強格" => (
+                    new[] {
+                        LfGenByElem.GetValueOrDefault(yongShenElem, ""),
+                        yongShenElem,
+                        LfElemGen.GetValueOrDefault(yongShenElem, "")
+                    }.Where(e => !string.IsNullOrEmpty(e)).Distinct().ToArray(),
+                    new[] { LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "") }
+                        .Where(e => !string.IsNullOrEmpty(e)).ToArray()
+                ),
                 "化土格" => (new[] { "火","土","金" },   new[] { "木" }),
                 "化金格" => (new[] { "土","金","水" },   new[] { "火" }),
                 "化水格" => (new[] { "金","水","木" },   new[] { "土" }),
@@ -4194,49 +4205,70 @@ namespace Ecanapi.Controllers
 
         private static int DyCalcFlowYearBaziScore(
             string flStem, string flBranch,
-            string yongShenElem, string fuYiElem, string jiShenElem,
-            string season, string[] chartBranches)
+            string pattern, string yongShenElem, string fuYiElem, string jiShenElem,
+            string dmElem, bool isBodyStrong, string tiaoHouElem,
+            string season, string[] chartBranches, string[] chartStems)
         {
-            var wx = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
+            var (goodElems, badElems) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong);
+            if (!string.IsNullOrEmpty(tiaoHouElem) && !goodElems.Contains(tiaoHouElem) && !badElems.Contains(tiaoHouElem))
+                goodElems = goodElems.Concat(new[] { tiaoHouElem }).ToArray();
+
+            double score = 50.0;
+
+            // 天干評分
             string flStemElem = KbStemToElement(flStem);
-            if (!string.IsNullOrEmpty(flStemElem)) wx[flStemElem] += 10 * LfSeasonMult(flStemElem, season);
-            if (LfBranchHiddenRatio.TryGetValue(flBranch, out var flH))
-                foreach (var (stem, ratio) in flH)
-                {
-                    string e = KbStemToElement(stem);
-                    if (!string.IsNullOrEmpty(e)) wx[e] += 10 * ratio * LfSeasonMult(e, season);
-                }
-            double total = wx.Values.Sum();
-            if (total > 0) foreach (var k in wx.Keys.ToList()) wx[k] = wx[k] / total * 100;
-
-            double yongPct  = wx.GetValueOrDefault(yongShenElem, 0);
-            double fuYiPct  = fuYiElem != yongShenElem ? wx.GetValueOrDefault(fuYiElem, 0) : 0;
-            double jiPct    = wx.GetValueOrDefault(jiShenElem, 0);
-            string jiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
-            double jiYongPct  = (jiYongElem != jiShenElem && !string.IsNullOrEmpty(jiYongElem))
-                ? wx.GetValueOrDefault(jiYongElem, 0) : 0;
-            double effectiveYong = fuYiElem != yongShenElem ? yongPct * 0.7 + fuYiPct * 0.3 : yongPct;
-            double baseScore = effectiveYong - jiPct - jiYongPct * 0.5 + 50;
-
-            string tuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
-            double adj = 0;
-            if (!string.IsNullOrEmpty(tuneElem))
+            if (!string.IsNullOrEmpty(flStemElem))
             {
-                double tunePct = wx.GetValueOrDefault(tuneElem, 0);
-                if (tunePct > 10)
+                double mult = LfIsElemNeutralizedByChart(flStemElem, chartStems, chartBranches) ? 0.5 : 1.0;
+                if (goodElems.Contains(flStemElem))     score += 18 * mult;
+                else if (badElems.Contains(flStemElem)) score -= 18 * mult;
+            }
+
+            // 地支評分（依藏干比例）
+            string flBranchMainElem = "";
+            if (LfBranchHiddenRatio.TryGetValue(flBranch, out var flBH))
+            {
+                if (flBH.Count > 0) flBranchMainElem = KbStemToElement(flBH[0].stem);
+                foreach (var (hstem, ratio) in flBH)
                 {
-                    if (tuneElem == jiShenElem) adj += jiPct;
-                    else if (tuneElem == yongShenElem || tuneElem == fuYiElem) adj += 15;
-                    else adj += 10;
+                    string e = KbStemToElement(hstem);
+                    if (string.IsNullOrEmpty(e)) continue;
+                    double mult = LfIsElemNeutralizedByChart(e, chartStems, chartBranches) ? 0.5 : 1.0;
+                    if (goodElems.Contains(e))     score += 18 * ratio * mult;
+                    else if (badElems.Contains(e)) score -= 18 * ratio * mult;
                 }
             }
+
+            // 調候補助
+            string tuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+            if (!string.IsNullOrEmpty(tuneElem))
+            {
+                if (flStemElem == tuneElem && !goodElems.Contains(tuneElem))
+                    score += badElems.Contains(tuneElem) ? 5 : 7;
+                if (!string.IsNullOrEmpty(flBranchMainElem) && flBranchMainElem == tuneElem
+                    && flBranchMainElem != flStemElem && !goodElems.Contains(tuneElem))
+                    score += badElems.Contains(tuneElem) ? 3 : 4;
+            }
+
             // 歲君沖/合/刑 微調
-            if (chartBranches.Any(b => LfChong.Contains(flBranch + b))) adj -= 8;
-            if (LfHe.TryGetValue(flBranch, out var heInf) && chartBranches.Contains(heInf.partner)) adj += 5;
+            double adj = 0;
+            if (chartBranches.Any(b => LfChong.Contains(flBranch + b)))
+            {
+                // 歲君沖命局：若沖的是忌神地支 → 輕微加分；否則扣分
+                bool hitsBadBranch = chartBranches.Any(b => LfChong.Contains(flBranch + b)
+                    && LfBranchHiddenRatio.TryGetValue(b, out var bh) && bh.Count > 0
+                    && badElems.Contains(KbStemToElement(bh[0].stem)));
+                adj += hitsBadBranch ? 3 : -8;
+            }
+            if (LfHe.TryGetValue(flBranch, out var heInf) && chartBranches.Contains(heInf.partner))
+                adj += goodElems.Contains(heInf.elem) ? 6 : (badElems.Contains(heInf.elem) ? -4 : 3);
             foreach (var xg in LfXing)
                 if (xg.Contains(flBranch) && xg.Count(b => b != flBranch && chartBranches.Contains(b)) >= 1)
                 { adj -= 5; break; }
-            return (int)Math.Round(Math.Clamp(baseScore + adj, 0, 100));
+            if (chartBranches.Any(b => LfHai.Contains(flBranch + b))) adj -= 3;
+            if (chartBranches.Any(b => LfPo.Contains(flBranch + b))) adj -= 2;
+
+            return (int)Math.Round(Math.Clamp(score + adj, 0, 100));
         }
 
         private static int DyCalcZiweiScore(string flStem, JsonElement palaces)
@@ -4697,6 +4729,7 @@ namespace Ecanapi.Controllers
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                var chartStems4   = new[] { yStem, mStem, dStem, hStem };
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
@@ -4710,7 +4743,8 @@ namespace Ecanapi.Controllers
                 string daiyunBrMs   = LfBranchHiddenRatio.TryGetValue(daiyunBranch, out var dyBrH) && dyBrH.Count > 0 ? dyBrH[0].stem : "";
                 string daiyunBrSS   = !string.IsNullOrEmpty(daiyunBrMs) ? LfStemShiShen(daiyunBrMs, dStem) : "";
 
-                int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, yongShenElem, fuYiElem, jiShenElem, season, branches);
+                int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                    dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems4);
                 int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
                 string flCrossClass = DyCrossClass(flBaziScore, flZiweiScore);
                 string flStemSS   = LfStemShiShen(flStem, dStem);
@@ -4752,7 +4786,8 @@ namespace Ecanapi.Controllers
                 {
                     var (mStemM, mBranchM) = LnGetMonthStemBranch(flStem, m);
                     string mSeason    = LnGetMonthSeason(m);
-                    int    mBazi      = DyCalcFlowYearBaziScore(mStemM, mBranchM, yongShenElem, fuYiElem, jiShenElem, mSeason, branches);
+                    int    mBazi      = DyCalcFlowYearBaziScore(mStemM, mBranchM, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem, mSeason, branches, chartStems4);
                     int    mZiwei     = hasZiwei ? DyCalcZiweiScore(mStemM, palaces) : 50;
                     string mCross     = DyCrossClass(mBazi, mZiwei);
                     string flowStar   = hasZiwei ? LnGetMonthFlowStar(m, flBranch, palaces) : "";
@@ -4796,7 +4831,6 @@ namespace Ecanapi.Controllers
                         new { label = "時", stem = hStem, branch = hBranch, stemSS = hStemSS, naYin = LfPillarNaYin(timeP),  hiddenPairs = LfPillarHiddenPairs(timeP) },
                     }
                 };
-                var chartStems4 = new[] { yStem, mStem, dStem, hStem };
                 var scoredCycles = luckCycles.Select(lc => {
                     int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems4, dStem);
@@ -5477,10 +5511,11 @@ namespace Ecanapi.Controllers
                 double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string season    = LfGetSeason(mBranch);
-                var (pattern, yongShenElem, fuYiElem, _, _) = LfDetectGeJuAndYongShen(
+                var (pattern, yongShenElem, fuYiElem, _, tiaoHouElem5) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                var chartStems5   = new[] { yStem, mStem, dStem, hStem };
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
@@ -5499,7 +5534,8 @@ namespace Ecanapi.Controllers
                 {
                     var (flStem, flBranch) = DyGetYearStemBranch(y);
                     int flAge = y - birthYear;
-                    int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, yongShenElem, fuYiElem, jiShenElem, season, branches);
+                    int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem5, season, branches, chartStems5);
                     int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
                     string flCross   = DyCrossClass(flBaziScore, flZiweiScore);
                     string flSS      = LfStemShiShen(flStem, dStem);
