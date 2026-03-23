@@ -1791,7 +1791,7 @@ namespace Ecanapi.Controllers
 
                     int baziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems3);
-                    int ziweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
+                    int ziweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces, daiyunStem, age) : 50;
                     string crossClass = DyCrossClass(baziScore, ziweiScore);
 
                     string flBrMs = LfBranchHiddenRatio.TryGetValue(flBranch, out var fbh) && fbh.Count > 0 ? fbh[0].stem : "";
@@ -2163,6 +2163,9 @@ namespace Ecanapi.Controllers
             // 從強格：忌神=印/比劫（不可幫身對抗旺勢）
             if (pattern == "從強格")
                 return dmElem;  // 比劫（自身力量，逆旺勢）
+            // 從殺/從財/從兒格：忌神=印（生日主使其有力量對抗旺勢，破格之神）
+            if (pattern is "從殺格" or "從財格" or "從兒格")
+                return LfGenByElem.GetValueOrDefault(dmElem, "");  // 印星（最大破格威脅）
             // 身弱：大忌 = 克我（官殺），直接傷身
             // 身強：大忌 = 印星（生我讓身更旺，助力太多反被騙）
             if (bodyPct <= 40)
@@ -2385,10 +2388,20 @@ namespace Ecanapi.Controllers
             // Check 從格/從旺格（體極弱/極強時順旺勢）
             if (bodyPct <= 20)
             {
-                double oppPct = wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0)
-                              + wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0)
-                              + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
-                if (oppPct >= 70) pattern = "從強格";
+                string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 七殺（克日主）
+                string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財星（日主克）
+                string shiElemD  = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（日主生）
+                double guanPctD  = wuXing.GetValueOrDefault(guanElemD, 0);
+                double caiPctD   = wuXing.GetValueOrDefault(caiElemD, 0);
+                double shiPctD   = wuXing.GetValueOrDefault(shiElemD, 0);
+                double oppPct    = guanPctD + caiPctD + shiPctD;
+                // 日主極弱，從格判定：按最強元素決定從格種類（非一律從強格）
+                if (oppPct >= 70)
+                {
+                    if      (guanPctD >= caiPctD && guanPctD >= shiPctD) pattern = "從殺格";
+                    else if (caiPctD  >= guanPctD && caiPctD >= shiPctD) pattern = "從財格";
+                    else                                                  pattern = "從兒格";
+                }
             }
             else if (bodyPct >= 80)
             {
@@ -2470,6 +2483,25 @@ namespace Ecanapi.Controllers
 
             if (string.IsNullOrEmpty(yongShenElem)) yongShenElem = dmElem;
             if (string.IsNullOrEmpty(fuYiElem)) fuYiElem = yongShenElem;
+            // 從格覆寫：用神/輔神/原因依格局類型重設，不套用扶抑法
+            if (pattern == "從殺格")
+            {
+                yongShenElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 七殺（旺勢主力，從之）
+                fuYiElem     = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財（生殺，輔助）
+                reason       = "從殺格（日主順從七殺旺勢，忌印星、比劫）";
+            }
+            else if (pattern == "從財格")
+            {
+                yongShenElem = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財（旺勢主力，從之）
+                fuYiElem     = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（生財，輔助）
+                reason       = "從財格（日主順從財星旺勢，忌印星、比劫）";
+            }
+            else if (pattern == "從兒格")
+            {
+                yongShenElem = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（旺勢主力，從之）
+                fuYiElem     = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財（食傷生財，輔助）
+                reason       = "從兒格（日主順從食傷旺勢，忌官殺、印星）";
+            }
             // 附加調候補用神到 reason（若與主用神不同才標注）
             if (!string.IsNullOrEmpty(tiaoHouElem) && tiaoHouElem != yongShenElem)
                 reason += $"；調候補用：{tiaoHouElem}";
@@ -2646,10 +2678,55 @@ namespace Ecanapi.Controllers
             return events.Count > 0 ? string.Join("、", events) : "";
         }
 
+        // ─── 年齡適切性過濾（共用，所有命書/大運/流年均適用）────────────────────────
+
+        /// <summary>
+        /// 判斷宮位論斷是否應依年齡跳過（年齡不符現實情境）
+        /// </summary>
+        private static bool LfShouldSkipPalace(string palace, int age)
+        {
+            if (age <= 0) return false;
+            return palace switch
+            {
+                "父母宮" => age >= 65,              // 65+ 父母多已故世
+                "夫妻宮" => age < 16 || age >= 75,  // 太小或75+ 不談婚戀
+                "子女宮" => age < 18,               // 18前不談子女
+                "官祿宮" => age >= 80,              // 80+ 不談事業升遷
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// 依年齡調整宮位顯示名稱（如父母宮在61-64歲顯示為長輩宮）
+        /// </summary>
+        private static string LfPalaceAgeLabel(string palace, int age)
+        {
+            if (palace == "父母宮" && age >= 61 && age < 65) return "長輩宮";
+            if (palace == "子女宮" && age >= 50) return "子女孫輩宮";
+            return palace;
+        }
+
+        /// <summary>
+        /// 依年齡返回論斷主題提示（適用於所有命書的章節開頭 / Gemini prompt）
+        /// </summary>
+        public static string LfAgeTopicHint(int age)
+        {
+            if (age <= 0) return "";
+            return age switch
+            {
+                <= 15 => "【年齡提示】命主年幼，論斷著重學業、父母庇蔭、品格養成，不涉婚姻子女。",
+                <= 25 => "【年齡提示】命主年輕，著重事業起步、感情萌芽。",
+                <= 60 => "",
+                <= 70 => "【年齡提示】命主已達退休年齡，父母多已不在，著重健康、財庫穩定、子女孫輩關係。",
+                <= 80 => "【年齡提示】命主年事已高，不談父母（多已故），不談新感情，著重健康長壽、財庫守護、子女孫侍奉。",
+                _    => "【年齡提示】命主高齡，著重健康養生、財庫守護、子女孫輩，其他宮位論斷從略。"
+            };
+        }
+
         // 大運地支與命局的宮位影響描述（含六神標記，替代原 LfBranchEvents 用於 Ch.10）
         private static string LfBranchEventsPalace(
             string lcBranch, string lcBranchSS,
-            string[] chartBranches, string[] branchSS)
+            string[] chartBranches, string[] branchSS, int age = 0)
         {
             var lines = new List<string>();
             string[] palaceNames = { "父母宮", "兄弟宮", "夫妻宮", "子女宮" };
@@ -2660,9 +2737,12 @@ namespace Ecanapi.Controllers
                 string cb = chartBranches[i];
                 if (string.IsNullOrEmpty(cb) || cb == lcBranch) continue;
 
-                string cbSS = i < branchSS.Length ? (branchSS[i] ?? "") : "";
                 string palace = palaceNames[i];
-                string cbLabel = $"{palace}（{cbSS}·{cb}）";
+                if (LfShouldSkipPalace(palace, age)) continue; // 年齡過濾
+
+                string cbSS = i < branchSS.Length ? (branchSS[i] ?? "") : "";
+                string palaceLabel = LfPalaceAgeLabel(palace, age);
+                string cbLabel = $"{palaceLabel}（{cbSS}·{cb}）";
 
                 var rels = new List<string>();
                 if (LfChong.Contains(lcBranch + cb))
@@ -2679,7 +2759,7 @@ namespace Ecanapi.Controllers
 
                 if (rels.Count > 0)
                 {
-                    string impact = LfPalaceImpact(rels[0], palace);
+                    string impact = LfPalaceImpact(rels[0], palace, age);
                     lines.Add($"與{cbLabel}{string.Join("、", rels)}，{impact}");
                 }
             }
@@ -2691,13 +2771,18 @@ namespace Ecanapi.Controllers
                 var natals = brs.Where(b => b != lcBranch && chartBranches.Contains(b)).ToList();
                 if (natals.Count == 2)
                 {
-                    var parts = natals.Select(b => {
-                        int idx = Array.IndexOf(chartBranches, b);
-                        string ss = idx >= 0 && idx < branchSS.Length ? branchSS[idx] : "";
-                        string pal = idx >= 0 && idx < palaceNames.Length ? palaceNames[idx] : "";
-                        return $"{pal}（{ss}·{b}）";
-                    });
-                    lines.Add($"三會{elem}局，動及{string.Join("與", parts)}，此運{elem}氣大旺。");
+                    var parts = natals
+                        .Select(b => {
+                            int idx = Array.IndexOf(chartBranches, b);
+                            string ss  = idx >= 0 && idx < branchSS.Length    ? branchSS[idx]    : "";
+                            string pal = idx >= 0 && idx < palaceNames.Length ? palaceNames[idx] : "";
+                            return (pal, ss, b);
+                        })
+                        .Where(x => !LfShouldSkipPalace(x.pal, age))
+                        .Select(x => $"{LfPalaceAgeLabel(x.pal, age)}（{x.ss}·{x.b}）")
+                        .ToList();
+                    string palDesc = parts.Count > 0 ? $"動及{string.Join("與", parts)}，" : "";
+                    lines.Add($"三會{elem}局，{palDesc}此運{elem}氣大旺。");
                 }
             }
 
@@ -2708,28 +2793,35 @@ namespace Ecanapi.Controllers
                 var natals = brs.Where(b => b != lcBranch && chartBranches.Contains(b)).ToList();
                 if (natals.Count == 2)
                 {
-                    var parts = natals.Select(b => {
-                        int idx = Array.IndexOf(chartBranches, b);
-                        string ss = idx >= 0 && idx < branchSS.Length ? branchSS[idx] : "";
-                        string pal = idx >= 0 && idx < palaceNames.Length ? palaceNames[idx] : "";
-                        return $"{pal}（{ss}·{b}）";
-                    });
-                    lines.Add($"三合{elem}局，動及{string.Join("與", parts)}，此運{elem}氣得助。");
+                    var parts = natals
+                        .Select(b => {
+                            int idx = Array.IndexOf(chartBranches, b);
+                            string ss  = idx >= 0 && idx < branchSS.Length    ? branchSS[idx]    : "";
+                            string pal = idx >= 0 && idx < palaceNames.Length ? palaceNames[idx] : "";
+                            return (pal, ss, b);
+                        })
+                        .Where(x => !LfShouldSkipPalace(x.pal, age))
+                        .Select(x => $"{LfPalaceAgeLabel(x.pal, age)}（{x.ss}·{x.b}）")
+                        .ToList();
+                    string palDesc = parts.Count > 0 ? $"動及{string.Join("與", parts)}，" : "";
+                    lines.Add($"三合{elem}局，{palDesc}此運{elem}氣得助。");
                 }
             }
 
             return lines.Count > 0 ? string.Join("\n  ", lines) : "";
         }
 
-        private static string LfPalaceImpact(string relType, string palace)
+        private static string LfPalaceImpact(string relType, string palace, int age = 0)
         {
             bool isBad = relType.Contains("沖") || relType.Contains("刑") || relType.Contains("害") || relType.Contains("破");
+            string elderLabel = age >= 61 ? "長輩前輩" : "父母長輩";
+            string childLabel = age >= 50 ? "子女孫輩" : "子女晚輩";
             return palace switch
             {
-                "父母宮" => isBad ? "留意父母長輩健康或緣分波動。" : "父母長輩緣分加深，有長輩提攜。",
+                "父母宮" => isBad ? $"留意{elderLabel}健康或緣分波動。" : $"{elderLabel}緣分加深，有貴人提攜。",
                 "兄弟宮" => isBad ? "兄弟、友人、同事易有摩擦或分離。" : "兄弟、友人有助力，合作可期。",
                 "夫妻宮" => isBad ? "配偶、感情易有波動，婚姻宜多溝通。" : "配偶緣分加深，感情婚姻有進展。",
-                "子女宮" => isBad ? "子女或晚輩易有狀況，晚運宜謹慎。" : "子女緣分佳，晚輩有喜事。",
+                "子女宮" => isBad ? $"{childLabel}易有狀況，宜多關心。" : $"{childLabel}緣分佳，有喜訊。",
                 _ => isBad ? "宜留意相關人事變動。" : "宜把握相關人事機緣。"
             };
         }
@@ -2951,7 +3043,7 @@ namespace Ecanapi.Controllers
                 string lcBranchSS = !string.IsNullOrEmpty(lcBranchMs) ? LfStemShiShen(lcBranchMs, dStem) : "";
                 sb.AppendLine($"{c.startAge}-{c.endAge} 歲 大運：{c.stem}{c.branch}（天干{lcSS}·地支{lcBranchSS}）  評分：{c.score} 分（{c.level}）");
                 sb.AppendLine($"  {LfLuckDesc(c.score, c.level)}");
-                string events = LfBranchEventsPalace(c.branch, lcBranchSS, branches, branchSSArr);
+                string events = LfBranchEventsPalace(c.branch, lcBranchSS, branches, branchSSArr, c.startAge);
                 if (!string.IsNullOrEmpty(events))
                 {
                     sb.AppendLine($"  【地支事項】大運地支{c.branch}（{lcBranchSS}）：");
@@ -3808,6 +3900,9 @@ namespace Ecanapi.Controllers
             "建祿格" => "命主自強不息，靠自身努力打拼，財富靠雙手掙來，不喜依賴他人。",
             "月刃格" => "命主個性剛強，競爭意識強，財路需防劫財耗損，合夥宜謹慎。",
             "從強格" => "命主以從旺勢為吉，順從主流大方向，不宜逆勢而行。",
+            "從殺格" => "命主日主極弱、七殺極旺，一生宜順從主流強勢，借力使力，忌逆勢抵抗。宜從事競爭型行業，但防財庫不穩。",
+            "從財格" => "命主日主極弱、財星極旺，一生重財重物質，善於理財聚財，忌比劫印星破格。",
+            "從兒格" => "命主日主極弱、食傷極旺，一生才藝豐沛，表達力強，宜創意技藝行業，忌印星梟奪。",
             "從旺格" => "命主極強，一生宜自主掌控，忌受人管束，順其旺勢大展。",
             "曲直格" => "命主木氣純粹，性格仁慈溫和，具人文藝術涵養，一生宜順木性發展。",
             "炎上格" => "命主火氣純粹，熱情積極，才華外顯，一生光芒四射，忌水剋而滅。",
@@ -4271,30 +4366,61 @@ namespace Ecanapi.Controllers
             return (int)Math.Round(Math.Clamp(score + adj, 0, 100));
         }
 
-        private static int DyCalcZiweiScore(string flStem, JsonElement palaces)
+        private static int DyCalcZiweiScore(string flStem, JsonElement palaces, string daiyunStem = "", int age = 0)
         {
             double score = 50.0;
-            var keyPalaces  = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "夫妻宮" };
-            var goodPalaces = new HashSet<string> { "福德宮", "父母宮", "田宅宮" };
+            var keyPalaces  = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "夫妻宮", "田宅宮" };
+            var goodPalaces = new HashSet<string> { "福德宮", "父母宮" };
             string luPalace   = KbGetSiHuaPalace(flStem, "化祿", palaces);
             string quanPalace = KbGetSiHuaPalace(flStem, "化權", palaces);
             string kePalace   = KbGetSiHuaPalace(flStem, "化科", palaces);
             string jiPalace   = KbGetSiHuaPalace(flStem, "化忌", palaces);
-            // 化祿
-            if (keyPalaces.Contains(luPalace)) score += 20;
-            else if (goodPalaces.Contains(luPalace)) score += 12;
-            else if (!string.IsNullOrEmpty(luPalace)) score += 6;
-            // 化權
-            if (keyPalaces.Contains(quanPalace)) score += 12;
-            else if (goodPalaces.Contains(quanPalace)) score += 7;
-            else if (!string.IsNullOrEmpty(quanPalace)) score += 4;
-            // 化科
-            if (keyPalaces.Contains(kePalace)) score += 6;
-            else if (!string.IsNullOrEmpty(kePalace)) score += 3;
-            // 化忌
+            // 流年化祿（正向加分：年齡不合的宮位跳過，避免高齡者夫妻宮化祿虛增評分）
+            if (!LfShouldSkipPalace(luPalace, age))
+            {
+                if (keyPalaces.Contains(luPalace)) score += 20;
+                else if (goodPalaces.Contains(luPalace)) score += 12;
+                else if (!string.IsNullOrEmpty(luPalace)) score += 6;
+            }
+            // 流年化權
+            if (!LfShouldSkipPalace(quanPalace, age))
+            {
+                if (keyPalaces.Contains(quanPalace)) score += 12;
+                else if (goodPalaces.Contains(quanPalace)) score += 7;
+                else if (!string.IsNullOrEmpty(quanPalace)) score += 4;
+            }
+            // 流年化科
+            if (!LfShouldSkipPalace(kePalace, age))
+            {
+                if (keyPalaces.Contains(kePalace)) score += 6;
+                else if (!string.IsNullOrEmpty(kePalace)) score += 3;
+            }
+            // 流年化忌（化忌不過濾：任何年齡財庫/健康受損都有意義）
             if (keyPalaces.Contains(jiPalace)) score -= 20;
             else if (goodPalaces.Contains(jiPalace)) score -= 12;
             else if (!string.IsNullOrEmpty(jiPalace)) score -= 6;
+            // 大限宮干四化疊加（大限結構性影響，力道約為流年一半）
+            if (!string.IsNullOrEmpty(daiyunStem))
+            {
+                string dyLu   = KbGetSiHuaPalace(daiyunStem, "化祿", palaces);
+                string dyQuan = KbGetSiHuaPalace(daiyunStem, "化權", palaces);
+                string dyJi   = KbGetSiHuaPalace(daiyunStem, "化忌", palaces);
+                if (!LfShouldSkipPalace(dyLu, age))
+                {
+                    if (keyPalaces.Contains(dyLu))   score += 10;
+                    else if (goodPalaces.Contains(dyLu)) score += 6;
+                    else if (!string.IsNullOrEmpty(dyLu)) score += 3;
+                }
+                if (!LfShouldSkipPalace(dyQuan, age))
+                {
+                    if (keyPalaces.Contains(dyQuan)) score += 6;
+                    else if (!string.IsNullOrEmpty(dyQuan)) score += 3;
+                }
+                // 大限化忌不過濾（任何年齡都有意義）
+                if (keyPalaces.Contains(dyJi))   score -= 18;
+                else if (goodPalaces.Contains(dyJi)) score -= 10;
+                else if (!string.IsNullOrEmpty(dyJi)) score -= 5;
+            }
             return (int)Math.Round(Math.Clamp(score, 0, 100));
         }
 
@@ -4435,12 +4561,39 @@ namespace Ecanapi.Controllers
                     dmElem, bodyPct > 50, dyTiaoHouElem, season, branches, dyChartStems, dStemRef);
                 sb.AppendLine($"{lc.startAge}-{lc.endAge} 歲 大運：{lc.stem}{lc.branch}（天干{lcSS}·地支{lcBSS}）  評分：{lcScore} 分（{LfLuckLevel(lcScore)}）");
                 sb.AppendLine($"  {LfLuckDesc(lcScore, LfLuckLevel(lcScore))}");
-                string palaceEvents = LfBranchEventsPalace(lc.branch, lcBSS, branches, branchSSArr);
+                string palaceEvents = LfBranchEventsPalace(lc.branch, lcBSS, branches, branchSSArr, lc.startAge);
                 if (!string.IsNullOrEmpty(palaceEvents))
                 {
                     sb.AppendLine($"  【地支事項】大運地支{lc.branch}（{lcBSS}）：");
                     sb.AppendLine($"  {palaceEvents}");
                 }
+                // 大限宮干化忌入關鍵宮位警示（早於詳細宮位分析呈現，讓讀者優先注意重大風險）
+                if (hasZiwei)
+                {
+                    var warnPalaces = DyGetOverlappingDecadePalaces(palaces, lc.startAge, lc.endAge);
+                    var keyPalWarn  = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "夫妻宮", "田宅宮" };
+                    foreach (var (warnPalName, warnStem, warnPs, warnPe) in warnPalaces)
+                    {
+                        if (string.IsNullOrEmpty(warnStem)) continue;
+                        if (!YearStemSiHuaMap.TryGetValue(warnStem, out var warnSiHua)) continue;
+                        string dyJiPal = KbGetSiHuaPalace(warnStem, "化忌", palaces);
+                        if (!string.IsNullOrEmpty(dyJiPal) && keyPalWarn.Contains(dyJiPal)
+                            && !LfShouldSkipPalace(dyJiPal, lc.startAge))
+                        {
+                            string jiNote = dyJiPal switch
+                            {
+                                "命宮"   => "本命受衝，宜守護健康、防意外變故",
+                                "財帛宮" => "財路受阻，整個大限需嚴防破財、詐騙、投資損失",
+                                "田宅宮" => "財庫受損，整個大限需嚴防資產流失、詐騙、不動產糾紛",
+                                "官祿宮" => "事業受阻，宜守成、防職場是非與官司",
+                                "夫妻宮" => "婚姻感情有波折，宜多溝通、防感情變故",
+                                _       => $"{dyJiPal}受影響，需謹慎應對"
+                            };
+                            sb.AppendLine($"  【紫微大限警示】宮干 {warnStem} 化忌（{warnSiHua.ji}）入 {dyJiPal}：{jiNote}");
+                        }
+                    }
+                }
+                sb.AppendLine();
                 // 大限宮位主星格局 + 四化（紫微大限宮位的宮干四化，非八字大運天干）
                 // 八字大運可能橫跨多個紫微大限，逐段列出
                 if (hasZiwei)
@@ -4450,7 +4603,19 @@ namespace Ecanapi.Controllers
                     {
                         int overlapStart = Math.Max(lc.startAge, pStart);
                         int overlapEnd   = Math.Min(lc.endAge, pEnd);
-                        sb.AppendLine($"  ▍ 大限（{overlapStart}-{overlapEnd}歲）{lcDecadePalace}·宮干 {lcDecadeStem}");
+                        int overlapYears = overlapEnd - overlapStart + 1;
+                        // 重疊不足2年（邊際跨限），只標記銜接提示，不展開完整大限分析
+                        if (overlapYears < 2)
+                        {
+                            sb.AppendLine($"  ▍ 下一大限（{pStart}-{pEnd}歲）{lcDecadePalace}·宮干 {lcDecadeStem}（銜接提示，詳細分析見下一期大運命書）");
+                            sb.AppendLine();
+                            continue;
+                        }
+                        // 顯示宮位本身的完整大限範圍，括號內標注與八字大運重疊的歲數段
+                        string decadeLabel = pStart == pEnd ? $"{pStart}歲" : $"{pStart}-{pEnd}歲";
+                        string overlapNote = (overlapStart == pStart && overlapEnd == pEnd) ? ""
+                            : $"（本大運涵蓋{overlapStart}-{overlapEnd}歲）";
+                        sb.AppendLine($"  ▍ 大限（{decadeLabel}）{lcDecadePalace}·宮干 {lcDecadeStem}{overlapNote}");
                         // 主星格局描述（三方四正廟旺）
                         string palaceStars = KbGetPalaceStars(palaces, lcDecadePalace);
                         string contentKey = KbContentPalaceName(lcDecadePalace);
@@ -4505,7 +4670,7 @@ namespace Ecanapi.Controllers
                             var (finPalace, finStars, carPalace, carStars) = DyGetDecadeKeyPalaceStars(palaces, lcDecadePalace);
                             if (!string.IsNullOrEmpty(finPalace))
                                 sb.AppendLine($"  大限財宮：{finPalace}（{(string.IsNullOrEmpty(finStars) ? "空宮" : finStars)}）");
-                            if (!string.IsNullOrEmpty(carPalace))
+                            if (!string.IsNullOrEmpty(carPalace) && !LfShouldSkipPalace("官祿宮", pStart))
                                 sb.AppendLine($"  大限事業宮：{carPalace}（{(string.IsNullOrEmpty(carStars) ? "空宮" : carStars)}）");
                             if (goodAux.Count == 0 && badAux.Count == 0 && string.IsNullOrEmpty(palaceContent))
                                 sb.AppendLine($"  此宮為空宮，需借對宮主星論斷，吉凶受三方四正飛化影響為主。");
@@ -4521,6 +4686,7 @@ namespace Ecanapi.Controllers
                             for (int si = 0; si < dyShTypes.Length; si++)
                             {
                                 var (pal, desc) = lcDyMap.GetValueOrDefault(dyShTypes[si], ("", ""));
+                                if (!string.IsNullOrEmpty(pal) && LfShouldSkipPalace(pal, pStart)) continue;
                                 string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : $"入{pal}";
                                 string descText = string.IsNullOrEmpty(desc) ? "" : $"　{desc}";
                                 sb.AppendLine($"  {dyShTypes[si]}（{dyStars[si]}星）{palLabel}{descText}");
@@ -4537,6 +4703,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第四章：流年逐年分析】");
             if (!hasZiwei)
                 sb.AppendLine("（命盤無紫微資料，紫微評分以預設值呈現，八字分析仍完整。）");
+            // 年齡適切性提示（依分析期間起始年齡）
+            {
+                int ch4Age = annualDetails.Count > 0 ? annualDetails[0].age : 0;
+                string ageHint = LfAgeTopicHint(ch4Age);
+                if (!string.IsNullOrEmpty(ageHint)) sb.AppendLine(ageHint);
+            }
             sb.AppendLine();
             foreach (var d in annualDetails)
             {
@@ -4573,6 +4745,7 @@ namespace Ecanapi.Controllers
                         for (int si = 0; si < flShTypes.Length; si++)
                         {
                             var (pal, desc) = flDyMap.GetValueOrDefault(flShTypes[si], ("", ""));
+                            if (!string.IsNullOrEmpty(pal) && LfShouldSkipPalace(pal, d.age)) continue;
                             string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : $"入{pal}";
                             string descText = string.IsNullOrEmpty(desc) ? "" : $"：{desc}";
                             sb.AppendLine($"  {flShTypes[si]}（{flStars[si]}星）{palLabel}{descText}");
@@ -4583,6 +4756,7 @@ namespace Ecanapi.Controllers
                         for (int si = 0; si < flShTypes.Length; si++)
                         {
                             string pal = KbGetSiHuaPalace(d.flStem, flShTypes[si], palaces);
+                            if (!string.IsNullOrEmpty(pal) && LfShouldSkipPalace(pal, d.age)) continue;
                             sb.AppendLine($"  {flShTypes[si]}（{flStars[si]}星）{(string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : "入" + pal)}");
                         }
                     }
@@ -4745,7 +4919,7 @@ namespace Ecanapi.Controllers
 
                 int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
                     dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems4);
-                int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
+                int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces, daiyunStem, flAge) : 50;
                 string flCrossClass = DyCrossClass(flBaziScore, flZiweiScore);
                 string flStemSS   = LfStemShiShen(flStem, dStem);
                 string flBrMs     = LfBranchHiddenRatio.TryGetValue(flBranch, out var flBrH) && flBrH.Count > 0 ? flBrH[0].stem : "";
@@ -4788,7 +4962,7 @@ namespace Ecanapi.Controllers
                     string mSeason    = LnGetMonthSeason(m);
                     int    mBazi      = DyCalcFlowYearBaziScore(mStemM, mBranchM, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem, mSeason, branches, chartStems4);
-                    int    mZiwei     = hasZiwei ? DyCalcZiweiScore(mStemM, palaces) : 50;
+                    int    mZiwei     = hasZiwei ? DyCalcZiweiScore(mStemM, palaces, daiyunStem, flAge) : 50;
                     string mCross     = DyCrossClass(mBazi, mZiwei);
                     string flowStar   = hasZiwei ? LnGetMonthFlowStar(m, flBranch, palaces) : "";
                     string mStemSSM   = LfStemShiShen(mStemM, dStem);
@@ -5536,7 +5710,7 @@ namespace Ecanapi.Controllers
                     int flAge = y - birthYear;
                     int flBaziScore  = DyCalcFlowYearBaziScore(flStem, flBranch, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem5, season, branches, chartStems5);
-                    int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces) : 50;
+                    int flZiweiScore = hasZiwei ? DyCalcZiweiScore(flStem, palaces, daiyunStem, flAge) : 50;
                     string flCross   = DyCrossClass(flBaziScore, flZiweiScore);
                     string flSS      = LfStemShiShen(flStem, dStem);
                     yearLines.AppendLine($"  - {y}年 {flStem}{flBranch}（{flSS}）：{flCross}｜八字分={flBaziScore}，紫微分={flZiweiScore}，年齡={flAge}歲");
