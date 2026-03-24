@@ -3840,22 +3840,32 @@ namespace Ecanapi.Controllers
             // === Ch.10 事業格局鑑定 ===
             sb.AppendLine("【第十章：事業格局鑑定】");
             sb.AppendLine();
-            // KB Career 優先
+
+            // 【事業特質】：古傳斷語 + 五行職業取象 + 官祿宮主星 合併為一節
+            sb.AppendLine("【事業特質】");
             if (!string.IsNullOrEmpty(kb?.Career))
             {
-                sb.AppendLine("【日柱事業傾向（古傳斷語）】");
                 sb.AppendLine(kb.Career);
                 sb.AppendLine();
             }
+            var (cfHuangliang, cfYangZhiYin) = KbCalcCareerFlags(
+                yStemSS, yBranchSS, mStemSS, mBranchSS,
+                dBranchSS, hStemSS, hBranchSS, dStem, pattern);
+            sb.AppendLine("【五行職業取象（適合行業）】");
+            sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, cfHuangliang, cfYangZhiYin));
+            if (!string.IsNullOrEmpty(ziweiOff))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"【官祿宮主星·{offStars}（事業個性）】");
+                sb.AppendLine(ziweiOff);
+            }
+            sb.AppendLine();
+
+            // 事業格局判定（過三關分析）
             sb.AppendLine(KbSanmenCareer(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing));
-            // 紫微事業宮補充
-            if (!string.IsNullOrEmpty(ziweiOff))
-            {
-                sb.AppendLine($"【官祿宮主星·{offStars}（事業個性）】{ziweiOff}");
-            }
             sb.AppendLine();
 
             // === Ch.11 六親緣分鑑定 ===
@@ -4213,16 +4223,39 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("【自營 vs 打工】結論：技術/專業受薪為正路，合夥自營需謹慎。");
             }
 
-            // 五行職業取象
-            sb.AppendLine();
-            sb.AppendLine("【五行職業取象（適合行業）】");
-            sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, isHuangliang, isYangZhiYin));
-
             return sb.ToString();
         }
 
         private static bool IsGuanSha(string ss) => ss == "正官" || ss == "七殺";
         private static bool IsYin(string ss)     => ss == "正印" || ss == "偏印";
+
+        // 計算事業格局 flags（供 Ch.10 事業特質節直接呼叫）
+        private static (bool isHuangliang, bool isYangZhiYin) KbCalcCareerFlags(
+            string yStemSS, string yBranchSS, string mStemSS, string mBranchSS,
+            string dBranchSS, string hStemSS, string hBranchSS,
+            string dStem, string pattern)
+        {
+            var allSS = new[] { yStemSS, yBranchSS, mStemSS, mBranchSS, dBranchSS, hStemSS, hBranchSS };
+            bool hasGuan    = allSS.Any(IsGuanSha);
+            bool hasSha     = allSS.Any(s => s == "七殺");
+            bool hasYin     = allSS.Any(IsYin);
+            bool hasShiShen = allSS.Any(s => s == "食神");
+
+            bool shaYinSamePillar =
+                (IsGuanSha(yStemSS) && IsYin(yBranchSS)) || (IsYin(yStemSS) && IsGuanSha(yBranchSS)) ||
+                (IsGuanSha(mStemSS) && IsYin(mBranchSS)) || (IsYin(mStemSS) && IsGuanSha(mBranchSS)) ||
+                (IsGuanSha(hStemSS) && IsYin(hBranchSS)) || (IsYin(hStemSS) && IsGuanSha(hBranchSS));
+
+            bool isHuangliang =
+                (shaYinSamePillar && (hasGuan || hasSha) && hasYin) ||
+                ((hasGuan || hasSha) && hasYin) ||
+                (hasSha && hasShiShen) ||
+                (hasYin && (pattern == "建祿格" || pattern == "月刃格"));
+
+            bool isDayStemYang = "甲丙戊庚壬".Contains(dStem);
+            bool isYangZhiYin  = isDayStemYang && isHuangliang;
+            return (isHuangliang, isYangZhiYin);
+        }
 
         private static string KbSanmenJobByElem(
             string dmElem, string pattern, string yongShenElem,
