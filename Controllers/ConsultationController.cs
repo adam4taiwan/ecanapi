@@ -4435,6 +4435,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【婚期推算（大運時機）】");
             var marriageLucks = scored.Where(lc =>
             {
+                if (lc.startAge < 21) return false;  // 21歲以下大運不納入婚期推算
                 string lcStemSS   = LfStemShiShen(lc.stem, dStem);
                 string lcBrMs     = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
                 string lcBranchSS = !string.IsNullOrEmpty(lcBrMs) ? LfStemShiShen(lcBrMs, dStem) : "";
@@ -4455,6 +4456,7 @@ namespace Ecanapi.Controllers
                 // 找評分最高且含配偶星的大運
                 var bestLuck = scored.Where(lc =>
                 {
+                    if (lc.startAge < 21) return false;  // 21歲以下大運不納入婚期推算
                     string lcStemSS = LfStemShiShen(lc.stem, dStem);
                     string lcBrMs   = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
                     string lcBrSS   = !string.IsNullOrEmpty(lcBrMs) ? LfStemShiShen(lcBrMs, dStem) : "";
