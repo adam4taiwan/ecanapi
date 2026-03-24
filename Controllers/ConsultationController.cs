@@ -3974,7 +3974,15 @@ namespace Ecanapi.Controllers
             }
             else
             {
-                foreach (var lc in scored)
+                // 從前一運開始，最多到第8大運（index 7）
+                int curIdx = scored.FindIndex(lc => lc.startAge <= currentAge && lc.endAge >= currentAge);
+                if (curIdx < 0) curIdx = scored.FindIndex(lc => lc.startAge > currentAge);
+                if (curIdx < 0) curIdx = scored.Count - 1;
+                int startIdx  = Math.Max(0, curIdx - 1);
+                int endIdx    = Math.Min(7, scored.Count - 1);
+                var displayScored = scored.Skip(startIdx).Take(endIdx - startIdx + 1).ToList();
+
+                foreach (var lc in displayScored)
                 {
                     string branchSS = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhLc) && bhLc.Count > 0
                         ? LfStemShiShen(bhLc[0].stem, dStem) : "";
