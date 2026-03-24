@@ -2791,37 +2791,60 @@ namespace Ecanapi.Controllers
             string chosenStem = "";
             if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                // 比劫透干不取格，先排除
-                var allTransparent = mH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
-                var transparentHidden = allTransparent
-                    .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
-                    .ToList();
-                // 月令非比劫藏干（備用，當無透干時取根氣最強者）
+                // 月令非比劫藏干
                 var nonBiJieMH = mH
                     .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
                     .ToList();
 
-                if (transparentHidden.Count == 1)
+                if (nonBiJieMH.Count == 0)
                 {
-                    // 唯一非比劫透干
-                    chosenStem = transparentHidden[0].stem;
-                }
-                else if (transparentHidden.Count > 1)
-                {
-                    // 多個非比劫透干：調候優先，其次根氣
-                    string? tiaoHouMatch = tiaoHouList.FirstOrDefault(t => transparentHidden.Any(h => h.stem == t));
-                    chosenStem = tiaoHouMatch
-                        ?? transparentHidden.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
-                }
-                else if (nonBiJieMH.Count > 0)
-                {
-                    // 無非比劫透干：從月令非比劫藏干取根氣最強者（含未透干者）
-                    chosenStem = nonBiJieMH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                    // 月令藏干全是比劫（如子月/卯月/午月/酉月）→ 建祿格/月刃格
+                    chosenStem = mH[0].stem;
                 }
                 else
                 {
-                    // 月令藏干全是比劫（如子月癸、卯月乙）→ 建祿格/月刃格
-                    chosenStem = mH[0].stem;
+                    // 內格取格規則：
+                    // 1. 依五行分布（wuXing）由強到弱排序
+                    // 2. 最旺五行：不需透干也直接取
+                    // 3. 次旺以下：需透干才取
+                    // 4. 同元素有透干時優先取透干者
+                    var sortedElems = nonBiJieMH
+                        .GroupBy(h => KbStemToElement(h.stem))
+                        .Select(g => new {
+                            elem = g.Key,
+                            pct  = wuXing.GetValueOrDefault(g.Key, 0),
+                            stems = g.ToList()
+                        })
+                        .OrderByDescending(x => x.pct)
+                        .ToList();
+
+                    string? picked = null;
+                    for (int i = 0; i < sortedElems.Count; i++)
+                    {
+                        var group = sortedElems[i];
+                        var transparentInGroup = group.stems
+                            .Where(h => allHeavenStems.Contains(h.stem))
+                            .OrderByDescending(h => LfStemRootScore(h.stem, allBranches))
+                            .ToList();
+
+                        if (i == 0)
+                        {
+                            // 最旺五行：不需透干，直接取（同元素有透干優先）
+                            picked = transparentInGroup.Count > 0
+                                ? transparentInGroup[0].stem
+                                : group.stems.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                            break;
+                        }
+                        else if (transparentInGroup.Count > 0)
+                        {
+                            // 次旺以下：需透干才取
+                            // 調候優先
+                            string? tiaoMatch = tiaoHouList.FirstOrDefault(t => transparentInGroup.Any(h => h.stem == t));
+                            picked = tiaoMatch ?? transparentInGroup[0].stem;
+                            break;
+                        }
+                    }
+                    chosenStem = picked ?? nonBiJieMH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
                 }
             }
             string chosenSS = LfStemShiShen(chosenStem, dStem);
