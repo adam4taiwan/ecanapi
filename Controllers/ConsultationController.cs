@@ -949,16 +949,24 @@ namespace Ecanapi.Controllers
             return stars;
         }
 
-        // 移除 KB 內容中主題不符的段落（依行首關鍵字過濾，如夫妻宮混入事業宮論述）
-        private static string KbRemoveOffTopicLines(string content, params string[] offTopicPrefixes)
+        // 移除 KB 內容中主題不符的行
+        // keepIfContains：即使含 offTopicKeywords，若同時含此字則保留（避免誤刪交叉論述）
+        private static string KbRemoveOffTopicLines(string content, string[] offTopicKeywords, string[] keepIfContains = null)
         {
             if (string.IsNullOrEmpty(content)) return content;
             var result = new List<string>();
             foreach (var line in content.Split('\n'))
             {
-                var t = line.TrimStart();
-                if (!offTopicPrefixes.Any(p => t.StartsWith(p)))
+                bool hasOffTopic = offTopicKeywords.Any(k => line.Contains(k));
+                if (!hasOffTopic)
+                {
                     result.Add(line);
+                    continue;
+                }
+                // 含 off-topic 關鍵字，但也含 keep 關鍵字 → 保留
+                if (keepIfContains != null && keepIfContains.Any(k => line.Contains(k)))
+                    result.Add(line);
+                // 否則過濾掉
             }
             return string.Join("\n", result).Trim();
         }
@@ -3918,8 +3926,10 @@ namespace Ecanapi.Controllers
             {
                 if (!string.IsNullOrEmpty(ziweiSps))
                 {
-                    // 過濾夫妻宮 KB 中混入的事業宮論述
-                    string spsFiltered = KbRemoveOffTopicLines(ziweiSps, "事業宮", "推斷一生事業", "若從商", "您的事業宮");
+                    // 過濾夫妻宮 KB 中混入的事業宮論述（含「事業」的行，但保留同時含「夫妻」或「配偶」的行）
+                    string spsFiltered = KbRemoveOffTopicLines(ziweiSps,
+                        new[] { "事業", "轉業", "工藝", "工業設計", "工藝美術", "從商", "職業", "行業" },
+                        keepIfContains: new[] { "夫妻", "配偶", "感情" });
                     if (!string.IsNullOrEmpty(spsFiltered))
                         sb.AppendLine($"【夫妻宮主星·{spsStars}（感情個性）】{spsFiltered}");
                 }
