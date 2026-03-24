@@ -3727,7 +3727,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.5 格局與用神判定 ===
-            sb.AppendLine("【第五章：格局與用神判定】");
+            sb.AppendLine("【第五章：用神喜忌判定】");
             sb.AppendLine();
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
