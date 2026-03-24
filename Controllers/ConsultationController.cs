@@ -2070,7 +2070,7 @@ namespace Ecanapi.Controllers
 
                 if (line == "【第二章：先天八字依古制定】" || line == "【第三章：深度論斷】" ||
                     line == "【第四章：命局格局判定】" || line == "【第五章：用神喜忌判定】" ||
-                    line == "【第七章：宮星化象（十二宮）】")
+                    line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
                 {
                     AddPageBreak();
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -3801,7 +3801,7 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // === Ch.8 命宮格局論 ===
+            // === Ch.8 命宮格局論（ziwei_patterns_144 格局文字，不重複第七章）===
             sb.AppendLine("【第八章：命宮格局論】");
             sb.AppendLine();
             if (!hasZiwei)
@@ -3810,11 +3810,9 @@ namespace Ecanapi.Controllers
             }
             else
             {
-                if (!string.IsNullOrEmpty(mingGongStars) && !string.IsNullOrEmpty(ziweiMing))
-                    sb.AppendLine($"【命宮格局·{mingGongStars}】\n{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing))
-                    sb.AppendLine($"\n【命宮星情】\n{starDescMing}");
-                if (string.IsNullOrEmpty(ziweiMing) && string.IsNullOrEmpty(starDescMing))
+                    sb.AppendLine(starDescMing);
+                else
                     sb.AppendLine("（命宮格局論尚待補充）");
             }
             sb.AppendLine();
