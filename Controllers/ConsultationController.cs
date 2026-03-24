@@ -1816,6 +1816,8 @@ namespace Ecanapi.Controllers
         public class YudongziDocxRequest
         {
             public string? ChartImageBase64 { get; set; }
+            public string? ChartJson { get; set; }   // 前端 Astrology/calculate 回傳的完整命盤 JSON
+            public string? PersonName { get; set; }  // 客人姓名
         }
 
         [HttpPost("export-yudongzi-docx")]
@@ -1840,8 +1842,11 @@ namespace Ecanapi.Controllers
 
             try
             {
-                // === 取得相同分析資料 (與 GetYudongziAnalysis 相同邏輯) ===
-                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                // === 優先使用前端傳入的命盤 JSON（客人資料），否則 fallback 到 admin 自己的 DB 資料 ===
+                string chartJsonToUse = !string.IsNullOrEmpty(request.ChartJson)
+                    ? request.ChartJson
+                    : userChart.ChartJson;
+                var root = JsonDocument.Parse(chartJsonToUse).RootElement;
                 if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
                     return BadRequest(new { error = "命盤資料格式錯誤" });
 
@@ -1955,9 +1960,10 @@ namespace Ecanapi.Controllers
                     ? Array.Empty<byte>()
                     : Convert.FromBase64String(request.ChartImageBase64);
 
-                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, user.Name ?? "命主");
+                string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
+                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName);
 
-                string fileName = $"{user.Name ?? "命主"}_玉洞子命書.docx";
+                string fileName = $"{personName}_玉洞子命書.docx";
                 return File(docxBytes,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     fileName);
