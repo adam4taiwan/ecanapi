@@ -3954,7 +3954,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine(KbSanmenHealthLongevity(
                 yStem, mStem, hStem, yBranch, mBranch, dBranch, hBranch,
                 dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
-                wuXing, season, seaLabel, scored));
+                wuXing, season, seaLabel, scored, currentAge));
             // 紫微疾厄宮補充
             if (hasZiwei)
             {
@@ -4535,7 +4535,8 @@ namespace Ecanapi.Controllers
             string dStem, string dmElem, double bodyPct,
             string yongShenElem, string jiShenElem,
             Dictionary<string, double> wuXing, string season, string seaLabel,
-            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored)
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
+            int currentAge = 0)
         {
             var sb = new StringBuilder();
 
@@ -4661,9 +4662,16 @@ namespace Ecanapi.Controllers
             }
 
             // === 大運健康風險期 ===
+            // 計算前一運起始年齡（同 Ch.14 邏輯），只顯示 >= 前一運的大運
+            int riskCurIdx   = currentAge > 0 ? scored.FindIndex(lc => lc.startAge <= currentAge && lc.endAge >= currentAge) : 0;
+            if (riskCurIdx < 0) riskCurIdx = scored.FindIndex(lc => lc.startAge > currentAge);
+            if (riskCurIdx < 0) riskCurIdx = scored.Count - 1;
+            int riskStartAge = riskCurIdx > 0 ? scored[riskCurIdx - 1].startAge : 0;
+
             sb.AppendLine("【大運健康風險期】");
             var riskLucks = scored.Where(lc =>
             {
+                if (lc.startAge < riskStartAge) return false;
                 string lcStemElem   = KbStemToElement(lc.stem);
                 string lcBrMs       = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bh) && bh.Count > 0 ? bh[0].stem : "";
                 string lcBranchElem = !string.IsNullOrEmpty(lcBrMs) ? KbStemToElement(lcBrMs) : "";
