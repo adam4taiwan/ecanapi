@@ -4432,7 +4432,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === 婚期推算 ===
-            sb.AppendLine("【婚期推算（大運時機）】");
+            sb.AppendLine("【異性緣期】");
             var marriageLucks = scored.Where(lc =>
             {
                 if (lc.startAge < 21) return false;  // 21歲以下大運不納入婚期推算
