@@ -2801,8 +2801,17 @@ namespace Ecanapi.Controllers
                 }
                 else if (transparentHidden.Count == 1)
                 {
-                    // 單一透干：直接取
-                    chosenStem = transparentHidden[0].stem;
+                    string tStem = transparentHidden[0].stem;
+                    string tSS = LfStemShiShen(tStem, dStem);
+                    // 若透干為比劫，且月令主氣不是比劫，優先取月令主氣
+                    if ((tSS == "比肩" || tSS == "劫財") && mH.Count > 0)
+                    {
+                        string mainStem = mH[0].stem;
+                        string mainSS = LfStemShiShen(mainStem, dStem);
+                        chosenStem = (mainSS != "比肩" && mainSS != "劫財") ? mainStem : tStem;
+                    }
+                    else
+                        chosenStem = tStem;
                 }
                 else
                 {
