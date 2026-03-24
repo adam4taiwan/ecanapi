@@ -1789,6 +1789,333 @@ namespace Ecanapi.Controllers
             }
         }
 
+        // === 玉洞子命書 DOCX 匯出 ===
+
+        public class YudongziDocxRequest
+        {
+            public string? ChartImageBase64 { get; set; }
+        }
+
+        [HttpPost("export-yudongzi-docx")]
+        [Authorize]
+        public async Task<IActionResult> ExportYudongziDocx([FromBody] YudongziDocxRequest request)
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            if (identity != "adam4taiwan@gmail.com")
+                return StatusCode(403, new { error = "此功能僅限管理員使用" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            try
+            {
+                // === 取得相同分析資料 (與 GetYudongziAnalysis 相同邏輯) ===
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                string yStemSS   = LfPillarStemSS(yearP);
+                string mStemSS   = LfPillarStemSS(monthP);
+                string hStemSS   = LfPillarStemSS(timeP);
+                string yBranchSS = LfPillarBranchMainSS(yearP);
+                string mBranchSS = LfPillarBranchMainSS(monthP);
+                string dBranchSS = LfPillarBranchMainSS(dayP);
+                string hBranchSS = LfPillarBranchMainSS(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender    = user.BirthGender ?? 1;
+                var luckCycles = LfExtractLuckCycles(root);
+
+                string dmElem  = KbStemToElement(dStem);
+                var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+                string season  = LfGetSeason(mBranch);
+                string seaLabel = LfGetSeasonLabel(mBranch);
+
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+
+                var chartStems2 = new[] { yStem, mStem, dStem, hStem };
+                var scored = luckCycles.Select(lc =>
+                {
+                    int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems2, dStem);
+                    return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
+                }).ToList();
+
+                var dayPillarKb = await _context.BaziDayPillarReadings
+                    .FirstOrDefaultAsync(r => r.DayPillar == dStem + dBranch);
+                string yNaYin = LfPillarNaYin(yearP); string mNaYin = LfPillarNaYin(monthP);
+                string dNaYin = LfPillarNaYin(dayP);  string hNaYin = LfPillarNaYin(timeP);
+
+                bool hasZiwei = root.TryGetProperty("palaces", out var palacesYdz) && palacesYdz.ValueKind == JsonValueKind.Array;
+                string mingGongStarsYdz = userChart.MingGongMainStars ?? "";
+                string mingZhuYdz = ""; string shenZhuYdz = ""; string wuXingJuTextYdz = "";
+                if (root.TryGetProperty("mingZhu", out var mzEl)) mingZhuYdz = mzEl.GetString() ?? "";
+                if (root.TryGetProperty("shenZhu", out var szEl)) shenZhuYdz = szEl.GetString() ?? "";
+                if (root.TryGetProperty("wuXingJuText", out var wxjEl)) wuXingJuTextYdz = wxjEl.GetString() ?? "";
+
+                string zPosYdz = hasZiwei ? KbGetZiweiPosition(palacesYdz) : "";
+                var chartStarsYdz = hasZiwei ? KbGetAllChartStars(palacesYdz) : new HashSet<string>();
+                string ziweiFullContentYdz = hasZiwei ? await KbZiweiFullQuery(palacesYdz, zPosYdz) : "";
+                string ziweiMingYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "命宮"), KbGetPalaceStarsSet(palacesYdz, "命宮"), chartStarsYdz);
+                string starDescMingYdz = hasZiwei ? await KbQueryStarInPalace(palacesYdz, "命宮") : "";
+                string ziweiOffYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "事業宮"), KbGetPalaceStarsSet(palacesYdz, "官祿"), chartStarsYdz);
+                string offStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "官祿") : "";
+                string ziweiWltYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "財帛宮"), KbGetPalaceStarsSet(palacesYdz, "財帛"), chartStarsYdz);
+                string wltStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "財帛") : "";
+                string ziweiSpsYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "夫妻宮"), KbGetPalaceStarsSet(palacesYdz, "夫妻"), chartStarsYdz);
+                string spsStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "夫妻") : "";
+                string ziweiHltYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "疾厄宮"), KbGetPalaceStarsSet(palacesYdz, "疾厄"), chartStarsYdz);
+                string hltStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "疾厄") : "";
+                var siHuaYdz = new Dictionary<string, (string pal, string txt)>();
+                if (hasZiwei)
+                {
+                    var (mLuP, mLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
+                    var (mJiP, mJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化忌");
+                    var (oLuP, oLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化祿");
+                    var (oJiP, oJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化忌");
+                    var (wLuP, wLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化祿");
+                    var (wJiP, wJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化忌");
+                    var (sLuP, sLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化祿");
+                    var (sJiP, sJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化忌");
+                    var (hJiP, hJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化忌");
+                    siHuaYdz["命宮化祿"] = (mLuP, mLuC); siHuaYdz["命宮化忌"] = (mJiP, mJiC);
+                    siHuaYdz["官祿化祿"] = (oLuP, oLuC); siHuaYdz["官祿化忌"] = (oJiP, oJiC);
+                    siHuaYdz["財帛化祿"] = (wLuP, wLuC); siHuaYdz["財帛化忌"] = (wJiP, wJiC);
+                    siHuaYdz["夫妻化祿"] = (sLuP, sLuC); siHuaYdz["夫妻化忌"] = (sJiP, sJiC);
+                    siHuaYdz["疾厄化忌"] = (hJiP, hJiC);
+                }
+
+                string reportText = LfBuildYudongziReportV2(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    yNaYin, mNaYin, dNaYin, hNaYin,
+                    dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
+                    pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
+                    scored, gender, birthYear, user.BirthHour, user.BirthMinute,
+                    hasZiwei, palacesYdz, mingGongStarsYdz, mingZhuYdz, shenZhuYdz, wuXingJuTextYdz,
+                    ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
+                    ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
+                    ziweiSpsYdz, spsStarsYdz, ziweiHltYdz, hltStarsYdz,
+                    siHuaYdz, dayPillarKb);
+
+                // === 建立 DOCX ===
+                string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                string coverPath = Path.Combine(wwwroot, "images", "cover_page.jpg");
+                string sealPath  = Path.Combine(wwwroot, "images", "玉洞子印.png");
+                byte[] coverBytes = System.IO.File.Exists(coverPath) ? await System.IO.File.ReadAllBytesAsync(coverPath) : Array.Empty<byte>();
+                byte[] sealBytes  = System.IO.File.Exists(sealPath)  ? await System.IO.File.ReadAllBytesAsync(sealPath)  : Array.Empty<byte>();
+                byte[] chartImgBytes = string.IsNullOrEmpty(request?.ChartImageBase64)
+                    ? Array.Empty<byte>()
+                    : Convert.FromBase64String(request.ChartImageBase64);
+
+                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, user.Name ?? "命主");
+
+                string fileName = $"{user.Name ?? "命主"}_玉洞子命書.docx";
+                return File(docxBytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "玉洞子命書DOCX失敗 User={User}", identity);
+                return StatusCode(500, new { error = "DOCX生成失敗", details = ex.Message });
+            }
+        }
+
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName)
+        {
+            using var ms = new MemoryStream();
+            using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
+
+            void AddPara(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
+            {
+                var p = doc.CreateParagraph();
+                p.Alignment = align;
+                if (bold) p.SpacingBefore = 80;
+                var r = p.CreateRun();
+                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r.FontSize = fontSize;
+                r.IsBold = bold;
+                r.SetColor(colorHex);
+                r.SetText(text ?? "");
+            }
+
+            void AddImage(byte[] imgBytes, int pictureType, int widthCm, int heightCm, bool leftAlign = false)
+            {
+                if (imgBytes == null || imgBytes.Length == 0) return;
+                var p = doc.CreateParagraph();
+                p.Alignment = leftAlign ? NPOI.XWPF.UserModel.ParagraphAlignment.LEFT : NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                var r = p.CreateRun();
+                using var imgStream = new MemoryStream(imgBytes);
+                int wEmu = widthCm * 360000;
+                int hEmu = heightCm * 360000;
+                r.AddPicture(imgStream, pictureType, "img", wEmu, hEmu);
+            }
+
+            void AddPageBreak()
+            {
+                var p = doc.CreateParagraph();
+                var r = p.CreateRun();
+                r.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
+            }
+
+            // === 封面 ===
+            if (coverBytes.Length > 0)
+                AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
+            AddPara("玉 洞 子 命 書", 36, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPara("親鑑", 16, false, "8B4513", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPara($"命主：{personName}", 20, true, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPara(" ", 12, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+            AddPara("  時辰恐有錯  陰騭最難憑", 13, false, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPara("  萬般皆是命  半點不求人", 13, false, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPageBreak();
+
+            // === 先天元神圖 ===
+            if (chartImgBytes.Length > 0)
+            {
+                AddPara("【先天元神圖】", 18, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                AddPara(" ", 8, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                AddImage(chartImgBytes, (int)NPOI.XWPF.UserModel.PictureType.PNG, 15, 15, leftAlign: true);
+                AddPageBreak();
+            }
+
+            // === 16 章報告 ===
+            var pipeBuffer = new List<string>();
+
+            void FlushPipeTable()
+            {
+                if (pipeBuffer.Count == 0) return;
+                var dataRows = new List<List<string>>();
+                foreach (var pl in pipeBuffer)
+                {
+                    // skip separator rows (|---|---|)
+                    if (pl.Replace("|","").Replace("-","").Replace(":","").Trim() == "") continue;
+                    var parts = pl.Split('|').Skip(1).ToList();
+                    if (parts.Count > 0 && parts.Last().Trim() == "") parts.RemoveAt(parts.Count - 1);
+                    var cells = parts.Select(s => s.Trim()).ToList();
+                    if (cells.Count > 0) dataRows.Add(cells);
+                }
+                pipeBuffer.Clear();
+                if (dataRows.Count == 0) return;
+
+                int colCount = dataRows.Max(r => r.Count);
+                var tbl = doc.CreateTable(dataRows.Count, colCount);
+                for (int ri = 0; ri < dataRows.Count; ri++)
+                {
+                    var trow = tbl.GetRow(ri);
+                    for (int ci = 0; ci < dataRows[ri].Count && ci < colCount; ci++)
+                    {
+                        var tcell = trow.GetCell(ci);
+                        var para = tcell.Paragraphs.Count > 0 ? tcell.Paragraphs[0] : tcell.AddParagraph();
+                        para.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                        var run = para.CreateRun();
+                        run.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                        run.FontSize = 10;
+                        if (ri == 0) run.IsBold = true;
+                        run.SetText(dataRows[ri][ci]);
+                    }
+                }
+                doc.CreateParagraph(); // spacing after table
+            }
+
+            bool ShouldSkipReportLine(string line)
+            {
+                if (line.Contains("玉 洞 子 命 書（內部版）")) return true;
+                if (line.TrimEnd() == "  時辰恐有錯  陰騭最難憑") return true;
+                if (line.TrimEnd() == "  萬般皆是命  半點不求人") return true;
+                if (line.Contains("命理大師：玉洞子")) return true;
+                return false;
+            }
+
+            foreach (var rawLine in reportText.Split('\n'))
+            {
+                var line = rawLine.TrimEnd();
+
+                if (ShouldSkipReportLine(line)) continue;
+
+                // Buffer pipe-table lines
+                if (line.TrimStart().StartsWith("|"))
+                {
+                    pipeBuffer.Add(line);
+                    continue;
+                }
+
+                // Non-pipe line: flush any buffered table first
+                FlushPipeTable();
+
+                if (line == "【第二章：先天八字依古制定】" || line == "【第四章：命局格局判定】")
+                {
+                    AddPageBreak();
+                    AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+                else if (line.StartsWith("【第") && line.EndsWith("】"))
+                {
+                    AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+                else if (line.StartsWith("=====") || line.StartsWith("-----"))
+                {
+                    // skip divider lines from report header block
+                }
+                else if (string.IsNullOrWhiteSpace(line))
+                {
+                    AddPara(" ", 8, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+                else if (line.StartsWith("【") && line.Contains("："))
+                {
+                    AddPara(line, 13, true, "5C3317", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+                else
+                {
+                    AddPara(line, 11, false, "222222", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+            }
+            FlushPipeTable(); // flush any trailing table
+
+            // === 玉洞子印 ===
+            AddPara(" ", 16, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.RIGHT);
+            if (sealBytes.Length > 0)
+            {
+                var p = doc.CreateParagraph();
+                p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.RIGHT;
+                var r = p.CreateRun();
+                using var sealStream = new MemoryStream(sealBytes);
+                r.AddPicture(sealStream, (int)NPOI.XWPF.UserModel.PictureType.PNG, "seal", 3600000, 3600000);
+            }
+            else
+            {
+                AddPara("　　　　[ 玉 洞 子 印 ]", 18, true, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.RIGHT);
+            }
+            AddPara("　　　　　　 敬 批", 16, true, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.RIGHT);
+
+            doc.Write(ms);
+            return ms.ToArray();
+        }
+
         // === Dy (大運命書) Endpoint ===
 
         [HttpGet("analyze-daiyun")]
@@ -3315,14 +3642,15 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第二章：先天八字依古制定】");
             sb.AppendLine();
             sb.AppendLine("一、根苗花果");
-            sb.AppendLine($"        {"時柱",-8}{"日柱",-8}{"月柱",-8}{"年柱"}");
-            sb.AppendLine($"{"六神",-6}{hStemSS,-8}{"元神",-8}{mStemSS,-8}{yStemSS}");
-            sb.AppendLine($"{"天干",-6}{hStem,-8}{dStem,-8}{mStem,-8}{yStem}");
-            sb.AppendLine($"{"地支",-6}{hBranch,-8}{dBranch,-8}{mBranch,-8}{yBranch}");
-            sb.AppendLine($"{"藏神",-6}{LfFmtHidden(hBranch,dStem),-8}{LfFmtHidden(dBranch,dStem),-8}{LfFmtHidden(mBranch,dStem),-8}{LfFmtHidden(yBranch,dStem)}");
-            sb.AppendLine($"{"納音",-6}{hNaYin,-8}{dNaYin,-8}{mNaYin,-8}{yNaYin}");
+            sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
+            sb.AppendLine("|------|------|------|------|------|");
+            sb.AppendLine($"| 六神 | {hStemSS} | 元神 | {mStemSS} | {yStemSS} |");
+            sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
+            sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
+            sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
+            sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
             var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
-            sb.AppendLine($"旺相休囚死：{wang}旺  {xiang}相  {xiu}休  {qiu}囚  {si}死");
+            sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
             sb.AppendLine();
             sb.AppendLine("二、天干十神");
             string[] allStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
@@ -3332,21 +3660,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine("三、地支藏神十神");
             string[] allBrs12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-            foreach (var br in allBrs12)
-            {
-                string hiddenStr = LfFmtHidden(br, dStem);
-                string inChart = branches.Contains(br) ? " ★" : "";
-                sb.AppendLine($"  {br}：{hiddenStr}{inChart}");
-            }
+            // 橫排：地支為欄
+            sb.AppendLine("| 項目 | " + string.Join(" | ", allBrs12.Select(br => br + (branches.Contains(br) ? "★" : ""))) + " |");
+            sb.AppendLine("|------" + string.Join("|", allBrs12.Select(_ => "----")) + "|");
+            sb.AppendLine("| 藏神 | " + string.Join(" | ", allBrs12.Select(br => LfFmtHidden(br, dStem))) + " |");
             double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-            sb.AppendLine($"  比印陣計分：{biJiPct:F0}%");
-            sb.AppendLine();
-            // KB Overview 優先
-            if (!string.IsNullOrEmpty(kb?.Overview))
-            {
-                sb.AppendLine($"四、日元 {dStem}{dBranch} 概論");
-                sb.AppendLine(kb.Overview);
-            }
+            sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
             sb.AppendLine();
 
             // === Ch.3 日柱深度論斷 ===
@@ -3396,19 +3715,20 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【格局判定】");
             sb.AppendLine($"格局：【{pattern}】");
             sb.AppendLine(LfPatternDesc(pattern));
-            // KB ShenAnalysis 補充
-            if (!string.IsNullOrEmpty(kb?.ShenAnalysis))
+            // 四柱神殺
+            var shenShaList = LfGetBaziShenSha(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+            if (shenShaList.Count > 0)
             {
                 sb.AppendLine();
-                sb.AppendLine("【日柱神殺補述】");
-                sb.AppendLine(kb.ShenAnalysis);
+                sb.AppendLine("【神殺補述】");
+                foreach (var ss in shenShaList)
+                    sb.AppendLine(ss);
             }
             sb.AppendLine();
 
             // === Ch.5 格局與用神判定 ===
             sb.AppendLine("【第五章：格局與用神判定】");
             sb.AppendLine();
-            sb.AppendLine($"格局：【{pattern}】");
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
@@ -4459,6 +4779,109 @@ namespace Ecanapi.Controllers
         }
 
         // === Lf Text Helpers ===
+
+        // 計算四柱神殺
+        private static List<string> LfGetBaziShenSha(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch)
+        {
+            var result = new List<string>();
+            var stems   = new[] { yStem, mStem, dStem, hStem };
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+
+            // 羊刃 - 日干對應陽刃地支
+            var yangRen = new Dictionary<string,string>
+            { {"甲","卯"},{"丙","午"},{"戊","午"},{"庚","酉"},{"壬","子"},
+              {"乙","辰"},{"丁","未"},{"己","未"},{"辛","戌"},{"癸","丑"} };
+            if (yangRen.TryGetValue(dStem, out var yrBr) && branches.Contains(yrBr))
+                result.Add($"羊刃：日干 {dStem} 見 {yrBr}，刃星入命，個性剛強果決，宜武職或技術專業。");
+
+            // 桃花 - 年支或日支對應桃花地支
+            var taoHuaMap = new Dictionary<string,string>
+            { {"子","酉"},{"丑","午"},{"寅","卯"},{"卯","子"},{"辰","酉"},{"巳","午"},
+              {"午","卯"},{"未","子"},{"申","酉"},{"酉","午"},{"戌","卯"},{"亥","子"} };
+            foreach (var baseBr in new[] { yBranch, dBranch })
+            {
+                if (taoHuaMap.TryGetValue(baseBr, out var thBr) && branches.Contains(thBr) && thBr != baseBr)
+                {
+                    result.Add($"桃花：{baseBr}生見 {thBr}，桃花入命，人緣極佳，異性緣旺，感情豐富。");
+                    break;
+                }
+            }
+
+            // 驛馬 - 年支或日支對應驛馬地支
+            var yiMaMap = new Dictionary<string,string>
+            { {"申","寅"},{"子","寅"},{"辰","寅"},
+              {"亥","巳"},{"卯","巳"},{"未","巳"},
+              {"寅","申"},{"午","申"},{"戌","申"},
+              {"巳","亥"},{"酉","亥"},{"丑","亥"} };
+            foreach (var baseBr in new[] { yBranch, dBranch })
+            {
+                if (yiMaMap.TryGetValue(baseBr, out var ymBr) && branches.Contains(ymBr))
+                {
+                    result.Add($"驛馬：{baseBr}生見 {ymBr}，驛馬入命，奔波勞碌，利於外出闖蕩或從事流動性工作。");
+                    break;
+                }
+            }
+
+            // 華蓋 - 年支或日支對應華蓋地支
+            var huaGaiMap = new Dictionary<string,string>
+            { {"申","辰"},{"子","辰"},{"辰","辰"},
+              {"亥","未"},{"卯","未"},{"未","未"},
+              {"寅","戌"},{"午","戌"},{"戌","戌"},
+              {"巳","丑"},{"酉","丑"},{"丑","丑"} };
+            foreach (var baseBr in new[] { yBranch, dBranch })
+            {
+                if (huaGaiMap.TryGetValue(baseBr, out var hgBr) && branches.Contains(hgBr))
+                {
+                    result.Add($"華蓋：{baseBr}生見 {hgBr}，華蓋入命，聰慧有才藝，帶有孤高之氣，宗教藝術緣深。");
+                    break;
+                }
+            }
+
+            // 孤辰寡宿 - 年支對應
+            var guChenMap = new Dictionary<string,string>
+            { {"寅","巳"},{"卯","巳"},{"辰","巳"},
+              {"巳","申"},{"午","申"},{"未","申"},
+              {"申","亥"},{"酉","亥"},{"戌","亥"},
+              {"亥","寅"},{"子","寅"},{"丑","寅"} };
+            if (guChenMap.TryGetValue(yBranch, out var gcBr) && branches.Contains(gcBr))
+                result.Add($"孤辰：年支 {yBranch} 見 {gcBr}，孤辰入命，個性獨立，早年易孤單，晚年宜修身養性。");
+
+            // 文昌 - 日干對應文昌地支
+            var wenChangMap = new Dictionary<string,string>
+            { {"甲","巳"},{"乙","午"},{"丙","申"},{"丁","酉"},{"戊","申"},
+              {"己","酉"},{"庚","亥"},{"辛","子"},{"壬","寅"},{"癸","卯"} };
+            if (wenChangMap.TryGetValue(dStem, out var wcBr) && branches.Contains(wcBr))
+                result.Add($"文昌：日干 {dStem} 見 {wcBr}，文昌入命，聰明好學，利文筆考試，適合文教學術行業。");
+
+            // 天乙貴人 - 日干對應天乙貴人地支（兩個）
+            var tianYiMap = new Dictionary<string, string[]>
+            { {"甲",new[]{"丑","未"}},{"乙",new[]{"子","申"}},{"丙",new[]{"亥","酉"}},
+              {"丁",new[]{"亥","酉"}},{"戊",new[]{"丑","未"}},{"己",new[]{"子","申"}},
+              {"庚",new[]{"丑","未"}},{"辛",new[]{"寅","午"}},{"壬",new[]{"卯","巳"}},
+              {"癸",new[]{"卯","巳"}} };
+            if (tianYiMap.TryGetValue(dStem, out var tyBrs))
+            {
+                var matched = tyBrs.Where(b => branches.Contains(b)).ToList();
+                if (matched.Count > 0)
+                    result.Add($"天乙貴人：日干 {dStem} 見 {string.Join("、",matched)}，天乙貴人入命，貴人多助，逢凶化吉，一生有貴人提攜。");
+            }
+
+            // 月德貴人 - 月支對應月德天干
+            var yueDeMMap = new Dictionary<string,string>
+            { {"寅","丙"},{"午","丙"},{"戌","丙"},
+              {"申","壬"},{"子","壬"},{"辰","壬"},
+              {"亥","甲"},{"卯","甲"},{"未","甲"},
+              {"巳","庚"},{"酉","庚"},{"丑","庚"} };
+            if (yueDeMMap.TryGetValue(mBranch, out var ydStem) && stems.Contains(ydStem))
+                result.Add($"月德貴人：月支 {mBranch} 配天干 {ydStem}，月德貴人入命，得母系庇蔭，女性貴人緣深，化解官訟小人。");
+
+            if (result.Count == 0)
+                result.Add("四柱未見特定神殺入命。");
+
+            return result;
+        }
 
         private static string LfElemStems(string elem) => elem switch
         { "木"=>"甲乙","火"=>"丙丁","土"=>"戊己","金"=>"庚辛","水"=>"壬癸",_=>"" };
