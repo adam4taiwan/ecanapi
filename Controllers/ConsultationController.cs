@@ -2068,7 +2068,9 @@ namespace Ecanapi.Controllers
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
 
-                if (line == "【第二章：先天八字依古制定】" || line == "【第四章：命局格局判定】" || line == "【第五章：用神喜忌判定】")
+                if (line == "【第二章：先天八字依古制定】" || line == "【第三章：深度論斷】" ||
+                    line == "【第四章：命局格局判定】" || line == "【第五章：用神喜忌判定】" ||
+                    line == "【第七章：宮星化象（十二宮）】")
                 {
                     AddPageBreak();
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -3668,8 +3670,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
             sb.AppendLine();
 
-            // === Ch.3 日柱深度論斷 ===
-            sb.AppendLine("【第三章：日柱深度論斷】");
+            // === Ch.3 深度論斷 ===
+            sb.AppendLine("【第三章：深度論斷】");
             sb.AppendLine();
             sb.AppendLine("【古傳斷語】");
             sb.AppendLine();
