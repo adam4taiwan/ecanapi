@@ -2788,8 +2788,43 @@ namespace Ecanapi.Controllers
             // 調候補用神元素（首位調候干的五行，供命書標注）
             string tiaoHouElem = tiaoHouList.Length > 0 ? KbStemToElement(tiaoHouList[0]) : "";
 
+            // ── 取格優先順序：外格 → 建祿格/月刃格 → 內格 ──
+
+            // Step 1: 外格判定（優先，一旦成立直接使用，跳過內格）
+            string pattern = "";
+
+            // 五行從旺外格
+            string wuXingGeJu = LfDetectWuXingGeJu(
+                dmElem, mBranch, allHeavenStems, new[] { yBranch, mBranch, dBranch, hBranch });
+            if (!string.IsNullOrEmpty(wuXingGeJu))
+                pattern = wuXingGeJu;
+
+            // 從格/從旺格
+            if (string.IsNullOrEmpty(pattern) && bodyPct <= 20)
+            {
+                string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+                string shiElemD  = LfElemGen.GetValueOrDefault(dmElem, "");
+                double guanPctD  = wuXing.GetValueOrDefault(guanElemD, 0);
+                double caiPctD   = wuXing.GetValueOrDefault(caiElemD, 0);
+                double shiPctD   = wuXing.GetValueOrDefault(shiElemD, 0);
+                double oppPct    = guanPctD + caiPctD + shiPctD;
+                if (oppPct >= 70)
+                {
+                    if      (guanPctD >= caiPctD && guanPctD >= shiPctD) pattern = "從殺格";
+                    else if (caiPctD  >= guanPctD && caiPctD >= shiPctD) pattern = "從財格";
+                    else                                                  pattern = "從兒格";
+                }
+            }
+            if (string.IsNullOrEmpty(pattern) && bodyPct >= 80)
+            {
+                double sameElem = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+                if (sameElem >= 75) pattern = "從旺格";
+            }
+
+            // Step 2 & 3: 外格未成立 → 建祿格/月刃格 or 內格
             string chosenStem = "";
-            if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
+            if (string.IsNullOrEmpty(pattern) && LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
                 // 月令非比劫藏干
                 var nonBiJieMH = mH
@@ -2798,93 +2833,42 @@ namespace Ecanapi.Controllers
 
                 if (nonBiJieMH.Count == 0)
                 {
-                    // 月令藏干全是比劫（如子月/卯月/午月/酉月）→ 建祿格/月刃格
+                    // Step 2: 月令藏干全是比劫 → 建祿格/月刃格
                     chosenStem = mH[0].stem;
                 }
                 else
                 {
-                    // 內格取格規則：
-                    // 1. 依五行分布（wuXing）由強到弱排序
-                    // 2. 最旺五行：不需透干也直接取
-                    // 3. 次旺以下：需透干才取
-                    // 4. 同元素有透干時優先取透干者
-                    var sortedElems = nonBiJieMH
-                        .GroupBy(h => KbStemToElement(h.stem))
-                        .Select(g => new {
-                            elem = g.Key,
-                            pct  = wuXing.GetValueOrDefault(g.Key, 0),
-                            stems = g.ToList()
-                        })
-                        .OrderByDescending(x => x.pct)
-                        .ToList();
+                    // Step 3: 內格取格（依月支藏干內部 ratio 排序）
+                    // 主氣（ratio最高非比劫）：不需透干直接取
+                    // 次氣以下：需透干才取（調候優先）
+                    var sortedMH = nonBiJieMH.OrderByDescending(h => h.ratio).ToList();
+                    double topRatio = sortedMH[0].ratio;
 
-                    string? picked = null;
-                    for (int i = 0; i < sortedElems.Count; i++)
+                    var topGroup = sortedMH.Where(h => h.ratio == topRatio).ToList();
+                    var transparentTop = topGroup.Where(h => allHeavenStems.Contains(h.stem)).ToList();
+                    if (transparentTop.Count > 0)
                     {
-                        var group = sortedElems[i];
-                        var transparentInGroup = group.stems
-                            .Where(h => allHeavenStems.Contains(h.stem))
-                            .OrderByDescending(h => LfStemRootScore(h.stem, allBranches))
-                            .ToList();
-
-                        if (i == 0)
-                        {
-                            // 最旺五行：不需透干，直接取（同元素有透干優先）
-                            picked = transparentInGroup.Count > 0
-                                ? transparentInGroup[0].stem
-                                : group.stems.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
-                            break;
-                        }
-                        else if (transparentInGroup.Count > 0)
-                        {
-                            // 次旺以下：需透干才取
-                            // 調候優先
-                            string? tiaoMatch = tiaoHouList.FirstOrDefault(t => transparentInGroup.Any(h => h.stem == t));
-                            picked = tiaoMatch ?? transparentInGroup[0].stem;
-                            break;
-                        }
+                        string? tiaoTop = tiaoHouList.FirstOrDefault(t => transparentTop.Any(h => h.stem == t));
+                        chosenStem = tiaoTop ?? transparentTop[0].stem;
                     }
-                    chosenStem = picked ?? nonBiJieMH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                    else
+                    {
+                        // 主氣未透：直接取主氣，但若次氣有調候透干則優先
+                        var secondaryTransparent = sortedMH
+                            .Where(h => h.ratio < topRatio && allHeavenStems.Contains(h.stem))
+                            .ToList();
+                        string? tiaoSec = tiaoHouList.FirstOrDefault(t => secondaryTransparent.Any(h => h.stem == t));
+                        chosenStem = tiaoSec ?? topGroup[0].stem;
+                    }
                 }
-            }
-            string chosenSS = LfStemShiShen(chosenStem, dStem);
 
-            // Rule 4: 比劫不取八格，改外格（建祿格/月刃格）
-            string pattern = chosenSS switch
-            {
-                "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
-                "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
-                "比肩" => "建祿格", "劫財" => "月刃格", _ => "普通格"
-            };
-
-            // Check 五行從旺外格（優先於一般外格判斷）
-            string wuXingGeJu = LfDetectWuXingGeJu(
-                dmElem, mBranch, allHeavenStems, new[] { yBranch, mBranch, dBranch, hBranch });
-            if (!string.IsNullOrEmpty(wuXingGeJu))
-                pattern = wuXingGeJu;
-
-            // Check 從格/從旺格（體極弱/極強時順旺勢）
-            if (bodyPct <= 20)
-            {
-                string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 七殺（克日主）
-                string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財星（日主克）
-                string shiElemD  = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（日主生）
-                double guanPctD  = wuXing.GetValueOrDefault(guanElemD, 0);
-                double caiPctD   = wuXing.GetValueOrDefault(caiElemD, 0);
-                double shiPctD   = wuXing.GetValueOrDefault(shiElemD, 0);
-                double oppPct    = guanPctD + caiPctD + shiPctD;
-                // 日主極弱，從格判定：按最強元素決定從格種類（非一律從強格）
-                if (oppPct >= 70)
+                string chosenSS = LfStemShiShen(chosenStem, dStem);
+                pattern = chosenSS switch
                 {
-                    if      (guanPctD >= caiPctD && guanPctD >= shiPctD) pattern = "從殺格";
-                    else if (caiPctD  >= guanPctD && caiPctD >= shiPctD) pattern = "從財格";
-                    else                                                  pattern = "從兒格";
-                }
-            }
-            else if (bodyPct >= 80)
-            {
-                double sameElem = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-                if (sameElem >= 75) pattern = "從旺格";
+                    "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
+                    "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
+                    "比肩" => "建祿格", "劫財" => "月刃格", _ => "普通格"
+                };
             }
 
             string yongShenElem;
