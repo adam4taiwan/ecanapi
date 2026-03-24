@@ -949,6 +949,20 @@ namespace Ecanapi.Controllers
             return stars;
         }
 
+        // 移除 KB 內容中主題不符的段落（依行首關鍵字過濾，如夫妻宮混入事業宮論述）
+        private static string KbRemoveOffTopicLines(string content, params string[] offTopicPrefixes)
+        {
+            if (string.IsNullOrEmpty(content)) return content;
+            var result = new List<string>();
+            foreach (var line in content.Split('\n'))
+            {
+                var t = line.TrimStart();
+                if (!offTopicPrefixes.Any(p => t.StartsWith(p)))
+                    result.Add(line);
+            }
+            return string.Join("\n", result).Trim();
+        }
+
         // --- KB Helper: 過濾 ziwei 宮位內容，只保留命盤實際有的星才顯示的段落 ---
         // palaceStars: 該宮位自己的星（用於「同宮」類型檢查）
         // allChartStars: 整個命盤的星（用於「會照」「相夾」等跨宮檢查）
@@ -3903,7 +3917,12 @@ namespace Ecanapi.Controllers
             if (hasZiwei)
             {
                 if (!string.IsNullOrEmpty(ziweiSps))
-                    sb.AppendLine($"【夫妻宮主星·{spsStars}（感情個性）】{ziweiSps}");
+                {
+                    // 過濾夫妻宮 KB 中混入的事業宮論述
+                    string spsFiltered = KbRemoveOffTopicLines(ziweiSps, "事業宮", "推斷一生事業", "若從商", "您的事業宮");
+                    if (!string.IsNullOrEmpty(spsFiltered))
+                        sb.AppendLine($"【夫妻宮主星·{spsStars}（感情個性）】{spsFiltered}");
+                }
                 if (siHua.TryGetValue("夫妻化祿", out var spsLu) && !string.IsNullOrEmpty(spsLu.txt))
                     sb.AppendLine($"【夫妻化祿飛{spsLu.pal}】{spsLu.txt}");
                 if (siHua.TryGetValue("夫妻化忌", out var spsJi) && !string.IsNullOrEmpty(spsJi.txt))
