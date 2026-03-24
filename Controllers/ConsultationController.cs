@@ -2068,7 +2068,7 @@ namespace Ecanapi.Controllers
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
 
-                if (line == "【第二章：先天八字依古制定】" || line == "【第四章：命局格局判定】")
+                if (line == "【第二章：先天八字依古制定】" || line == "【第四章：命局格局判定】" || line == "【第五章：用神喜忌判定】")
                 {
                     AddPageBreak();
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -3671,7 +3671,7 @@ namespace Ecanapi.Controllers
             // === Ch.3 日柱深度論斷 ===
             sb.AppendLine("【第三章：日柱深度論斷】");
             sb.AppendLine();
-            sb.AppendLine($"【日柱 {dStem}{dBranch} — 古傳斷語】");
+            sb.AppendLine("【古傳斷語】");
             sb.AppendLine();
             if (kb == null)
             {
