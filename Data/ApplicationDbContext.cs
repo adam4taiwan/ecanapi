@@ -53,6 +53,9 @@ namespace Ecanapi.Data
         // Booking requests (blessing services + consultation appointments)
         public DbSet<BookingRequest> BookingRequests { get; set; }
 
+        // 六十甲子日柱斷語 KB
+        public DbSet<BaziDayPillarReading> BaziDayPillarReadings { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
