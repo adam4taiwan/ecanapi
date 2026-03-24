@@ -2791,34 +2791,37 @@ namespace Ecanapi.Controllers
             string chosenStem = "";
             if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                // 找出所有「透干」的月支藏干
-                var transparentHidden = mH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
+                // 比劫透干不取格，先排除
+                var allTransparent = mH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
+                var transparentHidden = allTransparent
+                    .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
+                    .ToList();
+                // 月令非比劫藏干（備用，當無透干時取根氣最強者）
+                var nonBiJieMH = mH
+                    .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
+                    .ToList();
 
-                if (transparentHidden.Count == 0)
+                if (transparentHidden.Count == 1)
                 {
-                    // 無透干：取月支藏干中根氣最強者
-                    chosenStem = mH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                    // 唯一非比劫透干
+                    chosenStem = transparentHidden[0].stem;
                 }
-                else if (transparentHidden.Count == 1)
+                else if (transparentHidden.Count > 1)
                 {
-                    string tStem = transparentHidden[0].stem;
-                    string tSS = LfStemShiShen(tStem, dStem);
-                    // 若透干為比劫，且月令主氣不是比劫，優先取月令主氣
-                    if ((tSS == "比肩" || tSS == "劫財") && mH.Count > 0)
-                    {
-                        string mainStem = mH[0].stem;
-                        string mainSS = LfStemShiShen(mainStem, dStem);
-                        chosenStem = (mainSS != "比肩" && mainSS != "劫財") ? mainStem : tStem;
-                    }
-                    else
-                        chosenStem = tStem;
-                }
-                else
-                {
-                    // 多干透出：調候優先，其次根氣
+                    // 多個非比劫透干：調候優先，其次根氣
                     string? tiaoHouMatch = tiaoHouList.FirstOrDefault(t => transparentHidden.Any(h => h.stem == t));
                     chosenStem = tiaoHouMatch
                         ?? transparentHidden.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                }
+                else if (nonBiJieMH.Count > 0)
+                {
+                    // 無非比劫透干：從月令非比劫藏干取根氣最強者（含未透干者）
+                    chosenStem = nonBiJieMH.OrderByDescending(h => LfStemRootScore(h.stem, allBranches)).First().stem;
+                }
+                else
+                {
+                    // 月令藏干全是比劫（如子月癸、卯月乙）→ 建祿格/月刃格
+                    chosenStem = mH[0].stem;
                 }
             }
             string chosenSS = LfStemShiShen(chosenStem, dStem);
