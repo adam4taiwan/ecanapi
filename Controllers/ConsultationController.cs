@@ -2667,6 +2667,7 @@ namespace Ecanapi.Controllers
                 "建祿格" when isWeak              => new[] { inElem, biElem },
                 "建祿格" when isStrong && biHeavy  => new[] { guanElem },
                 "建祿格" when isStrong && inHeavy  => new[] { caiElem },
+                "建祿格" when isStrong && shiHeavy => new[] { caiElem },         // 古文：傷食多身強→財
                 "建祿格" when isStrong && caiHeavy => new[] { guanElem, shiElem },
                 "建祿格"                           => new[] { guanElem, shiElem },
 
