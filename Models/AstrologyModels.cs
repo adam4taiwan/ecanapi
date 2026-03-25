@@ -122,8 +122,8 @@ namespace Ecanapi.Models
         string UserName,
         DateTime SolarBirthDate,
         string LunarBirthDate,
-        // 【⭐ 新增：八字簡易分析結果 ⭐】
-        ShiShenResult? BaziAnalysisResult // <--- 新增分析結果欄位
+        ShiShenResult? BaziAnalysisResult,
+        string? LuckCycleNote // 大運起運節氣計算說明
     );
     public class AnnualLuck
     {

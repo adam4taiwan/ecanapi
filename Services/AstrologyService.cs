@@ -395,6 +395,10 @@ namespace Ecanapi.Services
             double startAgeFloat = diff.TotalDays / 3;
             int startAge = (int)Math.Round(startAgeFloat, MidpointRounding.AwayFromZero);
 
+            string dirStr = isForward ? "順大運" : "逆大運";
+            string luckCycleNote = $"{dirStr}｜前節:{prevJie:yyyy-MM-dd}｜次節:{nextJie:yyyy-MM-dd}｜差{diff.TotalDays:F1}天÷3={startAgeFloat:F2}歲→{startAge}歲起運";
+            context.Result = context.Result with { LuckCycleNote = luckCycleNote };
+
             int currentGanIndex = context.CUE2;
             int currentZhiIndex = context.CUF2;
 
@@ -429,7 +433,7 @@ namespace Ecanapi.Services
                 ));
             }
 
-            context.Result = context.Result with { BaziLuckCycles = luckCycles };
+            context.Result = context.Result with { BaziLuckCycles = luckCycles, LuckCycleNote = context.Result.LuckCycleNote };
         }
 
         private void RunZiWeiChartCalculations(AstrologyCalculationContext context)

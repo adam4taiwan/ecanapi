@@ -84,7 +84,8 @@ namespace Ecanapi.Services.AstrologyEngine
                 request.Name,
                 birthDate,
                 Calendar.ChineseDateString,              
-                null // BaziAnalysisResult
+                null, // BaziAnalysisResult
+                null  // LuckCycleNote
             );
         }
     }
