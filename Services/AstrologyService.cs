@@ -396,7 +396,9 @@ namespace Ecanapi.Services
             int startAge = (int)Math.Round(startAgeFloat, MidpointRounding.AwayFromZero);
 
             string dirStr = isForward ? "順大運" : "逆大運";
-            string luckCycleNote = $"{dirStr}｜前節:{prevJie:yyyy-MM-dd}｜次節:{nextJie:yyyy-MM-dd}｜差{diff.TotalDays:F1}天÷3={startAgeFloat:F2}歲→{startAge}歲起運";
+            // 輸出完整節氣陣列供除錯
+            var rawTerms = string.Join("|", calendar.ChineseTwentyFour.Select((s, idx) => $"[{idx}]{s}"));
+            string luckCycleNote = $"{dirStr}｜前節:{prevJie:yyyy-MM-dd HH:mm}｜次節:{nextJie:yyyy-MM-dd HH:mm}｜差{diff.TotalDays:F2}天÷3={startAgeFloat:F2}歲→{startAge}歲起運｜RAW:{rawTerms}";
             context.Result = context.Result with { LuckCycleNote = luckCycleNote };
 
             int currentGanIndex = context.CUE2;
