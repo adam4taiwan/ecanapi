@@ -2871,6 +2871,15 @@ namespace Ecanapi.Controllers
         private static readonly HashSet<string> LfHuaQiGeJuSet =
             new() { "化土格", "化金格", "化水格", "化木格", "化火格" };
 
+        // 十干建祿月支對照（丙戊同祿在巳，丁己同祿在午）
+        private static readonly Dictionary<string, string> LfJianLuBranch = new()
+        { {"甲","寅"},{"乙","卯"},{"丙","巳"},{"戊","巳"},{"丁","午"},{"己","午"},
+          {"庚","申"},{"辛","酉"},{"壬","亥"},{"癸","子"} };
+
+        // 月刃月支對照（僅甲卯/庚酉/壬子三組，其餘如乙寅/丙午另取他格）
+        private static readonly Dictionary<string, string> LfYueLanBranch = new()
+        { {"甲","卯"},{"庚","酉"},{"壬","子"} };
+
         // 化氣格：(日干, 合化夥伴) → (化神五行, 月令支組, 破格天干, 破格地支)
         private static readonly Dictionary<(string, string), (string huaElem, string[] mBranches, string[] forbidStems, string[] forbidBranches)> LfHuaQiPairs = new()
         {
@@ -3031,6 +3040,16 @@ namespace Ecanapi.Controllers
 
             // Step 2 & 3: 外格未成立 → 建祿格/月刃格 or 內格
             string chosenStem = "";
+
+            // 優先查十干祿表：建祿格（含戊借丙祿/己借丁祿）及月刃格
+            if (string.IsNullOrEmpty(pattern))
+            {
+                if (LfYueLanBranch.TryGetValue(dStem, out var ylb) && ylb == mBranch)
+                    pattern = "月刃格";
+                else if (LfJianLuBranch.TryGetValue(dStem, out var jlb) && jlb == mBranch)
+                    pattern = "建祿格";
+            }
+
             if (string.IsNullOrEmpty(pattern) && LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
                 // 月令非比劫藏干
