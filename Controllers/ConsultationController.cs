@@ -2587,6 +2587,156 @@ namespace Ecanapi.Controllers
             >= 70 => "身強（極強）", >= 60 => "身強", >= 45 => "中和", >= 35 => "身弱", _ => "身弱（極弱）"
         };
 
+        // 依格局 x 日主強弱 x 命局組合，取古文用神候選清單（優先序由前到後）
+        private static string[] LfGetYongShenCandidates(
+            string pattern, string dmElem, double bodyPct,
+            Dictionary<string, double> wuXing)
+        {
+            string inElem   = LfGenByElem.GetValueOrDefault(dmElem, "");      // 印
+            string biElem   = dmElem;                                           // 比劫
+            string shiElem  = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷
+            string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財
+            string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 官殺
+
+            bool isStrong = bodyPct >= 60;
+            bool isWeak   = bodyPct < 45;
+
+            bool caiHeavy  = wuXing.GetValueOrDefault(caiElem, 0)  >= 15;
+            bool shiHeavy  = wuXing.GetValueOrDefault(shiElem, 0)  >= 15;
+            bool guanHeavy = wuXing.GetValueOrDefault(guanElem, 0) >= 15;
+            bool inHeavy   = wuXing.GetValueOrDefault(inElem, 0)   >= 15;
+            bool biHeavy   = wuXing.GetValueOrDefault(biElem, 0)   >= 15;
+
+            return pattern switch
+            {
+                "正官格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "正官格" when isWeak && shiHeavy  => new[] { inElem, biElem },
+                "正官格" when isWeak && guanHeavy => new[] { inElem },
+                "正官格" when isWeak              => new[] { inElem, biElem },
+                "正官格" when isStrong && biHeavy  => new[] { guanElem },
+                "正官格" when isStrong && inHeavy  => new[] { caiElem },
+                "正官格" when isStrong && shiHeavy => new[] { caiElem },
+                "正官格"                           => new[] { guanElem, caiElem },
+
+                "七殺格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "七殺格" when isWeak && shiHeavy  => new[] { inElem, biElem },
+                "七殺格" when isWeak && guanHeavy => new[] { inElem },
+                "七殺格" when isWeak              => new[] { inElem, biElem },
+                "七殺格" when isStrong && biHeavy  => new[] { guanElem },
+                "七殺格" when isStrong && inHeavy  => new[] { caiElem },
+                "七殺格" when isStrong && guanHeavy => new[] { shiElem, caiElem },
+                "七殺格"                            => new[] { guanElem, shiElem },
+
+                "正財格" or "偏財格" when isWeak && shiHeavy  => new[] { inElem, biElem },
+                "正財格" or "偏財格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "正財格" or "偏財格" when isWeak && guanHeavy => new[] { inElem, biElem },
+                "正財格" or "偏財格" when isWeak              => new[] { biElem, inElem },
+                "正財格" or "偏財格" when isStrong && biHeavy  => new[] { shiElem, guanElem },
+                "正財格" or "偏財格" when isStrong && inHeavy  => new[] { caiElem },
+                "正財格" or "偏財格"                           => new[] { guanElem, shiElem },
+
+                "正印格" or "偏印格" when isWeak && guanHeavy => new[] { inElem },
+                "正印格" or "偏印格" when isWeak && shiHeavy  => new[] { inElem },
+                "正印格" or "偏印格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "正印格" or "偏印格" when isWeak              => new[] { inElem, biElem },
+                "正印格" or "偏印格" when isStrong && biHeavy  => new[] { guanElem, shiElem },
+                "正印格" or "偏印格" when isStrong && inHeavy  => new[] { caiElem },
+                "正印格" or "偏印格" when isStrong && caiHeavy => new[] { guanElem },
+                "正印格" or "偏印格"                           => new[] { guanElem, caiElem },
+
+                "食神格" when isWeak && guanHeavy => new[] { inElem },
+                "食神格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "食神格" when isWeak && shiHeavy  => new[] { inElem },
+                "食神格" when isWeak              => new[] { inElem, biElem },
+                "食神格" when isStrong && inHeavy  => new[] { caiElem },
+                "食神格" when isStrong && biHeavy  => new[] { shiElem },
+                "食神格" when isStrong && caiHeavy => new[] { guanElem },
+                "食神格"                           => new[] { shiElem, caiElem },
+
+                "傷官格" when isWeak && caiHeavy  => new[] { biElem, inElem },
+                "傷官格" when isWeak && guanHeavy => new[] { inElem },
+                "傷官格" when isWeak              => new[] { inElem, biElem },
+                "傷官格" when isStrong && shiHeavy => new[] { inElem },
+                "傷官格" when isStrong && biHeavy  => new[] { guanElem },
+                "傷官格" when isStrong && inHeavy  => new[] { caiElem },
+                "傷官格"                           => new[] { shiElem, caiElem },
+
+                "建祿格" when isWeak && caiHeavy  => new[] { biElem },
+                "建祿格" when isWeak && guanHeavy => new[] { inElem },
+                "建祿格" when isWeak && shiHeavy  => new[] { inElem },
+                "建祿格" when isWeak              => new[] { inElem, biElem },
+                "建祿格" when isStrong && biHeavy  => new[] { guanElem },
+                "建祿格" when isStrong && inHeavy  => new[] { caiElem },
+                "建祿格" when isStrong && caiHeavy => new[] { guanElem, shiElem },
+                "建祿格"                           => new[] { guanElem, shiElem },
+
+                "月刃格" when caiHeavy  => new[] { guanElem },
+                "月刃格" when guanHeavy => new[] { caiElem },
+                "月刃格" when shiHeavy  => new[] { caiElem },
+                "月刃格" when inHeavy   => new[] { caiElem },
+                "月刃格" when biHeavy   => new[] { guanElem },
+                "月刃格"                => new[] { guanElem, caiElem },
+
+                _ when isStrong => new[] { shiElem, caiElem, guanElem },
+                _               => new[] { inElem, biElem }
+            };
+        }
+
+        // 內格三原則篩選用神（僅用於八格/建祿格/月刃格）
+        // Step1: 有根優先；有2個以上有根 → Step2決勝
+        // Step2: 月支旺相決勝（從有根集合 or 全候選中選旺→相）
+        // Step3: 確認無沖剋合（有問題換下一候選重跑）
+        private static string LfPickYongShen(
+            string[] candidates,
+            string yBranch, string mBranch, string dBranch, string hBranch,
+            string[] chartStems, Dictionary<string, double> wuXing)
+        {
+            var allBranches = new[] { yBranch, mBranch, dBranch, hBranch };
+            var (wang, xiang, _, _, _) = LfGetWangXiang(mBranch);
+
+            // 內部：對候選集合執行 Step1+Step2，回傳最佳候選
+            string PickFromPool(List<string> pool)
+            {
+                if (pool.Count == 0) return "";
+                if (pool.Count == 1) return pool[0];
+                // 多個 → 月支旺相決勝
+                var wangHit  = pool.FirstOrDefault(e => e == wang);
+                if (wangHit  != null) return wangHit;
+                var xiangHit = pool.FirstOrDefault(e => e == xiang);
+                if (xiangHit != null) return xiangHit;
+                // 旺相都沒有 → 古文優先序第一位
+                return pool[0];
+            }
+
+            // Step3：確認候選無沖剋合；若有問題換下一個
+            string ValidateOrFallback(string picked)
+            {
+                if (string.IsNullOrEmpty(picked)) return candidates[0];
+                // 若被合剋 → 嘗試下一個候選（只換一次）
+                if (LfIsElemNeutralizedByChart(picked, chartStems, allBranches))
+                {
+                    var next = candidates.FirstOrDefault(e => e != picked
+                        && !LfIsElemNeutralizedByChart(e, chartStems, allBranches));
+                    if (next != null) return next;
+                }
+                return picked;
+            }
+
+            // Step1：有根集合
+            var rooted = candidates
+                .Where(e => LfElemHasRoot(e, yBranch, mBranch, dBranch, hBranch))
+                .ToList();
+
+            if (rooted.Count == 1)
+                return ValidateOrFallback(rooted[0]);
+
+            if (rooted.Count > 1)
+                return ValidateOrFallback(PickFromPool(rooted));
+
+            // Step2：皆無根 → 從全候選月支旺相決勝
+            return ValidateOrFallback(PickFromPool(candidates.ToList()));
+        }
+
         // 檢查某五行元素是否在地支有根（藏干包含該元素）
         private static bool LfElemHasRoot(string elem, string y, string m, string d, string h)
         {
@@ -2599,6 +2749,9 @@ namespace Ecanapi.Controllers
 
         private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct, string pattern = "")
         {
+            // 化氣格：忌神=克化神之元素（yongShenElem已為化神五行）
+            if (LfHuaQiGeJuSet.Contains(pattern))
+                return LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
             // 五行從旺格/從旺格：忌神=克日干之元素（破格之神）
             if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
                 return LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
@@ -2685,8 +2838,52 @@ namespace Ecanapi.Controllers
             };
         }
 
+        // 化氣格偵測：日干與月干或時干合化，月令支持化神，且無破格元素
+        // allStems = 全部四柱天干（含日干），allBranches = 全部四柱地支
+        private static (string pattern, string huaElem) LfDetectHuaQiGeJu(
+            string dStem, string mStem, string hStem, string mBranch,
+            string[] allStems, string[] allBranches)
+        {
+            foreach (var partner in new[] { mStem, hStem })
+            {
+                if (!LfHuaQiPairs.TryGetValue((dStem, partner), out var info)) continue;
+                // 月令支持化神
+                if (!info.mBranches.Contains(mBranch)) continue;
+                // 無破格元素（排除日干本身與合化夥伴不計入禁忌天干）
+                var otherStems = allStems.Where(s => s != dStem && s != partner).ToArray();
+                if (otherStems.Any(s => info.forbidStems.Contains(s))) continue;
+                if (allBranches.Any(b => info.forbidBranches.Contains(b))) continue;
+
+                string patName = info.huaElem switch
+                {
+                    "土" => "化土格", "金" => "化金格", "水" => "化水格",
+                    "木" => "化木格", "火" => "化火格", _ => ""
+                };
+                return (patName, info.huaElem);
+            }
+            return ("", "");
+        }
+
         private static readonly HashSet<string> LfWuXingGeJuSet =
             new() { "曲直格", "炎上格", "稼穡格", "從革格", "潤下格" };
+
+        private static readonly HashSet<string> LfHuaQiGeJuSet =
+            new() { "化土格", "化金格", "化水格", "化木格", "化火格" };
+
+        // 化氣格：(日干, 合化夥伴) → (化神五行, 月令支組, 破格天干, 破格地支)
+        private static readonly Dictionary<(string, string), (string huaElem, string[] mBranches, string[] forbidStems, string[] forbidBranches)> LfHuaQiPairs = new()
+        {
+            { ("甲","己"), ("土", new[]{"辰","戌","丑","未"}, new[]{"甲","乙"},       new[]{"寅","卯"}) },
+            { ("己","甲"), ("土", new[]{"辰","戌","丑","未"}, new[]{"甲","乙"},       new[]{"寅","卯"}) },
+            { ("乙","庚"), ("金", new[]{"巳","酉","丑","申"}, new[]{"丙","丁"},       new[]{"巳","午"}) },
+            { ("庚","乙"), ("金", new[]{"巳","酉","丑","申"}, new[]{"丙","丁"},       new[]{"巳","午"}) },
+            { ("丙","辛"), ("水", new[]{"申","子","辰","亥"}, new[]{"戊","己"},       new[]{"辰","戌","丑","未"}) },
+            { ("辛","丙"), ("水", new[]{"申","子","辰","亥"}, new[]{"戊","己"},       new[]{"辰","戌","丑","未"}) },
+            { ("丁","壬"), ("木", new[]{"亥","卯","未","寅"}, new[]{"庚","辛"},       new[]{"申","酉"}) },
+            { ("壬","丁"), ("木", new[]{"亥","卯","未","寅"}, new[]{"庚","辛"},       new[]{"申","酉"}) },
+            { ("戊","癸"), ("火", new[]{"寅","午","戌","巳"}, new[]{"壬","癸"},       new[]{"亥","子"}) },
+            { ("癸","戊"), ("火", new[]{"寅","午","戌","巳"}, new[]{"壬","癸"},       new[]{"亥","子"}) },
+        };
 
         // 十天干調候用神表：dStem → mBranch → [調候干, 優先序從高到低]
         private static readonly Dictionary<string, Dictionary<string, string[]>> LfTiaoHou = new()
@@ -2788,7 +2985,16 @@ namespace Ecanapi.Controllers
             // 調候補用神元素（首位調候干的五行，供命書標注）
             string tiaoHouElem = tiaoHouList.Length > 0 ? KbStemToElement(tiaoHouList[0]) : "";
 
-            // ── 取格優先順序：外格 → 建祿格/月刃格 → 內格 ──
+            // ── 取格優先順序：化氣格 → 外格 → 建祿格/月刃格 → 內格 ──
+
+            // Step 0: 化氣格（最優先，一旦成立直接回傳，覆蓋所有其他格局）
+            var allFourStems = new[] { yStem, mStem, dStem, hStem };
+            var (huaPattern, huaElem) = LfDetectHuaQiGeJu(dStem, mStem, hStem, mBranch, allFourStems, allBranches);
+            if (!string.IsNullOrEmpty(huaPattern))
+            {
+                string huaFuYi = LfGenByElem.GetValueOrDefault(huaElem, ""); // 生化神者為輔
+                return (huaPattern, huaElem, huaFuYi, $"{huaPattern}（{dStem}化{huaElem}，順化神旺勢）", "");
+            }
 
             // Step 1: 外格判定（優先，一旦成立直接使用，跳過內格）
             string pattern = "";
@@ -2872,76 +3078,56 @@ namespace Ecanapi.Controllers
             }
 
             string yongShenElem;
-            string fuYiElem;  // secondary: 扶抑用神，身弱+調候時補充比劫/印
+            string fuYiElem;
             string reason;
 
-            // 扶抑用神（不受調候影響）
-            string fuYiElemCalc;
-            if (pattern == "從強格")
-                fuYiElemCalc = new[] { LfElemGen.GetValueOrDefault(dmElem,""), LfElemOvercome.GetValueOrDefault(dmElem,""), LfElemOvercomeBy.GetValueOrDefault(dmElem,"") }
+            // 外格（從旺/曲直/炎上等）：用神=日干本元素，直接設定
+            if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
+            {
+                yongShenElem = dmElem;
+                fuYiElem     = dmElem;
+                reason       = pattern == "從旺格" ? "從旺格（順旺勢）" : $"{pattern}（五行純粹，順旺勢）";
+            }
+            // 從強格：取旺勢最強非日主元素
+            else if (pattern == "從強格")
+            {
+                yongShenElem = new[] { LfElemGen.GetValueOrDefault(dmElem,""), LfElemOvercome.GetValueOrDefault(dmElem,""), LfElemOvercomeBy.GetValueOrDefault(dmElem,"") }
                     .OrderByDescending(e => wuXing.GetValueOrDefault(e, 0)).First();
-            else if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
-                fuYiElemCalc = dmElem;  // 五行從旺/從旺格：用神=日干本元素
-            else if (bodyPct >= 60)
-            {
-                string outElem  = LfElemGen.GetValueOrDefault(dmElem, "");        // 食傷（洩秀）
-                string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財星
-                string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 官殺
-                // 月令格局優先：印格/食傷格 → 食傷洩秀；比劫格 → 官殺或食傷
-                if (pattern is "偏印格" or "正印格" or "食神格" or "傷官格")
-                    fuYiElemCalc = outElem;
-                else if (pattern is "建祿格" or "月刃格")
-                    fuYiElemCalc = (LfElemHasRoot(guanElem, yBranch, mBranch, dBranch, hBranch)
-                                  || wuXing.GetValueOrDefault(guanElem, 0) >= 10) ? guanElem : outElem;
-                else
-                    fuYiElemCalc = wuXing.GetValueOrDefault(guanElem, 0) >= 10 ? guanElem : caiElem;
-                // 有根優先：若月令所選無根但食傷有根，改用食傷
-                if (fuYiElemCalc != outElem
-                    && !LfElemHasRoot(fuYiElemCalc, yBranch, mBranch, dBranch, hBranch)
-                    && wuXing.GetValueOrDefault(fuYiElemCalc, 0) < 10
-                    && LfElemHasRoot(outElem, yBranch, mBranch, dBranch, hBranch))
-                    fuYiElemCalc = outElem;
-            }
-            else
-            {
-                string inElem = LfGenByElem.GetValueOrDefault(dmElem, "");
-                fuYiElemCalc = wuXing.GetValueOrDefault(inElem, 0) >= 10 ? inElem : dmElem;
-            }
-
-            // 扶抑為主
-            yongShenElem = fuYiElemCalc;
-            if (bodyPct >= 60)
-            {
-                string outElemR = LfElemGen.GetValueOrDefault(dmElem, "");
-                reason = yongShenElem == outElemR
-                    ? $"扶抑法（身強{pattern}，取食傷洩秀）"
-                    : $"扶抑法（身強{pattern}，取官殺/財洩耗）";
-            }
-            else
-            {
-                reason = bodyPct <= 40 ? "扶抑法（身弱，取印比生扶）" : "中和格（月令用神為主）";
-            }
-            if (pattern == "從強格") reason = "從強格（順旺勢）";
-            else if (pattern == "從旺格") reason = "從旺格（順旺勢）";
-            else if (LfWuXingGeJuSet.Contains(pattern)) reason = $"{pattern}（五行純粹，順旺勢）";
-
-            // fuYiElem = 另一個扶身元素（身弱：印/比劫互補；身強：官/財互補）
-            string inElemLocal  = LfGenByElem.GetValueOrDefault(dmElem, "");
-            string guanElemLocal = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
-            string caiElemLocal  = LfElemOvercome.GetValueOrDefault(dmElem, "");
-            if (pattern is "從強格" or "從旺格" || LfWuXingGeJuSet.Contains(pattern))
                 fuYiElem = yongShenElem;
-            else if (bodyPct <= 40)
-                fuYiElem = yongShenElem == inElemLocal ? dmElem : inElemLocal;   // 印/比劫互補
-            else if (bodyPct >= 60)
-            {
-                string outElemL = LfElemGen.GetValueOrDefault(dmElem, "");
-                if (yongShenElem == outElemL)            fuYiElem = caiElemLocal;      // 食傷→fuYi=財
-                else if (yongShenElem == caiElemLocal)   fuYiElem = outElemL;          // 財→fuYi=食傷
-                else                                     fuYiElem = caiElemLocal;      // 官殺→fuYi=財
+                reason   = "從強格（順旺勢）";
             }
+            // 八格 + 建祿格 + 月刃格：候選清單 → 三原則篩選
             else
-                fuYiElem = yongShenElem;
+            {
+                string[] candidates = LfGetYongShenCandidates(pattern, dmElem, bodyPct, wuXing);
+                yongShenElem = LfPickYongShen(candidates, yBranch, mBranch, dBranch, hBranch, allHeavenStems, wuXing);
+
+                string lfYongRole = "";
+                if (bodyPct >= 60) {
+                    string _guanE = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                    string _shiE  = LfElemGen.GetValueOrDefault(dmElem, "");
+                    string _caiE  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+                    if (yongShenElem == _guanE)      lfYongRole = "官殺制旺身";
+                    else if (yongShenElem == _shiE)  lfYongRole = "食傷洩耗日主";
+                    else if (yongShenElem == _caiE)  lfYongRole = "財星耗洩";
+                    else lfYongRole = "洩耗";
+                } else if (bodyPct < 45) {
+                    string _inE  = LfGenByElem.GetValueOrDefault(dmElem, "");
+                    string _biE  = dmElem;
+                    if (yongShenElem == _inE)       lfYongRole = "印星生扶";
+                    else if (yongShenElem == _biE)  lfYongRole = "比劫助身";
+                    else lfYongRole = "生扶";
+                } else {
+                    lfYongRole = "通關平衡";
+                }
+                reason = $"古文格局法（{(bodyPct >= 60 ? "身強" : bodyPct < 45 ? "身弱" : "")}{pattern}，{lfYongRole}）";
+
+                // fuYiElem：候選清單第二位（排除主用神與忌神）
+                string tempJiShen = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                fuYiElem = candidates
+                    .Where(e => e != yongShenElem && e != tempJiShen)
+                    .FirstOrDefault() ?? yongShenElem;
+            }
 
             if (string.IsNullOrEmpty(yongShenElem)) yongShenElem = dmElem;
             if (string.IsNullOrEmpty(fuYiElem)) fuYiElem = yongShenElem;
@@ -2964,9 +3150,28 @@ namespace Ecanapi.Controllers
                 fuYiElem     = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財（食傷生財，輔助）
                 reason       = "從兒格（日主順從食傷旺勢，忌官殺、印星）";
             }
-            // 附加調候補用神到 reason（若與主用神不同才標注）
-            if (!string.IsNullOrEmpty(tiaoHouElem) && tiaoHouElem != yongShenElem)
-                reason += $"；調候補用：{tiaoHouElem}";
+            // 調候共用（夏巳午未 / 冬亥子丑二季優先，春秋補注）
+            if (!string.IsNullOrEmpty(tiaoHouElem))
+            {
+                string jiShenForTiao = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                bool isSummerWinter  = new[] { "巳","午","未","亥","子","丑" }.Contains(mBranch);
+                if (tiaoHouElem == yongShenElem)
+                    reason += "（扶抑調候同功）";
+                else if (tiaoHouElem != jiShenForTiao)
+                {
+                    if (isSummerWinter)
+                    {
+                        // 調候與用神不抵觸 → 共用：調候進 fuYiElem
+                        if (fuYiElem == yongShenElem || fuYiElem == jiShenForTiao)
+                            fuYiElem = tiaoHouElem;
+                        reason += $"；調候{tiaoHouElem}共用";
+                    }
+                    else
+                        reason += $"；調候補用：{tiaoHouElem}";
+                }
+                else
+                    reason += $"；調候{tiaoHouElem}受限（與忌神同，不採用）";
+            }
             return (pattern, yongShenElem, fuYiElem, reason, tiaoHouElem);
         }
 
@@ -4992,7 +5197,7 @@ namespace Ecanapi.Controllers
         { "木"=>"甲乙","火"=>"丙丁","土"=>"戊己","金"=>"庚辛","水"=>"壬癸",_=>"" };
 
         private static string LfElemBranches(string elem) => elem switch
-        { "木"=>"寅卯辰","火"=>"巳午未","土"=>"辰戌丑未","金"=>"申酉戌","水"=>"亥子丑",_=>"" };
+        { "木"=>"寅卯","火"=>"巳午","土"=>"辰戌丑未","金"=>"申酉","水"=>"亥子",_=>"" };
 
         private static string LfPatternDesc(string pattern) => pattern switch
         {
