@@ -920,13 +920,15 @@ namespace Ecanapi.Services
         private void DetermineDecadeLuckCycles(AstrologyCalculationContext context)
         {
             int startAge = context.WuXingJu;
-            bool isForward = (context.Request.Gender == 1 && context.CUE1 % 2 != 0) || (context.Request.Gender == 2 && context.CUE1 % 2 == 0);
+            // 陽男陰女順數，陰男陽女逆數（陽年干CUE1為偶數，陰年干為奇數）
+            bool isForward = (context.Request.Gender == 1 && context.CUE1 % 2 == 0) || (context.Request.Gender == 2 && context.CUE1 % 2 != 0);
             for (int i = 0; i < 12; i++) { int palaceIndex = isForward ? PalaceWrap(context.MingGongIndex + i) : PalaceWrap(context.MingGongIndex - i); context.CCX[palaceIndex] = $"{startAge}-{startAge + 9}"; startAge += 10; }
         }
         private void DetermineLifeCycleStars(AstrologyCalculationContext context)
         {
             string[] lifeCycleNames = { "長", "沐", "冠", "臨", "帝", "衰", "病", "死", "墓", "絕", "胎", "養" };
-            bool isForward = (context.Request.Gender == 1 && (context.CUE1 % 2 != 0)) || (context.Request.Gender == 2 && (context.CUE1 % 2 == 0));
+            // 陽男陰女順數，陰男陽女逆數
+            bool isForward = (context.Request.Gender == 1 && (context.CUE1 % 2 == 0)) || (context.Request.Gender == 2 && (context.CUE1 % 2 != 0));
             var startPosMap = new Dictionary<int, int> { { 2, 9 }, { 3, 12 }, { 4, 6 }, { 5, 9 }, { 6, 3 } };
             if (!startPosMap.TryGetValue(context.WuXingJu, out int startPos)) { startPos = 3; }
             for (int i = 0; i < 12; i++) { int pos = isForward ? PalaceWrap(startPos + i) : PalaceWrap(startPos - i); context.LifeCycleStage[pos] = lifeCycleNames[i]; }
