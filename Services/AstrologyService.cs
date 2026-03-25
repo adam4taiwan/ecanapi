@@ -393,7 +393,7 @@ namespace Ecanapi.Services
             TimeSpan diff = isForward ? (nextJie - birthTime) : (birthTime - prevJie);
 
             double startAgeFloat = diff.TotalDays / 3;
-            int startAge = (int)Math.Round(startAgeFloat, MidpointRounding.AwayFromZero);
+            int startAge = (int)Math.Floor(startAgeFloat); // 無條件捨去，傳統大運算法
 
             string dirStr = isForward ? "順大運" : "逆大運";
             string luckCycleNote = $"{dirStr}｜次節:{nextJie:yyyy-MM-dd}｜差{diff.TotalDays:F1}天÷3={startAgeFloat:F2}歲→{startAge}歲起運";
