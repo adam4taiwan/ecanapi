@@ -4226,8 +4226,7 @@ namespace Ecanapi.Controllers
                 };
                 string geju8Text = geju8Texts.TryGetValue(geju8, out var gt) ? gt : "";
 
-                sb.AppendLine("【第八條：讀書格】");
-                sb.AppendLine($"{yBranch}年生（{group8}組），{mBranch}月（農曆{lunarMonthFromBranch}月）：{geju8}格——{geju8Text}");
+                sb.AppendLine($"【讀書格】{yBranch}年生（{group8}組），{mBranch}月（農曆{lunarMonthFromBranch}月）：{geju8}格——{geju8Text}");
                 sb.AppendLine();
             }
 
