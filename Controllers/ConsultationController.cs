@@ -2124,7 +2124,13 @@ namespace Ecanapi.Controllers
                 }
                 else if (line.StartsWith("【") && line.Contains("："))
                 {
-                    AddPara(line, 13, true, "5C3317", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                    // 若【label】在行中間（非結尾），為內嵌標籤格式，套用內文字型
+                    int closeIdx = line.IndexOf("】");
+                    bool isInlineLabel = closeIdx >= 0 && closeIdx < line.Length - 1;
+                    if (isInlineLabel)
+                        AddPara(line, 11, false, "222222", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                    else
+                        AddPara(line, 13, true, "5C3317", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
                 else
                 {
