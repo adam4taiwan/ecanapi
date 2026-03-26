@@ -127,31 +127,19 @@ namespace Ecanapi.Services
                     }
                     if (i == 0)
                     {
-                        // 增加坐支分析
-                        // Ecanapi.Services/AstrologyService.cs (在 CalculateChartAsync 或其他方法內)
-
-                        // 假設日柱為「丙戍」
-                        //var rgzData = await FindCsvRowAsync("六十甲子.csv", "rgz", pillar[0] + zhi);
-
-                        //if (rgzData != null)
-                        //{
-                        //    string rgzfx = rgzData["rgzfx"]; // 取得「日干支分析」欄位的資料                                                           // ... 進行後續邏輯
-                        //}
-                        //
-                        r.ShiShen = r.ShiShen + zMst[j]+ pillar[0] + GetShiShenName(dayGan, pillar[0]) + zhi+"-";//zMst[i] + "支:"
+                        r.ShiShen = r.ShiShen + zMst[j]+ pillar[0] + GetShiShenName(dayGan, pillar[0]) + zhi+"-";
                     }
                     if (i==2) r.IsTrueGod = hasRoot;
-                    if (hasRoot == true)
-                    {
-                        r.RootType = r.RootType  + rootLevel;//+ zMst[i] + pillars[i][0]
-                    }
 
                     r.Explanation.Add(hasRoot ? zMst[i] + pillars[i][0] + zMst[j] + zhi + "支" + "✔ 有根 → 真神" : zMst[i] + pillars[i][0] + zMst[j] + zhi + "支" + "✘ 無根 → 假神");
                     j++;
                 }
+                // 修正：foreach 結束後只 append 一次，避免重複累加
+                if (hasRoot)
+                    r.RootType = r.RootType + rootLevel;
                 j = 0;
-                hasRoot =false;
-                rootLevel =""; 
+                hasRoot = false;
+                rootLevel = "";
             }
 
             return r;
