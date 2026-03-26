@@ -3961,12 +3961,11 @@ namespace Ecanapi.Controllers
 
             // === 條件 4：四季王（出生時辰地支對應帝王身體部位）===
             {
-                // 農曆月份判斷季節
-                string season4;
-                if (lunarMonth >= 1 && lunarMonth <= 3) season4 = "春";
-                else if (lunarMonth >= 4 && lunarMonth <= 6) season4 = "夏";
-                else if (lunarMonth >= 7 && lunarMonth <= 9) season4 = "秋";
-                else season4 = "冬";
+                // 依月柱地支判斷季節（寅卯辰=春，巳午未=夏，申酉戌=秋，亥子丑=冬）
+                string season4 = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋"
+                    : "冬";
 
                 // 系統一：四季地支對應部位（部位 -> 春夏秋冬地支字串）
                 // 同部位多地支用字串包含判斷
@@ -4045,11 +4044,11 @@ namespace Ecanapi.Controllers
 
             // === 條件 5：小兒關煞（出生季節 × 時辰）===
             {
-                string season5;
-                if (lunarMonth >= 1 && lunarMonth <= 3) season5 = "春";
-                else if (lunarMonth >= 4 && lunarMonth <= 6) season5 = "夏";
-                else if (lunarMonth >= 7 && lunarMonth <= 9) season5 = "秋";
-                else season5 = "冬";
+                // 依月柱地支判斷季節
+                string season5 = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋"
+                    : "冬";
 
                 // 結構：(季節, 時辰地支, 關煞名稱)，同時辰可有多條
                 var keShaTable = new List<(string season, string branches, string name)>
@@ -4181,7 +4180,14 @@ namespace Ecanapi.Controllers
             }
 
             // === 條件 8：讀書格 ===
-            if (lunarMonth >= 1 && lunarMonth <= 12)
+            // 月支直接對應農曆月份：寅=1,卯=2,辰=3,巳=4,午=5,未=6,申=7,酉=8,戌=9,亥=10,子=11,丑=12
+            var mBranchToMonth = new Dictionary<string, int>
+            {
+                {"寅",1},{"卯",2},{"辰",3},{"巳",4},{"午",5},{"未",6},
+                {"申",7},{"酉",8},{"戌",9},{"亥",10},{"子",11},{"丑",12}
+            };
+            int lunarMonthFromBranch = mBranchToMonth.TryGetValue(mBranch, out var lmb) ? lmb : 0;
+            if (lunarMonthFromBranch >= 1)
             {
                 // 三合組
                 string group8;
@@ -4208,7 +4214,7 @@ namespace Ecanapi.Controllers
                     {"合","空","向","背"},   // 11
                     {"合","空","向","背"}    // 12
                 };
-                string geju8 = monthTable[lunarMonth - 1, groupCol];
+                string geju8 = monthTable[lunarMonthFromBranch - 1, groupCol];
                 var geju8Texts = new Dictionary<string, string>
                 {
                     {"建", "有學堂。生居建學貌堂堂，習讀文章事事昌，不是為官做宰相，也做巧性俊兒郎"},
@@ -4221,7 +4227,7 @@ namespace Ecanapi.Controllers
                 string geju8Text = geju8Texts.TryGetValue(geju8, out var gt) ? gt : "";
 
                 sb.AppendLine("【第八條：讀書格】");
-                sb.AppendLine($"{yBranch}年生（{group8}組），農曆{lunarMonth}月：{geju8}格——{geju8Text}");
+                sb.AppendLine($"{yBranch}年生（{group8}組），{mBranch}月（農曆{lunarMonthFromBranch}月）：{geju8}格——{geju8Text}");
                 sb.AppendLine();
             }
 
