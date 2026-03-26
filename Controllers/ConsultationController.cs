@@ -1702,6 +1702,11 @@ namespace Ecanapi.Controllers
                 string ziweiWltYdz = "", wltStarsYdz = "";
                 string ziweiSpsYdz = "", spsStarsYdz = "";
                 string ziweiHltYdz = "", hltStarsYdz = "";
+                string nianSiHuaXingYdz = "";
+                string siHuaLuPalaceYdz = "", siHuaLuYdz = "";
+                string siHuaQuanPalaceYdz = "", siHuaQuanYdz = "";
+                string siHuaKePalaceYdz = "", siHuaKeYdz = "";
+                string siHuaJiPalaceYdz = "", siHuaJiYdz = "";
 
                 if (hasZiwei)
                 {
@@ -1734,6 +1739,16 @@ namespace Ecanapi.Controllers
                     siHuaYdz["財帛化祿"] = (wLuP, wLuC); siHuaYdz["財帛化忌"] = (wJiP, wJiC);
                     siHuaYdz["夫妻化祿"] = (sLuP, sLuC); siHuaYdz["夫妻化忌"] = (sJiP, sJiC);
                     siHuaYdz["疾厄化忌"] = (hJiP, hJiC);
+                    // 先天四化（年干）
+                    nianSiHuaXingYdz = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='四化干性.docx' AND \"Title\" LIKE '{yStem}年干%' LIMIT 1");
+                    siHuaLuPalaceYdz   = KbGetSiHuaPalace(yStem, "化祿", palacesYdz);
+                    siHuaQuanPalaceYdz = KbGetSiHuaPalace(yStem, "化權", palacesYdz);
+                    siHuaKePalaceYdz   = KbGetSiHuaPalace(yStem, "化科", palacesYdz);
+                    siHuaJiPalaceYdz   = KbGetSiHuaPalace(yStem, "化忌", palacesYdz);
+                    siHuaLuYdz   = await KbSiHuaQuery(yStem, "化祿", palacesYdz);
+                    siHuaQuanYdz = await KbSiHuaQuery(yStem, "化權", palacesYdz);
+                    siHuaKeYdz   = await KbSiHuaQuery(yStem, "化科", palacesYdz);
+                    siHuaJiYdz   = await KbSiHuaQuery(yStem, "化忌", palacesYdz);
                 }
 
                 string report = LfBuildYudongziReportV2(
@@ -1747,7 +1762,13 @@ namespace Ecanapi.Controllers
                     ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
                     ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
                     ziweiSpsYdz, spsStarsYdz, ziweiHltYdz, hltStarsYdz,
-                    siHuaYdz, dayPillarKb);
+                    siHuaYdz,
+                    nianSiHuaXingYdz, yStem,
+                    siHuaLuPalaceYdz, siHuaLuYdz,
+                    siHuaQuanPalaceYdz, siHuaQuanYdz,
+                    siHuaKePalaceYdz, siHuaKeYdz,
+                    siHuaJiPalaceYdz, siHuaJiYdz,
+                    dayPillarKb);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -1926,6 +1947,11 @@ namespace Ecanapi.Controllers
                 string ziweiHltYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "疾厄宮"), KbGetPalaceStarsSet(palacesYdz, "疾厄"), chartStarsYdz);
                 string hltStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "疾厄") : "";
                 var siHuaYdz = new Dictionary<string, (string pal, string txt)>();
+                string nianSiHuaXingYdz = "";
+                string siHuaLuPalaceYdz = "", siHuaLuYdz = "";
+                string siHuaQuanPalaceYdz = "", siHuaQuanYdz = "";
+                string siHuaKePalaceYdz = "", siHuaKeYdz = "";
+                string siHuaJiPalaceYdz = "", siHuaJiYdz = "";
                 if (hasZiwei)
                 {
                     var (mLuP, mLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
@@ -1942,6 +1968,16 @@ namespace Ecanapi.Controllers
                     siHuaYdz["財帛化祿"] = (wLuP, wLuC); siHuaYdz["財帛化忌"] = (wJiP, wJiC);
                     siHuaYdz["夫妻化祿"] = (sLuP, sLuC); siHuaYdz["夫妻化忌"] = (sJiP, sJiC);
                     siHuaYdz["疾厄化忌"] = (hJiP, hJiC);
+                    // 先天四化（年干）
+                    nianSiHuaXingYdz = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='四化干性.docx' AND \"Title\" LIKE '{yStem}年干%' LIMIT 1");
+                    siHuaLuPalaceYdz   = KbGetSiHuaPalace(yStem, "化祿", palacesYdz);
+                    siHuaQuanPalaceYdz = KbGetSiHuaPalace(yStem, "化權", palacesYdz);
+                    siHuaKePalaceYdz   = KbGetSiHuaPalace(yStem, "化科", palacesYdz);
+                    siHuaJiPalaceYdz   = KbGetSiHuaPalace(yStem, "化忌", palacesYdz);
+                    siHuaLuYdz   = await KbSiHuaQuery(yStem, "化祿", palacesYdz);
+                    siHuaQuanYdz = await KbSiHuaQuery(yStem, "化權", palacesYdz);
+                    siHuaKeYdz   = await KbSiHuaQuery(yStem, "化科", palacesYdz);
+                    siHuaJiYdz   = await KbSiHuaQuery(yStem, "化忌", palacesYdz);
                 }
 
                 string reportText = LfBuildYudongziReportV2(
@@ -1955,7 +1991,13 @@ namespace Ecanapi.Controllers
                     ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
                     ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
                     ziweiSpsYdz, spsStarsYdz, ziweiHltYdz, hltStarsYdz,
-                    siHuaYdz, dayPillarKb);
+                    siHuaYdz,
+                    nianSiHuaXingYdz, yStem,
+                    siHuaLuPalaceYdz, siHuaLuYdz,
+                    siHuaQuanPalaceYdz, siHuaQuanYdz,
+                    siHuaKePalaceYdz, siHuaKeYdz,
+                    siHuaJiPalaceYdz, siHuaJiYdz,
+                    dayPillarKb);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -4362,6 +4404,11 @@ namespace Ecanapi.Controllers
             string ziweiOff, string offStars, string ziweiWlt, string wltStars,
             string ziweiSps, string spsStars, string ziweiHlt, string hltStars,
             Dictionary<string, (string pal, string txt)> siHua,
+            string nianSiHuaXing, string nianGan,
+            string siHuaLuPalace, string siHuaLu,
+            string siHuaQuanPalace, string siHuaQuan,
+            string siHuaKePalace, string siHuaKe,
+            string siHuaJiPalace, string siHuaJi,
             BaziDayPillarReading? kb)
         {
             var sb = new StringBuilder();
@@ -4494,8 +4541,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemV2, dStem, branches));
             sb.AppendLine();
 
-            // === Ch.6 先天星盤（紫微）===
-            sb.AppendLine("【第六章：先天星盤】");
+            // === Ch.6 紫微格局論 ===
+            sb.AppendLine("【第六章：紫微格局論】");
             sb.AppendLine();
             if (!hasZiwei)
             {
@@ -4503,20 +4550,22 @@ namespace Ecanapi.Controllers
             }
             else
             {
-                if (!string.IsNullOrEmpty(wuXingJuText)) sb.AppendLine($"【五行局】：{wuXingJuText}");
-                if (!string.IsNullOrEmpty(mingZhu))      sb.AppendLine($"【命主星】：{mingZhu}");
-                if (!string.IsNullOrEmpty(shenZhu))      sb.AppendLine($"【身主星】：{shenZhu}");
+                if (!string.IsNullOrEmpty(wuXingJuText)) sb.AppendLine($"【五行局】{wuXingJuText}　命主星：{mingZhu}　身主星：{shenZhu}");
                 sb.AppendLine();
-                sb.AppendLine("【十二宮位星曜】");
-                string[] palaceNames = { "命宮","兄弟宮","夫妻宮","子女宮","財帛宮","疾厄宮","遷移宮","奴僕宮","官祿宮","田宅宮","福德宮","父母宮" };
-                foreach (var pName in palaceNames)
-                {
-                    string pStars  = KbGetPalaceStars(palacesYdz, pName.Replace("宮",""));
-                    string pBranch = KbGetPalaceBranch(palacesYdz, pName.Replace("宮",""));
-                    if (string.IsNullOrEmpty(pBranch)) { pBranch = KbGetPalaceBranch(palacesYdz, pName); pStars = KbGetPalaceStars(palacesYdz, pName); }
-                    string brLabel = string.IsNullOrEmpty(pBranch) ? "" : $"（坐{pBranch}）";
-                    sb.AppendLine($"  {pName}{brLabel}：{pStars}");
-                }
+                if (!string.IsNullOrEmpty(nianSiHuaXing))
+                    sb.AppendLine($"【{nianGan}年干四化性格】{nianSiHuaXing}");
+                if (!string.IsNullOrEmpty(ziweiMing))
+                    sb.AppendLine($"【紫微格局綱領·{mingGongStars}】{ziweiMing}");
+                if (!string.IsNullOrEmpty(starDescMing))
+                    sb.AppendLine($"【命宮星情】{starDescMing}");
+                if (!string.IsNullOrEmpty(siHuaLu))
+                    sb.AppendLine($"【先天化祿·{siHuaLuPalace}】{siHuaLu}");
+                if (!string.IsNullOrEmpty(siHuaQuan))
+                    sb.AppendLine($"【先天化權·{siHuaQuanPalace}】{siHuaQuan}");
+                if (!string.IsNullOrEmpty(siHuaKe))
+                    sb.AppendLine($"【先天化科·{siHuaKePalace}】{siHuaKe}");
+                if (!string.IsNullOrEmpty(siHuaJi))
+                    sb.AppendLine($"【先天化忌·{siHuaJiPalace}】{siHuaJi}");
             }
             sb.AppendLine();
 
