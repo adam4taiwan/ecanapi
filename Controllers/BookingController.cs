@@ -41,10 +41,7 @@ namespace Ecanapi.Controllers
             "BLESSING_ANTAISUI", "BLESSING_LIGHT", "BLESSING_WEALTH", "BLESSING_PRAYER"
         };
 
-        private static readonly HashSet<string> ValidTopics = new()
-        {
-            "婚姻", "事業", "財運", "健康", "其他"
-        };
+        // topics are free-form labels from frontend, no strict whitelist needed
 
         public BookingController(ApplicationDbContext db)
         {
@@ -95,7 +92,7 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { message = "請填寫姓名" });
             if (string.IsNullOrWhiteSpace(req.ContactInfo))
                 return BadRequest(new { message = "請填寫聯絡方式" });
-            if (string.IsNullOrWhiteSpace(req.Topic) || !ValidTopics.Contains(req.Topic))
+            if (string.IsNullOrWhiteSpace(req.Topic))
                 return BadRequest(new { message = "請選擇諮詢主題" });
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
