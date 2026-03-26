@@ -3808,15 +3808,34 @@ namespace Ecanapi.Controllers
         private static int LfParseLunarMonth(string lunarBirthDate)
         {
             if (string.IsNullOrEmpty(lunarBirthDate)) return 0;
+
+            // 格式一：中文「X年Y月Z日」
             int yearIdx = lunarBirthDate.IndexOf('年');
             int monthIdx = lunarBirthDate.IndexOf('月', yearIdx >= 0 ? yearIdx : 0);
-            if (yearIdx < 0 || monthIdx < 0 || monthIdx <= yearIdx) return 0;
-            string monthStr = lunarBirthDate.Substring(yearIdx + 1, monthIdx - yearIdx - 1);
-            return monthStr switch {
-                "一" => 1, "二" => 2, "三" => 3, "四" => 4, "五" => 5, "六" => 6,
-                "七" => 7, "八" => 8, "九" => 9, "十" => 10, "十一" => 11, "十二" => 12,
-                _ => 0
-            };
+            if (yearIdx >= 0 && monthIdx > yearIdx)
+            {
+                string monthStr = lunarBirthDate.Substring(yearIdx + 1, monthIdx - yearIdx - 1);
+                int chResult = monthStr switch {
+                    "一" => 1, "二" => 2, "三" => 3, "四" => 4, "五" => 5, "六" => 6,
+                    "七" => 7, "八" => 8, "九" => 9, "十" => 10, "十一" => 11, "十二" => 12,
+                    _ => 0
+                };
+                if (chResult > 0) return chResult;
+            }
+
+            // 格式二：「YYYY/MM/DD」或「YYYY-MM-DD」
+            var parts = lunarBirthDate.Split('/', '-');
+            if (parts.Length >= 3 && int.TryParse(parts[1], out int m2) && m2 >= 1 && m2 <= 12)
+                return m2;
+
+            // 格式三：純數字字串（YYYYMMDD 8碼 或 YYYYmDD 7碼）
+            string digits = new string(lunarBirthDate.Where(char.IsDigit).ToArray());
+            if (digits.Length == 8 && int.TryParse(digits.Substring(4, 2), out int m3) && m3 >= 1 && m3 <= 12)
+                return m3;
+            if (digits.Length == 7 && int.TryParse(digits.Substring(4, 1), out int m4) && m4 >= 1 && m4 <= 9)
+                return m4;
+
+            return 0;
         }
 
         // === 百分百確信度斷語（條件2-9）===
@@ -3866,11 +3885,10 @@ namespace Ecanapi.Controllers
             };
 
             sb.AppendLine("---");
-            sb.AppendLine("【第二條：生肖時辰論】");
             string zodiac = zodiacNames.TryGetValue(yBranch, out var zn) ? zn : yBranch;
             if (zodiacTexts.TryGetValue(yBranch, out var ztArr) && hIdx < ztArr.Length)
             {
-                sb.AppendLine($"{zodiac}年生，{hBranch}時出生：{ztArr[hIdx]}");
+                sb.AppendLine($"【生肖時辰論】{zodiac}年生，{hBranch}時出生：{ztArr[hIdx]}");
             }
             sb.AppendLine();
 
@@ -3928,7 +3946,6 @@ namespace Ecanapi.Controllers
                     "六親刑傷，男克妻女克夫，末運好", "先克父")}
             };
 
-            sb.AppendLine("【第三條：貴賤論】");
             if (guiJianData.TryGetValue(hBranch, out var gjInfo))
             {
                 string gjText, gjFather;
@@ -3936,7 +3953,7 @@ namespace Ecanapi.Controllers
                 else if (timeSection == "中") { gjText = gjInfo.midText; gjFather = gjInfo.midFather; }
                 else { gjText = gjInfo.finText; gjFather = gjInfo.finFather; }
 
-                sb.AppendLine($"{hBranch}時生人（{gjInfo.name}），時{timeSection}：");
+                sb.AppendLine($"【貴賤論】{hBranch}時生人（{gjInfo.name}），時{timeSection}：");
                 sb.AppendLine($"命格：{gjText}");
                 sb.AppendLine($"父母：{gjFather}");
             }
@@ -4020,8 +4037,7 @@ namespace Ecanapi.Controllers
 
                 if (!string.IsNullOrEmpty(body4) && bodyTexts4.TryGetValue(body4, out var bDict4) && bDict4.TryGetValue(season4, out var bText4))
                 {
-                    sb.AppendLine("【第四條：四季王】");
-                    sb.AppendLine($"農曆{lunarMonth}月（{season4}季），{hBranch}時生人，落在帝王{body4}：");
+                    sb.AppendLine($"【四季王】{season4}季，{hBranch}時生人，落在帝王{body4}：");
                     sb.AppendLine(bText4);
                     sb.AppendLine();
                 }
@@ -4061,11 +4077,10 @@ namespace Ecanapi.Controllers
                     .Select(r => r.name)
                     .ToList();
 
-                sb.AppendLine("【第五條：小兒關煞】");
                 if (found5.Count > 0)
                 {
                     string shaNames = string.Join("、", found5);
-                    sb.AppendLine($"農曆{lunarMonth}月（{season5}季），{hBranch}時生人，帶有：{shaNames}。");
+                    sb.AppendLine($"【小兒關煞】{season5}季，{hBranch}時生人，帶有：{shaNames}。");
                     if (found5.Count >= 2)
                         sb.AppendLine("多重關煞疊加，幼年凶險較重，宜提早化解。");
                     else
@@ -4073,7 +4088,7 @@ namespace Ecanapi.Controllers
                 }
                 else
                 {
-                    sb.AppendLine($"農曆{lunarMonth}月（{season5}季），{hBranch}時生人，無小兒關煞，幼年平順。");
+                    sb.AppendLine($"【小兒關煞】{season5}季，{hBranch}時生人，無小兒關煞，幼年平順。");
                 }
                 sb.AppendLine();
             }
@@ -4100,9 +4115,8 @@ namespace Ecanapi.Controllers
                 {"閉", "衣祿自然豐，二子送君壽，福祿永無窮，子決有三四，至老僅一雙"}
             };
 
-            sb.AppendLine("【第六條：子女送終】");
             string palaceText = palaceTexts.TryGetValue(palace, out var pt) ? pt : "";
-            sb.AppendLine($"{zodiac}年生，{hBranch}時：命入{palace}宮。{palaceText}");
+            sb.AppendLine($"【子女送終】{zodiac}年生，{hBranch}時：命入{palace}宮。{palaceText}");
             sb.AppendLine();
 
             // === 條件 7：查流年 ===
@@ -4163,11 +4177,7 @@ namespace Ecanapi.Controllers
                 string t1 = sys1Texts.TryGetValue(star1, out var tx1) ? tx1 : "";
                 string t2 = sys2Texts.TryGetValue(star2, out var tx2) ? tx2 : "";
 
-                sb.AppendLine("【第七條：查流年】");
-                sb.AppendLine($"今年（{currentYear}年）虛齡{vage}歲：");
-                sb.AppendLine($"太歲系統：{star1}（{lb1}）——{t1}");
-                sb.AppendLine($"流年系統：{star2}（{lb2}）——{t2}");
-                sb.AppendLine();
+                // 第七條（查流年）僅用於流年命書，此處不輸出
             }
 
             // === 條件 8：讀書格 ===
@@ -4243,8 +4253,7 @@ namespace Ecanapi.Controllers
                 group9TimeSect = group9Parent + group9OutHome;
             }
 
-            sb.AppendLine("【第九條：論時看孤雙】");
-            sb.AppendLine($"{hBranch}時生人（{group9Name}），時{timeSection}：");
+            sb.AppendLine($"【論時看孤雙】{hBranch}時生人（{group9Name}），時{timeSection}：");
             sb.AppendLine(group9Common);
             sb.AppendLine(group9TimeSect);
             sb.AppendLine();
