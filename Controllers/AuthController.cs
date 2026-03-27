@@ -261,6 +261,102 @@ namespace Ecanapi.Controllers
             });
         }
 
+        /// <summary>Google Login OAuth 換取 JWT</summary>
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginModel model)
+        {
+            var clientId = _configuration["GoogleLogin:ClientId"]!;
+            var clientSecret = _configuration["GoogleLogin:ClientSecret"]!;
+            var redirectUri = !string.IsNullOrEmpty(model.RedirectUri)
+                ? model.RedirectUri
+                : "https://myweb.fly.dev/auth/google/callback";
+
+            // 1. 用 code 換 access token
+            using var http = new HttpClient();
+            var tokenParams = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["code"] = model.Code,
+                ["redirect_uri"] = redirectUri,
+                ["client_id"] = clientId,
+                ["client_secret"] = clientSecret
+            });
+            var tokenRes = await http.PostAsync("https://oauth2.googleapis.com/token", tokenParams);
+            if (!tokenRes.IsSuccessStatusCode)
+                return BadRequest(new { message = "Google 授權失敗，請重試" });
+
+            var tokenJson = await tokenRes.Content.ReadAsStringAsync();
+            var tokenData = JsonDocument.Parse(tokenJson).RootElement;
+            if (!tokenData.TryGetProperty("access_token", out var accessTokenElem))
+                return BadRequest(new { message = "無法取得 Google access token" });
+
+            var accessToken = accessTokenElem.GetString()!;
+
+            // 2. 取得 Google 用戶資料
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            var profileRes = await http.GetAsync("https://www.googleapis.com/oauth2/v2/userinfo");
+            if (!profileRes.IsSuccessStatusCode)
+                return BadRequest(new { message = "無法取得 Google 用戶資料" });
+
+            var profileJson = await profileRes.Content.ReadAsStringAsync();
+            var profile = JsonDocument.Parse(profileJson).RootElement;
+            var googleUserId = profile.GetProperty("id").GetString()!;
+            var displayName = profile.TryGetProperty("name", out var nameElem) ? nameElem.GetString() ?? "Google 用戶" : "Google 用戶";
+            var googleEmail = profile.TryGetProperty("email", out var emailElem) ? emailElem.GetString() : null;
+
+            // 3. 找或建立用戶（優先用 Google email 查找已有帳號）
+            ApplicationUser? user = null;
+            if (!string.IsNullOrEmpty(googleEmail))
+                user = await _userManager.FindByEmailAsync(googleEmail);
+
+            if (user == null)
+                user = _userManager.Users.FirstOrDefault(u => u.GoogleUserId == googleUserId);
+
+            if (user == null)
+            {
+                var email = googleEmail ?? $"google_{googleUserId}@google.user";
+                user = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    Name = displayName,
+                    GoogleUserId = googleUserId,
+                    EmailConfirmed = true
+                };
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                    return BadRequest(new { message = "建立帳號失敗" });
+            }
+            else if (user.GoogleUserId == null)
+            {
+                user.GoogleUserId = googleUserId;
+                await _userManager.UpdateAsync(user);
+            }
+
+            // 4. 產生 JWT
+            var authClaims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id!),
+                new Claim(ClaimTypes.Email, user.Email!)
+            };
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]!));
+            var token = new JwtSecurityToken(
+                issuer: _configuration["JWT:ValidIssuer"],
+                audience: _configuration["JWT:ValidAudience"],
+                expires: DateTime.Now.AddDays(7),
+                claims: authClaims,
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+            );
+
+            return Ok(new
+            {
+                token = new JwtSecurityTokenHandler().WriteToken(token),
+                message = "Google 登入成功！",
+                name = user.Name
+            });
+        }
+
         /// <summary>儲存／更新會員生辰資料</summary>
         [HttpPut("profile")]
         [Authorize]
@@ -314,6 +410,12 @@ namespace Ecanapi.Controllers
     }
 
     public class LineLoginModel
+    {
+        public required string Code { get; set; }
+        public string? RedirectUri { get; set; }
+    }
+
+    public class GoogleLoginModel
     {
         public required string Code { get; set; }
         public string? RedirectUri { get; set; }

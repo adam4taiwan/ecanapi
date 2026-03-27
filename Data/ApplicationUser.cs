@@ -34,6 +34,9 @@ namespace Ecanapi.Data
         /// <summary>LINE 登入 userId（LINE OAuth）</summary>
         public string? LineUserId { get; set; }
 
+        /// <summary>Google 登入 userId（Google OAuth）</summary>
+        public string? GoogleUserId { get; set; }
+
         public bool DeductPoints(int amount)
         {
             if (this.Points < amount) return false;
