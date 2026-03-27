@@ -64,10 +64,10 @@ namespace Ecanapi.Services
             // 八字大運
             for (int i = 0; i < chartData.BaziLuckCycles.Count; i++)
             {
-                SetCellValue(sheet, 31, 13 - i, chartData.BaziLuckCycles[i].StartAge.ToString());
-                SetCellValue(sheet, 32, 13 - i, chartData.BaziLuckCycles[i].LiuShen);
-                SetCellValue(sheet, 33, 13 - i, chartData.BaziLuckCycles[i].HeavenlyStem);
-                SetCellValue(sheet, 34, 13 - i, chartData.BaziLuckCycles[i].EarthlyBranch);
+                SetCellValueBlack(sheet, 31, 13 - i, chartData.BaziLuckCycles[i].StartAge.ToString());
+                SetCellValueBlack(sheet, 32, 13 - i, chartData.BaziLuckCycles[i].LiuShen);
+                SetCellValueBlack(sheet, 33, 13 - i, chartData.BaziLuckCycles[i].HeavenlyStem);
+                SetCellValueBlack(sheet, 34, 13 - i, chartData.BaziLuckCycles[i].EarthlyBranch);
 
                 // 十二長生
                 if (changShengMap.TryGetValue(dayStem, out var branchOrder))
@@ -75,7 +75,7 @@ namespace Ecanapi.Services
                     string branch = chartData.BaziLuckCycles[i].EarthlyBranch;
                     int idx = Array.IndexOf(branchOrder, branch);
                     if (idx >= 0)
-                        SetCellValue(sheet, 35, 13 - i, changShengNames[idx]);
+                        SetCellValueBlack(sheet, 35, 13 - i, changShengNames[idx]);
                 }
             }
 
@@ -228,8 +228,16 @@ namespace Ecanapi.Services
             IRow row = sheet.GetRow(rowIndex) ?? sheet.CreateRow(rowIndex);
             ICell cell = row.GetCell(colIndex) ?? row.CreateCell(colIndex);
             cell.SetCellValue(value);
+        }
 
-            // 強制黑色字體，避免模板殘留紅色
+        // 大運專用：寫入並強制黑色字體
+        private void SetCellValueBlack(ISheet sheet, int rowIndex, int colIndex, string value)
+        {
+            if (string.IsNullOrEmpty(value?.Trim())) return;
+            IRow row = sheet.GetRow(rowIndex) ?? sheet.CreateRow(rowIndex);
+            ICell cell = row.GetCell(colIndex) ?? row.CreateCell(colIndex);
+            cell.SetCellValue(value);
+
             var workbook = sheet.Workbook;
             var origFont = cell.CellStyle.GetFont(workbook);
             IFont font = workbook.CreateFont();
