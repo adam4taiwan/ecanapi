@@ -172,7 +172,9 @@ namespace Ecanapi.Controllers
         {
             var channelId = _configuration["LineLogin:ChannelId"]!;
             var channelSecret = _configuration["LineLogin:ChannelSecret"]!;
-            var redirectUri = _configuration["LineLogin:RedirectUri"]!;
+            var redirectUri = !string.IsNullOrEmpty(model.RedirectUri)
+                ? model.RedirectUri
+                : _configuration["LineLogin:RedirectUri"]!;
 
             // 1. 用 code 換 access token
             using var http = new HttpClient();
@@ -314,6 +316,7 @@ namespace Ecanapi.Controllers
     public class LineLoginModel
     {
         public required string Code { get; set; }
+        public string? RedirectUri { get; set; }
     }
 
     public class UpdateProfileModel
