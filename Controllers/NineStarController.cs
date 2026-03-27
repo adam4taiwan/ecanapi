@@ -1,0 +1,578 @@
+using Ecanapi.Data;
+using Ecanapi.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
+
+namespace Ecanapi.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class NineStarController : ControllerBase
+    {
+        private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _config;
+        private readonly ILogger<NineStarController> _logger;
+        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
+
+        // ============================================================
+        //  靜態資料表
+        // ============================================================
+        private static readonly string[] StarNames =
+        {
+            "", "一白水星", "二黑土星", "三碧木星", "四綠木星", "五黃土星",
+            "六白金星", "七赤金星", "八白土星", "九紫火星"
+        };
+
+        // 吉方位（1-9）
+        private static readonly string[] StarDirections =
+        {
+            "", "北方", "西南方", "東方", "東南方", "中宮（避中央）", "西北方", "西方", "東北方", "南方"
+        };
+
+        // 吉顏色（1-9）
+        private static readonly string[] StarColors =
+        {
+            "", "白色、藍色", "黃色、棕色", "綠色、青色", "綠色、青色", "黃色（需化解）",
+            "白色、金色", "白色、金色", "白色、黃色", "紫色、紅色"
+        };
+
+        // 幸運數字（1-9）
+        private static readonly int[] StarNumbers = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        // 甲子參考日：January 1, 2000 = 甲戌（60循環 index 10）
+        // 甲子（index 0）= Jan 1, 2000 - 10 days = Dec 22, 1999
+        private static readonly DateTime NsEpochDate = new DateTime(2000, 1, 1);
+        private const int NsEpochCycleIndex = 10; // Jan 1, 2000 = 甲戌 (60-cycle index 10)
+
+        // ============================================================
+        //  建構子
+        // ============================================================
+        public NineStarController(ApplicationDbContext context, IConfiguration config, ILogger<NineStarController> logger)
+        {
+            _context = context;
+            _config = config;
+            _logger = logger;
+        }
+
+        // ============================================================
+        //  公開端點
+        // ============================================================
+
+        /// <summary>計算本命星（公開，無需登入）</summary>
+        [HttpGet("natal")]
+        public IActionResult GetNatalStar(int year, int month, int day, string gender)
+        {
+            if (year < 1900 || year > 2100) return BadRequest("年份超出範圍");
+            if (gender != "M" && gender != "F") return BadRequest("gender 須為 M 或 F");
+
+            int star = NsCalcNatalStar(year, month, day, gender);
+            return Ok(new
+            {
+                natalStar = star,
+                starName = StarNames[star],
+                direction = StarDirections[star],
+                color = StarColors[star],
+                luckyNumber = StarNumbers[star]
+            });
+        }
+
+        /// <summary>取得今日年/月/日/時四星（公開）</summary>
+        [HttpGet("stars/today")]
+        public IActionResult GetTodayStars()
+        {
+            var now = DateTime.Now;
+            int yearStar = NsCalcYearStar(now.Year);
+            int monthStar = NsCalcMonthStar(now);
+            int dayStar = NsCalcDayStar(now);
+            int hourStar = NsCalcHourStar(now);
+
+            return Ok(new
+            {
+                date = now.ToString("yyyy-MM-dd HH:mm"),
+                yearStar = new { number = yearStar, name = StarNames[yearStar] },
+                monthStar = new { number = monthStar, name = StarNames[monthStar] },
+                dayStar = new { number = dayStar, name = StarNames[dayStar] },
+                hourStar = new { number = hourStar, name = StarNames[hourStar] }
+            });
+        }
+
+        /// <summary>取得某顆本命星的特質（KB 優先，空則 Gemini 生成後回填）</summary>
+        [HttpGet("trait/{starNumber}")]
+        public async Task<IActionResult> GetTrait(int starNumber)
+        {
+            if (starNumber < 1 || starNumber > 9) return BadRequest("星號須為 1-9");
+
+            var trait = await _context.NineStarTraits.FirstOrDefaultAsync(t => t.StarNumber == starNumber);
+
+            // 若不存在，先建立空記錄
+            if (trait == null)
+            {
+                trait = new NineStarTrait
+                {
+                    StarNumber = starNumber,
+                    StarName = StarNames[starNumber],
+                    LuckyDirection = StarDirections[starNumber],
+                    LuckyColor = StarColors[starNumber],
+                    LuckyNumber = StarNumbers[starNumber]
+                };
+                _context.NineStarTraits.Add(trait);
+                await _context.SaveChangesAsync();
+            }
+
+            // KB 缺 Personality → Gemini 生成後回填
+            if (string.IsNullOrEmpty(trait.Personality))
+            {
+                trait.Personality = await NsGeminiGenTrait(starNumber, "personality");
+                trait.Career = await NsGeminiGenTrait(starNumber, "career");
+                trait.Relationship = await NsGeminiGenTrait(starNumber, "relationship");
+                trait.Health = await NsGeminiGenTrait(starNumber, "health");
+                trait.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("NineStar trait {Star} generated by Gemini and saved to KB", starNumber);
+            }
+
+            return Ok(new
+            {
+                starNumber = trait.StarNumber,
+                starName = trait.StarName,
+                personality = trait.Personality,
+                career = trait.Career,
+                relationship = trait.Relationship,
+                health = trait.Health,
+                luckyDirection = trait.LuckyDirection,
+                luckyColor = trait.LuckyColor,
+                luckyNumber = trait.LuckyNumber
+            });
+        }
+
+        /// <summary>LINE Bot 用戶登記生辰（無需認證）</summary>
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] LineRegisterRequest req)
+        {
+            if (string.IsNullOrEmpty(req.LineUserId)) return BadRequest("LineUserId 必填");
+            if (req.BirthYear < 1900 || req.BirthYear > 2100) return BadRequest("年份超出範圍");
+            if (req.Gender != "M" && req.Gender != "F") return BadRequest("gender 須為 M 或 F");
+
+            int natalStar = NsCalcNatalStar(req.BirthYear, req.BirthMonth, req.BirthDay, req.Gender);
+
+            var existing = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == req.LineUserId);
+            if (existing != null)
+            {
+                existing.BirthYear = req.BirthYear;
+                existing.BirthMonth = req.BirthMonth;
+                existing.BirthDay = req.BirthDay;
+                existing.Gender = req.Gender;
+                existing.NatalStar = natalStar;
+                existing.DisplayName = req.DisplayName;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _context.LineUsers.Add(new LineUser
+                {
+                    LineUserId = req.LineUserId,
+                    BirthYear = req.BirthYear,
+                    BirthMonth = req.BirthMonth,
+                    BirthDay = req.BirthDay,
+                    Gender = req.Gender,
+                    NatalStar = natalStar,
+                    DisplayName = req.DisplayName
+                });
+            }
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                natalStar,
+                starName = StarNames[natalStar],
+                message = "登記成功"
+            });
+        }
+
+        /// <summary>個人化今日九星建議（LINE Bot 用 lineUserId；網頁用 JWT）</summary>
+        [HttpGet("daily")]
+        public async Task<IActionResult> GetDaily(string? lineUserId = null)
+        {
+            int natalStar = 0;
+
+            // 優先用 JWT 取本命星
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user != null && user.HasBirthData)
+                    natalStar = NsCalcNatalStar(
+                        user.BirthYear!.Value, user.BirthMonth!.Value, user.BirthDay!.Value,
+                        user.BirthGender == 2 ? "F" : "M");
+            }
+
+            // JWT 沒本命星 → 用 LINE userId
+            if (natalStar == 0 && !string.IsNullOrEmpty(lineUserId))
+            {
+                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+                if (lineUser != null) natalStar = lineUser.NatalStar;
+            }
+
+            if (natalStar == 0) return BadRequest("找不到本命星資料，請先登記生辰");
+
+            var now = DateTime.Now;
+            int dayStar = NsCalcDayStar(now);
+            int monthStar = NsCalcMonthStar(now);
+            int yearStar = NsCalcYearStar(now.Year);
+
+            // 查 KB（本命星 × 流日星）
+            var rule = await _context.NineStarDailyRules
+                .FirstOrDefaultAsync(r => r.NatalStar == natalStar && r.FlowStar == dayStar);
+
+            if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
+            {
+                // Gemini 生成 + 回填 KB
+                var generated = await NsGeminiGenDailyAdvice(natalStar, dayStar);
+                if (rule == null)
+                {
+                    rule = new NineStarDailyRule { NatalStar = natalStar, FlowStar = dayStar };
+                    _context.NineStarDailyRules.Add(rule);
+                }
+                rule.FortuneText = generated.FortuneText;
+                rule.Auspicious = generated.Auspicious;
+                rule.Avoid = generated.Avoid;
+                rule.Direction = generated.Direction;
+                rule.Color = generated.Color;
+                rule.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("NineStar daily rule {Natal}x{Day} generated by Gemini and saved to KB", natalStar, dayStar);
+            }
+
+            return Ok(new
+            {
+                date = now.ToString("yyyy-MM-dd"),
+                natalStar = new { number = natalStar, name = StarNames[natalStar] },
+                yearStar = new { number = yearStar, name = StarNames[yearStar] },
+                monthStar = new { number = monthStar, name = StarNames[monthStar] },
+                dayStar = new { number = dayStar, name = StarNames[dayStar] },
+                fortuneText = rule.FortuneText,
+                auspicious = rule.Auspicious,
+                avoid = rule.Avoid,
+                direction = rule.Direction ?? StarDirections[natalStar],
+                color = rule.Color ?? StarColors[natalStar]
+            });
+        }
+
+        // ============================================================
+        //  計算層（純 C#，不呼叫 AI）
+        // ============================================================
+
+        /// <summary>計算本命星（考慮立春 2/4 前出生使用前一年）</summary>
+        private static int NsCalcNatalStar(int year, int month, int day, string gender)
+        {
+            // 立春前（約2月4日）出生，使用前一年
+            int y = (month < 2 || (month == 2 && day < 4)) ? year - 1 : year;
+            return NsCalcYearStar(y, gender);
+        }
+
+        /// <summary>計算指定年份的入中星（陽遁/男=年飛星；陰遁/女=對宮反算）</summary>
+        private static int NsCalcYearStar(int year, string gender = "M")
+        {
+            // 公式：年尾兩位數字逐位相加，超過9再加
+            int last2 = year % 100;
+            int sum = last2 / 10 + last2 % 10;
+            while (sum >= 10) sum = sum / 10 + sum % 10;
+
+            int star;
+            if (year < 2000)
+                star = (10 - sum) % 9;
+            else
+                star = (9 - sum) % 9;
+
+            if (star == 0) star = 9;
+
+            // 女性本命星：對宮補數（10 - 男星）
+            if (gender == "F")
+            {
+                star = 10 - star;
+                if (star == 0) star = 9;
+                if (star > 9) star = star - 9;
+            }
+
+            return star;
+        }
+
+        /// <summary>計算流年星（入中宮）</summary>
+        private static int NsCalcYearStar(int year) => NsCalcYearStar(year, "M");
+
+        /// <summary>計算流月星（依節氣月）</summary>
+        private static int NsCalcMonthStar(DateTime date)
+        {
+            int yearStar = NsCalcYearStar(date.Year);
+            int solarMonth = NsGetSolarMonth(date); // 1=寅月(立春後)
+
+            // 月首星：年星 1/4/7 → 寅月起8；2/5/8 → 寅月起5；3/6/9 → 寅月起2
+            int[] monthStartStars = { 0, 8, 5, 2, 8, 5, 2, 8, 5, 2 };
+            int startStar = monthStartStars[yearStar];
+
+            // 每月遞減（月星逆排）
+            int star = ((startStar - solarMonth + 1) % 9 + 9) % 9;
+            return star == 0 ? 9 : star;
+        }
+
+        /// <summary>計算流日星（依節氣區間 + 甲子日順逆行）</summary>
+        private static int NsCalcDayStar(DateTime date)
+        {
+            // 六個節氣區間與起始星、方向
+            // 冬至~雨水：起1順；雨水~穀雨：起7順；穀雨~夏至：起4順
+            // 夏至~處暑：起9逆；處暑~霜降：起3逆；霜降~冬至：起6逆
+            var (startStar, forward, periodStart) = NsGetDayStarPeriod(date);
+
+            // 找本區間內第一個甲子日（從 periodStart 往前找最近甲子日）
+            DateTime jiazi = NsGetLastJiaZiDay(periodStart);
+
+            int daysDiff = (int)(date.Date - jiazi).TotalDays;
+
+            int star;
+            if (forward)
+                star = ((startStar - 1 + daysDiff) % 9 + 9) % 9 + 1;
+            else
+                star = ((startStar - 1 - daysDiff) % 9 + 9) % 9 + 1;
+
+            return star;
+        }
+
+        /// <summary>計算流時星（依日支類型 + 半年陰陽）</summary>
+        private static int NsCalcHourStar(DateTime dateTime)
+        {
+            // 取時辰序號（子=0, 丑=1, ...亥=11），每2小時一個時辰
+            int hour = dateTime.Hour;
+            int branchIdx = hour / 2; // 0=子,1=丑,...,11=亥（23:00-00:59 = 子）
+            if (hour == 23) branchIdx = 0;
+
+            // 日支（60甲子循環的地支）
+            int cycle = NsGet60CycleIndex(dateTime);
+            int dayBranch = cycle % 12; // 甲子=0→子,乙丑=1→丑,...
+
+            // 孟(寅申巳亥)/仲(子午卯酉)/季(辰戌丑未)
+            int[] mengBranches = { 2, 5, 8, 11 }; // 寅巳申亥
+            int[] zhongBranches = { 0, 3, 6, 9 }; // 子卯午酉
+            // 其餘為季：辰戌丑未
+
+            int startStar;
+            bool isYangHalf = NsIsYangHalf(dateTime); // 冬至到夏至為陽
+            if (mengBranches.Contains(dayBranch))
+                startStar = isYangHalf ? 7 : 3;
+            else if (zhongBranches.Contains(dayBranch))
+                startStar = isYangHalf ? 1 : 9;
+            else
+                startStar = isYangHalf ? 4 : 6;
+
+            // 時辰從子時順行
+            int star = ((startStar - 1 + branchIdx) % 9 + 9) % 9 + 1;
+            return star;
+        }
+
+        // ============================================================
+        //  輔助計算
+        // ============================================================
+
+        /// <summary>取日期在60甲子中的 index（0=甲子...59=癸亥）</summary>
+        private static int NsGet60CycleIndex(DateTime date)
+        {
+            int days = (int)(date.Date - NsEpochDate).TotalDays;
+            return ((NsEpochCycleIndex + days) % 60 + 60) % 60;
+        }
+
+        /// <summary>取指定日期之前（含當天）最近的甲子日</summary>
+        private static DateTime NsGetLastJiaZiDay(DateTime from)
+        {
+            int idx = NsGet60CycleIndex(from);
+            int daysBack = idx; // 甲子=index 0，往前 idx 天即到甲子
+            return from.Date.AddDays(-daysBack);
+        }
+
+        /// <summary>判斷日期屬於哪個日飛星區間，回傳（起始星, 順行, 區間起始日）</summary>
+        private static (int startStar, bool forward, DateTime periodStart) NsGetDayStarPeriod(DateTime date)
+        {
+            int year = date.Year;
+            int doy = date.DayOfYear;
+
+            // 六個節氣的近似日（月/日）→ 換算為 DOY
+            // 冬至 ~Dec22, 雨水 ~Feb19, 穀雨 ~Apr20, 夏至 ~Jun21, 處暑 ~Aug23, 霜降 ~Oct23
+            // 使用前一年冬至到今年冬至橫跨兩年，需特別處理
+            int doyYuShui = 50;  // 雨水 ~Feb19
+            int doyGuYu = 110;   // 穀雨 ~Apr20
+            int doyXiaZhi = 172; // 夏至 ~Jun21
+            int doyChuShu = 235; // 處暑 ~Aug23
+            int doyShuangJiang = 296; // 霜降 ~Oct23
+            // 冬至：12月22日 = DOY 356(平年)/357(閏年)
+            int doyDongZhi = DateTime.IsLeapYear(year) ? 357 : 356;
+
+            if (doy < doyYuShui)
+            {
+                // 上年冬至 ~ 雨水：起1，順行
+                // 區間起始 = 上年冬至 (約 Dec 22 of year-1)
+                var prevDongZhi = new DateTime(year - 1, 12, 22);
+                return (1, true, prevDongZhi);
+            }
+            else if (doy < doyGuYu)
+            {
+                // 雨水 ~ 穀雨：起7，順行
+                return (7, true, new DateTime(year, 2, 19));
+            }
+            else if (doy < doyXiaZhi)
+            {
+                // 穀雨 ~ 夏至：起4，順行
+                return (4, true, new DateTime(year, 4, 20));
+            }
+            else if (doy < doyChuShu)
+            {
+                // 夏至 ~ 處暑：起9，逆行
+                return (9, false, new DateTime(year, 6, 21));
+            }
+            else if (doy < doyShuangJiang)
+            {
+                // 處暑 ~ 霜降：起3，逆行
+                return (3, false, new DateTime(year, 8, 23));
+            }
+            else if (doy < doyDongZhi)
+            {
+                // 霜降 ~ 冬至：起6，逆行
+                return (6, false, new DateTime(year, 10, 23));
+            }
+            else
+            {
+                // 冬至後 ~ 年底（下一個雨水前）：起1，順行
+                return (1, true, new DateTime(year, 12, 22));
+            }
+        }
+
+        /// <summary>判斷是否在陽遁半年（冬至 ~ 夏至）</summary>
+        private static bool NsIsYangHalf(DateTime date)
+        {
+            int doy = date.DayOfYear;
+            int doyXiaZhi = DateTime.IsLeapYear(date.Year) ? 173 : 172;
+            int doyDongZhi = DateTime.IsLeapYear(date.Year) ? 357 : 356;
+            // 陽遁：冬至後（DOY >= doyDongZhi 或 DOY < doyXiaZhi）
+            return doy >= doyDongZhi || doy < doyXiaZhi;
+        }
+
+        /// <summary>取節氣月份（1=寅月/立春後，12=丑月/小寒後）</summary>
+        private static int NsGetSolarMonth(DateTime date)
+        {
+            int y = date.Year;
+            int m = date.Month;
+            int d = date.Day;
+
+            // 12個節氣起始日（月, 日）對應節月 1-12（1=寅月）
+            // 小寒 Jan6=月12，立春 Feb4=月1，驚蟄 Mar6=月2，清明 Apr5=月3
+            // 立夏 May6=月4，芒種 Jun6=月5，小暑 Jul7=月6，立秋 Aug7=月7
+            // 白露 Sep8=月8，寒露 Oct8=月9，立冬 Nov7=月10，大雪 Dec7=月11
+            (int sm, int sd, int solarM)[] terms =
+            {
+                (1,  6,  12), // 小寒 → 丑月
+                (2,  4,  1),  // 立春 → 寅月
+                (3,  6,  2),  // 驚蟄 → 卯月
+                (4,  5,  3),  // 清明 → 辰月
+                (5,  6,  4),  // 立夏 → 巳月
+                (6,  6,  5),  // 芒種 → 午月
+                (7,  7,  6),  // 小暑 → 未月
+                (8,  7,  7),  // 立秋 → 申月
+                (9,  8,  8),  // 白露 → 酉月
+                (10, 8,  9),  // 寒露 → 戌月
+                (11, 7,  10), // 立冬 → 亥月
+                (12, 7,  11), // 大雪 → 子月
+            };
+
+            int current = 11; // 預設子月
+            foreach (var (sm, sd, solarM) in terms)
+            {
+                if (m > sm || (m == sm && d >= sd))
+                    current = solarM;
+            }
+            return current;
+        }
+
+        // ============================================================
+        //  Gemini 生成（暫代 KB，結果自動存回 DB）
+        // ============================================================
+
+        private async Task<string> NsGeminiGenTrait(int starNumber, string type)
+        {
+            string starName = StarNames[starNumber];
+            string typeName = type switch
+            {
+                "personality" => "個性特質與人生格局",
+                "career" => "事業財運傾向",
+                "relationship" => "感情與人際關係",
+                "health" => "健康養生建議",
+                _ => "整體特質"
+            };
+
+            string prompt = $"請以九星氣學的角度，為【{starName}】本命星的人撰寫「{typeName}」說明。" +
+                            $"約200字，繁體中文，語氣直接對命主說話，不要出現「九星氣學」等學術名詞，" +
+                            $"只給論斷與建議。";
+
+            return await NsCallGemini(prompt);
+        }
+
+        private async Task<(string FortuneText, string Auspicious, string Avoid, string Direction, string Color)>
+            NsGeminiGenDailyAdvice(int natalStar, int dayStar)
+        {
+            string prompt = $"九星氣學今日建議：本命星【{StarNames[natalStar]}】，今日流日星【{StarNames[dayStar]}】。" +
+                            $"請以繁體中文輸出 JSON，包含以下欄位：" +
+                            $"fortune_text（今日整體運勢，約100字），" +
+                            $"auspicious（今日宜做的事，20字內），" +
+                            $"avoid（今日不宜，20字內），" +
+                            $"direction（今日吉方位，10字內），" +
+                            $"color（今日吉顏色，10字內）。" +
+                            $"直接回傳 JSON，不要 markdown。";
+
+            try
+            {
+                string raw = await NsCallGemini(prompt);
+                var json = JsonSerializer.Deserialize<JsonElement>(raw);
+                return (
+                    json.GetProperty("fortune_text").GetString() ?? "",
+                    json.GetProperty("auspicious").GetString() ?? "",
+                    json.GetProperty("avoid").GetString() ?? "",
+                    json.GetProperty("direction").GetString() ?? StarDirections[natalStar],
+                    json.GetProperty("color").GetString() ?? StarColors[natalStar]
+                );
+            }
+            catch
+            {
+                // JSON 解析失敗，回傳純文字版本
+                string raw = await NsCallGemini(
+                    $"九星氣學：本命星{StarNames[natalStar]}，今日流星{StarNames[dayStar]}，" +
+                    $"請給一段今日建議（100字，繁體中文）。");
+                return (raw, "", "", StarDirections[natalStar], StarColors[natalStar]);
+            }
+        }
+
+        private async Task<string> NsCallGemini(string prompt)
+        {
+            var apiKey = _config["Gemini:ApiKey"];
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+            var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
+            var response = await _httpClient.PostAsJsonAsync(url, payload);
+            var rawJson = await response.Content.ReadAsStringAsync();
+            var json = JsonSerializer.Deserialize<JsonElement>(rawJson);
+            if (!json.TryGetProperty("candidates", out var candidates))
+                throw new Exception($"Gemini 回傳錯誤: {rawJson[..Math.Min(200, rawJson.Length)]}");
+            return candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString()!;
+        }
+    }
+
+    // ============================================================
+    //  Request DTO
+    // ============================================================
+    public class LineRegisterRequest
+    {
+        public string LineUserId { get; set; } = string.Empty;
+        public int BirthYear { get; set; }
+        public int BirthMonth { get; set; }
+        public int BirthDay { get; set; }
+        public string Gender { get; set; } = string.Empty; // M / F
+        public string? DisplayName { get; set; }
+    }
+}

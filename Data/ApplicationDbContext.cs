@@ -56,6 +56,11 @@ namespace Ecanapi.Data
         // 六十甲子日柱斷語 KB
         public DbSet<BaziDayPillarReading> BaziDayPillarReadings { get; set; }
 
+        // 九星氣學系統
+        public DbSet<NineStarTrait> NineStarTraits { get; set; }
+        public DbSet<NineStarDailyRule> NineStarDailyRules { get; set; }
+        public DbSet<LineUser> LineUsers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
