@@ -43,6 +43,24 @@ namespace Ecanapi.Services
             SetCellValue(sheet, 5, 12, "身主" + chartData.ShenZhu);
 
      
+            // 日干十二長生對照表（日干 → 地支順序從長生開始）
+            var changShengMap = new Dictionary<string, string[]>
+            {
+                { "甲", new[]{"亥","子","丑","寅","卯","辰","巳","午","未","申","酉","戌"} },
+                { "乙", new[]{"午","巳","辰","卯","寅","丑","子","亥","戌","酉","申","未"} },
+                { "丙", new[]{"寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑"} },
+                { "丁", new[]{"酉","申","未","午","巳","辰","卯","寅","丑","子","亥","戌"} },
+                { "戊", new[]{"寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑"} },
+                { "己", new[]{"酉","申","未","午","巳","辰","卯","寅","丑","子","亥","戌"} },
+                { "庚", new[]{"巳","午","未","申","酉","戌","亥","子","丑","寅","卯","辰"} },
+                { "辛", new[]{"子","亥","戌","酉","申","未","午","巳","辰","卯","寅","丑"} },
+                { "壬", new[]{"申","酉","戌","亥","子","丑","寅","卯","辰","巳","午","未"} },
+                { "癸", new[]{"卯","寅","丑","子","亥","戌","酉","申","未","午","巳","辰"} },
+            };
+            var changShengNames = new[] { "長生","沐浴","冠帶","臨官","帝旺","衰","病","死","墓","絕","胎","養" };
+
+            string dayStem = chartData.Bazi?.DayPillar?.HeavenlyStem ?? "";
+
             // 八字大運
             for (int i = 0; i < chartData.BaziLuckCycles.Count; i++)
             {
@@ -50,6 +68,15 @@ namespace Ecanapi.Services
                 SetCellValue(sheet, 32, 13 - i, chartData.BaziLuckCycles[i].LiuShen);
                 SetCellValue(sheet, 33, 13 - i, chartData.BaziLuckCycles[i].HeavenlyStem);
                 SetCellValue(sheet, 34, 13 - i, chartData.BaziLuckCycles[i].EarthlyBranch);
+
+                // 十二長生
+                if (changShengMap.TryGetValue(dayStem, out var branchOrder))
+                {
+                    string branch = chartData.BaziLuckCycles[i].EarthlyBranch;
+                    int idx = Array.IndexOf(branchOrder, branch);
+                    if (idx >= 0)
+                        SetCellValue(sheet, 35, 13 - i, changShengNames[idx]);
+                }
             }
 
    
@@ -201,6 +228,19 @@ namespace Ecanapi.Services
             IRow row = sheet.GetRow(rowIndex) ?? sheet.CreateRow(rowIndex);
             ICell cell = row.GetCell(colIndex) ?? row.CreateCell(colIndex);
             cell.SetCellValue(value);
+
+            // 強制黑色字體，避免模板殘留紅色
+            var workbook = sheet.Workbook;
+            var origFont = cell.CellStyle.GetFont(workbook);
+            IFont font = workbook.CreateFont();
+            font.FontName = origFont.FontName;
+            font.FontHeightInPoints = origFont.FontHeightInPoints;
+            font.IsBold = origFont.IsBold;
+            font.Color = NPOI.HSSF.Util.HSSFColor.Black.Index;
+            ICellStyle newStyle = workbook.CreateCellStyle();
+            newStyle.CloneStyleFrom(cell.CellStyle);
+            newStyle.SetFont(font);
+            cell.CellStyle = newStyle;
         }
     }
 }
