@@ -31,6 +31,9 @@ namespace Ecanapi.Data
         /// <summary>命盤顯示名稱（可與帳號名不同）</summary>
         public string? ChartName { get; set; }
 
+        /// <summary>LINE 登入 userId（LINE OAuth）</summary>
+        public string? LineUserId { get; set; }
+
         public bool DeductPoints(int amount)
         {
             if (this.Points < amount) return false;
