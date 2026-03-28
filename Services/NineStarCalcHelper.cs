@@ -49,16 +49,21 @@ namespace Ecanapi.Services
             return star == 0 ? 9 : star;
         }
 
-        /// <summary>計算年飛星（含性別反轉）</summary>
+        /// <summary>計算年飛星（含性別）
+        /// 男：1999前 = 10-S，2000後 = 9-S
+        /// 女：1999前 = S-4（≤0則+9），2000後 = S-3（≤0則+9）
+        /// S = 年尾兩位數字和（超過10再縮減至個位）
+        /// </summary>
         public static int CalcYearStar(int year, int gender)
         {
-            int star = CalcYearStar(year);
-            if (gender == 2) // 女
-            {
-                star = 10 - star;
-                if (star == 0) star = 9;
-                if (star > 9) star -= 9;
-            }
+            if (gender != 2) return CalcYearStar(year); // 男
+
+            int last2 = year % 100;
+            int sum = last2 / 10 + last2 % 10;
+            while (sum >= 10) sum = sum / 10 + sum % 10;
+
+            int star = year < 2000 ? (sum - 4) : (sum - 3);
+            if (star <= 0) star += 9;
             return star;
         }
 
