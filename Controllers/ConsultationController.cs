@@ -2978,9 +2978,9 @@ namespace Ecanapi.Controllers
         { {"甲","寅"},{"乙","卯"},{"丙","巳"},{"戊","巳"},{"丁","午"},{"己","午"},
           {"庚","申"},{"辛","酉"},{"壬","亥"},{"癸","子"} };
 
-        // 月刃月支對照（僅甲卯/庚酉/壬子三組，其餘如乙寅/丙午另取他格）
+        // 月刃月支對照（五陽干：甲卯/丙午/戊午/庚酉/壬子）
         private static readonly Dictionary<string, string> LfYueLanBranch = new()
-        { {"甲","卯"},{"庚","酉"},{"壬","子"} };
+        { {"甲","卯"},{"丙","午"},{"戊","午"},{"庚","酉"},{"壬","子"} };
 
         // 化氣格：(日干, 合化夥伴) → (化神五行, 月令支組, 破格天干, 破格地支)
         private static readonly Dictionary<(string, string), (string huaElem, string[] mBranches, string[] forbidStems, string[] forbidBranches)> LfHuaQiPairs = new()
