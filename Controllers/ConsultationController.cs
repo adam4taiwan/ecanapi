@@ -2038,6 +2038,15 @@ namespace Ecanapi.Controllers
                     ? Array.Empty<byte>()
                     : Convert.FromBase64String(request.ChartImageBase64);
 
+                // 九星氣學加成（純 KB，append 至 reportText）
+                string docxNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? birthYear,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? gender);
+                if (!string.IsNullOrEmpty(docxNsSection)) reportText += docxNsSection;
+
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
                 byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName);
 
