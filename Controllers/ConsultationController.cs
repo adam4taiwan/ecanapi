@@ -92,6 +92,17 @@ namespace Ecanapi.Controllers
 
                 string aiResult = await CallGeminiApi(prompt);
 
+                // 九星氣學加成（純 KB，不扣點）
+                if (request.Type is "綜合性命書" or "綜合鑑定" or "大運命書" or "流年命書")
+                {
+                    string nsSection = await NsBuildBirthSection(
+                        request.ChartRequest.Year, request.ChartRequest.Month,
+                        request.ChartRequest.Day,  request.ChartRequest.Hour,
+                        request.ChartRequest.Gender);
+                    if (!string.IsNullOrEmpty(nsSection))
+                        aiResult += nsSection;
+                }
+
                 user.Points -= effectiveCost;
                 await _context.SaveChangesAsync();
 
@@ -2376,6 +2387,15 @@ namespace Ecanapi.Controllers
                     luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                     ziweiFullContent, chartStars,
                     gender, birthYear, years, branches, dStem);
+
+                // 九星氣學加成（純 KB）
+                string dyNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? birthYear,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? gender);
+                if (!string.IsNullOrEmpty(dyNsSection)) report += dyNsSection;
 
                 user.Points -= dyEffectiveCost;
                 await _context.SaveChangesAsync();
@@ -6892,6 +6912,15 @@ namespace Ecanapi.Controllers
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
                     branches, dStem);
 
+                // 九星氣學加成（純 KB）
+                string lnNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? birthYear,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? gender);
+                if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
+
                 user.Points -= lnEffectiveCost;
                 await _context.SaveChangesAsync();
                 return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles, remainingPoints = user.Points });
@@ -7621,6 +7650,81 @@ namespace Ecanapi.Controllers
                 return rate;
 
             return 1.0m;
+        }
+
+        // ============================================================
+        //  九星氣學加成區塊（純 KB，不走 Gemini）
+        // ============================================================
+
+        /// <summary>根據生辰計算四柱九星並從 KB 生成加成區塊</summary>
+        private async Task<string> NsBuildBirthSection(int birthYear, int birthMonth, int birthDay, int birthHour, int gender)
+        {
+            try
+            {
+                var ns = typeof(Ecanapi.Services.NineStarCalcHelper);
+
+                int natalStar = Ecanapi.Services.NineStarCalcHelper.CalcNatalStar(birthYear, birthMonth, birthDay, gender);
+                var birthDate = new DateTime(
+                    birthYear,
+                    Math.Clamp(birthMonth, 1, 12),
+                    Math.Clamp(birthDay, 1, 28),
+                    Math.Clamp(birthHour, 0, 23), 0, 0);
+                int monthStar = Ecanapi.Services.NineStarCalcHelper.CalcMonthStar(birthDate);
+                int dayStar   = Ecanapi.Services.NineStarCalcHelper.CalcDayStar(birthDate);
+                int hourStar  = Ecanapi.Services.NineStarCalcHelper.CalcHourStar(birthDate);
+
+                // 從 KB 查詢本命星特質
+                var trait = await _context.NineStarTraits.FirstOrDefaultAsync(t => t.StarNumber == natalStar);
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine("## 附錄：九星氣學加成");
+                sb.AppendLine();
+                sb.AppendLine("### 出生四柱九星");
+                sb.AppendLine();
+                sb.AppendLine("| 柱 | 九星 | 五行 |");
+                sb.AppendLine("|---|---|---|");
+                sb.AppendLine($"| 年柱（本命星）| {Ecanapi.Services.NineStarCalcHelper.StarNames[natalStar]}（{natalStar}）| {Ecanapi.Services.NineStarCalcHelper.GetStarElement(natalStar)} |");
+                sb.AppendLine($"| 月柱 | {Ecanapi.Services.NineStarCalcHelper.StarNames[monthStar]}（{monthStar}）| {Ecanapi.Services.NineStarCalcHelper.GetStarElement(monthStar)} |");
+                sb.AppendLine($"| 日柱 | {Ecanapi.Services.NineStarCalcHelper.StarNames[dayStar]}（{dayStar}）| {Ecanapi.Services.NineStarCalcHelper.GetStarElement(dayStar)} |");
+                sb.AppendLine($"| 時柱 | {Ecanapi.Services.NineStarCalcHelper.StarNames[hourStar]}（{hourStar}）| {Ecanapi.Services.NineStarCalcHelper.GetStarElement(hourStar)} |");
+                sb.AppendLine();
+
+                sb.AppendLine($"### 本命星解析：{Ecanapi.Services.NineStarCalcHelper.StarNames[natalStar]}");
+                sb.AppendLine();
+
+                if (trait != null && !string.IsNullOrEmpty(trait.Personality))
+                {
+                    sb.AppendLine("**命格特質**");
+                    sb.AppendLine();
+                    sb.AppendLine(trait.Personality);
+                    sb.AppendLine();
+                }
+
+                string direction = trait?.LuckyDirection ?? Ecanapi.Services.NineStarCalcHelper.StarDirections[natalStar];
+                string color     = trait?.LuckyColor     ?? Ecanapi.Services.NineStarCalcHelper.StarColors[natalStar];
+                int luckyNum     = trait?.LuckyNumber    ?? natalStar;
+
+                sb.AppendLine("### 開運指引");
+                sb.AppendLine();
+                sb.AppendLine($"- **吉方位**：{direction}");
+                sb.AppendLine($"  　面向或前往此方位，有助於提升個人氣場與運勢。");
+                sb.AppendLine($"- **吉顏色**：{color}");
+                sb.AppendLine($"  　穿著、配件或居家擺設選用此色系，可加持好運能量。");
+                sb.AppendLine($"- **幸運數字**：{luckyNum}");
+                sb.AppendLine($"  　選擇日期、樓層、電話號碼或車牌時，含有 {luckyNum} 的組合對您較有利。");
+
+                if (natalStar == 5)
+                    sb.AppendLine("- **特別提醒**：五黃土星能量強大，建議以白色、黃銅開運物件放置中宮位置，協助平衡能量。");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "NsBuildBirthSection 生成失敗，略過九星區塊");
+                return string.Empty;
+            }
         }
     }
 
