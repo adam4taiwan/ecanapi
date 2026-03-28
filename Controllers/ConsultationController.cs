@@ -1604,6 +1604,15 @@ namespace Ecanapi.Controllers
                     }).ToArray()
                 };
 
+                // 九星氣學加成（純 KB）
+                string lfNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? DateTime.Today.Year - 30,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? 1);
+                if (!string.IsNullOrEmpty(lfNsSection)) report += lfNsSection;
+
                 user.Points -= lfEffectiveCost;
                 await _context.SaveChangesAsync();
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
@@ -1836,6 +1845,15 @@ namespace Ecanapi.Controllers
                         };
                     }).ToArray()
                 };
+
+                // 九星氣學加成（純 KB）
+                string kbNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? DateTime.Today.Year - 30,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? 1);
+                if (!string.IsNullOrEmpty(kbNsSection)) report += kbNsSection;
 
                 // 管理員免費，不扣點
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
