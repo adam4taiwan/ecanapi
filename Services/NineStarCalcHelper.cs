@@ -9,6 +9,13 @@ namespace Ecanapi.Services
             "六白金星", "七赤金星", "八白土星", "九紫火星"
         };
 
+        // 星宿別名（貪狼/巨門/祿存/文曲/廉貞/武曲/破軍/左輔/右弼）
+        public static readonly string[] StarAliases =
+        {
+            "", "貪狼星", "巨門星", "祿存星", "文曲星", "廉貞星",
+            "武曲星", "破軍星", "左輔星", "右弼星"
+        };
+
         public static readonly string[] StarDirections =
         {
             "", "北方", "西南方", "東方", "東南方", "中宮（以化解為主）", "西北方", "西方", "東北方", "南方"
@@ -16,11 +23,48 @@ namespace Ecanapi.Services
 
         public static readonly string[] StarColors =
         {
-            "", "白色、藍色", "黃色、棕色", "綠色、青色", "綠色、青色", "黃色（需化解）",
-            "白色、金色", "白色、金色", "白色、黃色", "紫色、紅色"
+            "", "白色、藍色、灰色", "黃色、咖啡色", "青綠色", "翠綠色", "黃色",
+            "白色", "白色、金色、銀色", "白色、淺黃色", "紅色、紫色"
         };
 
         public static readonly int[] StarLuckyNumbers = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        // 星曜關鍵詞
+        public static readonly string[] StarKeywords =
+        {
+            "", "研究、思考", "俸祿、成長", "明朗、前進", "信用、和諧", "權勢、統政",
+            "活力、決斷", "魅力、交際", "儲蓄、改革", "名譽、改革"
+        };
+
+        // 得運描述
+        public static readonly string[] StarProsper =
+        {
+            "",
+            "得運時為官財星，主得名氣及官位，文武雙全，少年科甲官名，聲震四海。",
+            "得運時位列尊崇，興隆置業，田產極盛，旺丁旺財，必生武貴，可出怪傑英豪。婦人當權，多謀節儉，可成霸業，亦可出醫師仙人。",
+            "得運時興家立業，仕途官星大利，出法官律師及鬼才，特別大旺長房，必出刑貴或武貴。",
+            "得運時為文昌星，大利文化藝術，科甲成名，進財進產，必得妻助或良夫，文章有價。",
+            "得運時位處中極，威崇無比，恍若皇帝，攝盡四方，所以古代皇帝的龍袍都是黃色。",
+            "得運時為財錦，此星一直認為是偏財橫財星，與一白、八白合成三大財星。生旺運時使人財兩旺，武貴義人出於此。",
+            "得運時大利口才工作的人，旺歌星、演說家、占卜家等，得運時主旺財旺丁，大展拳腳，大力傳播通訊。",
+            "得運時為太白財星，是一級財星，此星帶來功名富貴，置業成功，田宅科發，富不可當，為九星第一吉星。",
+            "得運時為一級喜慶及愛情星，帶來良好姻緣和桃花，人緣良好，四海見利，旺丁旺財，必添良男賢女，亦為懷孕星，此星又興田產，大力置業及建築。"
+        };
+
+        // 失運描述
+        public static readonly string[] StarDecline =
+        {
+            "",
+            "失運時此星為桃花劫，因酒色財氣而破財損家，必患耳病或腎病，甚至性病，嚴重者必夫妻離異，孤身異鄉流亡。",
+            "失運時為靈界，又名病符，一切最凶事均臨門生禍，死亡絕症，破產投死，寡婦當家，與五黃並列為最凶。",
+            "失運時易招致刑險是非，小人當道，賊星入屋，破財招刑，官訴連年，此星易招膿血之病，足部手部頭髮肝膽絕症。此星好勇鬥狠，謠言誹謗之凶。",
+            "失運時為桃花劫，必招酒色之禍，易招瘋哮血溢，肝膽或腰部以下出毛病，此星古代應驗於懸樑自盡，在現代社會應驗於服藥自殺，與藥品有關。",
+            "失運時為五黃煞，為土煞之極，掌管死亡之事。嚴重時應驗死者為5人或5字之數，遇其它吉星可以化解一點凶性，但是如果遇上二黑之類，必患重病絕症。",
+            "失運時必關乎血刃刀險，有刑險，對家宅影響必招致孤寡及血光意外，疾病驗在肺部。",
+            "失運時主口舌是非，刀光劍影，開刀殘疾，凶在唇舌，橫死兵亂，世界大戰，牢獄刑險。又為火險之象，身體上影響呼吸、口舌和肺部。",
+            "失運時為田產退讓，失財失義，小口損傷，瘟疫流行，手腳腰脊損傷，賭錢失利破家，破財於一瞬間。",
+            "失運時為桃花劫星，主吐血及回祿之災，破財損丁於一瞬間，又主火災和爆炸，心臟及血崩等疾病，此星亦主眼病失明，火瘡流血。"
+        };
 
         // 五行屬性
         private static readonly string[] StarElements =
@@ -113,6 +157,41 @@ namespace Ecanapi.Services
 
         public static string GetStarElement(int star) =>
             (star >= 1 && star <= 9) ? StarElements[star] : "";
+
+        /// <summary>依年份取得當前三元九運（每運20年）</summary>
+        public static int GetCurrentYun(int year)
+        {
+            if (year >= 2044) return 1;
+            if (year >= 2024) return 9;
+            if (year >= 2004) return 8;
+            if (year >= 1984) return 7;
+            if (year >= 1964) return 6;
+            if (year >= 1944) return 5;
+            if (year >= 1924) return 4;
+            if (year >= 1904) return 3;
+            if (year >= 1884) return 2;
+            return 1;
+        }
+
+        /// <summary>
+        /// 判斷本命星在當前運的狀態：
+        /// 旺=當運，生=下運，較遠生氣=再下運，方衰=上運，更衰=再上運，死氣=其餘
+        /// 返回 (狀態標籤, 是否得運)
+        /// </summary>
+        public static (string label, bool isProspering) GetStarYunStatus(int natalStar, int currentYun)
+        {
+            int next1 = currentYun % 9 + 1;
+            int next2 = next1 % 9 + 1;
+            int prev1 = currentYun == 1 ? 9 : currentYun - 1;
+            int prev2 = prev1 == 1 ? 9 : prev1 - 1;
+
+            if (natalStar == currentYun) return ("旺（當運最旺，得運）", true);
+            if (natalStar == next1)      return ("生（下運生氣，得運）", true);
+            if (natalStar == next2)      return ("較遠生氣（可小用）", true);
+            if (natalStar == prev1)      return ("方衰（剛過，尚可）", false);
+            if (natalStar == prev2)      return ("更衰（失運）", false);
+            return ("死氣（失運最重）", false);
+        }
 
         // ── 內部輔助 ──
 

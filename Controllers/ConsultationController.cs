@@ -7718,7 +7718,16 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"| 時柱 | {Ecanapi.Services.NineStarCalcHelper.StarNames[hourStar]}（{hourStar}）| {Ecanapi.Services.NineStarCalcHelper.GetStarElement(hourStar)} |");
                 sb.AppendLine();
 
-                sb.AppendLine($"### 本命星解析：{Ecanapi.Services.NineStarCalcHelper.StarNames[natalStar]}");
+                string starAlias   = Ecanapi.Services.NineStarCalcHelper.StarAliases[natalStar];
+                string starKeyword = Ecanapi.Services.NineStarCalcHelper.StarKeywords[natalStar];
+                int currentYun     = Ecanapi.Services.NineStarCalcHelper.GetCurrentYun(DateTime.Today.Year);
+                var (yunLabel, isProspering) = Ecanapi.Services.NineStarCalcHelper.GetStarYunStatus(natalStar, currentYun);
+
+                sb.AppendLine($"### 本命星解析：{Ecanapi.Services.NineStarCalcHelper.StarNames[natalStar]}（{starAlias}）");
+                sb.AppendLine();
+                sb.AppendLine($"**核心關鍵詞**：{starKeyword}");
+                sb.AppendLine();
+                sb.AppendLine($"**當前運勢狀態**：{currentYun}運（{Ecanapi.Services.NineStarCalcHelper.StarNames[currentYun]}），本命星目前為「{yunLabel}」");
                 sb.AppendLine();
 
                 if (trait != null && !string.IsNullOrEmpty(trait.Personality))
@@ -7728,6 +7737,16 @@ namespace Ecanapi.Controllers
                     sb.AppendLine(trait.Personality);
                     sb.AppendLine();
                 }
+
+                if (isProspering)
+                {
+                    sb.AppendLine($"**得運展現**：{Ecanapi.Services.NineStarCalcHelper.StarProsper[natalStar]}");
+                }
+                else
+                {
+                    sb.AppendLine($"**失運注意**：{Ecanapi.Services.NineStarCalcHelper.StarDecline[natalStar]}");
+                }
+                sb.AppendLine();
 
                 string direction = trait?.LuckyDirection ?? Ecanapi.Services.NineStarCalcHelper.StarDirections[natalStar];
                 string color     = trait?.LuckyColor     ?? Ecanapi.Services.NineStarCalcHelper.StarColors[natalStar];
