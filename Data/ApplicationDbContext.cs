@@ -59,6 +59,7 @@ namespace Ecanapi.Data
         // 九星氣學系統
         public DbSet<NineStarTrait> NineStarTraits { get; set; }
         public DbSet<NineStarDailyRule> NineStarDailyRules { get; set; }
+        public DbSet<NineStarCombinationRule> NineStarCombinationRules { get; set; }
         public DbSet<LineUser> LineUsers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

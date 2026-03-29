@@ -158,6 +158,76 @@ namespace Ecanapi.Services
         public static string GetStarElement(int star) =>
             (star >= 1 && star <= 9) ? StarElements[star] : "";
 
+        /// <summary>
+        /// 計算主位A × 勳位B 的五行基礎關係與吉凶
+        /// 返回 (relation, verdict, note)
+        /// relation: 印生/官克/泄氣/得財/比旺
+        /// verdict:  大吉/吉/偏吉/偏凶/凶/特殊（同星）
+        /// </summary>
+        public static (string relation, string verdict, string note) CalcFiveElementCombination(int starA, int starB)
+        {
+            if (starA < 1 || starA > 9 || starB < 1 || starB > 9)
+                return ("", "平", "");
+
+            if (starA == starB)
+                return ("比旺", "特殊", $"同星相遇（{StarNames[starA]}），得運則最吉，失運則最凶");
+
+            string eA = StarElements[starA];
+            string eB = StarElements[starB];
+
+            // B生A（勳位生主位）= 印生，吉
+            if (Generates(eB, eA))
+                return ("印生", "吉", $"{StarNames[starB]}（{eB}）生{StarNames[starA]}（{eA}），主位得助");
+
+            // B克A（勳位克主位）= 官克，凶
+            if (Controls(eB, eA))
+                return ("官克", "凶", $"{StarNames[starB]}（{eB}）克{StarNames[starA]}（{eA}），主位受制");
+
+            // A生B（主位生勳位）= 泄氣，偏凶
+            if (Generates(eA, eB))
+                return ("泄氣", "偏凶", $"{StarNames[starA]}（{eA}）生{StarNames[starB]}（{eB}），主位泄氣耗損");
+
+            // A克B（主位克勳位）= 得財，偏吉
+            if (Controls(eA, eB))
+                return ("得財", "偏吉", $"{StarNames[starA]}（{eA}）克{StarNames[starB]}（{eB}），主位得財");
+
+            return ("平", "平", "");
+        }
+
+        /// <summary>依得運/失運狀態修正五行組合吉凶</summary>
+        public static string ApplyYunModifier(string verdict, bool isProspering)
+        {
+            return (verdict, isProspering) switch
+            {
+                ("大吉", true)  => "大吉",
+                ("吉",   true)  => "大吉",
+                ("偏吉", true)  => "吉",
+                ("平",   true)  => "偏吉",
+                ("偏凶", true)  => "平（凶減半）",
+                ("凶",   true)  => "偏凶（凶減半）",
+                ("大凶", true)  => "凶（凶減半）",
+                ("大吉", false) => "吉（失運打折）",
+                ("吉",   false) => "偏吉（失運打折）",
+                ("偏吉", false) => "平（失運打折）",
+                ("平",   false) => "偏凶",
+                ("偏凶", false) => "凶",
+                ("凶",   false) => "大凶",
+                ("大凶", false) => "大凶",
+                _              => verdict
+            };
+        }
+
+        // ── 五行相生相克 ──
+        private static bool Generates(string from, string to) =>
+            (from == "水" && to == "木") || (from == "木" && to == "火") ||
+            (from == "火" && to == "土") || (from == "土" && to == "金") ||
+            (from == "金" && to == "水");
+
+        private static bool Controls(string from, string to) =>
+            (from == "水" && to == "火") || (from == "火" && to == "金") ||
+            (from == "金" && to == "木") || (from == "木" && to == "土") ||
+            (from == "土" && to == "水");
+
         /// <summary>依年份取得當前三元九運（每運20年）</summary>
         public static int GetCurrentYun(int year)
         {
