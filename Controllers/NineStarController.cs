@@ -348,12 +348,11 @@ namespace Ecanapi.Controllers
 
             if (star == 0) star = 9;
 
-            // 女性本命星：對宮補數（10 - 男星）
+            // 女性本命星：1999前 S-4，2000後 S-3（≤0則+9）
             if (gender == "F")
             {
-                star = 10 - star;
-                if (star == 0) star = 9;
-                if (star > 9) star = star - 9;
+                star = year < 2000 ? (sum - 4) : (sum - 3);
+                if (star <= 0) star += 9;
             }
 
             return star;
