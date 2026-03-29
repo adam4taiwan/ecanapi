@@ -263,6 +263,13 @@ namespace Ecanapi.Services
             return ("死氣（失運最重）", false);
         }
 
+        /// <summary>
+        /// 流年飛宮：通用年星飛入中宮（5宮）後，計算飛入指定宮位（本命星=宮位號）的星
+        /// 公式：((universalYearStar + palace - 6) % 9 + 9) % 9 + 1
+        /// </summary>
+        public static int CalcFlyingStarInPalace(int universalYearStar, int palace)
+            => ((universalYearStar + palace - 6) % 9 + 9) % 9 + 1;
+
         // ── 內部輔助 ──
 
         private static int Get60CycleIndex(DateTime date)

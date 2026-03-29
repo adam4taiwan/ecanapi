@@ -333,32 +333,11 @@ namespace Ecanapi.Controllers
         }
 
         /// <summary>計算指定年份的入中星（陽遁/男=年飛星；陰遁/女=對宮反算）</summary>
+        // 統一委派給 NineStarCalcHelper，避免公式重複或不一致
         private static int NsCalcYearStar(int year, string gender = "M")
-        {
-            // 公式：年尾兩位數字逐位相加，超過9再加
-            int last2 = year % 100;
-            int sum = last2 / 10 + last2 % 10;
-            while (sum >= 10) sum = sum / 10 + sum % 10;
+            => Ecanapi.Services.NineStarCalcHelper.CalcYearStar(year, gender == "F" ? 2 : 1);
 
-            int star;
-            if (year < 2000)
-                star = (10 - sum) % 9;
-            else
-                star = (9 - sum) % 9;
-
-            if (star == 0) star = 9;
-
-            // 女性本命星：1999前 S-4，2000後 S-3（≤0則+9）
-            if (gender == "F")
-            {
-                star = year < 2000 ? (sum - 4) : (sum - 3);
-                if (star <= 0) star += 9;
-            }
-
-            return star;
-        }
-
-        /// <summary>計算流年星（入中宮）</summary>
+        /// <summary>計算流年星（入中宮，通用）</summary>
         private static int NsCalcYearStar(int year) => NsCalcYearStar(year, "M");
 
         /// <summary>計算流月星（依節氣月）</summary>

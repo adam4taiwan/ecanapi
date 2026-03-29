@@ -47,30 +47,31 @@ namespace Ecanapi.Controllers
             if (user == null) return BadRequest(new { error = $"找不到用戶: {identity}" });
 
             if (request.Type == "同步查詢")
-                return Ok(new { remainingPoints = user.Points });
+                return Ok(new { });
 
-            // 依類型與大運年數決定點數費用
-            int cost = request.Type switch
+            // 訂閱驗證：依命書類型對應 ProductCode
+            string reqProductCode = request.Type switch
             {
-                "綜合性命書" or "綜合鑑定" => 50,
-                "大運命書" => (request.FortuneDuration ?? 5) switch
-                {
-                    5 => 150,
-                    10 => 200,
-                    20 => 250,
-                    30 => 300,
-                    _ => 500   // 0 = 終身
-                },
-                "流年命書" => 20,
-                "問事" => 20,
-                _ => 50
+                "綜合性命書" or "綜合鑑定" => "BOOK_BAZI",
+                "大運命書" => "BOOK_DAIYUN",
+                "流年命書" => "BOOK_LIUNIAN",
+                "問事" => "TOPIC_CONSULT",
+                _ => "BOOK_BAZI"
             };
 
-            string analyzeProductType = request.Type is "問事" ? "consultation" : "book";
-            decimal analyzeDiscountRate = await GetSubscriptionDiscountRate(user.Id, analyzeProductType);
-            int effectiveCost = (int)Math.Ceiling(cost * analyzeDiscountRate);
-
-            if (user.Points < effectiveCost) return BadRequest(new { error = $"點數不足，此功能需要 {effectiveCost} 點" });
+            int analyzeSubId;
+            if (reqProductCode == "TOPIC_CONSULT")
+            {
+                var (topicOk, topicErr) = await CheckTopicConsultAccess(user.Id);
+                if (!topicOk) return BadRequest(new { error = topicErr });
+                analyzeSubId = 0;
+            }
+            else
+            {
+                var (quotaOk, quotaErr, quotaSubId) = await CheckSubscriptionQuota(user.Id, reqProductCode);
+                if (!quotaOk) return BadRequest(new { error = quotaErr });
+                analyzeSubId = quotaSubId;
+            }
 
             try
             {
@@ -103,10 +104,10 @@ namespace Ecanapi.Controllers
                         aiResult += nsSection;
                 }
 
-                user.Points -= effectiveCost;
-                await _context.SaveChangesAsync();
+                if (reqProductCode != "TOPIC_CONSULT" && analyzeSubId > 0)
+                    await RecordSubscriptionClaim(user.Id, analyzeSubId, reqProductCode);
 
-                return Ok(new { result = aiResult, remainingPoints = user.Points });
+                return Ok(new { result = aiResult });
             }
             catch (Exception ex)
             {
@@ -357,11 +358,8 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            const int cost = 50;
-            decimal kbDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
-            int kbEffectiveCost = (int)Math.Ceiling(cost * kbDiscountRate);
-            if (user.Points < kbEffectiveCost)
-                return BadRequest(new { error = $"點數不足，需要 {kbEffectiveCost} 點" });
+            var (kbOk, kbErr, kbSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
+            if (!kbOk) return BadRequest(new { error = kbErr });
 
             try
             {
@@ -728,10 +726,8 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine("-----------------------------------------------------------------");
                 sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v3.0");
 
-                user.Points -= kbEffectiveCost;
-                await _context.SaveChangesAsync();
-
-                return Ok(new { result = sb_out.ToString(), remainingPoints = user.Points });
+                await RecordSubscriptionClaim(user.Id, kbSubId, "BOOK_BAZI");
+                return Ok(new { result = sb_out.ToString() });
             }
             catch (Exception ex)
             {
@@ -1485,11 +1481,8 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            const int cost = 50;
-            decimal lfDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
-            int lfEffectiveCost = (int)Math.Ceiling(cost * lfDiscountRate);
-            if (user.Points < lfEffectiveCost)
-                return BadRequest(new { error = $"點數不足，需要 {lfEffectiveCost} 點" });
+            var (lfOk, lfErr, lfSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
+            if (!lfOk) return BadRequest(new { error = lfErr });
 
             try
             {
@@ -1613,9 +1606,8 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(lfNsSection)) report += lfNsSection;
 
-                user.Points -= lfEffectiveCost;
-                await _context.SaveChangesAsync();
-                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
+                await RecordSubscriptionClaim(user.Id, lfSubId, "BOOK_BAZI");
+                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable });
             }
             catch (Exception ex)
             {
@@ -2258,11 +2250,8 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            int cost = years switch { 5 => 150, 10 => 200, 20 => 250, 30 => 300, _ => 500 };
-            decimal dyDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
-            int dyEffectiveCost = (int)Math.Ceiling(cost * dyDiscountRate);
-            if (user.Points < dyEffectiveCost)
-                return BadRequest(new { error = $"點數不足，需要 {dyEffectiveCost} 點" });
+            var (dyOk, dyErr, dySubId) = await CheckSubscriptionQuota(user.Id, "BOOK_DAIYUN");
+            if (!dyOk) return BadRequest(new { error = dyErr });
 
             try
             {
@@ -2424,9 +2413,8 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? gender);
                 if (!string.IsNullOrEmpty(dyNsSection)) report += dyNsSection;
 
-                user.Points -= dyEffectiveCost;
-                await _context.SaveChangesAsync();
-                return Ok(new { result = report, annualForecasts, baziTable, luckCycles = scoredCycles, remainingPoints = user.Points });
+                await RecordSubscriptionClaim(user.Id, dySubId, "BOOK_DAIYUN");
+                return Ok(new { result = report, annualForecasts, baziTable, luckCycles = scoredCycles });
             }
             catch (Exception ex)
             {
@@ -6764,11 +6752,8 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            const int cost = 100;
-            decimal lnDiscountRate = await GetSubscriptionDiscountRate(user.Id, "book");
-            int lnEffectiveCost = (int)Math.Ceiling(cost * lnDiscountRate);
-            if (user.Points < lnEffectiveCost)
-                return BadRequest(new { error = $"點數不足，需要 {lnEffectiveCost} 點" });
+            var (lnOk, lnErr, lnSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_LIUNIAN");
+            if (!lnOk) return BadRequest(new { error = lnErr });
 
             try
             {
@@ -6939,18 +6924,18 @@ namespace Ecanapi.Controllers
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
                     branches, dStem);
 
-                // 九星氣學加成（純 KB）
-                string lnNsSection = await NsBuildBirthSection(
+                // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
+                string lnNsSection = await LnNsBuildSection(
                     user.BirthYear ?? birthYear,
                     user.BirthMonth ?? 1,
                     user.BirthDay ?? 1,
                     user.BirthHour ?? 0,
-                    user.BirthGender ?? gender);
+                    user.BirthGender ?? gender,
+                    year);
                 if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
 
-                user.Points -= lnEffectiveCost;
-                await _context.SaveChangesAsync();
-                return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles, remainingPoints = user.Points });
+                await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
+                return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles });
             }
             catch (Exception ex)
             {
@@ -7568,11 +7553,8 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            const int cost = 20;
-            decimal topicDiscountRate = await GetSubscriptionDiscountRate(user.Id, "consultation");
-            int topicEffectiveCost = (int)Math.Ceiling(cost * topicDiscountRate);
-            if (user.Points < topicEffectiveCost)
-                return BadRequest(new { error = $"點數不足，需要 {topicEffectiveCost} 點" });
+            var (topicOk, topicErr) = await CheckTopicConsultAccess(user.Id);
+            if (!topicOk) return BadRequest(new { error = topicErr });
 
             try
             {
@@ -7643,10 +7625,7 @@ namespace Ecanapi.Controllers
                 string prompt = BuildTopicPrompt(userChart.ChartJson, topic, kbFacts);
                 string aiResult = await CallGeminiApi(prompt);
 
-                user.Points -= topicEffectiveCost;
-                await _context.SaveChangesAsync();
-
-                return Ok(new { result = aiResult, remainingPoints = user.Points });
+                return Ok(new { result = aiResult });
             }
             catch (Exception ex)
             {
@@ -7658,30 +7637,178 @@ namespace Ecanapi.Controllers
         // ── Subscription discount helper ────────────────────────────────────
         // Returns discount rate (e.g. 0.8 for 20% off) for the given product type.
         // Returns 1.0 if no active subscription or no matching discount benefit.
-        private async Task<decimal> GetSubscriptionDiscountRate(string userId, string productType)
+        private async Task<(bool ok, string? error, int subscriptionId)> CheckSubscriptionQuota(string userId, string productCode)
         {
             var now = DateTime.UtcNow;
-            var sub = await _context.UserSubscriptions
+            var activeSub = await _context.UserSubscriptions
+                .Include(s => s.Plan)
+                    .ThenInclude(p => p.Benefits)
                 .Where(s => s.UserId == userId && s.Status == "active" && s.ExpiryDate > now)
                 .OrderByDescending(s => s.ExpiryDate)
-                .Include(s => s.Plan)
-                .ThenInclude(p => p.Benefits)
                 .FirstOrDefaultAsync();
 
-            if (sub == null) return 1.0m;
+            if (activeSub == null)
+                return (false, "需要訂閱會員方案才能使用此功能", 0);
 
-            var discount = sub.Plan.Benefits.FirstOrDefault(b =>
-                b.BenefitType == "discount" && b.ProductType == productType);
+            var quotaBenefit = activeSub.Plan.Benefits
+                .FirstOrDefault(b => b.ProductCode == productCode && b.BenefitType == "quota");
 
-            if (discount != null && decimal.TryParse(discount.BenefitValue, out var rate))
-                return rate;
+            if (quotaBenefit == null)
+                return (false, "您的訂閱方案不包含此功能，請升級方案", 0);
 
-            return 1.0m;
+            int quota = int.Parse(quotaBenefit.BenefitValue);
+            int currentYear = DateTime.Now.Year;
+            int usedCount = await _context.UserSubscriptionClaims
+                .CountAsync(c => c.UserId == userId && c.ProductCode == productCode && c.ClaimYear == currentYear);
+
+            if (usedCount >= quota)
+                return (false, $"本年度命書已達使用次數上限（{quota} 次/年），請明年再使用", 0);
+
+            return (true, null, activeSub.Id);
+        }
+
+        private async Task RecordSubscriptionClaim(string userId, int subscriptionId, string productCode)
+        {
+            _context.UserSubscriptionClaims.Add(new UserSubscriptionClaim
+            {
+                UserId = userId,
+                SubscriptionId = subscriptionId,
+                ProductCode = productCode,
+                ClaimYear = DateTime.Now.Year,
+                ClaimedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<(bool ok, string? error)> CheckTopicConsultAccess(string userId)
+        {
+            var now = DateTime.UtcNow;
+            var activeSub = await _context.UserSubscriptions
+                .Include(s => s.Plan)
+                    .ThenInclude(p => p.Benefits)
+                .Where(s => s.UserId == userId && s.Status == "active" && s.ExpiryDate > now)
+                .OrderByDescending(s => s.ExpiryDate)
+                .FirstOrDefaultAsync();
+
+            if (activeSub == null)
+                return (false, "需要訂閱會員方案才能使用此功能");
+
+            bool hasAccess = activeSub.Plan.Benefits
+                .Any(b => b.ProductCode == "TOPIC_CONSULT" && b.BenefitType == "access" && b.BenefitValue == "true");
+
+            if (!hasAccess)
+                return (false, "問事功能需要銀會員以上方案");
+
+            return (true, null);
         }
 
         // ============================================================
         //  九星氣學加成區塊（純 KB，不走 Gemini）
         // ============================================================
+
+        /// <summary>流年命書專用：命×運 + 命×流年 兩大核心組合</summary>
+        private async Task<string> LnNsBuildSection(int birthYear, int birthMonth, int birthDay, int birthHour, int gender, int targetYear)
+        {
+            try
+            {
+                // 本命星
+                int natalStar = Ecanapi.Services.NineStarCalcHelper.CalcNatalStar(birthYear, birthMonth, birthDay, gender);
+                // 當前元運星（以流年所在運為準）
+                int currentYun = Ecanapi.Services.NineStarCalcHelper.GetCurrentYun(targetYear);
+                var (yunLabel, isProspering) = Ecanapi.Services.NineStarCalcHelper.GetStarYunStatus(natalStar, currentYun);
+                // 通用流年星（不分男女，飛入中宮）
+                int universalYearStar = Ecanapi.Services.NineStarCalcHelper.CalcYearStar(targetYear);
+                // 飛宮：通用年星入中宮後，飛入本命宮位的星
+                int flyingInNatal = Ecanapi.Services.NineStarCalcHelper.CalcFlyingStarInPalace(universalYearStar, natalStar);
+
+                string natalName    = Ecanapi.Services.NineStarCalcHelper.StarNames[natalStar];
+                string yunName      = Ecanapi.Services.NineStarCalcHelper.StarNames[currentYun];
+                string uYearName    = Ecanapi.Services.NineStarCalcHelper.StarNames[universalYearStar];
+                string flyingName   = Ecanapi.Services.NineStarCalcHelper.StarNames[flyingInNatal];
+
+                // 查 KB 組合（先精確匹配，再 fallback 五行計算）
+                var rules = await _context.NineStarCombinationRules.ToListAsync();
+
+                (string title, string verdict, string description, string modified) LookupCombo(int starA, int starB)
+                {
+                    var named = rules.FirstOrDefault(r =>
+                        r.StarA == starA && r.StarB == starB &&
+                        (r.IsProspering == null || r.IsProspering == isProspering));
+
+                    string t, v, d;
+                    if (named != null)
+                    {
+                        t = named.Title;
+                        v = named.Verdict;
+                        d = named.Description;
+                    }
+                    else
+                    {
+                        var (rel, fv, note) = Ecanapi.Services.NineStarCalcHelper.CalcFiveElementCombination(starA, starB);
+                        t = rel; v = fv; d = note;
+                    }
+                    string m = v == "特殊"
+                        ? (isProspering ? "最吉（同星得運）" : "最凶（同星失運）")
+                        : Ecanapi.Services.NineStarCalcHelper.ApplyYunModifier(v, isProspering);
+                    return (t, v, d, m);
+                }
+
+                var (yunT, yunV, yunD, yunM) = LookupCombo(natalStar, currentYun);  // 命×運
+                var (flyT, flyV, flyD, flyM) = LookupCombo(natalStar, flyingInNatal); // 命×流年（飛宮）
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine($"【第七章：九星氣學流年加成】");
+                sb.AppendLine();
+                sb.AppendLine($"本命星：{natalStar} {natalName}（{Ecanapi.Services.NineStarCalcHelper.StarAliases[natalStar]}）");
+                sb.AppendLine($"當前元運：{currentYun}運（{yunName}），本命星為「{yunLabel}」");
+                sb.AppendLine($"{targetYear} 年流年星：{universalYearStar} {uYearName}（飛入本命宮位者：{flyingInNatal} {flyingName}）");
+                sb.AppendLine();
+
+                // 命×運
+                sb.AppendLine($"■ 命×運　{natalStar}{natalName} × {currentYun}{yunName}");
+                if (!string.IsNullOrEmpty(yunT)) sb.AppendLine($"  組合名：{yunT}");
+                sb.AppendLine($"  評斷：【{yunM}】");
+                if (!string.IsNullOrEmpty(yunD)) sb.AppendLine($"  解析：{yunD}");
+                sb.AppendLine();
+
+                // 命×流年（飛宮盤：以飛入本命宮的星定吉凶）
+                sb.AppendLine($"■ 命×流年（飛宮）　{natalStar}{natalName} × {flyingInNatal}{flyingName}");
+                sb.AppendLine($"  飛宮原理：{targetYear} 年通用流年 {universalYearStar} {uYearName} 入中宮，順行後 {flyingInNatal} {flyingName} 飛入本命 {natalStar} 宮");
+                if (!string.IsNullOrEmpty(flyT)) sb.AppendLine($"  組合名：{flyT}");
+                sb.AppendLine($"  評斷：【{flyM}】");
+                if (!string.IsNullOrEmpty(flyD)) sb.AppendLine($"  解析：{flyD}");
+                sb.AppendLine();
+
+                // 綜合結語
+                string overallTone = (flyM.StartsWith("大吉") || flyM.StartsWith("最吉") || flyM.StartsWith("吉"))
+                    ? "整體偏吉"
+                    : (flyM.StartsWith("大凶") || flyM.StartsWith("最凶") || flyM.StartsWith("凶"))
+                        ? "整體偏凶，需特別留意"
+                        : "整體中平，宜穩健行事";
+
+                string prosperNote = isProspering
+                    ? $"本命星目前得運，{Ecanapi.Services.NineStarCalcHelper.StarProsper[natalStar]}"
+                    : $"本命星目前失運，{Ecanapi.Services.NineStarCalcHelper.StarDecline[natalStar]}";
+
+                sb.AppendLine($"九星流年綜評：命×運【{yunM}】，命×流年（飛宮）【{flyM}】，{overallTone}。");
+                sb.AppendLine(prosperNote);
+                sb.AppendLine();
+
+                // 開運方位顏色
+                string direction = Ecanapi.Services.NineStarCalcHelper.StarDirections[natalStar];
+                string color     = Ecanapi.Services.NineStarCalcHelper.StarColors[natalStar];
+                sb.AppendLine($"吉方位：{direction}　吉顏色：{color}");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "LnNsBuildSection 生成失敗，略過九星章節");
+                return string.Empty;
+            }
+        }
 
         /// <summary>根據生辰計算四柱九星並從 KB 生成加成區塊</summary>
         private async Task<string> NsBuildBirthSection(int birthYear, int birthMonth, int birthDay, int birthHour, int gender)
