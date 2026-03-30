@@ -274,34 +274,41 @@ namespace Ecanapi.Controllers
 
         private async Task<string> NsHandleIdle(string text, string lineUserId, LineUser? lineUser)
         {
+            bool hasBirthdate = lineUser != null && lineUser.NatalStar > 0;
+
             switch (text)
             {
-                case "1": // 今日運勢
-                    if (lineUser == null || lineUser.NatalStar == 0)
-                        return "請先設定生辰（輸入 4）才能查看個人化運勢。\n\n" + NsMenuText();
-                    return await NsBuildDailyFortune(lineUser.NatalStar);
-
-                case "2": // 個性特質
-                    if (lineUser == null || lineUser.NatalStar == 0)
-                        return "請先設定生辰（輸入 4）才能查看個性特質。\n\n" + NsMenuText();
-                    return await NsBuildPersonality(lineUser.NatalStar);
-
-                case "3": // 本命星資料
-                    if (lineUser == null || lineUser.NatalStar == 0)
-                        return "請先設定生辰（輸入 4）才能查看本命星資料。\n\n" + NsMenuText();
-                    int s = lineUser.NatalStar;
-                    return $"您的本命星：{StarNames[s]}\n吉方位：{StarDirections[s]}\n幸運色：{StarColors[s]}\n幸運數字：{StarNumbers[s]}";
-
-                case "4": // 設定生辰（啟動流程）
+                case "1": // 設定生辰
                     await NsSetState(lineUserId, "reg_year");
                     return "【設定生辰 1/4】\n請輸入出生西元年（4位數）\n例如：1980\n\n輸入 0 可取消返回選單。";
 
+                case "2": // 個性特質
+                    if (!hasBirthdate) return await NsAutoStartReg(lineUserId, "個性特質");
+                    return await NsBuildPersonality(lineUser!.NatalStar);
+
+                case "3": // 本命星資料
+                    if (!hasBirthdate) return await NsAutoStartReg(lineUserId, "本命星資料");
+                    int s = lineUser!.NatalStar;
+                    return $"您的本命星：{StarNames[s]}\n吉方位：{StarDirections[s]}\n幸運色：{StarColors[s]}\n幸運數字：{StarNumbers[s]}";
+
+                case "4": // 今日運勢
+                    if (!hasBirthdate) return await NsAutoStartReg(lineUserId, "今日運勢");
+                    return await NsBuildDailyFortune(lineUser!.NatalStar);
+
                 case "5": // 訂閱/取消每日通知
+                    if (!hasBirthdate) return await NsAutoStartReg(lineUserId, "每日通知");
                     return await NsToggleNotify(lineUserId, lineUser);
 
                 default:
-                    return $"請輸入數字 1-5 選擇功能：\n\n{NsMenuText()}";
+                    // 任何未知輸入 → 直接顯示選單
+                    return NsMenuText();
             }
+        }
+
+        private async Task<string> NsAutoStartReg(string lineUserId, string featureName)
+        {
+            await NsSetState(lineUserId, "reg_year");
+            return $"使用「{featureName}」需先設定生辰。\n\n【設定生辰 1/4】\n請輸入出生西元年（4位數）\n例如：1980\n\n輸入 0 可取消返回選單。";
         }
 
         // ── 設定生辰：分步驟輸入 ─────────────────────────────────────────
@@ -476,10 +483,10 @@ namespace Ecanapi.Controllers
         }
 
         private static string NsWelcomeText() =>
-            "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請輸入 4 設定您的生辰。\n\n" + NsMenuText();
+            "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請輸入 1 設定您的生辰。\n\n" + NsMenuText();
 
         private static string NsMenuText() =>
-            "━━ 功能選單 ━━\n1. 今日運勢\n2. 個性特質\n3. 本命星資料\n4. 設定生辰\n5. 每日通知（開/關）\n0. 顯示此選單";
+            "━━ 功能選單 ━━\n1. 設定生辰\n2. 個性特質\n3. 本命星資料\n4. 今日運勢\n5. 每日通知（開/關）\n0. 顯示此選單";
 
         /// <summary>個人化今日九星建議（LINE Bot 用 lineUserId；網頁用 JWT）</summary>
         [HttpGet("daily")]
