@@ -3,7 +3,10 @@ using Ecanapi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Ecanapi.Controllers
@@ -191,6 +194,181 @@ namespace Ecanapi.Controllers
                 message = "登記成功"
             });
         }
+
+        // ============================================================
+        //  LINE Bot Webhook
+        // ============================================================
+
+        /// <summary>LINE Bot Webhook（接收 LINE 訊息事件）</summary>
+        [HttpPost("webhook")]
+        public async Task<IActionResult> Webhook()
+        {
+            // 讀取原始 body（驗簽用）
+            using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+            string body = await reader.ReadToEndAsync();
+
+            // 驗證 X-Line-Signature
+            string sig = Request.Headers["X-Line-Signature"].FirstOrDefault() ?? "";
+            if (!NsValidateLineSig(body, sig))
+            {
+                _logger.LogWarning("LINE Webhook 簽名驗證失敗");
+                return Unauthorized();
+            }
+
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            if (!json.TryGetProperty("events", out var events)) return Ok();
+
+            foreach (var evt in events.EnumerateArray())
+            {
+                string evtType = evt.GetProperty("type").GetString() ?? "";
+                string replyToken = evt.TryGetProperty("replyToken", out var rt) ? rt.GetString() ?? "" : "";
+                string lineUserId = evt.TryGetProperty("source", out var src)
+                    ? src.TryGetProperty("userId", out var uid) ? uid.GetString() ?? "" : ""
+                    : "";
+
+                if (evtType == "follow")
+                {
+                    await NsLineReply(replyToken, NsWelcomeText());
+                }
+                else if (evtType == "message")
+                {
+                    string msgType = evt.GetProperty("message").GetProperty("type").GetString() ?? "";
+                    if (msgType == "text")
+                    {
+                        string text = evt.GetProperty("message").GetProperty("text").GetString()?.Trim() ?? "";
+                        string reply = await NsHandleText(text, lineUserId);
+                        if (!string.IsNullOrEmpty(reply))
+                            await NsLineReply(replyToken, reply);
+                    }
+                }
+            }
+
+            return Ok();
+        }
+
+        private async Task<string> NsHandleText(string text, string lineUserId)
+        {
+            // 設定生辰：格式「設定 1980 2 14 男」或「設定 1980 2 14 女」
+            if (text.StartsWith("設定") || text.StartsWith("设定"))
+            {
+                var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 5 &&
+                    int.TryParse(parts[1], out int year) &&
+                    int.TryParse(parts[2], out int month) &&
+                    int.TryParse(parts[3], out int day))
+                {
+                    string gInput = parts[4];
+                    string gender = (gInput == "男" || gInput == "M" || gInput == "m") ? "M" : "F";
+                    int star = NsCalcNatalStar(year, month, day, gender);
+                    // 存入 DB
+                    var existing = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+                    if (existing != null)
+                    {
+                        existing.BirthYear = year; existing.BirthMonth = month; existing.BirthDay = day;
+                        existing.Gender = gender; existing.NatalStar = star; existing.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        _context.LineUsers.Add(new LineUser
+                        { LineUserId = lineUserId, BirthYear = year, BirthMonth = month,
+                          BirthDay = day, Gender = gender, NatalStar = star });
+                    }
+                    await _context.SaveChangesAsync();
+                    return $"設定成功！\n您的本命星是：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n\n輸入「今日運勢」查看今日個人化建議。";
+                }
+                return "格式錯誤，請輸入：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+            }
+
+            // 今日運勢
+            if (text.Contains("今日") || text.Contains("運勢") || text == "1")
+            {
+                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+
+                int natalStar = lineUser.NatalStar;
+                var now = DateTime.Now;
+                int dayStar = NsCalcDayStar(now);
+                int yearStar = NsCalcYearStar(now.Year);
+                int monthStar = NsCalcMonthStar(now);
+
+                var rule = await _context.NineStarDailyRules
+                    .FirstOrDefaultAsync(r => r.NatalStar == natalStar && r.FlowStar == dayStar);
+                if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
+                {
+                    var gen = await NsGeminiGenDailyAdvice(natalStar, dayStar);
+                    if (rule == null) { rule = new NineStarDailyRule { NatalStar = natalStar, FlowStar = dayStar }; _context.NineStarDailyRules.Add(rule); }
+                    rule.FortuneText = gen.FortuneText; rule.Auspicious = gen.Auspicious;
+                    rule.Avoid = gen.Avoid; rule.Direction = gen.Direction; rule.Color = gen.Color;
+                    rule.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+
+                return $"【{now:MM/dd} 九星運勢】\n本命星：{StarNames[natalStar]}\n流年：{StarNames[yearStar]} 流月：{StarNames[monthStar]} 流日：{StarNames[dayStar]}\n\n{rule.FortuneText}\n\n宜：{rule.Auspicious}\n忌：{rule.Avoid}\n吉方位：{rule.Direction ?? StarDirections[natalStar]}\n幸運色：{rule.Color ?? StarColors[natalStar]}";
+            }
+
+            // 個性特質
+            if (text.Contains("個性") || text.Contains("特質") || text.Contains("本命") || text == "2")
+            {
+                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+
+                int star = lineUser.NatalStar;
+                var trait = await _context.NineStarTraits.FirstOrDefaultAsync(t => t.StarNumber == star);
+                if (trait == null || string.IsNullOrEmpty(trait.Personality))
+                {
+                    string p = await NsGeminiGenTrait(star, "personality");
+                    if (trait == null)
+                    {
+                        trait = new NineStarTrait { StarNumber = star, StarName = StarNames[star],
+                            LuckyDirection = StarDirections[star], LuckyColor = StarColors[star], LuckyNumber = StarNumbers[star] };
+                        _context.NineStarTraits.Add(trait);
+                    }
+                    trait.Personality = p; trait.UpdatedAt = DateTime.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
+                // LINE 訊息有字數限制，截取前 300 字
+                string personality = trait.Personality ?? "";
+                if (personality.Length > 300) personality = personality[..300] + "...";
+                return $"【{StarNames[star]} 個性特質】\n\n{personality}\n\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}";
+            }
+
+            // 本命星查詢
+            if (text.Contains("本命星") || text == "3")
+            {
+                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+                int star = lineUser.NatalStar;
+                return $"您的本命星：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n幸運數字：{StarNumbers[star]}";
+            }
+
+            // 其他 → 顯示選單
+            return NsMenuText();
+        }
+
+        private bool NsValidateLineSig(string body, string signature)
+        {
+            var secret = _config["LineBot:ChannelSecret"] ?? "";
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(body));
+            return Convert.ToBase64String(hash) == signature;
+        }
+
+        private async Task NsLineReply(string replyToken, string text)
+        {
+            if (string.IsNullOrEmpty(replyToken)) return;
+            var token = _config["LineBot:ChannelAccessToken"] ?? "";
+            var payload = new { replyToken, messages = new[] { new { type = "text", text } } };
+            var req = new HttpRequestMessage(HttpMethod.Post, "https://api.line.me/v2/bot/message/reply");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            req.Content = JsonContent.Create(payload);
+            await _httpClient.SendAsync(req);
+        }
+
+        private static string NsWelcomeText() =>
+            "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請先設定生辰：\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男\n\n" + NsMenuText();
+
+        private static string NsMenuText() =>
+            "━━ 功能選單 ━━\n【今日運勢】個人化今日建議\n【個性特質】本命星個性分析\n【本命星】查詢本命星資料\n【設定 年 月 日 性別】更新生辰";
 
         /// <summary>個人化今日九星建議（LINE Bot 用 lineUserId；網頁用 JWT）</summary>
         [HttpGet("daily")]
