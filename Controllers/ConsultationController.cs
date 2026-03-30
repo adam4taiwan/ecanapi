@@ -3702,7 +3702,8 @@ namespace Ecanapi.Controllers
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
-            string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+            string LfWxSS(string e) => $"{e}{wuXing[e]:F0}%({LfElemSsGroup(e, dmElem)})";
+            string wx = $"{LfWxSS("木")} {LfWxSS("火")} {LfWxSS("土")} {LfWxSS("金")} {LfWxSS("水")}";
             int currentAge = DateTime.Today.Year - birthYear;
 
             sb.AppendLine("=================================================================");
@@ -3736,7 +3737,9 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"日干 {dStem}（{dmElem}），月令 {mBranch}（{season}季）。");
             sb.AppendLine($"五行分布：{wx}");
             double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%");
+            double tiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0);
+            double yongPct = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%   (印比食)體 {tiPct:F0}%  (財官)用 {yongPct:F0}%");
             sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
             sb.AppendLine();
 
@@ -4402,6 +4405,17 @@ namespace Ecanapi.Controllers
             };
         }
 
+        // 五行 → 十神群組簡稱（印/比/食/財/官）
+        private static string LfElemSsGroup(string elem, string dmElem)
+        {
+            if (elem == dmElem) return "比";
+            if (elem == LfGenByElem.GetValueOrDefault(dmElem, "")) return "印";
+            if (elem == LfElemGen.GetValueOrDefault(dmElem, "")) return "食";
+            if (elem == LfElemOvercome.GetValueOrDefault(dmElem, "")) return "財";
+            if (elem == LfElemOvercomeBy.GetValueOrDefault(dmElem, "")) return "官";
+            return "";
+        }
+
         private static string LfFmtHidden(string branch, string dStem)
         {
             if (!LfBranchHiddenRatio.TryGetValue(branch, out var stems)) return "";
@@ -4450,7 +4464,8 @@ namespace Ecanapi.Controllers
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             int currentAge = DateTime.Today.Year - birthYear;
-            string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+            string LfWxSS2(string e) => $"{e}{wuXing[e]:F0}%({LfElemSsGroup(e, dmElem)})";
+            string wx = $"{LfWxSS2("木")} {LfWxSS2("火")} {LfWxSS2("土")} {LfWxSS2("金")} {LfWxSS2("水")}";
 
             // === 表頭 ===
             sb.AppendLine("=================================================================");
@@ -4541,7 +4556,9 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【日主強弱判定】");
             sb.AppendLine($"日干 {dStem}（{dmElem}），月令 {mBranch}（{season}季）。");
             sb.AppendLine($"五行分布：{wx}");
-            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%");
+            double tiPct2 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0);
+            double yongPct2 = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%   (印比食)體 {tiPct2:F0}%  (財官)用 {yongPct2:F0}%");
             sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
             sb.AppendLine();
             sb.AppendLine("【格局判定】");

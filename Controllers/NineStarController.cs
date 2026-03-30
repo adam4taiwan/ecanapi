@@ -246,103 +246,214 @@ namespace Ecanapi.Controllers
             return Ok();
         }
 
+        // ── 狀態機主入口 ─────────────────────────────────────────────────
+
         private async Task<string> NsHandleText(string text, string lineUserId)
         {
-            // 設定生辰：格式「設定 1980 2 14 男」或「設定 1980 2 14 女」
-            if (text.StartsWith("設定") || text.StartsWith("设定"))
+            // 0 = 隨時回選單
+            if (text == "0")
             {
-                var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 5 &&
-                    int.TryParse(parts[1], out int year) &&
-                    int.TryParse(parts[2], out int month) &&
-                    int.TryParse(parts[3], out int day))
+                await NsSetState(lineUserId, "idle");
+                return NsMenuText();
+            }
+
+            var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+            string state = lineUser?.State ?? "idle";
+
+            return state switch
+            {
+                "reg_year"   => await NsRegYear(text, lineUserId, lineUser),
+                "reg_month"  => await NsRegMonth(text, lineUserId, lineUser),
+                "reg_day"    => await NsRegDay(text, lineUserId, lineUser),
+                "reg_gender" => await NsRegGender(text, lineUserId, lineUser),
+                _            => await NsHandleIdle(text, lineUserId, lineUser),
+            };
+        }
+
+        // ── Idle 狀態：處理數字選單 ──────────────────────────────────────
+
+        private async Task<string> NsHandleIdle(string text, string lineUserId, LineUser? lineUser)
+        {
+            switch (text)
+            {
+                case "1": // 今日運勢
+                    if (lineUser == null || lineUser.NatalStar == 0)
+                        return "請先設定生辰（輸入 4）才能查看個人化運勢。\n\n" + NsMenuText();
+                    return await NsBuildDailyFortune(lineUser.NatalStar);
+
+                case "2": // 個性特質
+                    if (lineUser == null || lineUser.NatalStar == 0)
+                        return "請先設定生辰（輸入 4）才能查看個性特質。\n\n" + NsMenuText();
+                    return await NsBuildPersonality(lineUser.NatalStar);
+
+                case "3": // 本命星資料
+                    if (lineUser == null || lineUser.NatalStar == 0)
+                        return "請先設定生辰（輸入 4）才能查看本命星資料。\n\n" + NsMenuText();
+                    int s = lineUser.NatalStar;
+                    return $"您的本命星：{StarNames[s]}\n吉方位：{StarDirections[s]}\n幸運色：{StarColors[s]}\n幸運數字：{StarNumbers[s]}";
+
+                case "4": // 設定生辰（啟動流程）
+                    await NsSetState(lineUserId, "reg_year");
+                    return "【設定生辰 1/4】\n請輸入出生西元年（4位數）\n例如：1980\n\n輸入 0 可取消返回選單。";
+
+                case "5": // 訂閱/取消每日通知
+                    return await NsToggleNotify(lineUserId, lineUser);
+
+                default:
+                    return $"請輸入數字 1-5 選擇功能：\n\n{NsMenuText()}";
+            }
+        }
+
+        // ── 設定生辰：分步驟輸入 ─────────────────────────────────────────
+
+        private async Task<string> NsRegYear(string text, string lineUserId, LineUser? lineUser)
+        {
+            if (!int.TryParse(text, out int year) || year < 1900 || year > 2020)
+                return "格式錯誤！請輸入有效的出生西元年（1900-2020）\n例如：1980\n\n輸入 0 取消返回選單。";
+
+            await NsSaveTempAndState(lineUserId, lineUser, "reg_month", year, null, null);
+            return $"【設定生辰 2/4】\n出生年：{year} 年\n\n請輸入出生月份（1-12）\n例如：3\n\n輸入 0 取消返回選單。";
+        }
+
+        private async Task<string> NsRegMonth(string text, string lineUserId, LineUser? lineUser)
+        {
+            if (!int.TryParse(text, out int month) || month < 1 || month > 12)
+                return "格式錯誤！請輸入有效的月份（1-12）\n例如：3\n\n輸入 0 取消返回選單。";
+
+            await NsSaveTempAndState(lineUserId, lineUser, "reg_day", null, month, null);
+            return $"【設定生辰 3/4】\n出生年月：{lineUser?.TempYear ?? 0} 年 {month} 月\n\n請輸入出生日（1-31）\n例如：15\n\n輸入 0 取消返回選單。";
+        }
+
+        private async Task<string> NsRegDay(string text, string lineUserId, LineUser? lineUser)
+        {
+            int tempMonth = lineUser?.TempMonth ?? 1;
+            if (!int.TryParse(text, out int day) || day < 1 || day > 31)
+                return "格式錯誤！請輸入有效的日期（1-31）\n例如：15\n\n輸入 0 取消返回選單。";
+
+            // 進一步驗證日期是否合理（月份上限）
+            int[] daysInMonth = { 0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+            if (day > daysInMonth[tempMonth])
+                return $"格式錯誤！{tempMonth} 月最多 {daysInMonth[tempMonth]} 天，請重新輸入。\n\n輸入 0 取消返回選單。";
+
+            await NsSaveTempAndState(lineUserId, lineUser, "reg_gender", null, null, day);
+            return $"【設定生辰 4/4】\n出生年月日：{lineUser?.TempYear ?? 0} 年 {tempMonth} 月 {day} 日\n\n請輸入性別：\n1 = 男\n2 = 女\n\n輸入 0 取消返回選單。";
+        }
+
+        private async Task<string> NsRegGender(string text, string lineUserId, LineUser? lineUser)
+        {
+            if (text != "1" && text != "2")
+                return "請輸入 1（男）或 2（女）\n\n輸入 0 取消返回選單。";
+
+            string gender = text == "1" ? "M" : "F";
+            int year  = lineUser?.TempYear  ?? 0;
+            int month = lineUser?.TempMonth ?? 0;
+            int day   = lineUser?.TempDay   ?? 0;
+
+            if (year == 0 || month == 0 || day == 0)
+            {
+                await NsSetState(lineUserId, "idle");
+                return "資料異常，請重新設定（輸入 4）。\n\n" + NsMenuText();
+            }
+
+            int star = NsCalcNatalStar(year, month, day, gender);
+
+            if (lineUser != null)
+            {
+                lineUser.BirthYear = year; lineUser.BirthMonth = month; lineUser.BirthDay = day;
+                lineUser.Gender = gender; lineUser.NatalStar = star;
+                lineUser.State = "idle"; lineUser.TempYear = null; lineUser.TempMonth = null; lineUser.TempDay = null;
+                lineUser.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _context.LineUsers.Add(new LineUser
                 {
-                    string gInput = parts[4];
-                    string gender = (gInput == "男" || gInput == "M" || gInput == "m") ? "M" : "F";
-                    int star = NsCalcNatalStar(year, month, day, gender);
-                    // 存入 DB
-                    var existing = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
-                    if (existing != null)
-                    {
-                        existing.BirthYear = year; existing.BirthMonth = month; existing.BirthDay = day;
-                        existing.Gender = gender; existing.NatalStar = star; existing.UpdatedAt = DateTime.UtcNow;
-                    }
-                    else
-                    {
-                        _context.LineUsers.Add(new LineUser
-                        { LineUserId = lineUserId, BirthYear = year, BirthMonth = month,
-                          BirthDay = day, Gender = gender, NatalStar = star });
-                    }
-                    await _context.SaveChangesAsync();
-                    return $"設定成功！\n您的本命星是：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n\n輸入「今日運勢」查看今日個人化建議。";
-                }
-                return "格式錯誤，請輸入：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+                    LineUserId = lineUserId, BirthYear = year, BirthMonth = month,
+                    BirthDay = day, Gender = gender, NatalStar = star, State = "idle"
+                });
             }
+            await _context.SaveChangesAsync();
 
-            // 今日運勢
-            if (text.Contains("今日") || text.Contains("運勢") || text == "1")
+            return $"設定完成！\n出生：{year}/{month:D2}/{day:D2} {(gender == "M" ? "男" : "女")}\n\n您的本命星：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n\n輸入 1 查看今日運勢！";
+        }
+
+        // ── 每日通知訂閱切換 ─────────────────────────────────────────────
+
+        private async Task<string> NsToggleNotify(string lineUserId, LineUser? lineUser)
+        {
+            if (lineUser == null || lineUser.NatalStar == 0)
+                return "請先設定生辰（輸入 4）才能訂閱每日通知。\n\n" + NsMenuText();
+
+            lineUser.NotifyEnabled = !lineUser.NotifyEnabled;
+            lineUser.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return lineUser.NotifyEnabled
+                ? "已開啟每日開運通知！\n每天早上 7:30 自動推送今日九星運勢。\n\n輸入 5 可隨時關閉。"
+                : "已關閉每日開運通知。\n\n輸入 5 可重新開啟。";
+        }
+
+        // ── 共用：建立今日運勢訊息 ──────────────────────────────────────
+
+        internal async Task<string> NsBuildDailyFortune(int natalStar)
+        {
+            var now = DateTime.UtcNow.AddHours(8); // Taiwan time
+            int dayStar   = NsCalcDayStar(now);
+            int yearStar  = NsCalcYearStar(now.Year);
+            int monthStar = NsCalcMonthStar(now);
+
+            var rule = await _context.NineStarDailyRules
+                .FirstOrDefaultAsync(r => r.NatalStar == natalStar && r.FlowStar == dayStar);
+            if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
             {
-                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
-                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+                var gen = await NsGeminiGenDailyAdvice(natalStar, dayStar);
+                if (rule == null) { rule = new NineStarDailyRule { NatalStar = natalStar, FlowStar = dayStar }; _context.NineStarDailyRules.Add(rule); }
+                rule.FortuneText = gen.FortuneText; rule.Auspicious = gen.Auspicious;
+                rule.Avoid = gen.Avoid; rule.Direction = gen.Direction; rule.Color = gen.Color;
+                rule.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            return $"【{now:MM/dd} 九星開運】\n本命：{StarNames[natalStar]}\n流年：{StarNames[yearStar]} 流月：{StarNames[monthStar]} 流日：{StarNames[dayStar]}\n\n{rule.FortuneText}\n\n宜：{rule.Auspicious}\n忌：{rule.Avoid}\n吉方位：{rule.Direction ?? StarDirections[natalStar]}\n幸運色：{rule.Color ?? StarColors[natalStar]}";
+        }
 
-                int natalStar = lineUser.NatalStar;
-                var now = DateTime.Now;
-                int dayStar = NsCalcDayStar(now);
-                int yearStar = NsCalcYearStar(now.Year);
-                int monthStar = NsCalcMonthStar(now);
-
-                var rule = await _context.NineStarDailyRules
-                    .FirstOrDefaultAsync(r => r.NatalStar == natalStar && r.FlowStar == dayStar);
-                if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
+        private async Task<string> NsBuildPersonality(int star)
+        {
+            var trait = await _context.NineStarTraits.FirstOrDefaultAsync(t => t.StarNumber == star);
+            if (trait == null || string.IsNullOrEmpty(trait.Personality))
+            {
+                string p = await NsGeminiGenTrait(star, "personality");
+                if (trait == null)
                 {
-                    var gen = await NsGeminiGenDailyAdvice(natalStar, dayStar);
-                    if (rule == null) { rule = new NineStarDailyRule { NatalStar = natalStar, FlowStar = dayStar }; _context.NineStarDailyRules.Add(rule); }
-                    rule.FortuneText = gen.FortuneText; rule.Auspicious = gen.Auspicious;
-                    rule.Avoid = gen.Avoid; rule.Direction = gen.Direction; rule.Color = gen.Color;
-                    rule.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
+                    trait = new NineStarTrait { StarNumber = star, StarName = StarNames[star],
+                        LuckyDirection = StarDirections[star], LuckyColor = StarColors[star], LuckyNumber = StarNumbers[star] };
+                    _context.NineStarTraits.Add(trait);
                 }
-
-                return $"【{now:MM/dd} 九星運勢】\n本命星：{StarNames[natalStar]}\n流年：{StarNames[yearStar]} 流月：{StarNames[monthStar]} 流日：{StarNames[dayStar]}\n\n{rule.FortuneText}\n\n宜：{rule.Auspicious}\n忌：{rule.Avoid}\n吉方位：{rule.Direction ?? StarDirections[natalStar]}\n幸運色：{rule.Color ?? StarColors[natalStar]}";
+                trait.Personality = p; trait.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
             }
+            string text = trait.Personality ?? "";
+            if (text.Length > 300) text = text[..300] + "...";
+            return $"【{StarNames[star]} 個性特質】\n\n{text}\n\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}";
+        }
 
-            // 個性特質
-            if (text.Contains("個性") || text.Contains("特質") || text.Contains("本命") || text == "2")
-            {
-                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
-                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
+        // ── 狀態機輔助 ──────────────────────────────────────────────────
 
-                int star = lineUser.NatalStar;
-                var trait = await _context.NineStarTraits.FirstOrDefaultAsync(t => t.StarNumber == star);
-                if (trait == null || string.IsNullOrEmpty(trait.Personality))
-                {
-                    string p = await NsGeminiGenTrait(star, "personality");
-                    if (trait == null)
-                    {
-                        trait = new NineStarTrait { StarNumber = star, StarName = StarNames[star],
-                            LuckyDirection = StarDirections[star], LuckyColor = StarColors[star], LuckyNumber = StarNumbers[star] };
-                        _context.NineStarTraits.Add(trait);
-                    }
-                    trait.Personality = p; trait.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                }
-                // LINE 訊息有字數限制，截取前 300 字
-                string personality = trait.Personality ?? "";
-                if (personality.Length > 300) personality = personality[..300] + "...";
-                return $"【{StarNames[star]} 個性特質】\n\n{personality}\n\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}";
-            }
+        private async Task NsSetState(string lineUserId, string state)
+        {
+            var user = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+            if (user != null) { user.State = state; user.UpdatedAt = DateTime.UtcNow; await _context.SaveChangesAsync(); }
+        }
 
-            // 本命星查詢
-            if (text.Contains("本命星") || text == "3")
-            {
-                var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
-                if (lineUser == null) return "請先設定生辰！\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男";
-                int star = lineUser.NatalStar;
-                return $"您的本命星：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n幸運數字：{StarNumbers[star]}";
-            }
-
-            // 其他 → 顯示選單
-            return NsMenuText();
+        private async Task NsSaveTempAndState(string lineUserId, LineUser? lineUser, string newState,
+            int? year, int? month, int? day)
+        {
+            if (lineUser == null) return;
+            if (year != null)  lineUser.TempYear  = year;
+            if (month != null) lineUser.TempMonth = month;
+            if (day != null)   lineUser.TempDay   = day;
+            lineUser.State = newState;
+            lineUser.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
         }
 
         private bool NsValidateLineSig(string body, string signature)
@@ -365,10 +476,10 @@ namespace Ecanapi.Controllers
         }
 
         private static string NsWelcomeText() =>
-            "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請先設定生辰：\n格式：設定 出生年 月 日 性別\n例如：設定 1980 2 14 男\n\n" + NsMenuText();
+            "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請輸入 4 設定您的生辰。\n\n" + NsMenuText();
 
         private static string NsMenuText() =>
-            "━━ 功能選單 ━━\n【今日運勢】個人化今日建議\n【個性特質】本命星個性分析\n【本命星】查詢本命星資料\n【設定 年 月 日 性別】更新生辰";
+            "━━ 功能選單 ━━\n1. 今日運勢\n2. 個性特質\n3. 本命星資料\n4. 設定生辰\n5. 每日通知（開/關）\n0. 顯示此選單";
 
         /// <summary>個人化今日九星建議（LINE Bot 用 lineUserId；網頁用 JWT）</summary>
         [HttpGet("daily")]

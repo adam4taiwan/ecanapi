@@ -25,6 +25,24 @@ namespace Ecanapi.Models
         /// <summary>LINE 顯示名稱（選填）</summary>
         public string? DisplayName { get; set; }
 
+        // ── 對話狀態機 ──────────────────────────────
+        /// <summary>對話狀態：idle / reg_year / reg_month / reg_day / reg_gender</summary>
+        [MaxLength(20)]
+        public string State { get; set; } = "idle";
+
+        /// <summary>設定生辰流程暫存：年</summary>
+        public int? TempYear { get; set; }
+
+        /// <summary>設定生辰流程暫存：月</summary>
+        public int? TempMonth { get; set; }
+
+        /// <summary>設定生辰流程暫存：日</summary>
+        public int? TempDay { get; set; }
+
+        // ── 推播訂閱 ────────────────────────────────
+        /// <summary>是否訂閱每日七星開運通知</summary>
+        public bool NotifyEnabled { get; set; } = false;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
