@@ -92,8 +92,13 @@ namespace Ecanapi.Controllers
                 .ThenInclude(p => p.Benefits)
                 .FirstOrDefaultAsync();
 
+            // Check if birthdate is locked (any book report ever generated)
+            var bookCodes = new[] { "BOOK_BAZI", "BOOK_DAIYUN", "BOOK_LIUNIAN" };
+            var birthdateLocked = await _context.UserSubscriptionClaims
+                .AnyAsync(c => c.UserId == userId && bookCodes.Contains(c.ProductCode));
+
             if (sub == null)
-                return Ok(new { isSubscribed = false });
+                return Ok(new { isSubscribed = false, birthdateLocked });
 
             // Calculate remaining quotas per product
             var quotaBenefits = sub.Plan.Benefits
@@ -128,8 +133,10 @@ namespace Ecanapi.Controllers
                 isSubscribed = true,
                 planCode = sub.Plan.Code,
                 planName = sub.Plan.Name,
+                startDate = sub.StartDate,
                 expiryDate = sub.ExpiryDate,
                 daysRemaining = (int)(sub.ExpiryDate - now).TotalDays,
+                birthdateLocked,
                 benefits = sub.Plan.Benefits.Select(b => new
                 {
                     b.ProductCode,
