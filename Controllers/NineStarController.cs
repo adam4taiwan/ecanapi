@@ -359,7 +359,7 @@ namespace Ecanapi.Controllers
             if (year == 0 || month == 0 || day == 0)
             {
                 await NsSetState(lineUserId, "idle");
-                return "資料異常，請重新設定（輸入 4）。\n\n" + NsMenuText();
+                return "資料異常，請重新設定（輸入 1）。\n\n" + NsMenuText();
             }
 
             int star = NsCalcNatalStar(year, month, day, gender);
@@ -381,7 +381,7 @@ namespace Ecanapi.Controllers
             }
             await _context.SaveChangesAsync();
 
-            return $"設定完成！\n出生：{year}/{month:D2}/{day:D2} {(gender == "M" ? "男" : "女")}\n\n您的本命星：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n\n輸入 1 查看今日運勢！";
+            return $"設定完成！\n出生：{year}/{month:D2}/{day:D2} {(gender == "M" ? "男" : "女")}\n\n您的本命星：{StarNames[star]}\n吉方位：{StarDirections[star]}\n幸運色：{StarColors[star]}\n\n輸入 4 查看今日運勢！";
         }
 
         // ── 每日通知訂閱切換 ─────────────────────────────────────────────
@@ -389,7 +389,7 @@ namespace Ecanapi.Controllers
         private async Task<string> NsToggleNotify(string lineUserId, LineUser? lineUser)
         {
             if (lineUser == null || lineUser.NatalStar == 0)
-                return "請先設定生辰（輸入 4）才能訂閱每日通知。\n\n" + NsMenuText();
+                return "請先設定生辰（輸入 1）才能訂閱每日通知。\n\n" + NsMenuText();
 
             lineUser.NotifyEnabled = !lineUser.NotifyEnabled;
             lineUser.UpdatedAt = DateTime.UtcNow;
