@@ -12,10 +12,12 @@ namespace Ecanapi.Controllers
     public class SubscriptionController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IConfiguration _config;
 
-        public SubscriptionController(ApplicationDbContext context)
+        public SubscriptionController(ApplicationDbContext context, IConfiguration config)
         {
             _context = context;
+            _config = config;
         }
 
         // ─── Public ──────────────────────────────────────────────────────────
@@ -83,6 +85,32 @@ namespace Ecanapi.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            // Admin 直接回傳最高權限，不受訂閱限制
+            var user = await _context.Users.FindAsync(userId);
+            var adminEmail = _config["Admin:Email"];
+            if (user != null && string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                var adminProducts = new[] { "BOOK_BAZI", "BOOK_DAIYUN", "BOOK_LIUNIAN", "DAILY_FORTUNE", "BLESSING_ANTAISUI", "BLESSING_LIGHT", "BLESSING_WEALTH", "BLESSING_PRAYER", "CONSULT_VIDEO", "COURSE_BASIC", "LECTURE_FREE" };
+                return Ok(new
+                {
+                    isSubscribed = true,
+                    planCode = "GOLD",
+                    planName = "系統管理員",
+                    startDate = DateTime.UtcNow.Date,
+                    expiryDate = DateTime.UtcNow.Date.AddYears(10),
+                    daysRemaining = 3650,
+                    birthdateLocked = false,
+                    quotaStatus = adminProducts.Select(p => new
+                    {
+                        productCode = p,
+                        productType = (string?)null,
+                        total = 999,
+                        used = 0,
+                        remaining = 999
+                    })
+                });
+            }
 
             var now = DateTime.UtcNow;
             var sub = await _context.UserSubscriptions

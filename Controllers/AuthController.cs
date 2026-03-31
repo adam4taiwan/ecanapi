@@ -162,7 +162,8 @@ namespace Ecanapi.Controllers
                 birthGender = user.BirthGender,
                 dateType = user.DateType ?? "solar",
                 chartName = user.ChartName ?? user.Name,
-                isAdmin = string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase)
+                isAdmin = string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase),
+                hasLineLinked = user.LineUserId != null
             });
         }
 
