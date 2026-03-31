@@ -160,6 +160,7 @@ builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
 
 // --- LINE Bot 背景推播服務 ---
 builder.Services.AddScoped<Ecanapi.Controllers.NineStarController>();
+builder.Services.AddScoped<Ecanapi.Controllers.FortuneController>();
 builder.Services.AddHostedService<Ecanapi.Services.LineBotDailyPushService>();
 
 // --- CORS 配置 (保持不變) ---

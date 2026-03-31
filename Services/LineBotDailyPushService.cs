@@ -1,5 +1,6 @@
 using Ecanapi.Controllers;
 using Ecanapi.Data;
+using Ecanapi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -54,28 +55,56 @@ namespace Ecanapi.Services
             {
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var controller = scope.ServiceProvider.GetRequiredService<NineStarController>();
-
-                // 取得所有開啟通知且已設定本命星的用戶
-                var users = await context.LineUsers
-                    .Where(u => u.NotifyEnabled && u.NatalStar > 0)
-                    .ToListAsync();
-
-                _logger.LogInformation("LineBotDailyPush 推播 {Count} 位用戶", users.Count);
+                var nineStarController = scope.ServiceProvider.GetRequiredService<NineStarController>();
+                var fortuneController = scope.ServiceProvider.GetRequiredService<FortuneController>();
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
 
-                foreach (var user in users)
+                // === Block 1：九星開運（LINE Bot 用戶，手動開啟通知）===
+                var nineStarUsers = await context.LineUsers
+                    .Where(u => u.NotifyEnabled && u.NatalStar > 0)
+                    .ToListAsync();
+
+                _logger.LogInformation("LineBotDailyPush 九星推播 {Count} 位", nineStarUsers.Count);
+
+                foreach (var user in nineStarUsers)
                 {
                     try
                     {
-                        string message = await controller.NsBuildDailyFortune(user.NatalStar);
+                        string message = await nineStarController.NsBuildDailyFortune(user.NatalStar);
                         await PushMessageAsync(accessToken, user.LineUserId, message);
-                        await Task.Delay(100); // 避免 LINE API rate limit
+                        await Task.Delay(100);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "LineBotDailyPush 推播用戶 {UserId} 失敗", user.LineUserId);
+                        _logger.LogError(ex, "LineBotDailyPush 九星推播 {UserId} 失敗", user.LineUserId);
+                    }
+                }
+
+                // === Block 2：個人化八字運勢（MyWeb 有效訂閱會員，已綁 LINE 帳號）===
+                var subscriberUsers = await context.UserSubscriptions
+                    .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
+                    .Join(context.Users, s => s.UserId, u => u.Id, (s, u) => u)
+                    .Where(u => u.LineUserId != null
+                             && u.BirthYear != null && u.BirthMonth != null
+                             && u.BirthDay != null && u.BirthHour != null)
+                    .Distinct()
+                    .ToListAsync();
+
+                _logger.LogInformation("LineBotDailyPush 訂閱會員推播 {Count} 位", subscriberUsers.Count);
+
+                foreach (var subUser in subscriberUsers)
+                {
+                    try
+                    {
+                        string? message = await fortuneController.BuildDailyPersonalFortuneText(subUser.Id);
+                        if (string.IsNullOrEmpty(message)) continue;
+                        await PushMessageAsync(accessToken, subUser.LineUserId!, message);
+                        await Task.Delay(100);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "LineBotDailyPush 訂閱會員推播 {UserId} 失敗", subUser.Id);
                     }
                 }
 

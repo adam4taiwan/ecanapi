@@ -292,15 +292,36 @@ namespace Ecanapi.Controllers
                 return BadRequest(new { error = "請先填寫生辰資料，才能取得個人化運勢" });
 
             var today = DateTime.UtcNow.Date;
+            var cacheKey = $"personal:{userId}";
+            bool wasCached = await _context.DailyFortunes
+                .AnyAsync(f => f.UserId == cacheKey && f.FortuneDate == today);
+
+            // 計算 riZhu / shiShen 供回應 JSON 使用
+            var birthDate = new DateTime(user.BirthYear!.Value, user.BirthMonth!.Value, user.BirthDay!.Value);
+            string riZhu = GetGanZhi(birthDate)[..1];
+            string todayTianGan = GetGanZhi(today)[..1];
+            string shiShen = GetShiShen(riZhu, todayTianGan);
+
+            string? content = await BuildDailyPersonalFortuneText(userId);
+            if (content == null) return StatusCode(500, new { error = "無法生成運勢" });
+
+            return Ok(new { content, date = FormatChineseDate(today), cached = wasCached, riZhu, shiShen });
+        }
+
+        /// <summary>建立個人化每日運勢文字（供 GetDailyFortunePersonal 及背景推播服務共用）</summary>
+        internal async Task<string?> BuildDailyPersonalFortuneText(string userId)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null || !user.HasBirthData) return null;
+
+            var today = DateTime.UtcNow.Date;
             int currentAge = today.Year - user.BirthYear!.Value;
 
             // 檢查今日是否已有快取（personal 版用不同 key 避免與 daily-kb 快取衝突）
             var cacheKey = $"personal:{userId}";
             var cached = await _context.DailyFortunes
                 .FirstOrDefaultAsync(f => f.UserId == cacheKey && f.FortuneDate == today);
-
-            if (cached != null)
-                return Ok(new { content = cached.Content, date = FormatChineseDate(today), cached = true });
+            if (cached != null) return cached.Content;
 
             // 計算日主（由生辰日柱天干決定）
             var birthDate = new DateTime(user.BirthYear!.Value, user.BirthMonth!.Value, user.BirthDay!.Value);
@@ -549,7 +570,7 @@ namespace Ecanapi.Controllers
             });
             await _context.SaveChangesAsync();
 
-            return Ok(new { content, date = FormatChineseDate(today), cached = false, riZhu, shiShen });
+            return content;
         }
 
         /// <summary>依年齡取得今日運勢開頭提示（對應 ConsultationController.LfAgeTopicHint）</summary>
