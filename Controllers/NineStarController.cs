@@ -196,6 +196,95 @@ namespace Ecanapi.Controllers
         }
 
         // ============================================================
+        //  Admin 手動測試推播
+        // ============================================================
+
+        /// <summary>Admin 手動觸發每日推播（立即執行，用於測試驗證）</summary>
+        [HttpPost("push-now")]
+        [Authorize]
+        public async Task<IActionResult> PushNow()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _context.Users.FindAsync(userId);
+            var adminEmail = _config["Admin:Email"];
+            if (user == null || !string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            var accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
+            var fortuneController = HttpContext.RequestServices.GetRequiredService<FortuneController>();
+            var pushed = new List<object>();
+            var errors = new List<object>();
+
+            // Block 1：九星推播
+            var nineStarUsers = await _context.LineUsers
+                .Where(u => u.NotifyEnabled && u.NatalStar > 0)
+                .ToListAsync();
+
+            foreach (var lu in nineStarUsers)
+            {
+                try
+                {
+                    string message = await NsBuildDailyFortune(lu.NatalStar);
+                    await NsPushMessage(accessToken, lu.LineUserId, message);
+                    pushed.Add(new { type = "nineStar", lineUserId = lu.LineUserId, name = lu.DisplayName });
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new { type = "nineStar", lineUserId = lu.LineUserId, error = ex.Message });
+                }
+            }
+
+            // Block 2：訂閱會員個人化推播
+            var subscriberUsers = await _context.UserSubscriptions
+                .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
+                .Join(_context.Users, s => s.UserId, u => u.Id, (s, u) => u)
+                .Where(u => u.LineUserId != null
+                         && u.BirthYear != null && u.BirthMonth != null
+                         && u.BirthDay != null && u.BirthHour != null)
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var subUser in subscriberUsers)
+            {
+                try
+                {
+                    string? message = await fortuneController.BuildDailyPersonalFortuneText(subUser.Id);
+                    if (string.IsNullOrEmpty(message)) continue;
+                    await NsPushMessage(accessToken, subUser.LineUserId!, message);
+                    pushed.Add(new { type = "subscriber", lineUserId = subUser.LineUserId, name = subUser.Name });
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new { type = "subscriber", userId = subUser.Id, error = ex.Message });
+                }
+            }
+
+            return Ok(new
+            {
+                pushedCount = pushed.Count,
+                errorCount = errors.Count,
+                pushed,
+                errors
+            });
+        }
+
+        private async Task NsPushMessage(string accessToken, string lineUserId, string text)
+        {
+            var payload = new { to = lineUserId, messages = new[] { new { type = "text", text } } };
+            var req = new HttpRequestMessage(HttpMethod.Post, "https://api.line.me/v2/bot/message/push");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            req.Content = JsonContent.Create(payload);
+            var resp = await _httpClient.SendAsync(req);
+            if (!resp.IsSuccessStatusCode)
+            {
+                string body = await resp.Content.ReadAsStringAsync();
+                throw new Exception($"LINE Push API 錯誤 {resp.StatusCode}: {body}");
+            }
+        }
+
+        // ============================================================
         //  LINE Bot Webhook
         // ============================================================
 
