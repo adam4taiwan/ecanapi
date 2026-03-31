@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Ecanapi.Data;
+using Ecanapi.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
@@ -21,15 +23,53 @@ namespace Ecanapi.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
+        private readonly ApplicationDbContext _db;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ApplicationDbContext db)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _configuration = configuration;
+            _db = db;
+        }
+
+        /// <summary>將 MyWeb 生辰同步到 LineUsers（供九星本命星計算 + 每日推播使用）</summary>
+        private async Task SyncLineUserBirthData(ApplicationUser user)
+        {
+            if (user.LineUserId == null || !user.HasBirthData) return;
+            string gender = user.BirthGender == 0 ? "F" : "M";
+            int natalStar = Ecanapi.Services.NineStarCalcHelper.CalcNatalStar(
+                user.BirthYear!.Value, user.BirthMonth!.Value, user.BirthDay!.Value, gender == "F" ? 2 : 1);
+
+            var lineUser = await _db.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == user.LineUserId);
+            if (lineUser == null)
+            {
+                _db.LineUsers.Add(new LineUser
+                {
+                    LineUserId = user.LineUserId,
+                    DisplayName = user.Name,
+                    BirthYear = user.BirthYear.Value,
+                    BirthMonth = user.BirthMonth.Value,
+                    BirthDay = user.BirthDay.Value,
+                    Gender = gender,
+                    NatalStar = natalStar
+                });
+            }
+            else
+            {
+                lineUser.BirthYear = user.BirthYear.Value;
+                lineUser.BirthMonth = user.BirthMonth.Value;
+                lineUser.BirthDay = user.BirthDay.Value;
+                lineUser.Gender = gender;
+                lineUser.NatalStar = natalStar;
+                lineUser.DisplayName = user.Name;
+                lineUser.UpdatedAt = DateTime.UtcNow;
+            }
+            await _db.SaveChangesAsync();
         }
 
         [HttpPost("register")]
@@ -240,6 +280,10 @@ namespace Ecanapi.Controllers
             }
 
             // 4. 產生 JWT
+            // 4.5 LINE 綁定時自動同步生辰到 LineUsers（若 MyWeb 已有生辰資料）
+            await SyncLineUserBirthData(user);
+
+            // 5. 產生 JWT
             var authClaims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id!),
@@ -379,6 +423,9 @@ namespace Ecanapi.Controllers
             var result = await _userManager.UpdateAsync(user);
             if (!result.Succeeded)
                 return BadRequest(new { message = "更新失敗", errors = result.Errors });
+
+            // 儲存生辰後同步到 LineUsers（若已綁 LINE 帳號）
+            await SyncLineUserBirthData(user);
 
             return Ok(new { message = "生辰資料已儲存", hasBirthData = user.HasBirthData });
         }

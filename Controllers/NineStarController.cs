@@ -152,6 +152,47 @@ namespace Ecanapi.Controllers
         }
 
         /// <summary>LINE Bot 用戶登記生辰（無需認證）</summary>
+        /// <summary>會員中心設定每日 LINE 推播通知（需登入，依 AspNetUsers.LineUserId 找到 LineUser）</summary>
+        [HttpPut("notify")]
+        [Authorize]
+        public async Task<IActionResult> SetNotify([FromBody] SetNotifyRequest req)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var appUser = await _context.Users.FindAsync(userId);
+            if (appUser?.LineUserId == null)
+                return BadRequest(new { error = "請先用 LINE 帳號登入本平台，才能設定 LINE 推播通知" });
+
+            var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == appUser.LineUserId);
+            if (lineUser == null)
+                return BadRequest(new { error = "尚未建立 LINE Bot 用戶資料，請先加入官方帳號" });
+
+            lineUser.NotifyEnabled = req.Enabled;
+            lineUser.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { notifyEnabled = lineUser.NotifyEnabled, message = req.Enabled ? "已開啟每日 LINE 推播" : "已關閉每日 LINE 推播" });
+        }
+
+        /// <summary>查詢目前推播設定狀態（需登入）</summary>
+        [HttpGet("notify")]
+        [Authorize]
+        public async Task<IActionResult> GetNotify()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var appUser = await _context.Users.FindAsync(userId);
+            if (appUser?.LineUserId == null)
+                return Ok(new { hasLineLinked = false, notifyEnabled = false });
+
+            var lineUser = await _context.LineUsers.FirstOrDefaultAsync(u => u.LineUserId == appUser.LineUserId);
+            return Ok(new
+            {
+                hasLineLinked = true,
+                hasBotRecord = lineUser != null,
+                notifyEnabled = lineUser?.NotifyEnabled ?? false,
+                natalStar = lineUser?.NatalStar ?? 0
+            });
+        }
+
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] LineRegisterRequest req)
         {
@@ -996,5 +1037,10 @@ namespace Ecanapi.Controllers
         public int BirthDay { get; set; }
         public string Gender { get; set; } = string.Empty; // M / F
         public string? DisplayName { get; set; }
+    }
+
+    public class SetNotifyRequest
+    {
+        public bool Enabled { get; set; }
     }
 }
