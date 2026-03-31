@@ -358,13 +358,20 @@ namespace Ecanapi.Controllers
 
                 if (evtType == "follow")
                 {
-                    await NsLineReply(replyToken, NsWelcomeText());
+                    bool subscribed = await NsIsSubscribed(lineUserId);
+                    await NsLineReply(replyToken, subscribed ? NsWelcomeText() : NsNotSubscribedText());
                 }
                 else if (evtType == "message")
                 {
                     string msgType = evt.GetProperty("message").GetProperty("type").GetString() ?? "";
                     if (msgType == "text")
                     {
+                        bool subscribed = await NsIsSubscribed(lineUserId);
+                        if (!subscribed)
+                        {
+                            await NsLineReply(replyToken, NsNotSubscribedText());
+                            continue;
+                        }
                         string text = evt.GetProperty("message").GetProperty("text").GetString()?.Trim() ?? "";
                         string reply = await NsHandleText(text, lineUserId);
                         if (!string.IsNullOrEmpty(reply))
@@ -611,6 +618,24 @@ namespace Ecanapi.Controllers
             req.Content = JsonContent.Create(payload);
             await _httpClient.SendAsync(req);
         }
+
+        // ── 訂閱驗證 ─────────────────────────────────────────────────────
+
+        /// <summary>檢查 LINE userId 是否綁定有效的 MyWeb 訂閱會員</summary>
+        private async Task<bool> NsIsSubscribed(string lineUserId)
+        {
+            if (string.IsNullOrEmpty(lineUserId)) return false;
+            var appUser = await _context.Users.FirstOrDefaultAsync(u => u.LineUserId == lineUserId);
+            if (appUser == null) return false;
+            var now = DateTime.UtcNow;
+            return await _context.UserSubscriptions.AnyAsync(s =>
+                s.UserId == appUser.Id &&
+                s.Status == "active" &&
+                s.ExpiryDate > now);
+        }
+
+        private static string NsNotSubscribedText() =>
+            "您好！玉洞子每日開運建議為訂閱會員專屬服務。\n\n請先前往以下網址加入訂閱會員：\nhttps://yudongzi.tw/\n\n訂閱後即可享有每日個人化開運建議！";
 
         private static string NsWelcomeText() =>
             "歡迎加入【玉洞子星相古學堂】！\n\n我是您的九星氣學運勢助手。\n\n首次使用請輸入 1 設定您的生辰。\n\n" + NsMenuText();
