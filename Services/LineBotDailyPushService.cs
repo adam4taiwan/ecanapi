@@ -55,33 +55,12 @@ namespace Ecanapi.Services
             {
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var nineStarController = scope.ServiceProvider.GetRequiredService<NineStarController>();
                 var fortuneController = scope.ServiceProvider.GetRequiredService<FortuneController>();
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
 
-                // === Block 1：九星開運（LINE Bot 用戶，手動開啟通知）===
-                var nineStarUsers = await context.LineUsers
-                    .Where(u => u.NotifyEnabled && u.NatalStar > 0)
-                    .ToListAsync();
-
-                _logger.LogInformation("LineBotDailyPush 九星推播 {Count} 位", nineStarUsers.Count);
-
-                foreach (var user in nineStarUsers)
-                {
-                    try
-                    {
-                        string message = await nineStarController.NsBuildDailyFortune(user.NatalStar);
-                        await PushMessageAsync(accessToken, user.LineUserId, message);
-                        await Task.Delay(100);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "LineBotDailyPush 九星推播 {UserId} 失敗", user.LineUserId);
-                    }
-                }
-
-                // === Block 2：個人化八字運勢（MyWeb 有效訂閱會員，已綁 LINE 帳號）===
+                // === 個人化八字運勢（MyWeb 有效訂閱會員，已綁 LINE 帳號，未關閉通知）===
+                // 取出有效訂閱 + 已綁 LINE + 有生辰資料的會員
                 var subscriberUsers = await context.UserSubscriptions
                     .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
                     .Join(context.Users, s => s.UserId, u => u.Id, (s, u) => u)
@@ -90,6 +69,16 @@ namespace Ecanapi.Services
                              && u.BirthDay != null && u.BirthHour != null)
                     .Distinct()
                     .ToListAsync();
+
+                // 過濾掉已在 LineUsers 表主動關閉通知的會員
+                var disabledLineIds = await context.LineUsers
+                    .Where(lu => !lu.NotifyEnabled)
+                    .Select(lu => lu.LineUserId)
+                    .ToListAsync();
+
+                subscriberUsers = subscriberUsers
+                    .Where(u => !disabledLineIds.Contains(u.LineUserId))
+                    .ToList();
 
                 _logger.LogInformation("LineBotDailyPush 訂閱會員推播 {Count} 位", subscriberUsers.Count);
 
