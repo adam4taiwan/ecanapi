@@ -162,6 +162,8 @@ builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
 builder.Services.AddScoped<Ecanapi.Controllers.NineStarController>();
 builder.Services.AddScoped<Ecanapi.Controllers.FortuneController>();
 builder.Services.AddHostedService<Ecanapi.Services.LineBotDailyPushService>();
+builder.Services.AddSingleton<Ecanapi.Services.InstagramDailyPostService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Ecanapi.Services.InstagramDailyPostService>());
 
 // --- CORS 配置 (保持不變) ---
 var AllowFrontendOrigins = "AllowFrontendOrigins";

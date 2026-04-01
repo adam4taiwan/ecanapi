@@ -955,6 +955,26 @@ namespace Ecanapi.Controllers
                 throw new Exception($"Gemini 回傳錯誤: {rawJson[..Math.Min(200, rawJson.Length)]}");
             return candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString()!;
         }
+
+        // ============================================================
+        //  Admin 手動測試 Instagram 發文
+        // ============================================================
+
+        /// <summary>Admin 手動觸發 Instagram 發文（立即執行，用於測試）</summary>
+        [HttpPost("ig-post-now")]
+        [Authorize]
+        public async Task<IActionResult> IgPostNow()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _context.Users.FindAsync(userId);
+            var adminEmail = _config["Admin:Email"];
+            if (user == null || !string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            var igService = HttpContext.RequestServices.GetRequiredService<Ecanapi.Services.InstagramDailyPostService>();
+            await igService.PostDailyFortuneAsync();
+            return Ok(new { message = "Instagram 發文已觸發" });
+        }
     }
 
     // ============================================================
