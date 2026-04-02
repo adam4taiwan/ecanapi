@@ -62,6 +62,10 @@ namespace Ecanapi.Data
         public DbSet<NineStarCombinationRule> NineStarCombinationRules { get; set; }
         public DbSet<LineUser> LineUsers { get; set; }
 
+        // 中原盲派命理秘典 KB
+        public DbSet<BaziDirectRule> BaziDirectRules { get; set; }
+        public DbSet<FortuneSourceText> FortuneSourceTexts { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
