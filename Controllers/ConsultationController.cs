@@ -2185,8 +2185,8 @@ namespace Ecanapi.Controllers
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
 
-                if (line == "【第二章：先天八字依古制定】" || line == "【第三章：深度論斷】" ||
-                    line == "【第四章：命局格局判定】" || line == "【第五章：用神喜忌判定】" ||
+                if (line == "【第二章：先天八字依古制定】" || line == "【第三章：深度分析】" ||
+                    line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
                     line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
                 {
                     AddPageBreak();
@@ -3940,425 +3940,7 @@ namespace Ecanapi.Controllers
         {
             var sb = new StringBuilder();
 
-            // 時辰地支索引 (子=0,...,亥=11)
-            var branchOrder = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-            int hIdx = Array.IndexOf(branchOrder, hBranch);
-            int yIdx = Array.IndexOf(branchOrder, yBranch);
-            if (hIdx < 0) hIdx = 0;
-            if (yIdx < 0) yIdx = 0;
-
-            // 計算時段（初/中/末）
-            string timeSection = "初";
-            if (birthHour.HasValue && birthMinute.HasValue)
-            {
-                int hourInZhi = birthHour.Value % 2;
-                int totalMinutes = hourInZhi * 60 + birthMinute.Value;
-                if (totalMinutes < 40) timeSection = "初";
-                else if (totalMinutes < 80) timeSection = "中";
-                else timeSection = "末";
-            }
-
-            // === 條件 2：十二生肖出生時辰論 ===
-            var zodiacNames = new Dictionary<string, string>
-            {
-                {"子","鼠"},{"丑","牛"},{"寅","虎"},{"卯","兔"},{"辰","龍"},{"巳","蛇"},
-                {"午","馬"},{"未","羊"},{"申","猴"},{"酉","雞"},{"戌","狗"},{"亥","豬"}
-            };
-            var zodiacTexts = new Dictionary<string, string[]>
-            {
-                {"子", new[]{"好如春，到處柳綠花又紅","田園逢，秋熟禾稻積滿倉","泉趣遨遊不知歸","見貓難，退避刑克急須防","春光隨，好處遊覽亦忘歸","鼠落泥窩下，被蛇咬暗自傷","置身倉庫裡，食祿不須求","是非因雀口，禍患自難消","鴉棲庭樹裡，定祿不須求","日落黃昏後，燈前有稻糧","不疾病，多抵因為火來論","五湖波浪闊，天水相接連"}},
-                {"丑", new[]{"春風吹大地，草長牧牛肥","生平為溫稱，有志在園林","欲貪岩下草，忽遇虎相遭","芳草萋萋地，閒遊在人間","春生有榮貴，秋令決傷兒","遇蛇刑害至，口舌並官非","遇虎雖無害，凶多吉少成","一犁春雨後，飽臥牧童前","深山獨覓食，獨步見高低","日夕雞棲後，歸來飽臥時","牧童騎昔稱，溪口趁斜輝","覓食東效外，歸時緩緩行"}},
-                {"寅", new[]{"出生傷一箭，官訟急須防","扶持如遇貴，金榜決提名","身非晉憑姓，捕虎力難勝","負隅獨立，氣欲吞牛","無端遭暗箭，禍患必臨身","不似山前石，當年李廣奇","嘯來山谷震，動物盡皆逃","見羊難釋放，勢必急須離","禍患隨時至，無憂早須知","園中收日久，猛氣已消除","無所欲一生，惟計在肥豚","耽耽非可比，蔚起接人文"}},
-                {"卯", new[]{"人間稱卯日，天上應房星","爰爰承善日，跌跌搗無霜","遇虎春為貴，秋來反不祥","托跡宣王囿，民多有怨詞","婁金猶恐懼，見必主刑沖","壬癸冬生水，逢蛇貴自成","從來人取義，兆必祝禎祥","火多災厄重，不隔主刑傷","托跡逢蒿下，庸庸過一生","最羨霜毛意，尤知玉骨隹","謾誇三窘美，遇上必多刑","和丹成永壽，搗藥不知殃"}},
-                {"辰", new[]{"自莊深淵底時變，一舉飛騰上碧天","半天猶矯矯，頃刻兩成雲","若得風雲會，從今變化多","漢室當鴻運，初年大德興","若逢春日桃花浪，千尺波濤湧地高","何時能返轉，一變到青霄","崢嶸頭角滄海裡，不得興雲志未休","茗名劍號雖珠意，井溢泉清本一流","枝頭鴉噪暮，草裡兔游時","昔雨興庭裡，曾勸龍妃宮","蟲名百足毒無比，只怕金雞不怕蛇","騰身滄海裡，正是興雲降雨時"}},
-                {"巳", new[]{"他真龍仰月仰頭，表出志氣又顯威","田園遭竹板，正是半凶半吉時","人逢三月春雷動，志欲騰雲上碧霄","忽見狐狸相過害，人離財散浪淘沙","時時三月桃花浪，躍進龍門定可跨","時行方草外，日麗又春和","鴉來先後趕，無禍亦生凶","一生游盡山林興，得看飛鷹正趕跑","一叢芳草萋萋地，滿面祥開樹樹花","一生猶似蛇潛窟，不得風雲志未伸","忽遇蜈蚣咬一口，失了葫蘆沒了皮","突見兩蛇來交會，妻淫子散破盡家"}},
-                {"午", new[]{"晚景來到桃樹李下，衣食自無憂","丑宮春風田園內，出入高堂春風間","猛虎傷足下，若不傷頭沒了皮","卯時生得貴人扶，優遊自在有威風","辰宮山岩高，險處興雲吐霧保春風","時逢天狗相侵害，若不傷損自悲傷","午宮入空房，清閒快樂，衣食自然不用求","此限運乖蹇，自歎亦悲悉","申宮一路受坎坷，平生晚得運，早須防","酉宮屋下愛草食，逍遙自在好前途","狗來相侵相，暗中禍患早提防","亥宮一路春色好，四時春景得和氣"}},
-                {"未", new[]{"時宮閒遊芳草地，豐衣足食享田園","時宮獨樂田園裡，只恐災害不安心","時宮岩前逢犯虎，大風之燭失光輝","時宮林中傷其箭，此處災難必時來","時宮遇逢春色動，花紅柳綠真光輝","巳宮樹下青青草，不愁衣食不愁饑","山下逢閑火，不見刑沖亦見害","樹碩衣食足，此時財祿非尋常","申宮散步閒遊樂，發達榮華人間稀","時宮安居茅屋內，無憂快樂過時光","忽然虎相逼害，草裡垂珠失色","亥宮江湖風草地，春風桃李正得時"}},
-                {"申", new[]{"滿山桃李煞，見樹必攀登","鬱鬱深山裡，誰知飛來一枝箭","飲泉帶結侶，林下自嬉嬉，豐盈又周到","自輕揉土易，果熟自先嘗","采果歸仙洞，尋待後石岩","覓食入林來，忽遇蛇來咬","吊纏終日坐，性優舞猴兒","身穿高嶺霧，猴跳陣溪煙","此身自入流，終日長敢氣富豪","飽食山頭果，思臨澗底泉","與狗相戲耍，生涯即此間","深山塵世隔，終日樂似仙"}},
-                {"酉", new[]{"報曉長隨月，知更不畏霜","一生為喜鬥，五德有成名","助妃成婦教，終日任賢勞","若遇狐狸總不吉，無毒亦傷財","在天為帛日，為地應明金","羅浮紅日見，伊屋度初聲","孟蘭門下客，徐徐門度楚函關","當年懷祖逖，起舞獨爭先","敵能收楚項，力可過雅陰","食呼群伴，雄決死驅","一生猶早起，為善在東樂","棄之猶有味，不決麥夫疑"}},
-                {"戌", new[]{"吠對唯一犬，百犬自相生","左牽成別號，美獻亦佳名","遇虎身防害，妻兒決損傷","遙河花邊立，長教月底看","河克原本位，象應婁金星","逢蛇傷口舌，暗裡自相爭","吠蘆來祿祿，知是近桃源","雪裡常閑吠，花前只愛眠","有事迎客，無事吠柴門","效勞如馬，功就自當享","胸少容人量，言多妄誕詞","春生離祖命，冬生福祿盈"}},
-                {"亥", new[]{"閒遊貴衣食，不求自然來","時園芳草地，出入青山步步春","時生逢虎相損害，縱然聚尾未盡享","山林草荀發，逍遙自在樂其中","遇達春風動，亦有衣祿亦有錢","逢蛇來損害，傷到其足定防妻","被火燒正傷，慎言可行宣晚對","花下偷閒食，天邊送到吉星來","吊捆樹頭上，生死未知正警惶","收養在家中，食祿馬相隨，春風遇時光","被狗相咬害，頭面未免亦有傷","時逢春景處處好，名稱陶豬勝陶豬"}}
-            };
-
-            sb.AppendLine("---");
-            string zodiac = zodiacNames.TryGetValue(yBranch, out var zn) ? zn : yBranch;
-            if (zodiacTexts.TryGetValue(yBranch, out var ztArr) && hIdx < ztArr.Length)
-            {
-                sb.AppendLine($"【生肖時辰論】{zodiac}年生，{hBranch}時出生：{ztArr[hIdx]}");
-            }
-            sb.AppendLine();
-
-            // === 條件 3：貴賤論 ===
-            // 結構：(命格名, 初命格, 初父母, 中命格, 中父母, 末命格, 末父母)
-            var guiJianData = new Dictionary<string, (string name, string initText, string initFather, string midText, string midFather, string finText, string finFather)>
-            {
-                {"子", ("玉皇星入命",
-                    "初年受苦楚，能勤儉持家，末限足財寶", "先克母",
-                    "妻賢子孝富貴命，晚年佳，一生近貴人", "父母雙全",
-                    "初年榮帶苦，晚年勞碌，六親無依靠，兄弟兩東西", "先克父")},
-                {"丑", ("閻王星入命，帶刑克",
-                    "性靈心巧，享福無窮，二十年後衣祿積有餘", "父母雙全",
-                    "聰明伶俐，初運不如意，晚年享子孫福，三十年發財", "先克父",
-                    "特達，常為人排解訟訴，四十歲發財，手藝學術強", "先克母")},
-                {"寅", ("白帝星入命",
-                    "辛苦冷淡，妻宜硬對，三十八歲發財，末限好", "先克父",
-                    "忠直磊落，六親有力，生平有大志，宅舍好風光", "父母雙全",
-                    "忠信有始有終，三十六歲發財，治家有法", "先克母")},
-                {"卯", ("貴無星入命",
-                    "忠良正直，不信鬼神，晚年子女得力", "先克母",
-                    "兄弟子女得力，運限佳，身帶微穩暗疾", "父母福壽雙全",
-                    "心慈耐勞守本份，初年不遂，中晚年財祿豐盈", "先克父")},
-                {"辰", ("人馬元星入命，命帶三刑六害",
-                    "四十三歲有一病，對妻宜大，行善可保父母健全", "父母雙全",
-                    "待人十分無功，早年坎坷，晚至福興隆", "先克母",
-                    "聰明有賢慧，命帶桃花，須遲娶對硬妻，晚榮華", "先克父")},
-                {"巳", ("祿元星入命",
-                    "四十年前運不遂，晚年逢運食四方財", "先克母",
-                    "性急早年憂患，前有見破，亨通晚運行", "父母雙全",
-                    "心慈好善，先苦後甜，初年不足，後運必亨通", "先克父")},
-                {"午", ("太陽星入命",
-                    "想事過人但命不合，常招人急恨，一生運平多災忍", "先克母",
-                    "早年得志，志氣超群，有威人敬服，隨處皆傳聞", "父母雙全",
-                    "前運不順後運佳，勤儉發達，發達在晚歲早年必遭殃", "先克父")},
-                {"未", ("太陰星入命",
-                    "生居安然，六親無破損，五福俱全", "父母雙全",
-                    "性格寬宏身近貴人，兄弟少力，妻硬子遲，先難後易", "先克母",
-                    "配妻要金石方得偕老，中年無多，晚歲家財無", "先克父")},
-                {"申", ("海角星入命，貴人不臨，刑克六親",
-                    "聰明伶俐百事亨通，兒孫登虎榜，年少奪錦標", "父母雙全",
-                    "兄弟不得力，妻宜硬對，六親俱無情，手足不相生", "先克父",
-                    "早年破家受苦，三十六歲後運好，晚運重新", "六親冷淡")},
-                {"酉", ("忠直好樂",
-                    "得有好貴子，百事亨通，夫妻歡度奴婢傍立", "父母雙全",
-                    "妻要硬對，前運起倒，後運方吉，能送母終老", "先克父",
-                    "兄弟少力，靈敏有主張，好排解爭論", "先克母")},
-                {"戌", ("地母星",
-                    "手足不得力，三十七歲發財，娶妻宜硬對，子媳遲少", "先克母",
-                    "六親無情，娶妻宜晚，早運好中運不足末運好，膽大有智謀", "先克父",
-                    "六親無情，妻金石，晚得子，宜手藝術精通，離祖大吉", "父母多災難")},
-                {"亥", ("天父星，離祖成家，妻硬對，子遲",
-                    "妻子健但命不合，心慈無毒，白手振家聲", "先克母",
-                    "乖巧伶俐，卅年無刑克，衣祿好末限好", "父母雙全",
-                    "六親刑傷，男克妻女克夫，末運好", "先克父")}
-            };
-
-            if (guiJianData.TryGetValue(hBranch, out var gjInfo))
-            {
-                string gjText, gjFather;
-                if (timeSection == "初") { gjText = gjInfo.initText; gjFather = gjInfo.initFather; }
-                else if (timeSection == "中") { gjText = gjInfo.midText; gjFather = gjInfo.midFather; }
-                else { gjText = gjInfo.finText; gjFather = gjInfo.finFather; }
-
-                sb.AppendLine($"【貴賤論】{hBranch}時生人（{gjInfo.name}），時{timeSection}：");
-                sb.AppendLine($"命格：{gjText}");
-                sb.AppendLine($"父母：{gjFather}");
-            }
-            sb.AppendLine();
-
-            // === 條件 4：四季王（出生時辰地支對應帝王身體部位）===
-            {
-                // 依月柱地支判斷季節（寅卯辰=春，巳午未=夏，申酉戌=秋，亥子丑=冬）
-                string season4 = "寅卯辰".Contains(mBranch) ? "春"
-                    : "巳午未".Contains(mBranch) ? "夏"
-                    : "申酉戌".Contains(mBranch) ? "秋"
-                    : "冬";
-
-                // 系統一：四季地支對應部位（部位 -> 春夏秋冬地支字串）
-                // 同部位多地支用字串包含判斷
-                var sys1BodyParts = new[]
-                {
-                    ("頭",   "子", "午", "申", "巳"),
-                    ("肩",   "丑未", "巳未", "子午", "卯酉"),
-                    ("腹",   "卯酉", "辰戌", "丑未", "寅申"),
-                    ("手",   "巳亥", "卯申", "卯酉", "子午"),
-                    ("陰",   "午", "子", "寅", "亥"),
-                    ("膝",   "辰戌", "亥酉", "辰戌", "丑未"),
-                    ("腳",   "寅申", "寅丑", "巳亥", "辰戌")
-                };
-
-                string body4 = "";
-                foreach (var (part, chun, xia, qiu, dong) in sys1BodyParts)
-                {
-                    string seasonBranches = season4 switch { "春" => chun, "夏" => xia, "秋" => qiu, _ => dong };
-                    if (seasonBranches.Contains(hBranch)) { body4 = part; break; }
-                }
-
-                // 各部位斷語（季節專屬）
-                var bodyTexts4 = new Dictionary<string, Dictionary<string, string>>
-                {
-                    {"頭", new Dictionary<string, string>{
-                        {"春","一世永無憂，求官皆有應，衣祿自然足，男近王侯，女嫁好兒郎"},
-                        {"夏","白手振英豪，財祿足，出入近貴人，女只恐夫妻重"},
-                        {"秋","財祿主高遷，自身憂不足，男享福應晚年，女多嗟歎有口難言"},
-                        {"冬","富貴福壽高，子貴妻賢，男貴至公侯，女命誥封，只恐浮生百事憂"}
-                    }},
-                    {"肩", new Dictionary<string, string>{
-                        {"春","衣祿足，奴婢兩過立，田園廣，初年命苦，晚主福綿綿"},
-                        {"夏","近貴人，聰明多巧智，名聲四海揚，男多才干，女多刑克夫子不親"},
-                        {"秋","縱然早顛倒，末主衣祿，男財豐富貴足，女享福壽添"},
-                        {"冬","艱苦備嘗，衣食難繼，晚景福有餘，早年勞苦尾景祿齊全"}
-                    }},
-                    {"腹", new Dictionary<string, string>{
-                        {"春","衣祿自然足，文武兩邊立，男富貴足，女清閒祖業興福祿"},
-                        {"夏","財帛自然足，田園富，男福壽，女作夫人，兒孫得力"},
-                        {"秋","夫妻難結果，到老無兒孫，男離祖晚享福，女有刑克六親稀"},
-                        {"冬","財祿不須疑，想財即至，男離祖借姓防克六親，女良人食祿足"}
-                    }},
-                    {"手", new Dictionary<string, string>{
-                        {"春","衣祿不長久，女多命苦，男防災厄，急急修行好"},
-                        {"夏","富貴有黃金，財帛自然進，男只恐損六親，女多刑克憂愁勞心"},
-                        {"秋","福田早好修，兒女無憂，男福祿昌，女多清福產兒孫強"},
-                        {"冬","金貴有錢財，聰明智慧，男有名聲財祿不勞，女主福壽子孫英豪"}
-                    }},
-                    {"陰", new Dictionary<string, string>{
-                        {"春","富貴足珍珠，中年衣祿，永聚黃金，男乾坤志貴人身，女兒孫祿滿堂"},
-                        {"夏","春花待雨開，嫩柳狂風怕，勸君早修行，鴛鴦不獨宿，飛燕自成雙"},
-                        {"秋","室內積千金，子媳宜遲，男增福壽晚景昌，女主聰明衣祿福綿綿"},
-                        {"冬","平素大勞心，晚年財發達，早歲艱辛"}
-                    }},
-                    {"膝", new Dictionary<string, string>{
-                        {"春","做事無利益，初年平，中年衣祿，男勞碌心不足，一生亦平安修得是福"},
-                        {"夏","白手振家庭，豐衣財祿足，男出外吉經營通，女出家方成福"},
-                        {"秋","作事有差失，走盡天涯路，妻無子不應，男克親離祖，女克夫守孤身"},
-                        {"冬","命硬過如鐵，婚姻配金石方得偕老"}
-                    }},
-                    {"腳", new Dictionary<string, string>{
-                        {"春","修行卻是福，不宜居祖屋，男移過祖娶妻再續，女嫁二夫有子享福"},
-                        {"夏","少年多勞碌，奔走江湖，計謀皆反復，四十不惑後停交中年運方可得"},
-                        {"秋","一生長享福，六親天然份，外出享榮華，男離祖多發福，女只恐守孤身"},
-                        {"冬","一生主勞碌，衣食朝朝有，離祖方成福，男克六親白手成家，女夫子不親"}
-                    }}
-                };
-
-                if (!string.IsNullOrEmpty(body4) && bodyTexts4.TryGetValue(body4, out var bDict4) && bDict4.TryGetValue(season4, out var bText4))
-                {
-                    sb.AppendLine($"【四季王】{season4}季，{hBranch}時生人，落在帝王{body4}：");
-                    sb.AppendLine(bText4);
-                    sb.AppendLine();
-                }
-            }
-
-            // === 條件 5：小兒關煞（出生季節 × 時辰）===
-            {
-                // 依月柱地支判斷季節
-                string season5 = "寅卯辰".Contains(mBranch) ? "春"
-                    : "巳午未".Contains(mBranch) ? "夏"
-                    : "申酉戌".Contains(mBranch) ? "秋"
-                    : "冬";
-
-                // 結構：(季節, 時辰地支, 關煞名稱)，同時辰可有多條
-                var keShaTable = new List<(string season, string branches, string name)>
-                {
-                    // 春季
-                    ("春","丑","閻王關"),("春","辰","上盆關"),("春","子亥","急腳關"),
-                    ("春","辰","將軍箭"),("春","巳","落井關"),("春","寅申","夜啼關"),
-                    ("春","子巳","浴盆關"),("春","子","三丘煞"),("春","酉","生命關"),
-                    // 夏季
-                    ("夏","辰","閻王關"),("夏","申","四季關"),("夏","未","上盆關"),
-                    ("夏","子","生命關"),("夏","卯","急腳關"),("夏","子","將軍箭"),
-                    ("夏","酉","夜啼關"),("夏","未","深水關"),
-                    // 秋季
-                    ("秋","子","閻王關"),("秋","亥","四季關"),("秋","戌","上盆煞"),
-                    ("秋","寅","急腳關"),("秋","酉","落井關"),("秋","未","三丘煞"),
-                    ("秋","卯","生命關"),("秋","戌","沐浴關"),
-                    // 冬季
-                    ("冬","卯","閻王關"),("冬","寅戌","四季關"),("冬","子","上盆煞"),
-                    ("冬","丑","四季關"),("冬","辰戌","急腳關"),("冬","申巳亥","將軍箭"),
-                    ("冬","卯","夜啼關")
-                };
-
-                var found5 = keShaTable
-                    .Where(r => r.season == season5 && r.branches.Contains(hBranch))
-                    .Select(r => r.name)
-                    .ToList();
-
-                if (found5.Count > 0)
-                {
-                    string shaNames = string.Join("、", found5);
-                    sb.AppendLine($"【小兒關煞】{season5}季，{hBranch}時生人，帶有：{shaNames}。");
-                    if (found5.Count >= 2)
-                        sb.AppendLine("多重關煞疊加，幼年凶險較重，宜提早化解。");
-                    else
-                        sb.AppendLine("幼年需多加注意身體平安。");
-                }
-                else
-                {
-                    sb.AppendLine($"【小兒關煞】{season5}季，{hBranch}時生人，無小兒關煞，幼年平順。");
-                }
-                sb.AppendLine();
-            }
-
-            // === 條件 6：子女送終 ===
-            var palaceNames = new[] { "閉","開","收","成","危","破","執","定","平","滿","除","建" };
-            // 閉宮對應時支起始索引 = (yIdx + 2) % 12
-            int biGongStart = (yIdx + 2) % 12;
-            int palaceIdx = (hIdx - biGongStart + 12) % 12;
-            string palace = palaceNames[palaceIdx];
-            var palaceTexts = new Dictionary<string, string>
-            {
-                {"建", "雖然生四子，歸仙總不全，惟存一四子，送柩到墳前"},
-                {"除", "三男送君壽，一生永無憂，衣食自有餘，家業得成就，父母壽千秋"},
-                {"滿", "夫妻永百年，三男送君壽，萬頃好良田，財穀豐盈積，人稱福壽全"},
-                {"平", "二男送君壽，一世永無虧，若再加陰德，富貴不須求"},
-                {"定", "富貴雙全命，送壽有三子，為官多善政，子孫名聲業"},
-                {"執", "衣祿自然足，四子送君壽，一生多享福，家業自操持"},
-                {"破", "煩惱心頭掛，有子送君壽，隨份隨緣過，孫賢與子尚"},
-                {"危", "家業不大富，出外多近貴，末運始興隆，四子送君壽"},
-                {"成", "富貴自分明，二男送君壽，一子振門庭，待至曾元輩，衣冠自業榮"},
-                {"收", "衣祿不須求，送終才一子，雖多出外遊，子孫有清福"},
-                {"開", "不怕沒銀錢，縱有三子在，送壽失身邊，食祿隨君份"},
-                {"閉", "衣祿自然豐，二子送君壽，福祿永無窮，子決有三四，至老僅一雙"}
-            };
-
-            string palaceText = palaceTexts.TryGetValue(palace, out var pt) ? pt : "";
-            sb.AppendLine($"【子女送終】{zodiac}年生，{hBranch}時：命入{palace}宮。{palaceText}");
-            sb.AppendLine();
-
-            // === 條件 7：查流年 ===
-            int currentYear = DateTime.Today.Year;
-            int vage = currentYear - birthYear + 1;
-            if (vage > 0)
-            {
-                int pos1 = (vage - 1) % 12;
-                var sys1Stars = new[] {"太歲","太陽","喪門","太陰","官符","死符","歲破","龍德","白虎","福德","吊客","病符"};
-                var sys1Texts = new Dictionary<string, string>
-                {
-                    {"太歲", "太歲當頭照，諸神不敢當，自己有刑克，須防克親人"},
-                    {"太陽", "太陽星吉照，求財得珠寶，陰陽須和合，福祿自然來"},
-                    {"喪門", "喪門入命來，內外孝服來，破財並刑克，災難又重臨"},
-                    {"太陰", "太陰入命來，見喜又見財，貴人相接引，萬事必和諧"},
-                    {"官符", "官符入命來，禍患必無常，破財並外孝，祈保免災殃"},
-                    {"死符", "死符入命來，病疾主有災，若無官符事，膿血積生害"},
-                    {"歲破", "歲破入命來，孝服哭哀哀，父母有刑克，損妻又損財"},
-                    {"龍德", "龍德貴人生，發財旺人丁，小災不為害，家宅最光明"},
-                    {"白虎", "白虎星辰賽，春夏防災厄，秋冬平平過，祈保無邪惑"},
-                    {"福德", "福星入命遊，一歲進田牛，添丁又進契，凡事吉安康"},
-                    {"吊客", "吊客入命凶，內外孝服重，破財並損口，祈保免災殃"},
-                    {"病符", "病符入命來，疾病必沾身，時運多顛倒，要好必求神"}
-                };
-                var sys1LuckBad = new Dictionary<string, string>
-                {
-                    {"太歲","凶"},{"太陽","吉"},{"喪門","凶"},{"太陰","吉"},{"官符","凶"},{"死符","凶"},
-                    {"歲破","凶"},{"龍德","吉"},{"白虎","凶"},{"福德","吉"},{"吊客","凶"},{"病符","凶"}
-                };
-
-                int pos2 = (vage - 1) % 12;
-                var sys2Stars = new[] {"天哭","福德","黑煞","文昌","火孛","暗曜","天掃","太陰","天喜","無常","龍德","錦繡"};
-                var sys2Texts = new Dictionary<string, string>
-                {
-                    {"天哭", "主孝服官非口舌、疾病、災厄，有喜免哭，無喜要防"},
-                    {"福德", "主吉多凶少，官非口舌盡消除，有喜無喜俱美"},
-                    {"黑煞", "主官非口舌，刑克，喪服，有喜可押身，無喜當防"},
-                    {"文昌", "主有吉兆，士者名標金榜，庶人招財，女人有喜"},
-                    {"火孛", "主官非口舌，破財，刑克孝服，損六畜，小人侵害，有喜可防"},
-                    {"暗曜", "主刑克破財損六畜，防盜賊，有喜可免，無喜當保"},
-                    {"天掃", "主有孝服，官非口舌疾病，有不測之禍，有喜可免，無喜當防"},
-                    {"太陰", "主有喜事臨門，家中百事俱吉，女人有喜定是男兒，無喜亦吉"},
-                    {"天喜", "主有喜慶，家道吉祥四季得財，但主有血刃之災，女人有喜是男兒"},
-                    {"無常", "主有不測之災及刑克孝服，有喜可免，無喜須防"},
-                    {"龍德", "主喜慶臨門家中吉慶百事享通，縱有血刃之災亦無防"},
-                    {"錦繡", "主有喜，事事遂意，女人有喜定是男兒"}
-                };
-                var sys2LuckBad = new Dictionary<string, string>
-                {
-                    {"天哭","凶"},{"福德","吉"},{"黑煞","凶"},{"文昌","吉"},{"火孛","凶"},{"暗曜","凶"},
-                    {"天掃","凶"},{"太陰","吉"},{"天喜","吉帶血刃"},{"無常","凶"},{"龍德","吉"},{"錦繡","吉"}
-                };
-
-                string star1 = sys1Stars[pos1];
-                string star2 = sys2Stars[pos2];
-                string lb1 = sys1LuckBad.TryGetValue(star1, out var l1) ? l1 : "";
-                string lb2 = sys2LuckBad.TryGetValue(star2, out var l2) ? l2 : "";
-                string t1 = sys1Texts.TryGetValue(star1, out var tx1) ? tx1 : "";
-                string t2 = sys2Texts.TryGetValue(star2, out var tx2) ? tx2 : "";
-
-                // 第七條（查流年）僅用於流年命書，此處不輸出
-            }
-
-            // === 條件 8：讀書格 ===
-            // 月支直接對應農曆月份：寅=1,卯=2,辰=3,巳=4,午=5,未=6,申=7,酉=8,戌=9,亥=10,子=11,丑=12
-            var mBranchToMonth = new Dictionary<string, int>
-            {
-                {"寅",1},{"卯",2},{"辰",3},{"巳",4},{"午",5},{"未",6},
-                {"申",7},{"酉",8},{"戌",9},{"亥",10},{"子",11},{"丑",12}
-            };
-            int lunarMonthFromBranch = mBranchToMonth.TryGetValue(mBranch, out var lmb) ? lmb : 0;
-            if (lunarMonthFromBranch >= 1)
-            {
-                // 三合組
-                string group8;
-                int groupCol;
-                if ("寅午戌".Contains(yBranch)) { group8 = "寅午戌"; groupCol = 0; }
-                else if ("申子辰".Contains(yBranch)) { group8 = "申子辰"; groupCol = 1; }
-                else if ("巳酉丑".Contains(yBranch)) { group8 = "巳酉丑"; groupCol = 2; }
-                else { group8 = "亥卯未"; groupCol = 3; }
-
-                // 月份對應格局 (1-based月, 4 columns)
-                var monthTable = new string[,]
-                {
-                    // 寅午戌, 申子辰, 巳酉丑, 亥卯未
-                    {"建","破","向","背"},   // 1
-                    {"背","向","合","空"},   // 2
-                    {"背","向","合","空"},   // 3
-                    {"背","向","建","破"},   // 4
-                    {"空","合","背","向"},   // 5
-                    {"空","合","背","向"},   // 6
-                    {"破","建","背","向"},   // 7
-                    {"向","背","空","合"},   // 8
-                    {"向","背","空","合"},   // 9
-                    {"向","背","破","建"},   // 10
-                    {"合","空","向","背"},   // 11
-                    {"合","空","向","背"}    // 12
-                };
-                string geju8 = monthTable[lunarMonthFromBranch - 1, groupCol];
-                var geju8Texts = new Dictionary<string, string>
-                {
-                    {"建", "有學堂。生居建學貌堂堂，習讀文章事事昌，不是為官做宰相，也做巧性俊兒郎"},
-                    {"向", "有學堂。命中向學近書堂，必主文章藝術強，不作秀才棟樑命，也作儒家出類郎"},
-                    {"合", "有學堂。命中向學近書堂，文章藝術強"},
-                    {"背", "無學堂。生來空破皆文章，性情識字不成行，老來思量年少事，讀書不曉怨爹娘"},
-                    {"空", "無學堂。同背"},
-                    {"破", "無學堂。同背"}
-                };
-                string geju8Text = geju8Texts.TryGetValue(geju8, out var gt) ? gt : "";
-
-                sb.AppendLine($"【讀書格】{yBranch}年生（{group8}組），{mBranch}月（農曆{lunarMonthFromBranch}月）：{geju8}格——{geju8Text}");
-                sb.AppendLine();
-            }
-
-            // === 條件 9：論時看孤雙 ===
-            string group9Name, group9Common, group9TimeSect;
-            if ("子午卯酉".Contains(hBranch))
-            {
-                group9Name = "四時高（子午卯酉）";
-                group9Common = "為人清秀主英豪，多者兄弟難為伴，父母緣份薄。";
-                group9TimeSect = (timeSection == "中")
-                    ? "富貴招，財祿榮華須自在，名望通天得勢高。"
-                    : "遠末無依靠，孤立自立。";
-            }
-            else if ("寅申巳亥".Contains(hBranch))
-            {
-                group9Name = "四時強（寅申巳亥）";
-                group9Common = "為人聰秀有文章，自然享福靠自己。";
-                group9TimeSect = (timeSection == "中")
-                    ? "兄弟四五個，父母親疏無依靠。"
-                    : "兄弟成雙（約2人），父母親疏無依靠。";
-            }
-            else
-            {
-                // 辰戌丑未
-                group9Name = "四時孤（辰戌丑未）";
-                group9Common = "兄弟無依靠，祖業不守，受奔波命。";
-                string group9Parent = (timeSection == "中") ? "先克父。" : "先亡母。";
-                string group9OutHome = (gender == 1) ? "男命有出家或學道傾向。" : "女命有出家為尼傾向。";
-                group9TimeSect = group9Parent + group9OutHome;
-            }
-
-            sb.AppendLine($"【論時看孤雙】{hBranch}時生人（{group9Name}），時{timeSection}：");
-            sb.AppendLine(group9Common);
-            sb.AppendLine(group9TimeSect);
-            sb.AppendLine();
-
+            // 條件7（查流年）僅用於流年命書，此處不輸出
             return sb.ToString();
         }
 
@@ -4398,7 +3980,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(mingshuDetail))
             {
                 sb.AppendLine();
-                sb.AppendLine("【時柱斷驗 · 古傳口訣】");
+                sb.AppendLine("【時柱驗明】");
                 sb.AppendLine(mingshuDetail);
             }
             return sb.ToString();
@@ -4564,9 +4146,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.3 深度論斷 ===
-            sb.AppendLine("【第三章：深度論斷】");
-            sb.AppendLine();
-            sb.AppendLine("【古傳斷語】");
+            sb.AppendLine("【第三章：深度分析】");
             sb.AppendLine();
             if (kb == null)
             {
@@ -4618,7 +4198,7 @@ namespace Ecanapi.Controllers
             }
 
             // === Ch.4 命局格局判定 ===
-            sb.AppendLine("【第四章：命局格局判定】");
+            sb.AppendLine("【第三章：命格判定】");
             sb.AppendLine();
             sb.AppendLine("【命局體性（寒暖濕燥）】");
             sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
@@ -4645,14 +4225,14 @@ namespace Ecanapi.Controllers
             if (shenShaList.Count > 0)
             {
                 sb.AppendLine();
-                sb.AppendLine("【神殺補述】");
+                sb.AppendLine("【星曜影響】");
                 foreach (var ss in shenShaList)
                     sb.AppendLine(ss);
             }
             sb.AppendLine();
 
             // === Ch.5 格局與用神判定 ===
-            sb.AppendLine("【第五章：用神喜忌判定】");
+            sb.AppendLine("【第五章：用神喜忌】");
             sb.AppendLine();
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
@@ -4670,7 +4250,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.6 紫微格局論 ===
-            sb.AppendLine("【第六章：紫微格局論】");
+            sb.AppendLine("【第六章：紫微星格】");
             sb.AppendLine();
             if (!hasZiwei)
             {
@@ -4681,9 +4261,9 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(wuXingJuText)) sb.AppendLine($"【五行局】{wuXingJuText}　命主星：{mingZhu}　身主星：{shenZhu}");
                 sb.AppendLine();
                 if (!string.IsNullOrEmpty(nianSiHuaXing))
-                    sb.AppendLine($"【{nianGan}年干四化性格】{nianSiHuaXing}");
+                    sb.AppendLine($"【先天四化】{nianSiHuaXing}");
                 if (!string.IsNullOrEmpty(ziweiMing))
-                    sb.AppendLine($"【紫微格局綱領·{mingGongStars}】{ziweiMing}");
+                    sb.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing))
                     sb.AppendLine($"【命宮星情】{starDescMing}");
                 if (!string.IsNullOrEmpty(siHuaLu))
