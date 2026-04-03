@@ -989,6 +989,7 @@ namespace Ecanapi.Controllers
             var result = new StringBuilder();
             bool inConditional = false;
             bool includeSection = true;
+            bool skipUntilBlank = false; // 跳過非命盤主星的引文段落，直到空行
 
             foreach (var rawLine in lines)
             {
@@ -996,6 +997,7 @@ namespace Ecanapi.Controllers
                 var trigger = KbDetectSectionTriggerTyped(line);
                 if (trigger != null)
                 {
+                    skipUntilBlank = false; // 條件觸發行清除跳過狀態
                     var (triggers, isSameGong) = trigger.Value;
                     inConditional = true;
                     if (triggers.Count == 0)
@@ -1007,6 +1009,27 @@ namespace Ecanapi.Controllers
                         includeSection = triggers.Any(s => checkSet.Contains(s));
                     }
                 }
+                else if (!inConditional)
+                {
+                    // 在條件觸發區之前，若段落首行以不在命盤的主星開頭，跳過整個段落
+                    if (string.IsNullOrWhiteSpace(line))
+                        skipUntilBlank = false;
+                    else if (!skipUntilBlank)
+                    {
+                        foreach (var star in KnownMainStarFullNames)
+                        {
+                            if (line.StartsWith(star) && !allChartStars.Contains(star) && !palaceStars.Contains(star))
+                            {
+                                skipUntilBlank = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!inConditional && skipUntilBlank)
+                    continue;
+
                 if (!inConditional || includeSection)
                     result.AppendLine(line);
             }
