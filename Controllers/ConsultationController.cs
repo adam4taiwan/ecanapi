@@ -7905,7 +7905,7 @@ namespace Ecanapi.Controllers
 
                 // 命×流年（飛宮盤：以飛入本命宮的星定吉凶）
                 sb.AppendLine($"■ 命×流年（飛宮）　{natalStar}{natalName} × {flyingInNatal}{flyingName}");
-                sb.AppendLine($"  飛宮原理：{targetYear} 年通用流年 {universalYearStar} {uYearName} 入中宮，順行後 {flyingInNatal} {flyingName} 飛入本命 {natalStar} 宮");
+                sb.AppendLine($"  飛宮原理：{targetYear} 年通用流年 {universalYearStar} {uYearName} 入中宮，逆飛後 {flyingInNatal} {flyingName} 飛入本命 {natalStar} 宮");
                 if (!string.IsNullOrEmpty(flyT)) sb.AppendLine($"  組合名：{flyT}");
                 sb.AppendLine($"  評斷：【{flyM}】");
                 if (!string.IsNullOrEmpty(flyD)) sb.AppendLine($"  解析：{flyD}");

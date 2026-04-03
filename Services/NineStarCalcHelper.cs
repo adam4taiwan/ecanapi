@@ -264,11 +264,87 @@ namespace Ecanapi.Services
         }
 
         /// <summary>
-        /// 流年飛宮：通用年星飛入中宮（5宮）後，計算飛入指定宮位（本命星=宮位號）的星
-        /// 公式：((universalYearStar + palace - 6) % 9 + 9) % 9 + 1
+        /// 九宮飛星布盤：計算中宮星飛入指定宮位後的落星
+        /// reverse=true：逆飛（年/月/三元九運）
+        /// reverse=false：順飛（日/時）
+        /// 逆飛公式：((center-1-(palace-5))%9+9)%9+1
+        /// 順飛公式：((center-1+(palace-5))%9+9)%9+1
         /// </summary>
+        public static int FlyingStarForPalace(int centerStar, int palace, bool reverse)
+        {
+            if (reverse)
+                return ((centerStar - 1 - (palace - 5)) % 9 + 9) % 9 + 1;
+            else
+                return ((centerStar - 1 + (palace - 5)) % 9 + 9) % 9 + 1;
+        }
+
+        // 向後相容舊呼叫（流年用逆飛）
         public static int CalcFlyingStarInPalace(int universalYearStar, int palace)
-            => ((universalYearStar + palace - 6) % 9 + 9) % 9 + 1;
+            => FlyingStarForPalace(universalYearStar, palace, true);
+
+        /// <summary>宮位五行（1坎=水,2坤=土,3震=木,4巽=木,5中=土,6乾=金,7兌=金,8艮=土,9離=火）</summary>
+        public static string GetPalaceElement(int palace) => palace switch
+        {
+            1 => "水", 2 => "土", 3 => "木", 4 => "木", 5 => "土",
+            6 => "金", 7 => "金", 8 => "土", 9 => "火", _ => ""
+        };
+
+        /// <summary>飛星與本命宮五行關係（宮生星/星生宮/同氣/星克宮/宮克星）</summary>
+        public static string GetStarPalaceRelation(int visitingStar, int natalPalace)
+        {
+            string sE = StarElements[visitingStar];
+            string pE = GetPalaceElement(natalPalace);
+            if (sE == pE) return "同氣";
+            if (Generates(pE, sE)) return "宮生星";
+            if (Generates(sE, pE)) return "星生宮";
+            if (Controls(sE, pE)) return "星克宮";
+            if (Controls(pE, sE)) return "宮克星";
+            return "";
+        }
+
+        /// <summary>年天干（甲乙丙丁戊己庚辛壬癸，依 year%10）</summary>
+        public static string CalcYearStemName(int year)
+        {
+            string[] stems = { "庚", "辛", "壬", "癸", "甲", "乙", "丙", "丁", "戊", "己" };
+            return stems[year % 10];
+        }
+
+        /// <summary>
+        /// 十神推算（以出生年干為日主，對比流年天干）
+        /// 返回 (十神名, 主題關鍵詞)
+        /// </summary>
+        public static (string tenGod, string theme) CalcTenGod(string birthStem, string yearStem)
+        {
+            if (string.IsNullOrEmpty(birthStem) || string.IsNullOrEmpty(yearStem))
+                return ("", "");
+
+            bool birthYang = "甲丙戊庚壬".Contains(birthStem);
+            bool yearYang  = "甲丙戊庚壬".Contains(yearStem);
+            string bElem = StemElement(birthStem);
+            string yElem = StemElement(yearStem);
+
+            if (bElem == yElem)
+                return birthYang == yearYang ? ("比肩", "同輩競爭、合作") : ("劫財", "破財、競爭奪財");
+            if (Generates(bElem, yElem))
+                return birthYang == yearYang ? ("食神", "才藝、享受、福祿") : ("傷官", "突破創新、口舌是非");
+            if (Controls(bElem, yElem))
+                return birthYang == yearYang ? ("偏財", "橫財、投機、人際") : ("正財", "正當收入、財務穩定");
+            if (Generates(yElem, bElem))
+                return birthYang == yearYang ? ("偏印", "孤僻思考、意外") : ("正印", "學習、貴人、文書");
+            if (Controls(yElem, bElem))
+                return birthYang == yearYang ? ("七殺", "壓力、競爭、官訟") : ("正官", "事業正軌、名譽");
+            return ("", "");
+        }
+
+        private static string StemElement(string stem) => stem switch
+        {
+            "甲" or "乙" => "木",
+            "丙" or "丁" => "火",
+            "戊" or "己" => "土",
+            "庚" or "辛" => "金",
+            "壬" or "癸" => "水",
+            _ => ""
+        };
 
         // ── 內部輔助 ──
 
