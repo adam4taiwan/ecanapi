@@ -1692,6 +1692,12 @@ namespace Ecanapi.Controllers
                 var dayPillarKb = await _context.BaziDayPillarReadings
                     .FirstOrDefaultAsync(r => r.DayPillar == dStem + dBranch);
 
+                // 中原盲派直斷規則
+                var zhongyuanRules = await _context.BaziDirectRules
+                    .Where(r => r.Chapter >= 4)
+                    .OrderBy(r => r.Chapter).ThenBy(r => r.Section).ThenBy(r => r.SortOrder)
+                    .ToListAsync();
+
                 // NaYin strings
                 string yNaYin = LfPillarNaYin(yearP);
                 string mNaYin = LfPillarNaYin(monthP);
@@ -1780,7 +1786,7 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb);
+                    dayPillarKb, zhongyuanRules);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -1944,6 +1950,10 @@ namespace Ecanapi.Controllers
 
                 var dayPillarKb = await _context.BaziDayPillarReadings
                     .FirstOrDefaultAsync(r => r.DayPillar == dStem + dBranch);
+                var zhongyuanRules = await _context.BaziDirectRules
+                    .Where(r => r.Chapter >= 4)
+                    .OrderBy(r => r.Chapter).ThenBy(r => r.Section).ThenBy(r => r.SortOrder)
+                    .ToListAsync();
                 string yNaYin = LfPillarNaYin(yearP); string mNaYin = LfPillarNaYin(monthP);
                 string dNaYin = LfPillarNaYin(dayP);  string hNaYin = LfPillarNaYin(timeP);
 
@@ -2018,7 +2028,7 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb);
+                    dayPillarKb, zhongyuanRules);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -4458,12 +4468,29 @@ namespace Ecanapi.Controllers
             string siHuaQuanPalace, string siHuaQuan,
             string siHuaKePalace, string siHuaKe,
             string siHuaJiPalace, string siHuaJi,
-            BaziDayPillarReading? kb)
+            BaziDayPillarReading? kb,
+            List<BaziDirectRule>? zhongyuanRules = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             int currentAge = DateTime.Today.Year - birthYear;
+
+            // 中原盲派直斷輔助 helpers
+            var zRules = zhongyuanRules ?? new List<BaziDirectRule>();
+            var allStems4 = new[] { yStem, mStem, dStem, hStem };
+            var allBranches4 = new[] { yBranch, mBranch, dBranch, hBranch };
+            var repeatedStems    = allStems4.GroupBy(s => s).Where(g => g.Count() >= 3).Select(g => g.Key).ToHashSet();
+            var repeatedBranches = allBranches4.GroupBy(b => b).Where(g => g.Count() >= 3).Select(g => g.Key).ToHashSet();
+            void AppZrList(StringBuilder s, IEnumerable<BaziDirectRule> list, string header)
+            {
+                var arr = list.ToList();
+                if (arr.Count == 0) return;
+                s.AppendLine(header);
+                foreach (var r in arr)
+                    s.AppendLine($"• {r.Content}");
+                s.AppendLine();
+            }
             string LfWxSS2(string e) => $"{e}{wuXing[e]:F0}%({LfElemSsGroup(e, dmElem)})";
             string wx = $"{LfWxSS2("木")} {LfWxSS2("火")} {LfWxSS2("土")} {LfWxSS2("金")} {LfWxSS2("水")}";
 
@@ -4484,6 +4511,27 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
             sb.AppendLine(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
+
+            // 中原盲派 - 時支/時干直斷
+            if (zRules.Count > 0)
+            {
+                string hBranchGroup = hBranch is "子" or "午" or "卯" or "酉" ? "子午卯酉"
+                    : hBranch is "寅" or "申" or "巳" or "亥" ? "寅申巳亥"
+                    : hBranch is "辰" or "戌" or "丑" or "未" ? "辰戌丑未" : "";
+                string hStemGroup = hStem is "甲" or "乙" ? "甲乙時干"
+                    : hStem is "丙" or "丁" ? "丙丁時干"
+                    : hStem is "戊" or "己" ? "戊己時干"
+                    : hStem is "庚" or "辛" ? "庚辛時干"
+                    : hStem is "壬" or "癸" ? "壬癸時干" : "";
+                var hBranchRule = zRules.FirstOrDefault(r => r.RuleType == "HourBranch" && r.Condition == hBranchGroup);
+                var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
+                if (hBranchRule != null || hStemRule != null)
+                {
+                    sb.AppendLine("【時柱直斷補充】");
+                    if (hBranchRule != null) { sb.AppendLine($"▍時支（{hBranchGroup}）"); sb.AppendLine(hBranchRule.Content); sb.AppendLine(); }
+                    if (hStemRule   != null) { sb.AppendLine($"▍時干（{hStem}）"); sb.AppendLine(hStemRule.Content); sb.AppendLine(); }
+                }
+            }
 
             // === Ch.2 四柱根苗花果 ===
             sb.AppendLine("【第二章：先天八字依古制定】");
@@ -4540,6 +4588,34 @@ namespace Ecanapi.Controllers
                 AppKb("最佳時辰", kb.SpecialHours);
             }
             sb.AppendLine();
+
+            // 中原盲派 - 天干地支重複直斷
+            if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
+            {
+                sb.AppendLine("【中原盲派直斷 · 重複干支】");
+                sb.AppendLine();
+                foreach (var stem in repeatedStems)
+                {
+                    var matchKey = $"三{stem}";
+                    var rules = zRules.Where(r => r.RuleType == "StemRepeat" && r.Condition.Contains(stem)).ToList();
+                    if (rules.Count > 0)
+                    {
+                        sb.AppendLine($"▍天干 {stem} 出現三次以上：");
+                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
+                        sb.AppendLine();
+                    }
+                }
+                foreach (var branch in repeatedBranches)
+                {
+                    var rules = zRules.Where(r => r.RuleType == "BranchRepeat" && r.Condition.Contains(branch)).ToList();
+                    if (rules.Count > 0)
+                    {
+                        sb.AppendLine($"▍地支 {branch} 出現三次以上：");
+                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
+                        sb.AppendLine();
+                    }
+                }
+            }
 
             // === Ch.4 命局格局判定 ===
             sb.AppendLine("【第四章：命局格局判定】");
@@ -4717,6 +4793,10 @@ namespace Ecanapi.Controllers
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing));
             sb.AppendLine();
 
+            // 中原盲派 - 職業直斷參照
+            AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo"), "【中原盲派 · 職業從業直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo"), "【中原盲派 · 十神性質直斷（參照清單）】");
+
             // === Ch.11 六親緣分鑑定 ===
             sb.AppendLine("【第十一章：六親緣分鑑定】");
             sb.AppendLine();
@@ -4736,6 +4816,11 @@ namespace Ecanapi.Controllers
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing, gender, birthYear, scored));
             sb.AppendLine();
+
+            // 中原盲派 - 六親直斷參照
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"),  "【中原盲派 · 父母吉凶直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo"), "【中原盲派 · 兄弟姐妹直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"),   "【中原盲派 · 子女直斷（參照清單）】");
 
             // === Ch.12 婚姻深度鑑定 ===
             sb.AppendLine("【第十二章：婚姻深度鑑定】");
@@ -4768,6 +4853,9 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
+            // 中原盲派 - 婚姻直斷參照
+            AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo"), "【中原盲派 · 婚姻配偶直斷（參照清單）】");
+
             // === Ch.13 疾厄壽元鑑定 ===
             sb.AppendLine("【第十三章：疾厄壽元鑑定】");
             sb.AppendLine();
@@ -4791,6 +4879,10 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"【疾厄化忌飛{hltJi.pal}】{hltJi.txt}");
             }
             sb.AppendLine();
+
+            // 中原盲派 - 傷病牢獄直斷參照
+            AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo"), "【中原盲派 · 傷病牢獄直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"),  "【中原盲派 · 身體特徵直斷（參照清單）】");
 
             // === Ch.14 大運逐運論斷 ===
             sb.AppendLine("【第十四章：大運逐運論斷（百分制評分）】");
