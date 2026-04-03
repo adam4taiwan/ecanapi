@@ -51,7 +51,9 @@ namespace Ecanapi.Services
             {
                 string accessToken = _config["IG_ACCESS_TOKEN"] ?? "";
                 string igUserId = _config["IG_USER_ID"] ?? "";
-                string imageUrl = "https://myweb.fly.dev/images/ig-template.png";
+
+                // 動態圖片：由 MyWeb /api/ig-card 依日期主題產生 PNG
+                string imageUrl = await BuildImageUrlAsync();
 
                 if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(igUserId))
                 {
@@ -80,6 +82,42 @@ namespace Ecanapi.Services
             {
                 _logger.LogError(ex, "InstagramDailyPost 發佈失敗");
             }
+        }
+
+        private async Task<string> BuildImageUrlAsync()
+        {
+            var nowTw = DateTime.UtcNow.AddHours(8);
+            int dayStar   = NineStarCalcHelper.CalcDayStar(nowTw);
+            int yearStar  = NineStarCalcHelper.CalcYearStar(nowTw.Year);
+            int monthStar = NineStarCalcHelper.CalcMonthStar(nowTw);
+
+            string dayStarName   = NineStarCalcHelper.StarNames[dayStar];
+            string yearStarName  = NineStarCalcHelper.StarNames[yearStar];
+            string monthStarName = NineStarCalcHelper.StarNames[monthStar];
+
+            // 嘗試取得今日運勢文字
+            string fortuneText = "";
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var rule = await context.NineStarDailyRules
+                    .FirstOrDefaultAsync(r => r.NatalStar == dayStar && r.FlowStar == dayStar);
+                if (rule != null && !string.IsNullOrEmpty(rule.FortuneText))
+                    fortuneText = rule.FortuneText[..Math.Min(rule.FortuneText.Length, 60)];
+            }
+            catch { }
+
+            string date = nowTw.ToString("yyyy-MM-dd");
+            var qs = System.Web.HttpUtility.ParseQueryString("");
+            qs["date"]       = date;
+            qs["yearStar"]   = yearStarName;
+            qs["monthStar"]  = monthStarName;
+            qs["dayStar"]    = dayStarName;
+            if (!string.IsNullOrEmpty(fortuneText))
+                qs["fortune"] = fortuneText;
+
+            return $"https://myweb.fly.dev/api/ig-card?{qs}";
         }
 
         private async Task<string> BuildCaptionAsync()
