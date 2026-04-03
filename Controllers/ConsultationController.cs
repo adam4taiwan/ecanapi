@@ -4527,7 +4527,7 @@ namespace Ecanapi.Controllers
                 var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
                 if (hBranchRule != null || hStemRule != null)
                 {
-                    sb.AppendLine("【時柱直斷補充】");
+                    sb.AppendLine("【時柱印記】");
                     if (hBranchRule != null) { sb.AppendLine($"▍時支（{hBranchGroup}）"); sb.AppendLine(hBranchRule.Content); sb.AppendLine(); }
                     if (hStemRule   != null) { sb.AppendLine($"▍時干（{hStem}）"); sb.AppendLine(hStemRule.Content); sb.AppendLine(); }
                 }
@@ -4592,7 +4592,7 @@ namespace Ecanapi.Controllers
             // 中原盲派 - 天干地支重複直斷
             if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
             {
-                sb.AppendLine("【中原盲派直斷 · 重複干支】");
+                sb.AppendLine("【四柱干支特徵論斷】");
                 sb.AppendLine();
                 foreach (var stem in repeatedStems)
                 {
@@ -4794,8 +4794,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 職業直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo"), "【中原盲派 · 職業從業直斷（參照清單）】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo"), "【中原盲派 · 十神性質直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo"), "【職業從業補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo"), "【十神性質補充論斷】");
 
             // === Ch.11 六親緣分鑑定 ===
             sb.AppendLine("【第十一章：六親緣分鑑定】");
@@ -4818,9 +4818,9 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 六親直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"),  "【中原盲派 · 父母吉凶直斷（參照清單）】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo"), "【中原盲派 · 兄弟姐妹直斷（參照清單）】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"),   "【中原盲派 · 子女直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"),  "【父母緣份補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo"), "【兄弟姐妹補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"),   "【子女緣份補充論斷】");
 
             // === Ch.12 婚姻深度鑑定 ===
             sb.AppendLine("【第十二章：婚姻深度鑑定】");
@@ -4854,7 +4854,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 婚姻直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo"), "【中原盲派 · 婚姻配偶直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo"), "【婚姻配偶補充論斷】");
 
             // === Ch.13 疾厄壽元鑑定 ===
             sb.AppendLine("【第十三章：疾厄壽元鑑定】");
@@ -4881,8 +4881,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 傷病牢獄直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo"), "【中原盲派 · 傷病牢獄直斷（參照清單）】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"),  "【中原盲派 · 身體特徵直斷（參照清單）】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo"), "【傷病牢獄補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"),  "【身體特徵補充論斷】");
 
             // === Ch.14 大運逐運論斷 ===
             sb.AppendLine("【第十四章：大運逐運論斷（百分制評分）】");
