@@ -626,14 +626,21 @@ namespace Ecanapi.Controllers
                 }
             }
 
+            // 陽遁 / 陰遁（決定流日布宮方向）
+            bool dayIsForward = Ecanapi.Services.NineStarCalcHelper.GetDayIsForward(now);
+
             // 五層：(名稱, 中宮星, 逆飛?, 是否流年層)
+            // 年：順飛（農民曆確認）
+            // 月：順飛（農民曆確認）
+            // 日：陽遁=順飛, 陰遁=逆飛
+            // 時：一律順飛（入中序由 CalcHourStar 陽/陰遁處理）
             var layers = new[]
             {
-                (pair: "三元九運", center: currentYun, reverse: true,  isYear: false),
-                (pair: "流年",     center: yearStar,   reverse: true,  isYear: true),
-                (pair: "流月",     center: monthStar,  reverse: true,  isYear: false),
-                (pair: "流日",     center: dayStar,    reverse: false, isYear: false),
-                (pair: "流時",     center: hourStar,   reverse: false, isYear: false),
+                (pair: "三元九運", center: currentYun, reverse: false,         isYear: false),
+                (pair: "流年",     center: yearStar,   reverse: false,         isYear: true),
+                (pair: "流月",     center: monthStar,  reverse: false,         isYear: false),
+                (pair: "流日",     center: dayStar,    reverse: !dayIsForward, isYear: false),
+                (pair: "流時",     center: hourStar,   reverse: false,         isYear: false),
             };
 
             var combinations = layers.Select(c =>

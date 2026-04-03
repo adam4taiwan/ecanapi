@@ -134,7 +134,10 @@ namespace Ecanapi.Services
             return star;
         }
 
-        /// <summary>計算時飛星（hour: 0-23）</summary>
+        /// <summary>計算時飛星（hour: 0-23）
+        /// 陽遁：入中星順排（+branchIdx），陰遁：入中星逆排（-branchIdx）
+        /// 布宮方向一律順飛（由呼叫端的 FlyingStarForPalace reverse=false 負責）
+        /// </summary>
         public static int CalcHourStar(DateTime dateTime)
         {
             int hour = dateTime.Hour;
@@ -143,16 +146,26 @@ namespace Ecanapi.Services
             int dayBranch = cycle % 12;
             int[] meng = { 2, 5, 8, 11 };
             int[] zhong = { 0, 3, 6, 9 };
-            bool isYangHalf = IsYangHalf(dateTime);
+            bool isYangDun = IsYangHalf(dateTime); // 陽遁=true, 陰遁=false
             int startStar;
             if (meng.Contains(dayBranch))
-                startStar = isYangHalf ? 7 : 3;
+                startStar = isYangDun ? 7 : 3;
             else if (zhong.Contains(dayBranch))
-                startStar = isYangHalf ? 1 : 9;
+                startStar = isYangDun ? 1 : 9;
             else
-                startStar = isYangHalf ? 4 : 6;
-            int star = ((startStar - 1 + branchIdx) % 9 + 9) % 9 + 1;
+                startStar = isYangDun ? 4 : 6;
+            // 陽遁順排 / 陰遁逆排
+            int star = isYangDun
+                ? ((startStar - 1 + branchIdx) % 9 + 9) % 9 + 1
+                : ((startStar - 1 - branchIdx) % 9 + 9) % 9 + 1;
             return star;
+        }
+
+        /// <summary>今日是否為陽遁（冬至後=true順飛，夏至後=false逆飛）</summary>
+        public static bool GetDayIsForward(DateTime date)
+        {
+            var (_, forward, _) = GetDayStarPeriod(date);
+            return forward;
         }
 
         public static string GetStarElement(int star) =>
@@ -278,9 +291,9 @@ namespace Ecanapi.Services
                 return ((centerStar - 1 + (palace - 5)) % 9 + 9) % 9 + 1;
         }
 
-        // 向後相容舊呼叫（流年用逆飛）
+        // 向後相容舊呼叫（流年用順飛）
         public static int CalcFlyingStarInPalace(int universalYearStar, int palace)
-            => FlyingStarForPalace(universalYearStar, palace, true);
+            => FlyingStarForPalace(universalYearStar, palace, false);
 
         /// <summary>宮位五行（1坎=水,2坤=土,3震=木,4巽=木,5中=土,6乾=金,7兌=金,8艮=土,9離=火）</summary>
         public static string GetPalaceElement(int palace) => palace switch
