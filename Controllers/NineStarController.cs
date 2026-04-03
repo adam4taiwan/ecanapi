@@ -1030,8 +1030,9 @@ namespace Ecanapi.Controllers
                 return Forbid();
 
             var igService = HttpContext.RequestServices.GetRequiredService<Ecanapi.Services.InstagramDailyPostService>();
-            await igService.PostDailyFortuneAsync();
-            return Ok(new { message = "Instagram 發文已觸發" });
+            var (ok, msg) = await igService.PostDailyFortuneAsync();
+            if (!ok) return BadRequest(new { message = msg });
+            return Ok(new { message = msg });
         }
     }
 

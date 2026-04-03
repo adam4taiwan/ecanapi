@@ -40,11 +40,11 @@ namespace Ecanapi.Services
                 catch (OperationCanceledException) { break; }
 
                 if (!stoppingToken.IsCancellationRequested)
-                    await PostDailyFortuneAsync();
+                    var (_, _) = await PostDailyFortuneAsync();
             }
         }
 
-        internal async Task PostDailyFortuneAsync()
+        internal async Task<(bool ok, string message)> PostDailyFortuneAsync()
         {
             _logger.LogInformation("InstagramDailyPost 開始發佈...");
             try
@@ -52,23 +52,24 @@ namespace Ecanapi.Services
                 string accessToken = _config["IG_ACCESS_TOKEN"] ?? "";
                 string igUserId = _config["IG_USER_ID"] ?? "";
 
-                // 動態圖片：由 MyWeb /api/ig-card 依日期主題產生 PNG
-                string imageUrl = await BuildImageUrlAsync();
-
                 if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(igUserId))
                 {
                     _logger.LogWarning("InstagramDailyPost: IG_ACCESS_TOKEN 或 IG_USER_ID 未設定，略過");
-                    return;
+                    return (false, "IG_ACCESS_TOKEN 或 IG_USER_ID 未設定");
                 }
+
+                // 動態圖片：由 MyWeb /api/ig-card 依日期主題產生 PNG
+                string imageUrl = await BuildImageUrlAsync();
+                _logger.LogInformation("InstagramDailyPost 圖片 URL: {Url}", imageUrl);
 
                 string caption = await BuildCaptionAsync();
 
                 // Step 1: 建立媒體容器
-                string creationId = await CreateMediaContainerAsync(igUserId, accessToken, imageUrl, caption);
+                var (creationId, createError) = await CreateMediaContainerAsync(igUserId, accessToken, imageUrl, caption);
                 if (string.IsNullOrEmpty(creationId))
                 {
-                    _logger.LogError("InstagramDailyPost: 建立媒體容器失敗");
-                    return;
+                    _logger.LogError("InstagramDailyPost: 建立媒體容器失敗：{Error}", createError);
+                    return (false, $"建立媒體容器失敗：{createError}");
                 }
 
                 // 等待容器處理
@@ -76,11 +77,13 @@ namespace Ecanapi.Services
 
                 // Step 2: 發佈
                 await PublishMediaAsync(igUserId, accessToken, creationId);
-                _logger.LogInformation("InstagramDailyPost 發佈成功");
+                _logger.LogInformation("InstagramDailyPost 發佈成功，圖片：{Url}", imageUrl);
+                return (true, $"發佈成功！圖片主題：{imageUrl.Split('?')[0]}");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "InstagramDailyPost 發佈失敗");
+                return (false, ex.Message);
             }
         }
 
@@ -172,7 +175,7 @@ namespace Ecanapi.Services
             return caption;
         }
 
-        private async Task<string> CreateMediaContainerAsync(string userId, string token, string imageUrl, string caption)
+        private async Task<(string creationId, string error)> CreateMediaContainerAsync(string userId, string token, string imageUrl, string caption)
         {
             var url = $"https://graph.instagram.com/{userId}/media";
             var payload = new Dictionary<string, string>
@@ -193,11 +196,12 @@ namespace Ecanapi.Services
             if (!resp.IsSuccessStatusCode)
             {
                 _logger.LogError("InstagramDailyPost CreateContainer 失敗 {Status}: {Body}", resp.StatusCode, body);
-                return "";
+                return ("", $"HTTP {(int)resp.StatusCode}: {body[..Math.Min(body.Length, 300)]}");
             }
 
             using var doc = JsonDocument.Parse(body);
-            return doc.RootElement.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+            string id = doc.RootElement.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+            return (id, string.IsNullOrEmpty(id) ? "回傳無 id 欄位" : "");
         }
 
         private async Task PublishMediaAsync(string userId, string token, string creationId)
