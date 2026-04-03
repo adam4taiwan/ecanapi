@@ -619,7 +619,7 @@ namespace Ecanapi.Controllers
             int? darkSwordPalace = null;
             for (int p = 1; p <= 9; p++)
             {
-                if (Ecanapi.Services.NineStarCalcHelper.FlyingStarForPalace(yearStar, p, true) == 5)
+                if (Ecanapi.Services.NineStarCalcHelper.FlyingStarForPalace(yearStar, p, false) == 5)
                 {
                     darkSwordPalace = p switch { 1 => 9, 9 => 1, 2 => 8, 8 => 2, 3 => 7, 7 => 3, 4 => 6, 6 => 4, _ => (int?)null };
                     break;
