@@ -87,40 +87,13 @@ namespace Ecanapi.Services
             }
         }
 
-        private async Task<string> BuildImageUrlAsync()
+        private Task<string> BuildImageUrlAsync()
         {
+            // 只傳 date，避免中文字元 URL-encode 造成 Instagram 拒絕
+            // MyWeb /api/ig-card 依 date 自行計算主題與星名
             var nowTw = DateTime.UtcNow.AddHours(8);
-            int dayStar   = NineStarCalcHelper.CalcDayStar(nowTw);
-            int yearStar  = NineStarCalcHelper.CalcYearStar(nowTw.Year);
-            int monthStar = NineStarCalcHelper.CalcMonthStar(nowTw);
-
-            string dayStarName   = NineStarCalcHelper.StarNames[dayStar];
-            string yearStarName  = NineStarCalcHelper.StarNames[yearStar];
-            string monthStarName = NineStarCalcHelper.StarNames[monthStar];
-
-            // 嘗試取得今日運勢文字
-            string fortuneText = "";
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var rule = await context.NineStarDailyRules
-                    .FirstOrDefaultAsync(r => r.NatalStar == dayStar && r.FlowStar == dayStar);
-                if (rule != null && !string.IsNullOrEmpty(rule.FortuneText))
-                    fortuneText = rule.FortuneText[..Math.Min(rule.FortuneText.Length, 60)];
-            }
-            catch { }
-
             string date = nowTw.ToString("yyyy-MM-dd");
-            var qs = System.Web.HttpUtility.ParseQueryString("");
-            qs["date"]       = date;
-            qs["yearStar"]   = yearStarName;
-            qs["monthStar"]  = monthStarName;
-            qs["dayStar"]    = dayStarName;
-            if (!string.IsNullOrEmpty(fortuneText))
-                qs["fortune"] = fortuneText;
-
-            return $"https://myweb.fly.dev/api/ig-card?{qs}";
+            return Task.FromResult($"https://myweb.fly.dev/api/ig-card?date={date}");
         }
 
         private async Task<string> BuildCaptionAsync()
