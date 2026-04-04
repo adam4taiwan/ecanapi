@@ -91,7 +91,7 @@ namespace Ecanapi.Services
             // 使用 /api/ig-card/{date}.png 格式（Instagram 要求 URL 需以 .png/.jpg 結尾）
             var nowTw = DateTime.UtcNow.AddHours(8);
             string date = nowTw.ToString("yyyy-MM-dd");
-            return Task.FromResult($"https://myweb.fly.dev/api/ig-card/{date}.jpg");
+            return Task.FromResult($"https://yudongzi.tw/api/ig-card/{date}.jpg");
         }
 
         private async Task<string> BuildCaptionAsync()
