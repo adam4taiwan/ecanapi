@@ -148,10 +148,11 @@ namespace Ecanapi.Services
 
         private async Task<(string creationId, string error)> CreateMediaContainerAsync(string userId, string token, string imageUrl, string caption)
         {
-            var url = $"https://graph.instagram.com/{userId}/media";
+            var url = $"https://graph.facebook.com/v21.0/{userId}/media";
             var payload = new Dictionary<string, string>
             {
                 ["image_url"] = imageUrl,
+                ["media_type"] = "IMAGE",
                 ["caption"] = caption,
                 ["access_token"] = token
             };
@@ -177,7 +178,7 @@ namespace Ecanapi.Services
 
         private async Task PublishMediaAsync(string userId, string token, string creationId)
         {
-            var url = $"https://graph.instagram.com/{userId}/media_publish";
+            var url = $"https://graph.facebook.com/v21.0/{userId}/media_publish";
             var payload = new Dictionary<string, string>
             {
                 ["creation_id"] = creationId,
