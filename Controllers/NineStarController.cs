@@ -1018,6 +1018,43 @@ namespace Ecanapi.Controllers
         //  Admin 手動測試 Instagram 發文
         // ============================================================
 
+        /// <summary>Admin 驗證 IG token 與帳號設定</summary>
+        [HttpGet("ig-check")]
+        [Authorize]
+        public async Task<IActionResult> IgCheck()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _context.Users.FindAsync(userId);
+            var adminEmail = _config["Admin:Email"];
+            if (user == null || !string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            string accessToken = _config["IG_ACCESS_TOKEN"] ?? "";
+            string igUserId = _config["IG_USER_ID"] ?? "";
+
+            if (string.IsNullOrEmpty(accessToken) || string.IsNullOrEmpty(igUserId))
+                return Ok(new { error = "IG_ACCESS_TOKEN 或 IG_USER_ID 未設定" });
+
+            using var http = new HttpClient();
+
+            // 1. 查帳號基本資訊 + account_type
+            var infoUrl = $"https://graph.instagram.com/{igUserId}?fields=id,username,account_type&access_token={accessToken}";
+            var infoRes = await http.GetAsync(infoUrl);
+            var infoBody = await infoRes.Content.ReadAsStringAsync();
+
+            // 2. 查 token 權限
+            var permUrl = $"https://graph.instagram.com/{igUserId}/permissions?access_token={accessToken}";
+            var permRes = await http.GetAsync(permUrl);
+            var permBody = await permRes.Content.ReadAsStringAsync();
+
+            return Ok(new
+            {
+                igUserId,
+                accountInfo = infoBody,
+                permissions = permBody
+            });
+        }
+
         /// <summary>Admin 手動觸發 Instagram 發文（立即執行，用於測試）</summary>
         [HttpPost("ig-post-now")]
         [Authorize]
