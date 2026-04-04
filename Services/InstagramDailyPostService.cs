@@ -44,7 +44,7 @@ namespace Ecanapi.Services
             }
         }
 
-        internal async Task<(bool ok, string message)> PostDailyFortuneAsync()
+        internal async Task<(bool ok, string message)> PostDailyFortuneAsync(string? overrideImageUrl = null)
         {
             _logger.LogInformation("InstagramDailyPost 開始發佈...");
             try
@@ -58,8 +58,7 @@ namespace Ecanapi.Services
                     return (false, "IG_ACCESS_TOKEN 或 IG_USER_ID 未設定");
                 }
 
-                // 動態圖片：由 MyWeb /api/ig-card 依日期主題產生 PNG
-                string imageUrl = await BuildImageUrlAsync();
+                string imageUrl = overrideImageUrl ?? await BuildImageUrlAsync();
                 _logger.LogInformation("InstagramDailyPost 圖片 URL: {Url}", imageUrl);
 
                 string caption = await BuildCaptionAsync();
@@ -92,7 +91,7 @@ namespace Ecanapi.Services
             // 使用 /api/ig-card/{date}.png 格式（Instagram 要求 URL 需以 .png/.jpg 結尾）
             var nowTw = DateTime.UtcNow.AddHours(8);
             string date = nowTw.ToString("yyyy-MM-dd");
-            return Task.FromResult($"https://myweb.fly.dev/api/ig-card/{date}.png");
+            return Task.FromResult($"https://myweb.fly.dev/api/ig-card/{date}.jpg");
         }
 
         private async Task<string> BuildCaptionAsync()

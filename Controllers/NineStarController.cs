@@ -1021,7 +1021,7 @@ namespace Ecanapi.Controllers
         /// <summary>Admin 手動觸發 Instagram 發文（立即執行，用於測試）</summary>
         [HttpPost("ig-post-now")]
         [Authorize]
-        public async Task<IActionResult> IgPostNow()
+        public async Task<IActionResult> IgPostNow([FromQuery] string? testImageUrl = null)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var user = await _context.Users.FindAsync(userId);
@@ -1030,7 +1030,7 @@ namespace Ecanapi.Controllers
                 return Forbid();
 
             var igService = HttpContext.RequestServices.GetRequiredService<Ecanapi.Services.InstagramDailyPostService>();
-            var (ok, msg) = await igService.PostDailyFortuneAsync();
+            var (ok, msg) = await igService.PostDailyFortuneAsync(testImageUrl);
             if (!ok) return BadRequest(new { message = msg });
             return Ok(new { message = msg });
         }
