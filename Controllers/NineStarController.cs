@@ -1042,21 +1042,24 @@ namespace Ecanapi.Controllers
             var infoRes = await http.GetAsync(infoUrl);
             var infoBody = await infoRes.Content.ReadAsStringAsync();
 
-            // 2. 用 token debug 查 scopes（graph.facebook.com）
-            var debugUrl = $"https://graph.facebook.com/debug_token?input_token={accessToken}&access_token={accessToken}";
-            var debugRes = await http.GetAsync(debugUrl);
-            var debugBody = await debugRes.Content.ReadAsStringAsync();
+            // 2. 測試是否有 instagram_content_publish 權限（查發文限制端點）
+            var pubLimitUrl = $"https://graph.instagram.com/{igUserId}/content_publishing_limit?fields=config,quota_usage&access_token={accessToken}";
+            var pubLimitRes = await http.GetAsync(pubLimitUrl);
+            var pubLimitBody = await pubLimitRes.Content.ReadAsStringAsync();
 
-            // 3. 查 /me scopes（Instagram graph）
+            // 3. 查 token scopes（使用 /me?fields=id 取得 token 基本資訊）
             var meUrl = $"https://graph.instagram.com/me?fields=id,username&access_token={accessToken}";
             var meRes = await http.GetAsync(meUrl);
             var meBody = await meRes.Content.ReadAsStringAsync();
+
+            bool hasPublishPermission = pubLimitRes.IsSuccessStatusCode;
 
             return Ok(new
             {
                 igUserId,
                 accountInfo = infoBody,
-                tokenDebug = debugBody,
+                hasPublishPermission,
+                publishLimitCheck = pubLimitBody,
                 meInfo = meBody
             });
         }
