@@ -406,7 +406,7 @@ namespace Ecanapi.Services
                 TrueFake = trueFakeInfo,
                 BodyUse = bodyUseInfo,
                 Pattern = patternInfo,
-                Conclusion = $"日主 {riGan}({riWX}) 的盲派分析已完成。主要格局為 {patternInfo.Name}。"
+                Conclusion = $"日主 {riGan}({riWX}) 命理分析已完成。主要格局為 {patternInfo.Name}。"
             };
 
             return analysisResult;
