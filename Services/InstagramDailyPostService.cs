@@ -86,12 +86,50 @@ namespace Ecanapi.Services
             }
         }
 
-        private Task<string> BuildImageUrlAsync()
+        private async Task<string> BuildImageUrlAsync()
         {
-            // 使用 /api/ig-card/{date}.png 格式（Instagram 要求 URL 需以 .png/.jpg 結尾）
+            // 1. 下載我們自己生成的 JPEG 圖片
             var nowTw = DateTime.UtcNow.AddHours(8);
             string date = nowTw.ToString("yyyy-MM-dd");
-            return Task.FromResult($"https://yudongzi.tw/api/ig-card/{date}.jpg");
+            string sourceUrl = $"https://yudongzi.tw/api/ig-card/{date}.jpg";
+
+            string imgbbKey = _config["IMGBB_API_KEY"] ?? "";
+            if (string.IsNullOrEmpty(imgbbKey))
+            {
+                _logger.LogWarning("IMGBB_API_KEY 未設定，直接使用原始 URL");
+                return sourceUrl;
+            }
+
+            // 2. 下載圖片 bytes
+            byte[] imageBytes = await _http.GetByteArrayAsync(sourceUrl);
+            string base64Image = Convert.ToBase64String(imageBytes);
+
+            // 3. 上傳到 imgbb
+            var uploadPayload = new Dictionary<string, string>
+            {
+                ["key"] = imgbbKey,
+                ["image"] = base64Image,
+                ["name"] = $"ig-card-{date}",
+            };
+
+            var uploadReq = new HttpRequestMessage(HttpMethod.Post, "https://api.imgbb.com/1/upload")
+            {
+                Content = new FormUrlEncodedContent(uploadPayload)
+            };
+            var uploadRes = await _http.SendAsync(uploadReq);
+            string uploadBody = await uploadRes.Content.ReadAsStringAsync();
+
+            using var doc = JsonDocument.Parse(uploadBody);
+            if (doc.RootElement.TryGetProperty("data", out var data) &&
+                data.TryGetProperty("url", out var urlProp))
+            {
+                string hostedUrl = urlProp.GetString() ?? sourceUrl;
+                _logger.LogInformation("InstagramDailyPost imgbb 上傳成功：{Url}", hostedUrl);
+                return hostedUrl;
+            }
+
+            _logger.LogWarning("InstagramDailyPost imgbb 上傳失敗：{Body}，改用原始 URL", uploadBody[..Math.Min(200, uploadBody.Length)]);
+            return sourceUrl;
         }
 
         private async Task<string> BuildCaptionAsync()
