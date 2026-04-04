@@ -1042,16 +1042,22 @@ namespace Ecanapi.Controllers
             var infoRes = await http.GetAsync(infoUrl);
             var infoBody = await infoRes.Content.ReadAsStringAsync();
 
-            // 2. 查 token 權限
-            var permUrl = $"https://graph.instagram.com/{igUserId}/permissions?access_token={accessToken}";
-            var permRes = await http.GetAsync(permUrl);
-            var permBody = await permRes.Content.ReadAsStringAsync();
+            // 2. 用 token debug 查 scopes（graph.facebook.com）
+            var debugUrl = $"https://graph.facebook.com/debug_token?input_token={accessToken}&access_token={accessToken}";
+            var debugRes = await http.GetAsync(debugUrl);
+            var debugBody = await debugRes.Content.ReadAsStringAsync();
+
+            // 3. 查 /me scopes（Instagram graph）
+            var meUrl = $"https://graph.instagram.com/me?fields=id,username&access_token={accessToken}";
+            var meRes = await http.GetAsync(meUrl);
+            var meBody = await meRes.Content.ReadAsStringAsync();
 
             return Ok(new
             {
                 igUserId,
                 accountInfo = infoBody,
-                permissions = permBody
+                tokenDebug = debugBody,
+                meInfo = meBody
             });
         }
 
