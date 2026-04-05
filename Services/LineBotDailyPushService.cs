@@ -1,6 +1,5 @@
 using Ecanapi.Controllers;
 using Ecanapi.Data;
-using Ecanapi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -55,18 +54,17 @@ namespace Ecanapi.Services
             {
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var fortuneController = scope.ServiceProvider.GetRequiredService<FortuneController>();
+                var nineStarController = scope.ServiceProvider.GetRequiredService<NineStarController>();
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
 
-                // === 個人化八字運勢（MyWeb 有效訂閱會員，已綁 LINE 帳號，未關閉通知）===
-                // 取出有效訂閱 + 已綁 LINE + 有生辰資料的會員
+                // 取出有效訂閱 + 已綁 LINE + 有出生年月日的會員
                 var subscriberUsers = await context.UserSubscriptions
                     .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
                     .Join(context.Users, s => s.UserId, u => u.Id, (s, u) => u)
                     .Where(u => u.LineUserId != null
                              && u.BirthYear != null && u.BirthMonth != null
-                             && u.BirthDay != null && u.BirthHour != null)
+                             && u.BirthDay != null)
                     .Distinct()
                     .ToListAsync();
 
@@ -86,8 +84,11 @@ namespace Ecanapi.Services
                 {
                     try
                     {
-                        string? message = await fortuneController.BuildDailyPersonalFortuneText(subUser.Id);
-                        if (string.IsNullOrEmpty(message)) continue;
+                        // 以 MyWeb 出生年月日性別計算本命星，推播九星開運指南
+                        string gender = subUser.BirthGender == 2 ? "F" : "M";
+                        int natalStar = NineStarController.NsCalcNatalStarStatic(
+                            subUser.BirthYear!.Value, subUser.BirthMonth!.Value, subUser.BirthDay!.Value, gender);
+                        string message = await nineStarController.NsBuildDailyFortune(natalStar);
                         await PushMessageAsync(accessToken, subUser.LineUserId!, message);
                         await Task.Delay(100);
                     }

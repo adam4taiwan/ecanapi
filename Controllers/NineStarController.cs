@@ -747,6 +747,9 @@ namespace Ecanapi.Controllers
             return NsCalcYearStar(y, gender);
         }
 
+        internal static int NsCalcNatalStarStatic(int year, int month, int day, string gender)
+            => NsCalcNatalStar(year, month, day, gender);
+
         /// <summary>計算指定年份的入中星（陽遁/男=年飛星；陰遁/女=對宮反算）</summary>
         // 統一委派給 NineStarCalcHelper，避免公式重複或不一致
         private static int NsCalcYearStar(int year, string gender = "M")
