@@ -7840,15 +7840,27 @@ namespace Ecanapi.Controllers
             try
             {
                 string? paramsJson = parameters != null ? JsonSerializer.Serialize(parameters) : null;
-                _context.UserReports.Add(new Ecanapi.Models.UserReport
+                var existing = await _context.UserReports
+                    .FirstOrDefaultAsync(r => r.UserId == userId && r.ReportType == reportType);
+                if (existing != null)
                 {
-                    UserId = userId,
-                    ReportType = reportType,
-                    Title = title,
-                    Content = content,
-                    Parameters = paramsJson,
-                    CreatedAt = DateTime.UtcNow
-                });
+                    existing.Title = title;
+                    existing.Content = content;
+                    existing.Parameters = paramsJson;
+                    existing.CreatedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.UserReports.Add(new Ecanapi.Models.UserReport
+                    {
+                        UserId = userId,
+                        ReportType = reportType,
+                        Title = title,
+                        Content = content,
+                        Parameters = paramsJson,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
                 await _context.SaveChangesAsync();
             }
             catch (Exception ex)
