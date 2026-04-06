@@ -107,6 +107,19 @@ namespace Ecanapi.Controllers
                 if (reqProductCode != "TOPIC_CONSULT" && analyzeSubId > 0)
                     await RecordSubscriptionClaim(user.Id, analyzeSubId, reqProductCode);
 
+                // Save report history
+                string reportTitle = request.Type switch
+                {
+                    "綜合性命書" or "綜合鑑定" => "綜合命書",
+                    "大運命書" => $"大運命書（{request.FortuneDuration ?? 5}年）",
+                    "流年命書" => $"{request.TargetYear ?? DateTime.Now.Year} 流年命書",
+                    "問事" => "問事鑑定",
+                    _ => "命理鑑定"
+                };
+                if (reqProductCode != "TOPIC_CONSULT")
+                    await SaveUserReportAsync(user.Id, request.Type ?? "comprehensive", reportTitle, aiResult,
+                        new { birthYear = request.ChartRequest.Year, birthMonth = request.ChartRequest.Month, birthDay = request.ChartRequest.Day, gender = request.ChartRequest.Gender });
+
                 return Ok(new { result = aiResult });
             }
             catch (Exception ex)
