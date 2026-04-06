@@ -1893,6 +1893,9 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(kbNsSection)) report += kbNsSection;
 
+                await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子命書（內部版）", report,
+                    new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
+
                 // 管理員免費，不扣點
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
             }
