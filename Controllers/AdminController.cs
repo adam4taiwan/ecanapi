@@ -18,6 +18,23 @@ namespace Ecanapi.Controllers
         public string? Address { get; set; }
         public string? TaxId { get; set; }
         public int Points { get; set; }
+        public int? BirthYear { get; set; }
+        public int? BirthMonth { get; set; }
+        public int? BirthDay { get; set; }
+        public int? BirthHour { get; set; }
+        public int? BirthGender { get; set; }
+        public AdminSubscriptionDto? Subscription { get; set; }
+    }
+
+    public class AdminSubscriptionDto
+    {
+        public string PlanCode { get; set; } = string.Empty;
+        public string PlanName { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime? ExpiryDate { get; set; }
+        public bool IsInTrial { get; set; }
+        public DateTime? TrialStartDate { get; set; }
+        public int? TrialDaysRemaining { get; set; }
     }
 
     public class UpdateUserRequest
@@ -133,6 +150,11 @@ namespace Ecanapi.Controllers
                     Address = u.Address,
                     TaxId = u.TaxId,
                     Points = u.Points,
+                    BirthYear = u.BirthYear,
+                    BirthMonth = u.BirthMonth,
+                    BirthDay = u.BirthDay,
+                    BirthHour = u.BirthHour,
+                    BirthGender = u.BirthGender,
                 })
                 .ToListAsync();
             return Ok(users);
@@ -145,6 +167,41 @@ namespace Ecanapi.Controllers
             if (!IsAdmin()) return Forbid();
             var u = await _userManager.FindByIdAsync(id);
             if (u == null) return NotFound();
+
+            var now = DateTime.UtcNow;
+            var sub = await _context.UserSubscriptions
+                .Include(s => s.Plan)
+                .Where(s => s.UserId == id && s.Status == "active" && s.ExpiryDate > now)
+                .OrderByDescending(s => s.ExpiryDate)
+                .FirstOrDefaultAsync();
+
+            AdminSubscriptionDto? subDto = null;
+            if (sub != null)
+            {
+                subDto = new AdminSubscriptionDto
+                {
+                    PlanCode = sub.Plan.Code,
+                    PlanName = sub.Plan.Name,
+                    Status = sub.Status,
+                    ExpiryDate = sub.ExpiryDate,
+                };
+            }
+            else if (u.TrialStartDate.HasValue)
+            {
+                var trialEnd = u.TrialStartDate.Value.AddDays(7);
+                var remaining = (int)Math.Ceiling((trialEnd - now).TotalDays);
+                subDto = new AdminSubscriptionDto
+                {
+                    PlanCode = "TRIAL",
+                    PlanName = "7天試用",
+                    Status = remaining > 0 ? "trial" : "trial_expired",
+                    ExpiryDate = trialEnd,
+                    IsInTrial = remaining > 0,
+                    TrialStartDate = u.TrialStartDate,
+                    TrialDaysRemaining = remaining > 0 ? remaining : 0,
+                };
+            }
+
             return Ok(new AdminUserDto
             {
                 Id = u.Id,
@@ -155,6 +212,12 @@ namespace Ecanapi.Controllers
                 Address = u.Address,
                 TaxId = u.TaxId,
                 Points = u.Points,
+                BirthYear = u.BirthYear,
+                BirthMonth = u.BirthMonth,
+                BirthDay = u.BirthDay,
+                BirthHour = u.BirthHour,
+                BirthGender = u.BirthGender,
+                Subscription = subDto,
             });
         }
 
