@@ -125,8 +125,18 @@ namespace Ecanapi.Controllers
             var birthdateLocked = await _context.UserSubscriptionClaims
                 .AnyAsync(c => c.UserId == userId && bookCodes.Contains(c.ProductCode));
 
+            // Trial info
+            var trialDaysRemaining = 0;
+            var isInTrial = false;
+            if (sub == null && user.TrialStartDate.HasValue)
+            {
+                var trialEnd = user.TrialStartDate.Value.AddDays(7);
+                trialDaysRemaining = Math.Max(0, (int)(trialEnd - now).TotalDays);
+                isInTrial = trialDaysRemaining > 0;
+            }
+
             if (sub == null)
-                return Ok(new { isSubscribed = false, birthdateLocked });
+                return Ok(new { isSubscribed = false, birthdateLocked, isInTrial, trialDaysRemaining });
 
             // Calculate remaining quotas per product
             var quotaBenefits = sub.Plan.Benefits
@@ -234,6 +244,27 @@ namespace Ecanapi.Controllers
 
             await _context.SaveChangesAsync();
             return Ok(new { message = $"{product.Name} 免費額度已兌換" });
+        }
+
+        // POST /api/Subscription/activate-trial
+        // Activates the 7-day free trial for the current user (idempotent: does nothing if already activated)
+        [Authorize]
+        [HttpPost("activate-trial")]
+        public async Task<IActionResult> ActivateTrial()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return Unauthorized();
+
+            if (user.TrialStartDate.HasValue)
+                return Ok(new { alreadyActivated = true, trialStartDate = user.TrialStartDate });
+
+            user.TrialStartDate = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { alreadyActivated = false, trialStartDate = user.TrialStartDate });
         }
 
         // ─── Dev-only: create a test subscription (admin only) ───────────────

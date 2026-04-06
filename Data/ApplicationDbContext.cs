@@ -66,6 +66,9 @@ namespace Ecanapi.Data
         public DbSet<BaziDirectRule> BaziDirectRules { get; set; }
         public DbSet<FortuneSourceText> FortuneSourceTexts { get; set; }
 
+        // 命書記錄
+        public DbSet<UserReport> UserReports { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

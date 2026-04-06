@@ -727,6 +727,8 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v3.0");
 
                 await RecordSubscriptionClaim(user.Id, kbSubId, "BOOK_BAZI");
+                await SaveUserReportAsync(user.Id, "bazi", "八字命書", sb_out.ToString(),
+                    new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = sb_out.ToString() });
             }
             catch (Exception ex)
@@ -1630,6 +1632,8 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(lfNsSection)) report += lfNsSection;
 
                 await RecordSubscriptionClaim(user.Id, lfSubId, "BOOK_BAZI");
+                await SaveUserReportAsync(user.Id, "lifelong", "終身命書", report,
+                    new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable });
             }
             catch (Exception ex)
@@ -2447,6 +2451,9 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(dyNsSection)) report += dyNsSection;
 
                 await RecordSubscriptionClaim(user.Id, dySubId, "BOOK_DAIYUN");
+                string dyTitle = years == 0 ? "終身大運命書" : $"{years}年大運命書";
+                await SaveUserReportAsync(user.Id, "daiyun", dyTitle, report,
+                    new { years, birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = report, annualForecasts, baziTable, luckCycles = scoredCycles });
             }
             catch (Exception ex)
@@ -7065,6 +7072,8 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
 
                 await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
+                await SaveUserReportAsync(user.Id, "liunian", $"{year} 流年命書", report,
+                    new { year, birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles });
             }
             catch (Exception ex)
@@ -7808,6 +7817,29 @@ namespace Ecanapi.Controllers
                 ClaimedAt = DateTime.UtcNow
             });
             await _context.SaveChangesAsync();
+        }
+
+        private async Task SaveUserReportAsync(string userId, string reportType, string title, string content, object? parameters = null)
+        {
+            try
+            {
+                string? paramsJson = parameters != null ? JsonSerializer.Serialize(parameters) : null;
+                _context.UserReports.Add(new Ecanapi.Models.UserReport
+                {
+                    UserId = userId,
+                    ReportType = reportType,
+                    Title = title,
+                    Content = content,
+                    Parameters = paramsJson,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "SaveUserReport failed for user {UserId}", userId);
+                // Non-critical: do not rethrow
+            }
         }
 
         private async Task<(bool ok, string? error)> CheckTopicConsultAccess(string userId)

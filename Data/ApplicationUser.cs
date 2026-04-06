@@ -37,6 +37,9 @@ namespace Ecanapi.Data
         /// <summary>Google 登入 userId（Google OAuth）</summary>
         public string? GoogleUserId { get; set; }
 
+        /// <summary>7 天免費試用開始時間（UTC，首次進入 /disk 時設定）</summary>
+        public DateTime? TrialStartDate { get; set; }
+
         public bool DeductPoints(int amount)
         {
             if (this.Points < amount) return false;
