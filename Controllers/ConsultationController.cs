@@ -2228,7 +2228,7 @@ namespace Ecanapi.Controllers
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
 
-                if (line == "【第二章：先天八字依古制定】" || line == "【第三章：深度分析】" ||
+                if (line == "【第二章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
                     line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
                     line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
                 {
@@ -4610,7 +4610,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.3 深度論斷 ===
-            sb.AppendLine("【第三章：深度分析】");
+            sb.AppendLine($"【第三章：日柱深度論斷 · {dStem}{dBranch}】");
             sb.AppendLine();
             if (kb == null)
             {
@@ -4622,6 +4622,7 @@ namespace Ecanapi.Controllers
                 {
                     if (!string.IsNullOrWhiteSpace(val)) { sb.AppendLine($"▍{label}"); sb.AppendLine(val); sb.AppendLine(); }
                 }
+                AppKb("核心", kb.Overview);
                 AppKb("神殺特質", kb.ShenAnalysis);
                 AppKb("內在特質", kb.InnerTraits);
                 AppKb("事業傾向", kb.Career);
