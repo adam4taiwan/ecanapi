@@ -4697,12 +4697,32 @@ namespace Ecanapi.Controllers
                         if (cond == "年干傷官祖業漂零父母貧困")
                             return yStemSS == "傷官";
                         if (cond == "年干偏財坐驛馬父遠方創業")
-                            return yStemSS == "偏財";
+                        {
+                            // 驛馬以日支三合局定位：申子辰→寅, 寅午戌→申, 亥卯未→巳, 巳酉丑→亥
+                            string yiMa = new[]{"申","子","辰"}.Contains(dBranch) ? "寅" :
+                                          new[]{"寅","午","戌"}.Contains(dBranch) ? "申" :
+                                          new[]{"亥","卯","未"}.Contains(dBranch) ? "巳" :
+                                          new[]{"巳","酉","丑"}.Contains(dBranch) ? "亥" : "";
+                            return yStemSS == "偏財" && yBranch == yiMa;
+                        }
                         if (cond == "年支戌亥印星母有宗教信仰")
                             return (yBranch == "戌" || yBranch == "亥") && SsGrp(yBranchSS, "印");
                         if (cond == "年干支印星喜用書香門第")
                             return SsGrp(yStemSS, "印") || SsGrp(yBranchSS, "印");
-                        // 地支兩見殺/年月日時胎支/三柱納音/將星: 複雜條件，全部輸出
+                        if (cond == "地支兩見殺為養子")
+                        {
+                            // 年支三合組 → 殺位：申子辰→戌, 巳酉丑→未, 寅午戌→辰, 亥卯未→丑
+                            var oBr3 = new[] { mBranch, dBranch, hBranch };
+                            string killBr = new[]{"申","子","辰"}.Contains(yBranch) ? "戌" :
+                                            new[]{"巳","酉","丑"}.Contains(yBranch) ? "未" :
+                                            new[]{"寅","午","戌"}.Contains(yBranch) ? "辰" :
+                                            new[]{"亥","卯","未"}.Contains(yBranch) ? "丑" : "";
+                            return !string.IsNullOrEmpty(killBr) && oBr3.Count(b => b == killBr) >= 2;
+                        }
+                        if (cond == "年干支臨將星父母有權威")
+                            // 將星 = 四正地支（三合局中氣）：申子辰→子, 巳酉丑→酉, 寅午戌→午, 亥卯未→卯
+                            return new[]{"子","午","卯","酉"}.Contains(yBranch);
+                        // 年月日時胎支皆克干/三柱納音克胎: 需胎元納音，暫全部輸出
                         return true;
                     }
 
@@ -4757,7 +4777,15 @@ namespace Ecanapi.Controllers
                         if (cond == "女命時干財食傷有氣子女有出息")
                             return gender == 2 && (SsGrp(hStemSS, "財") || SsGrp(hStemSS, "食傷"));
                         if (cond == "女命時逢沐浴第一胎難養")
-                            return gender == 2;
+                        {
+                            // 沐浴位：依日主陽順陰逆, 甲→子,乙→巳,丙→卯,丁→申,戊→卯,己→申,庚→午,辛→亥,壬→酉,癸→寅
+                            var muYuMap = new Dictionary<string,string>{
+                                {"甲","子"},{"乙","巳"},{"丙","卯"},{"丁","申"},
+                                {"戊","卯"},{"己","申"},{"庚","午"},{"辛","亥"},{"壬","酉"},{"癸","寅"}
+                            };
+                            return gender == 2 && muYuMap.TryGetValue(dStem, out var muYuBr) && hBranch == muYuBr;
+                        }
+                        // 時帶官符: 官符神煞未在表中，暫全部輸出
                         // 通論: 男命官殺為子女星女命食傷為子女星, 子女星旺衰 - 全部輸出
                         return true;
                     }
@@ -4826,7 +4854,26 @@ namespace Ecanapi.Controllers
                             return CntG("官殺") + CntG("印") > CntG("食傷") + CntG("財");
                         if (cond == "男命財多且無官傷官透有外遇")
                             return gender == 1 && TM("財") && Sc("官殺") && aStemSS.Any(s => SsGrp(s, "食傷"));
-                        // 夫妻星遠近/喜用判斷: 通論全部輸出
+                        // 夫妻星喜忌判斷：男以財星, 女以官星
+                        {
+                            // 財星元素（日主所克）: 木→土, 火→金, 土→水, 金→木, 水→火
+                            var keElem = new Dictionary<string,string>{{"木","土"},{"火","金"},{"土","水"},{"金","木"},{"水","火"}};
+                            // 官星元素（克日主）: 木←金, 火←水, 土←木, 金←火, 水←土
+                            var beKeElem = new Dictionary<string,string>{{"木","金"},{"火","水"},{"土","木"},{"金","火"},{"水","土"}};
+                            string marriageElem = gender == 1
+                                ? (keElem.TryGetValue(dmElem, out var me1) ? me1 : "")
+                                : (beKeElem.TryGetValue(dmElem, out var me2) ? me2 : "");
+                            bool marriageStar喜用 = !string.IsNullOrEmpty(marriageElem) && marriageElem == yongShenElem;
+                            // 夫妻星坐日支: 日支藏干為夫妻星類型
+                            bool marriageOnDay = gender == 1
+                                ? (dBranchSS == "正財" || dBranchSS == "偏財")
+                                : (dBranchSS == "正官" || dBranchSS == "七殺");
+                            if (cond == "夫妻星喜用且坐日支最得力")
+                                return marriageStar喜用 && marriageOnDay;
+                            if (cond == "夫妻星喜用但日支忌神得力不長久")
+                                return marriageStar喜用 && !marriageOnDay;
+                        }
+                        // 夫妻星遠近看法/結婚離婚標誌: 通論全部輸出
                         return true;
                     }
 
