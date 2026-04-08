@@ -58,7 +58,28 @@ namespace Ecanapi.Services
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
 
-                // 取出有效訂閱 + 已綁 LINE + 有出生年月日的會員
+                // Block 1：LineUsers 九星推播（已在 LINE Bot 設定本命星的用戶）
+                var nineStarUsers = await context.LineUsers
+                    .Where(u => u.NotifyEnabled && u.NatalStar > 0)
+                    .ToListAsync();
+
+                _logger.LogInformation("LineBotDailyPush 九星用戶推播 {Count} 位", nineStarUsers.Count);
+
+                foreach (var lu in nineStarUsers)
+                {
+                    try
+                    {
+                        string message = await nineStarController.NsBuildDailyFortune(lu.NatalStar);
+                        await PushMessageAsync(accessToken, lu.LineUserId, message);
+                        await Task.Delay(100);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "LineBotDailyPush 九星用戶推播 {LineUserId} 失敗", lu.LineUserId);
+                    }
+                }
+
+                // Block 2：訂閱會員個人化推播（有效訂閱 + 已綁 LINE + 有出生年月日）
                 var subscriberUsers = await context.UserSubscriptions
                     .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
                     .Join(context.Users, s => s.UserId, u => u.Id, (s, u) => u)
@@ -74,8 +95,12 @@ namespace Ecanapi.Services
                     .Select(lu => lu.LineUserId)
                     .ToListAsync();
 
+                // 排除已在 Block 1 推播過的 LineUserId（避免重複）
+                var nineStarLineIds = nineStarUsers.Select(lu => lu.LineUserId).ToHashSet();
+
                 subscriberUsers = subscriberUsers
-                    .Where(u => !disabledLineIds.Contains(u.LineUserId))
+                    .Where(u => !disabledLineIds.Contains(u.LineUserId)
+                             && !nineStarLineIds.Contains(u.LineUserId))
                     .ToList();
 
                 _logger.LogInformation("LineBotDailyPush 訂閱會員推播 {Count} 位", subscriberUsers.Count);
