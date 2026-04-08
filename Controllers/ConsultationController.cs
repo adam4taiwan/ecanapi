@@ -4785,7 +4785,18 @@ namespace Ecanapi.Controllers
                             };
                             return gender == 2 && muYuMap.TryGetValue(dStem, out var muYuBr) && hBranch == muYuBr;
                         }
-                        // 時帶官符: 官符神煞未在表中，暫全部輸出
+                        if (cond == "時帶官符出生時父親有官司")
+                        {
+                            // 口訣: 取太歲前五辰（年支順數+5位）,時支遇之即官符
+                            var br12 = new[]{"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
+                            int yIdx = Array.IndexOf(br12, yBranch);
+                            if (yIdx >= 0)
+                            {
+                                string guanFu = br12[(yIdx + 5) % 12];
+                                return hBranch == guanFu;
+                            }
+                            return false;
+                        }
                         // 通論: 男命官殺為子女星女命食傷為子女星, 子女星旺衰 - 全部輸出
                         return true;
                     }
