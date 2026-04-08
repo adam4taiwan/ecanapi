@@ -4545,6 +4545,15 @@ namespace Ecanapi.Controllers
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             int currentAge = DateTime.Today.Year - birthYear;
 
+            // 展開十神短稱為全稱，供 ZrApplies 使用
+            yStemSS   = KbExpandLiuShen(yStemSS);
+            mStemSS   = KbExpandLiuShen(mStemSS);
+            hStemSS   = KbExpandLiuShen(hStemSS);
+            yBranchSS = KbExpandLiuShen(yBranchSS);
+            mBranchSS = KbExpandLiuShen(mBranchSS);
+            dBranchSS = KbExpandLiuShen(dBranchSS);
+            hBranchSS = KbExpandLiuShen(hBranchSS);
+
             // 中原盲派直斷輔助 helpers
             var zRules = zhongyuanRules ?? new List<BaziDirectRule>();
             var allStems4 = new[] { yStem, mStem, dStem, hStem };
