@@ -4722,7 +4722,67 @@ namespace Ecanapi.Controllers
                         if (cond == "年干支臨將星父母有權威")
                             // 將星 = 四正地支（三合局中氣）：申子辰→子, 巳酉丑→酉, 寅午戌→午, 亥卯未→卯
                             return new[]{"子","午","卯","酉"}.Contains(yBranch);
-                        // 年月日時胎支皆克干/三柱納音克胎: 需胎元納音，暫全部輸出
+                        if (cond == "三柱納音克胎納音父母雙亡" || cond == "年月日時胎支皆克干父母早喪")
+                        {
+                            // 胎元：天干+1, 地支+3
+                            var s10 = new[]{"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
+                            var b12 = new[]{"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
+                            int mSI = Array.IndexOf(s10, mStem);
+                            int mBI = Array.IndexOf(b12, mBranch);
+                            if (mSI < 0 || mBI < 0) return false;
+                            string tyStem   = s10[(mSI + 1) % 10];
+                            string tyBranch = b12[(mBI + 3) % 12];
+
+                            if (cond == "三柱納音克胎納音父母雙亡")
+                            {
+                                // 六十甲子納音對照表（取末字為五行）
+                                var ny60 = new Dictionary<string,string>{
+                                    {"甲子","海中金"},{"乙丑","海中金"},{"丙寅","爐中火"},{"丁卯","爐中火"},
+                                    {"戊辰","大林木"},{"己巳","大林木"},{"庚午","路旁土"},{"辛未","路旁土"},
+                                    {"壬申","劍鋒金"},{"癸酉","劍鋒金"},{"甲戌","山頭火"},{"乙亥","山頭火"},
+                                    {"丙子","澗下水"},{"丁丑","澗下水"},{"戊寅","城頭土"},{"己卯","城頭土"},
+                                    {"庚辰","白蠟金"},{"辛巳","白蠟金"},{"壬午","楊柳木"},{"癸未","楊柳木"},
+                                    {"甲申","泉中水"},{"乙酉","泉中水"},{"丙戌","屋上土"},{"丁亥","屋上土"},
+                                    {"戊子","霹靂火"},{"己丑","霹靂火"},{"庚寅","松柏木"},{"辛卯","松柏木"},
+                                    {"壬辰","長流水"},{"癸巳","長流水"},{"甲午","沙中金"},{"乙未","沙中金"},
+                                    {"丙申","山下火"},{"丁酉","山下火"},{"戊戌","平地木"},{"己亥","平地木"},
+                                    {"庚子","壁上土"},{"辛丑","壁上土"},{"壬寅","金箔金"},{"癸卯","金箔金"},
+                                    {"甲辰","覆燈火"},{"乙巳","覆燈火"},{"丙午","天河水"},{"丁未","天河水"},
+                                    {"戊申","大驛土"},{"己酉","大驛土"},{"庚戌","釵釧金"},{"辛亥","釵釧金"},
+                                    {"壬子","桑柘木"},{"癸丑","桑柘木"},{"甲寅","大溪水"},{"乙卯","大溪水"},
+                                    {"丙辰","沙中土"},{"丁巳","沙中土"},{"戊午","天上火"},{"己未","天上火"},
+                                    {"庚申","石榴木"},{"辛酉","石榴木"},{"壬戌","大海水"},{"癸亥","大海水"}
+                                };
+                                string tyGz = tyStem + tyBranch;
+                                if (!ny60.TryGetValue(tyGz, out string? tyNy) || string.IsNullOrEmpty(tyNy)) return false;
+                                char taiE = tyNy[tyNy.Length - 1]; // 胎元納音五行（末字）
+                                // 克序：木克土, 土克水, 水克火, 火克金, 金克木
+                                var keC = new Dictionary<char,char>{{'木','土'},{'土','水'},{'水','火'},{'火','金'},{'金','木'}};
+                                // 統計四柱納音中「克胎元」的數量
+                                var pillNy = new[] { yNaYin, mNaYin, dNaYin, hNaYin };
+                                int cnt = pillNy.Count(ny =>
+                                    !string.IsNullOrEmpty(ny) &&
+                                    keC.TryGetValue(ny[ny.Length - 1], out char tgt) && tgt == taiE);
+                                return cnt >= 3;
+                            }
+                            else // 年月日時胎支皆克干父母早喪
+                            {
+                                // 地支本氣五行
+                                var bEMap = new Dictionary<string,string>{
+                                    {"子","水"},{"丑","土"},{"寅","木"},{"卯","木"},{"辰","土"},{"巳","火"},
+                                    {"午","火"},{"未","土"},{"申","金"},{"酉","金"},{"戌","土"},{"亥","水"}
+                                };
+                                var keA = new Dictionary<string,string>{{"木","土"},{"土","水"},{"水","火"},{"火","金"},{"金","木"}};
+                                // 支克干：支本氣五行克天干五行
+                                bool BC(string br, string st) =>
+                                    bEMap.TryGetValue(br, out string? bE) &&
+                                    keA.TryGetValue(bE, out string? tgt) &&
+                                    tgt == KbStemToElement(st);
+                                // 五柱（含胎元）皆需支克干
+                                return BC(yBranch,yStem) && BC(mBranch,mStem) && BC(dBranch,dStem)
+                                    && BC(hBranch,hStem) && BC(tyBranch,tyStem);
+                            }
+                        }
                         return true;
                     }
 
