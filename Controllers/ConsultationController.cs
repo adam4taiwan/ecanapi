@@ -371,8 +371,14 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            var (kbOk, kbErr, kbSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
-            if (!kbOk) return BadRequest(new { error = kbErr });
+            bool kbIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int kbSubId = -1;
+            if (!kbIsAdmin)
+            {
+                var (kbOk, kbErr, kbSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
+                if (!kbOk) return BadRequest(new { error = kbErr });
+                kbSubId = kbSubIdVal;
+            }
 
             try
             {
@@ -744,7 +750,7 @@ namespace Ecanapi.Controllers
                 sb_out.AppendLine("-----------------------------------------------------------------");
                 sb_out.AppendLine("命理鑑定大師：玉洞子  |  修身齊家，命在人心。  v3.0");
 
-                await RecordSubscriptionClaim(user.Id, kbSubId, "BOOK_BAZI");
+                if (!kbIsAdmin) await RecordSubscriptionClaim(user.Id, kbSubId, "BOOK_BAZI");
                 await SaveUserReportAsync(user.Id, "bazi", "八字命書", sb_out.ToString(),
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = sb_out.ToString() });
@@ -1524,8 +1530,14 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            var (lfOk, lfErr, lfSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
-            if (!lfOk) return BadRequest(new { error = lfErr });
+            bool lfIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int lfSubId = -1;
+            if (!lfIsAdmin)
+            {
+                var (lfOk, lfErr, lfSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
+                if (!lfOk) return BadRequest(new { error = lfErr });
+                lfSubId = lfSubIdVal;
+            }
 
             try
             {
@@ -1649,7 +1661,7 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(lfNsSection)) report += lfNsSection;
 
-                await RecordSubscriptionClaim(user.Id, lfSubId, "BOOK_BAZI");
+                if (!lfIsAdmin) await RecordSubscriptionClaim(user.Id, lfSubId, "BOOK_BAZI");
                 await SaveUserReportAsync(user.Id, "lifelong", "終身命書", report,
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable });
@@ -2308,8 +2320,14 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            var (dyOk, dyErr, dySubId) = await CheckSubscriptionQuota(user.Id, "BOOK_DAIYUN");
-            if (!dyOk) return BadRequest(new { error = dyErr });
+            bool dyIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int dySubId = -1;
+            if (!dyIsAdmin)
+            {
+                var (dyOk, dyErr, dySubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_DAIYUN");
+                if (!dyOk) return BadRequest(new { error = dyErr });
+                dySubId = dySubIdVal;
+            }
 
             try
             {
@@ -2471,7 +2489,7 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? gender);
                 if (!string.IsNullOrEmpty(dyNsSection)) report += dyNsSection;
 
-                await RecordSubscriptionClaim(user.Id, dySubId, "BOOK_DAIYUN");
+                if (!dyIsAdmin) await RecordSubscriptionClaim(user.Id, dySubId, "BOOK_DAIYUN");
                 string dyTitle = years == 0 ? "終身大運命書" : $"{years}年大運命書";
                 await SaveUserReportAsync(user.Id, "daiyun", dyTitle, report,
                     new { years, birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
@@ -6911,8 +6929,14 @@ namespace Ecanapi.Controllers
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
                 return BadRequest(new { error = "no_chart" });
 
-            var (lnOk, lnErr, lnSubId) = await CheckSubscriptionQuota(user.Id, "BOOK_LIUNIAN");
-            if (!lnOk) return BadRequest(new { error = lnErr });
+            bool lnIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int lnSubId = -1;
+            if (!lnIsAdmin)
+            {
+                var (lnOk, lnErr, lnSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_LIUNIAN");
+                if (!lnOk) return BadRequest(new { error = lnErr });
+                lnSubId = lnSubIdVal;
+            }
 
             try
             {
@@ -7093,7 +7117,7 @@ namespace Ecanapi.Controllers
                     year);
                 if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
 
-                await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
+                if (!lnIsAdmin) await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
                 await SaveUserReportAsync(user.Id, "liunian", $"{year} 流年命書", report,
                     new { year, birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
                 return Ok(new { result = report, annualSummary, monthlyForecasts, baziTable, luckCycles = scoredCycles });
