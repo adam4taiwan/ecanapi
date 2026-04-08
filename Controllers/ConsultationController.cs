@@ -4560,6 +4560,305 @@ namespace Ecanapi.Controllers
                     s.AppendLine($"• {r.Content}");
                 s.AppendLine();
             }
+
+            // 方案C：條件明確者自動判斷，其餘全部輸出
+            string yPillarZ = yStem + yBranch;
+            string mPillarZ = mStem + mBranch;
+            string dPillarZ = dStem + dBranch;
+            string hPillarZ = hStem + hBranch;
+            var brZ = new[] { yBranch, mBranch, dBranch, hBranch };
+            bool BrHas(string b) => brZ.Contains(b);
+            var stemPillarNoSibling = new Dictionary<string, string[]>
+            {
+                ["甲"] = new[] { "甲申", "庚申" }, ["乙"] = new[] { "乙酉", "辛酉" },
+                ["丙"] = new[] { "丙子", "壬子" }, ["丁"] = new[] { "丁亥", "癸亥" },
+                ["戊"] = new[] { "戊寅", "甲寅" }, ["己"] = new[] { "己卯", "乙卯" },
+                ["庚"] = new[] { "庚寅", "丙寅" }, ["辛"] = new[] { "辛卯", "丁卯" },
+                ["壬"] = new[] { "癸未", "丙午" }, ["癸"] = new[] { "丙午", "癸未" },
+            };
+            var clashPairs = new HashSet<(string, string)>
+            {
+                ("子","午"),("午","子"),("卯","酉"),("酉","卯"),
+                ("寅","申"),("申","寅"),("巳","亥"),("亥","巳"),
+                ("辰","戌"),("戌","辰"),("丑","未"),("未","丑")
+            };
+            bool ZrApplies(BaziDirectRule r)
+            {
+                string cond = r.Condition;
+                switch (r.RuleType)
+                {
+                    case "SiblingInfo":
+                        if (stemPillarNoSibling.TryGetValue(dStem, out var tgP) && cond.StartsWith($"{dStem}日年月柱"))
+                            return tgP.Contains(yPillarZ) || tgP.Contains(mPillarZ);
+                        if (cond == "丁丑丁未日時無兄弟")
+                            return dPillarZ == "丁丑" || dPillarZ == "丁未";
+                        if (cond == "戊寅己卯日克兄弟")
+                            return dPillarZ == "戊寅" || dPillarZ == "己卯";
+                        if (cond == "日月兩柱干同支沖無兄弟")
+                            return mStem == dStem && clashPairs.Contains((mBranch, dBranch));
+                        if (cond == "年干為殺非長子")
+                            return yStemSS == "七殺";
+                        if (cond == "月干為殺非長子")
+                            return mStemSS == "七殺";
+                        if (cond == "月支為殺定是長子")
+                            return mBranchSS == "七殺" || mBranchSS == "正官";
+                        if (cond == "年干比劫非長子" || cond == "年干比劫被合兄弟送養")
+                            return yStemSS == "比肩" || yStemSS == "劫財";
+                        if (cond == "正官在月干非長子")
+                            return mStemSS == "正官";
+                        if (cond == "年干正官為長子")
+                            return yStemSS == "正官";
+                        if (cond == "正官正印正財均透干定是長子")
+                        {
+                            var ss4 = new[] { yStemSS, mStemSS, hStemSS };
+                            return ss4.Contains("正官") && ss4.Contains("正印") && ss4.Contains("正財");
+                        }
+                        return true;
+
+                    case "CareerInfo":
+                        if (cond == "四柱地支辰戌公吏獄官")
+                            return BrHas("辰") || BrHas("戌");
+                        if (cond == "子午卯酉沖地域變遷職業不變")
+                            return (BrHas("子") && BrHas("午")) || (BrHas("卯") && BrHas("酉"));
+                        if (cond == "寅申巳亥沖居位地和職業都改變")
+                            return (BrHas("寅") && BrHas("申")) || (BrHas("巳") && BrHas("亥"));
+                        if (cond == "辰戌丑未沖職業改變居住地不變")
+                            return (BrHas("辰") && BrHas("戌")) || (BrHas("丑") && BrHas("未"));
+                        return true;
+
+                    case "InjuryInfo":
+                        if (cond == "日柱庚午時柱辛巳多心血之疾")
+                            return dPillarZ == "庚午" && hPillarZ == "辛巳";
+                        if (cond == "日柱乙酉時柱甲申小兒時有肝風之疾")
+                            return dPillarZ == "乙酉" && hPillarZ == "甲申";
+                        if (cond == "年柱戊申日時乙酉先官司後投井死")
+                            return yPillarZ == "戊申" && (dPillarZ == "乙酉" || hPillarZ == "乙酉");
+                        if (cond == "年柱戊辰日時癸酉因失盜破產")
+                            return yPillarZ == "戊辰" && (dPillarZ == "癸酉" || hPillarZ == "癸酉");
+                        if (cond == "年柱甲寅日時柱辛丑定有官刑之災")
+                            return yPillarZ == "甲寅" && (dPillarZ == "辛丑" || hPillarZ == "辛丑");
+                        if (cond == "四柱寅巳申三刑俱全定有官司或牢獄")
+                            return BrHas("寅") && BrHas("巳") && BrHas("申");
+                        return true;
+
+                    case "TenGodInfo":
+                    {
+                        var aSS = new[] { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        bool SsGrp(string ss, string g) => g switch {
+                            "印"   => ss == "正印" || ss == "偏印",
+                            "官殺" => ss == "正官" || ss == "七殺",
+                            "比劫" => ss == "比肩" || ss == "劫財",
+                            "財"   => ss == "正財" || ss == "偏財",
+                            "食傷" => ss == "食神" || ss == "傷官",
+                            _ => false
+                        };
+                        int CntG(string g) => aSS.Count(s => SsGrp(s, g));
+                        bool TM(string g) => CntG(g) >= 2;
+                        bool Sc(string g) => CntG(g) == 0;
+                        if (cond == "印星太多依靠性大無大志")         return TM("印");
+                        if (cond == "官殺太多精神萎靡膽小怕事")       return TM("官殺");
+                        if (cond == "比劫多不聚財好惹事非")           return TM("比劫");
+                        if (cond == "財星太多懼內因財遭災")           return TM("財");
+                        if (cond == "食傷太多言語多嘴雜鄙視他人")     return TM("食傷");
+                        if (cond == "缺少印星與母親長輩緣薄無靠山")   return Sc("印");
+                        if (cond == "缺少比劫人多孤獨靠技藝維生")     return Sc("比劫");
+                        if (cond == "缺少食傷行事有恒心善守秘密")     return Sc("食傷");
+                        if (cond == "缺少財星財來財去與父親妻子緣薄") return Sc("財");
+                        if (cond == "缺少官星不喜拘束女命夫緣薄")     return Sc("官殺");
+                        return true;
+                    }
+
+                    case "ParentInfo":
+                    {
+                        var aStemSS = new[] { yStemSS, mStemSS, hStemSS };
+                        var aBrSS   = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        bool SsGrp(string ss, string g) => g switch {
+                            "印"   => ss == "正印" || ss == "偏印",
+                            "比劫" => ss == "比肩" || ss == "劫財",
+                            "財"   => ss == "正財" || ss == "偏財",
+                            _ => false
+                        };
+                        bool IsYang(string s) => "甲丙戊庚壬".Contains(s);
+                        bool IsYin(string s)  => "乙丁己辛癸".Contains(s);
+                        int CntG(string g) => aStemSS.Concat(aBrSS).Count(s => SsGrp(s, g));
+                        bool Sc(string g)  => CntG(g) == 0;
+                        if (cond == "年干比劫財星論父母")
+                            return SsGrp(yStemSS, "比劫") || SsGrp(yBranchSS, "財");
+                        if (cond == "正偏印同透有繼母")
+                            return aStemSS.Contains("正印") && aStemSS.Contains("偏印");
+                        if (cond == "正印透干偏財藏偷生")
+                            return aStemSS.Contains("正印") && aBrSS.Contains("偏財");
+                        if (cond == "壬乙組合母親為偏房")
+                            return (yStem == "壬" && hStem == "乙") || (yStem == "乙" && hStem == "壬");
+                        if (cond == "四柱純陽印衰母早喪")
+                            return IsYang(yStem) && IsYang(mStem) && IsYang(dStem) && IsYang(hStem) && Sc("印");
+                        if (cond == "四柱純陰財衰父早喪")
+                            return IsYin(yStem) && IsYin(mStem) && IsYin(dStem) && IsYin(hStem) && Sc("財");
+                        if (cond == "年干傷官祖業漂零父母貧困")
+                            return yStemSS == "傷官";
+                        if (cond == "年干偏財坐驛馬父遠方創業")
+                            return yStemSS == "偏財";
+                        if (cond == "年支戌亥印星母有宗教信仰")
+                            return (yBranch == "戌" || yBranch == "亥") && SsGrp(yBranchSS, "印");
+                        if (cond == "年干支印星喜用書香門第")
+                            return SsGrp(yStemSS, "印") || SsGrp(yBranchSS, "印");
+                        // 地支兩見殺/年月日時胎支/三柱納音/將星: 複雜條件，全部輸出
+                        return true;
+                    }
+
+                    case "ChildInfo":
+                    {
+                        var sixComboC = new HashSet<(string, string)>
+                        {
+                            ("子","丑"),("丑","子"),("寅","亥"),("亥","寅"),
+                            ("卯","戌"),("戌","卯"),("辰","酉"),("酉","辰"),
+                            ("巳","申"),("申","巳"),("午","未"),("未","午")
+                        };
+                        var sanXingC = new HashSet<(string,string)>
+                        {
+                            ("丑","戌"),("戌","丑"),("丑","未"),("未","丑"),("戌","未"),("未","戌"),
+                            ("子","卯"),("卯","子"),
+                            ("寅","巳"),("巳","寅"),("申","寅"),("寅","申"),("申","巳"),("巳","申")
+                        };
+                        var aStemSS = new[] { yStemSS, mStemSS, hStemSS };
+                        var aBrSS   = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        bool SsGrp(string ss, string g) => g switch {
+                            "印"   => ss == "正印" || ss == "偏印",
+                            "食傷" => ss == "食神" || ss == "傷官",
+                            "官殺" => ss == "正官" || ss == "七殺",
+                            "財"   => ss == "正財" || ss == "偏財",
+                            _ => false
+                        };
+                        int CntG(string g) => aStemSS.Concat(aBrSS).Count(s => SsGrp(s, g));
+                        bool TM(string g) => CntG(g) >= 2;
+                        if (cond == "女命時柱坐梟印克子女")
+                            return gender == 2 && (hStemSS == "偏印" || hBranchSS == "偏印");
+                        if (cond == "女命日旺時支遇刃梟難產")
+                            return gender == 2 && bodyPct > 50 && (hBranchSS == "劫財" || hBranchSS == "偏印");
+                        if (cond == "日時相刑女命克夫克子")
+                            return gender == 2 && sanXingC.Contains((dBranch, hBranch));
+                        if (cond == "日時辰戌相沖中老年克子")
+                            return (dBranch == "辰" && hBranch == "戌") || (dBranch == "戌" && hBranch == "辰");
+                        if (cond == "時上坐梟年月透財女人有子不死也傷")
+                            return gender == 2 && hBranchSS == "偏印" &&
+                                   (SsGrp(yStemSS, "財") || SsGrp(mStemSS, "財"));
+                        if (cond == "日時相沖中晚年喪子之憂")
+                            return clashPairs.Contains((dBranch, hBranch));
+                        if (cond == "時帶傷官男命克子")
+                            return gender == 1 && hStemSS == "傷官";
+                        if (cond == "時干殺旺無制子女不孝叛逆")
+                            return hStemSS == "七殺";
+                        if (cond == "男命食傷多子女難成氣候")
+                            return gender == 1 && TM("食傷");
+                        if (cond == "女命印梟多子女難有大發展")
+                            return gender == 2 && TM("印");
+                        if (cond == "男命時干財官有氣子女有出息")
+                            return gender == 1 && (SsGrp(hStemSS, "財") || SsGrp(hStemSS, "官殺"));
+                        if (cond == "女命時干財食傷有氣子女有出息")
+                            return gender == 2 && (SsGrp(hStemSS, "財") || SsGrp(hStemSS, "食傷"));
+                        if (cond == "女命時逢沐浴第一胎難養")
+                            return gender == 2;
+                        // 通論: 男命官殺為子女星女命食傷為子女星, 子女星旺衰 - 全部輸出
+                        return true;
+                    }
+
+                    case "MarriageInfo":
+                    {
+                        var sixComboM = new HashSet<(string, string)>
+                        {
+                            ("子","丑"),("丑","子"),("寅","亥"),("亥","寅"),
+                            ("卯","戌"),("戌","卯"),("辰","酉"),("酉","辰"),
+                            ("巳","申"),("申","巳"),("午","未"),("未","午")
+                        };
+                        var aStemSS = new[] { yStemSS, mStemSS, hStemSS };
+                        var aBrSS   = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        bool SsGrp(string ss, string g) => g switch {
+                            "印"   => ss == "正印" || ss == "偏印",
+                            "官殺" => ss == "正官" || ss == "七殺",
+                            "比劫" => ss == "比肩" || ss == "劫財",
+                            "財"   => ss == "正財" || ss == "偏財",
+                            "食傷" => ss == "食神" || ss == "傷官",
+                            _ => false
+                        };
+                        int CntG(string g) => aStemSS.Concat(aBrSS).Count(s => SsGrp(s, g));
+                        bool TM(string g) => CntG(g) >= 2;
+                        bool Sc(string g) => CntG(g) == 0;
+                        var otherBrM = new[] { yBranch, mBranch, hBranch };
+                        bool dClashed  = otherBrM.Any(b => clashPairs.Contains((dBranch, b)));
+                        bool dCombined = otherBrM.Any(b => sixComboM.Contains((dBranch, b)));
+                        if (cond == "月柱干傷官支坐七殺女多婚")
+                            return gender == 2 && mStemSS == "傷官" && mBranchSS == "七殺";
+                        if (cond == "女命日坐傷官必克夫")
+                            return gender == 2 && dBranchSS == "傷官";
+                        if (cond == "男命坐比劫必妨妻婚姻不順")
+                            return gender == 1 && SsGrp(dBranchSS, "比劫");
+                        if (cond == "女命甲寅戊申日柱夫有橫死之災")
+                            return gender == 2 && (dStem + dBranch == "甲寅" || dStem + dBranch == "戊申");
+                        if (cond == "男命日坐偏財主風流偏愛小妾")
+                            return gender == 1 && dBranchSS == "偏財";
+                        if (cond == "男命日坐印妨妻且妻與母不合")
+                            return gender == 1 && SsGrp(dBranchSS, "印");
+                        if (cond == "女命官殺均透干多婚外遇")
+                            return gender == 2 && aStemSS.Contains("正官") && aStemSS.Contains("七殺");
+                        if (cond == "男命干透偏正財多婚外遇")
+                            return gender == 1 && aStemSS.Contains("正財") && aStemSS.Contains("偏財");
+                        if (cond == "女命傷官旺無財克夫改嫁")
+                            return gender == 2 && TM("食傷") && Sc("財");
+                        if (cond == "日支被沖夫妻不合難白頭")
+                            return dClashed;
+                        if (cond == "日支被合化配偶有外遇")
+                            return dCombined;
+                        if (cond == "男命日支藏財星能得良妻")
+                            return gender == 1 && SsGrp(dBranchSS, "財");
+                        if (cond == "女命日支藏財星喜用得夫之力")
+                            return gender == 2 && SsGrp(dBranchSS, "財");
+                        if (cond == "日支子午卯酉配偶漂亮能干")
+                            return new[]{"子","午","卯","酉"}.Contains(dBranch);
+                        if (cond == "日支寅申巳亥配偶相貌一般聰明能干")
+                            return new[]{"寅","申","巳","亥"}.Contains(dBranch);
+                        if (cond == "日支辰戌丑未配偶相貌較差樸素")
+                            return new[]{"辰","戌","丑","未"}.Contains(dBranch);
+                        if (cond == "日支與月支相同配偶漂亮能力強")
+                            return dBranch == mBranch;
+                        if (cond == "十神傾向食傷生財配偶比自己小")
+                            return CntG("食傷") + CntG("財") > CntG("官殺") + CntG("印");
+                        if (cond == "十神傾向官印相生配偶比自己大")
+                            return CntG("官殺") + CntG("印") > CntG("食傷") + CntG("財");
+                        if (cond == "男命財多且無官傷官透有外遇")
+                            return gender == 1 && TM("財") && Sc("官殺") && aStemSS.Any(s => SsGrp(s, "食傷"));
+                        // 夫妻星遠近/喜用判斷: 通論全部輸出
+                        return true;
+                    }
+
+                    case "BodyTrait":
+                    {
+                        var aStemSS = new[] { yStemSS, mStemSS, hStemSS };
+                        var aBrSS   = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        int CntFood() => aStemSS.Concat(aBrSS).Count(s => s == "食神" || s == "傷官");
+                        if (cond == "甲木個子高直挺乙木個高苗條")
+                            return dStem == "甲" || dStem == "乙";
+                        if (cond == "丙丁火個子可高面紅潤俊俏")
+                            return dStem == "丙" || dStem == "丁";
+                        if (cond == "戊己土個子矮面色黃")
+                            return dStem == "戊" || dStem == "己";
+                        if (cond == "庚辛金個子高皮色白")
+                            return dStem == "庚" || dStem == "辛";
+                        if (cond == "壬癸水個子中等水靈")
+                            return dStem == "壬" || dStem == "癸";
+                        if (cond == "食傷旺能生財者易發胖")
+                            return CntFood() >= 2;
+                        if (cond == "八字水木多頭髮烏黑柔細")
+                            return (wuXing.TryGetValue("水", out double wv) && wv >= 25) ||
+                                   (wuXing.TryGetValue("木", out double muv) && muv >= 25);
+                        // 五行代表身體部位/四柱各柱代表身體部位/五行個頭參考值/痣的顏色: 通論全部輸出
+                        return true;
+                    }
+
+                    default:
+                        return true;
+                }
+            }
+
             string LfWxSS2(string e) => $"{e}{wuXing[e]:F0}%({LfElemSsGroup(e, dmElem)})";
             string wx = $"{LfWxSS2("木")} {LfWxSS2("火")} {LfWxSS2("土")} {LfWxSS2("金")} {LfWxSS2("水")}";
 
@@ -4862,8 +5161,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 職業直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo"), "【職業從業補充論斷】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo"), "【十神性質補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo" && ZrApplies(r)), "【職業從業補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo" && ZrApplies(r)), "【十神性質補充論斷】");
 
             // === Ch.11 六親緣分鑑定 ===
             sb.AppendLine("【第十一章：六親緣分鑑定】");
@@ -4886,9 +5185,9 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 六親直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"),  "【父母緣份補充論斷】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo"), "【兄弟姐妹補充論斷】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"),   "【子女緣份補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"  && ZrApplies(r)), "【父母緣份補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo" && ZrApplies(r)), "【兄弟姐妹補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"   && ZrApplies(r)), "【子女緣份補充論斷】");
 
             // === Ch.12 婚姻深度鑑定 ===
             sb.AppendLine("【第十二章：婚姻深度鑑定】");
@@ -4922,7 +5221,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 婚姻直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo"), "【婚姻配偶補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo" && ZrApplies(r)), "【婚姻配偶補充論斷】");
 
             // === Ch.13 疾厄壽元鑑定 ===
             sb.AppendLine("【第十三章：疾厄壽元鑑定】");
@@ -4949,8 +5248,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 中原盲派 - 傷病牢獄直斷參照
-            AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo"), "【傷病牢獄補充論斷】");
-            AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"),  "【身體特徵補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo" && ZrApplies(r)), "【傷病牢獄補充論斷】");
+            AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"  && ZrApplies(r)), "【身體特徵補充論斷】");
 
             // === Ch.14 大運逐運論斷 ===
             sb.AppendLine("【第十四章：大運逐運論斷（百分制評分）】");
