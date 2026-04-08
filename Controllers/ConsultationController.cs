@@ -456,6 +456,10 @@ namespace Ecanapi.Controllers
                 string daYunPalace = KbGetLuckPalace(palaces, currentAge);
 
                 // === 查詢 DB ===
+                // 六十甲子日柱斷語（BaziDayPillarReadings）
+                var kbDayPillar = await _context.BaziDayPillarReadings
+                    .FirstOrDefaultAsync(r => r.DayPillar == riGan + riZhi);
+
                 // 六十甲子命主（各分析欄位）
                 string rgxx  = await KbQuery($"SELECT COALESCE(rgxx,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
                 string rgcz  = await KbQuery($"SELECT COALESCE(rgcz,'')  AS \"Value\" FROM public.\"六十甲子命主\" WHERE rgz='{riZhu}'");
@@ -617,6 +621,7 @@ namespace Ecanapi.Controllers
                 // --- 三、性格特質 ---
                 sb_out.AppendLine("=== 三、性格特質 ===");
                 sb_out.AppendLine("--- 八字性格論 ---");
+                if (!string.IsNullOrWhiteSpace(kbDayPillar?.Overview)) sb_out.AppendLine($"【核心】{kbDayPillar.Overview}");
                 if (!string.IsNullOrEmpty(rgxx))      sb_out.AppendLine($"【日柱概述】{KbStripHtml(rgxx)}");
                 if (!string.IsNullOrEmpty(naYinDesc)) sb_out.AppendLine($"【納音性情·{riNaYin}】{naYinDesc}");
                 if (!string.IsNullOrEmpty(rgcz))      sb_out.AppendLine($"【坐星詳解】{KbStripHtml(rgcz)}");
