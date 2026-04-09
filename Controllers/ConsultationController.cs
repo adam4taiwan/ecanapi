@@ -2124,7 +2124,7 @@ namespace Ecanapi.Controllers
             }
         }
 
-        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 命 書")
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 命 書", string? skipTitle = null)
         {
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
@@ -2220,9 +2220,10 @@ namespace Ecanapi.Controllers
                 doc.CreateParagraph(); // spacing after table
             }
 
+            string effectiveSkip = skipTitle ?? bookTitle;
             bool ShouldSkipReportLine(string line)
             {
-                if (line.Contains(bookTitle)) return true;
+                if (line.Contains(effectiveSkip)) return true;
                 if (line.TrimEnd() == "  時辰恐有錯  陰騭最難憑") return true;
                 if (line.TrimEnd() == "  萬般皆是命  半點不求人") return true;
                 if (line.Contains("命理大師：玉洞子")) return true;
@@ -2314,7 +2315,8 @@ namespace Ecanapi.Controllers
         {
             public string ReportText  { get; set; } = "";
             public string PersonName  { get; set; } = "";
-            public string BookTitle   { get; set; } = "";
+            public string BookTitle   { get; set; } = "";   // 封面顯示標題
+            public string? SkipTitle  { get; set; }         // report body 裡要略過的標題行（預設同 BookTitle）
             public string? ChartImageBase64 { get; set; }
         }
 
@@ -2336,7 +2338,8 @@ namespace Ecanapi.Controllers
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : "命主";
                 string bookTitle  = !string.IsNullOrEmpty(request.BookTitle)  ? request.BookTitle  : "命書";
 
-                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle);
+                string skipTitle = !string.IsNullOrEmpty(request.SkipTitle) ? request.SkipTitle : bookTitle;
+                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle, skipTitle);
 
                 string safeTitle = bookTitle.Replace(" ", "");
                 string fileName  = $"{personName}_{safeTitle}.docx";
