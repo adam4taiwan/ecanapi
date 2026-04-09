@@ -2124,7 +2124,7 @@ namespace Ecanapi.Controllers
             }
         }
 
-        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName)
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 命 書")
         {
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
@@ -2164,7 +2164,7 @@ namespace Ecanapi.Controllers
             // === 封面 ===
             if (coverBytes.Length > 0)
                 AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
-            AddPara("玉 洞 子 命 書", 36, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            AddPara(bookTitle, 36, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
             AddPara("親鑑", 16, false, "8B4513", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
             AddPara($"命主：{personName}", 20, true, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
             AddPara(" ", 12, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -2222,7 +2222,7 @@ namespace Ecanapi.Controllers
 
             bool ShouldSkipReportLine(string line)
             {
-                if (line.Contains("玉 洞 子 命 書（內部版）")) return true;
+                if (line.Contains(bookTitle)) return true;
                 if (line.TrimEnd() == "  時辰恐有錯  陰騭最難憑") return true;
                 if (line.TrimEnd() == "  萬般皆是命  半點不求人") return true;
                 if (line.Contains("命理大師：玉洞子")) return true;
@@ -2254,6 +2254,13 @@ namespace Ecanapi.Controllers
                 }
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
                 {
+                    // 非玉洞子命書：第2章以後自動換頁
+                    if (bookTitle != "玉 洞 子 命 書")
+                    {
+                        var chM = System.Text.RegularExpressions.Regex.Match(line, @"【第(\d+)章");
+                        if (chM.Success && int.TryParse(chM.Groups[1].Value, out int chN) && chN >= 2)
+                            AddPageBreak();
+                    }
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
                 else if (line.StartsWith("=====") || line.StartsWith("-----"))
@@ -2299,6 +2306,47 @@ namespace Ecanapi.Controllers
 
             doc.Write(ms);
             return ms.ToArray();
+        }
+
+        // === 通用命書 DOCX 匯出 ===
+
+        public class GenericDocxRequest
+        {
+            public string ReportText  { get; set; } = "";
+            public string PersonName  { get; set; } = "";
+            public string BookTitle   { get; set; } = "";
+            public string? ChartImageBase64 { get; set; }
+        }
+
+        [HttpPost("export-generic-docx")]
+        [Authorize]
+        public async Task<IActionResult> ExportGenericDocx([FromBody] GenericDocxRequest request)
+        {
+            try
+            {
+                string wwwroot   = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                string coverPath = Path.Combine(wwwroot, "images", "cover_page.jpg");
+                string sealPath  = Path.Combine(wwwroot, "images", "玉洞子印.png");
+                byte[] coverBytes = System.IO.File.Exists(coverPath) ? await System.IO.File.ReadAllBytesAsync(coverPath) : Array.Empty<byte>();
+                byte[] sealBytes  = System.IO.File.Exists(sealPath)  ? await System.IO.File.ReadAllBytesAsync(sealPath)  : Array.Empty<byte>();
+                byte[] chartImgBytes = string.IsNullOrEmpty(request.ChartImageBase64)
+                    ? Array.Empty<byte>()
+                    : Convert.FromBase64String(request.ChartImageBase64);
+
+                string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : "命主";
+                string bookTitle  = !string.IsNullOrEmpty(request.BookTitle)  ? request.BookTitle  : "命書";
+
+                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle);
+
+                string safeTitle = bookTitle.Replace(" ", "");
+                string fileName  = $"{personName}_{safeTitle}.docx";
+                return File(docxBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GenericDocx失敗");
+                return StatusCode(500, new { error = "DOCX生成失敗", details = ex.Message });
+            }
         }
 
         // === Dy (大運命書) Endpoint ===
