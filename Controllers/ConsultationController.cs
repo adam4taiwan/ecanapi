@@ -3963,36 +3963,36 @@ namespace Ecanapi.Controllers
             sb.AppendLine(LfHealthDesc(wuXing, seaLabel));
             sb.AppendLine();
 
-            // === Ch.10 大運逐運 ===
-            sb.AppendLine("【第十章：大運逐運論斷（百分制評分）】");
-            {
-                string ageHint = LfAgeTopicHint(currentAge);
-                if (!string.IsNullOrEmpty(ageHint)) sb.AppendLine(ageHint);
-            }
+            // === Ch.10 大運逐運（暫停輸出，另有大運命書）===
+            // sb.AppendLine("【第十章：大運逐運論斷（百分制評分）】");
+            // {
+            //     string ageHint = LfAgeTopicHint(currentAge);
+            //     if (!string.IsNullOrEmpty(ageHint)) sb.AppendLine(ageHint);
+            // }
             string[] branchSSArr = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
-            foreach (var c in scored)
-            {
-                string lcSS = LfStemShiShen(c.stem, dStem);
-                string lcBranchMs = LfBranchHiddenRatio.TryGetValue(c.branch, out var lcBH) && lcBH.Count > 0 ? lcBH[0].stem : "";
-                string lcBranchSS = !string.IsNullOrEmpty(lcBranchMs) ? LfStemShiShen(lcBranchMs, dStem) : "";
-                sb.AppendLine($"{c.startAge}-{c.endAge} 歲 大運：{c.stem}{c.branch}（天干{lcSS}·地支{lcBranchSS}）  評分：{c.score} 分（{c.level}）");
-                sb.AppendLine($"  {LfLuckDesc(c.score, c.level)}");
-                string events = LfBranchEventsPalace(c.branch, lcBranchSS, branches, branchSSArr, c.startAge);
-                if (!string.IsNullOrEmpty(events))
-                {
-                    sb.AppendLine($"  【地支事項】大運地支{c.branch}（{lcBranchSS}）：");
-                    sb.AppendLine($"  {events}");
-                }
-            }
-            sb.AppendLine();
+            // foreach (var c in scored)
+            // {
+            //     string lcSS = LfStemShiShen(c.stem, dStem);
+            //     string lcBranchMs = LfBranchHiddenRatio.TryGetValue(c.branch, out var lcBH) && lcBH.Count > 0 ? lcBH[0].stem : "";
+            //     string lcBranchSS = !string.IsNullOrEmpty(lcBranchMs) ? LfStemShiShen(lcBranchMs, dStem) : "";
+            //     sb.AppendLine($"{c.startAge}-{c.endAge} 歲 大運：{c.stem}{c.branch}（天干{lcSS}·地支{lcBranchSS}）  評分：{c.score} 分（{c.level}）");
+            //     sb.AppendLine($"  {LfLuckDesc(c.score, c.level)}");
+            //     string events = LfBranchEventsPalace(c.branch, lcBranchSS, branches, branchSSArr, c.startAge);
+            //     if (!string.IsNullOrEmpty(events))
+            //     {
+            //         sb.AppendLine($"  【地支事項】大運地支{c.branch}（{lcBranchSS}）：");
+            //         sb.AppendLine($"  {events}");
+            //     }
+            // }
+            // sb.AppendLine();
 
-            // === Ch.11 流年重點 ===
-            sb.AppendLine("【第十一章：流年重點吉凶】");
-            sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
-            sb.AppendLine();
+            // === Ch.11 流年重點（暫停輸出，另有流年命書）===
+            // sb.AppendLine("【第十一章：流年重點吉凶】");
+            // sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
+            // sb.AppendLine();
 
-            // === Ch.12 總評 ===
-            sb.AppendLine("【第十二章：一生命運總評】");
+            // === Ch.10（原Ch.12）總評 ===
+            sb.AppendLine("【第十章：一生命運總評】");
             double earlyAvg = scored.Where(c => c.endAge <= 30).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
             double midAvg   = scored.Where(c => c.startAge >= 31 && c.endAge <= 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
             double lateAvg  = scored.Where(c => c.startAge > 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
@@ -4013,7 +4013,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.1");
+            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.2");
             return sb.ToString();
         }
 
