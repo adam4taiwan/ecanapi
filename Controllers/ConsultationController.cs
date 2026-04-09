@@ -4582,9 +4582,10 @@ namespace Ecanapi.Controllers
                 ["甲"] = new[] { "甲申", "庚申" }, ["乙"] = new[] { "乙酉", "辛酉" },
                 ["丙"] = new[] { "丙子", "壬子" }, ["丁"] = new[] { "丁亥", "癸亥" },
                 ["戊"] = new[] { "戊寅", "甲寅" }, ["己"] = new[] { "己卯", "乙卯" },
-                ["庚"] = new[] { "庚寅", "丙寅" }, ["辛"] = new[] { "辛卯", "丁卯" },
+                ["庚"] = new[] { "庚寅", "丙寅" },
                 ["壬"] = new[] { "癸未", "丙午" }, ["癸"] = new[] { "丙午", "癸未" },
             };
+            var tenStems = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
             var clashPairs = new HashSet<(string, string)>
             {
                 ("子","午"),("午","子"),("卯","酉"),("酉","卯"),
@@ -4597,8 +4598,16 @@ namespace Ecanapi.Controllers
                 switch (r.RuleType)
                 {
                     case "SiblingInfo":
-                        if (stemPillarNoSibling.TryGetValue(dStem, out var tgP) && cond.StartsWith($"{dStem}日年月柱"))
-                            return tgP.Contains(yPillarZ) || tgP.Contains(mPillarZ);
+                    {
+                        // 日干年月柱系列：先判斷條件屬於哪個日干，不對應則直接排除
+                        string? ruleStem = tenStems.FirstOrDefault(s => cond.StartsWith(s + "日年月柱"));
+                        if (ruleStem != null)
+                        {
+                            if (ruleStem != dStem) return false;
+                            return stemPillarNoSibling.TryGetValue(dStem, out var tgP) &&
+                                   (tgP.Contains(yPillarZ) || tgP.Contains(mPillarZ));
+                        }
+                    }
                         if (cond == "丁丑丁未日時無兄弟")
                             return dPillarZ == "丁丑" || dPillarZ == "丁未";
                         if (cond == "戊寅己卯日克兄弟")
