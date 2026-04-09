@@ -2230,6 +2230,7 @@ namespace Ecanapi.Controllers
                 return false;
             }
 
+            int kbSectionCount = 0; // 計算 === === 章節數，用於換頁
             foreach (var rawLine in reportText.Split('\n'))
             {
                 var line = rawLine.TrimEnd();
@@ -2264,9 +2265,22 @@ namespace Ecanapi.Controllers
                     }
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(line.Trim(), @"^={2,}\s+.+\s+={2,}$"))
+                {
+                    // === 一、XXX === 格式：KB 報告章節標題
+                    var secTitle = System.Text.RegularExpressions.Regex.Replace(line.Trim(), @"^=+\s*|\s*=+$", "").Trim();
+                    if (kbSectionCount++ > 0) AddPageBreak();
+                    AddPara(secTitle, 14, true, "8B4513", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
+                else if (System.Text.RegularExpressions.Regex.IsMatch(line.Trim(), @"^-{2,}\s+.+\s+-{2,}$"))
+                {
+                    // --- XXX --- 格式：KB 報告子標題
+                    var subTitle = System.Text.RegularExpressions.Regex.Replace(line.Trim(), @"^-+\s*|\s*-+$", "").Trim();
+                    AddPara(subTitle, 12, true, "5C3317", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                }
                 else if (line.StartsWith("=====") || line.StartsWith("-----"))
                 {
-                    // skip divider lines from report header block
+                    // skip pure divider lines from report header block
                 }
                 else if (string.IsNullOrWhiteSpace(line))
                 {
