@@ -5552,8 +5552,38 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"紫微命宮 {mingGongStars}：建議依命宮星性質選擇職業方向");
             sb.AppendLine();
 
-            // === Ch.16 一生命運總評 ===
-            sb.AppendLine("【第十六章：一生命運總評】");
+            // === Ch.16 出生環境（八字方位風水）===
+            sb.AppendLine("【第十六章：出生環境・先天地理風水】");
+            sb.AppendLine();
+            sb.AppendLine("八字方點陣圖揭示命主懷胎時，父母受孕之地周圍的先天地理環境。");
+            sb.AppendLine("年柱代表北方、月柱代表東方、日柱代表南方、時柱代表西方。");
+            sb.AppendLine();
+            sb.AppendLine($"              日柱（{dStem}{dBranch}）");
+            sb.AppendLine($"                   南");
+            sb.AppendLine($"                   ↑");
+            sb.AppendLine($"月柱（{mStem}{mBranch}）  東 ← ─┼─ → 西  時柱（{hStem}{hBranch}）");
+            sb.AppendLine($"                   ↓");
+            sb.AppendLine($"                   北");
+            sb.AppendLine($"              年柱（{yStem}{yBranch}）");
+            sb.AppendLine();
+            var fwPillars = new[]
+            {
+                (yStem+yBranch, "北方", "年柱"),
+                (mStem+mBranch, "東方", "月柱"),
+                (dStem+dBranch, "南方", "日柱"),
+                (hStem+hBranch, "西方", "時柱")
+            };
+            foreach (var (fp, fwDir, fwName) in fwPillars)
+            {
+                sb.AppendLine($"▍{fwDir}（{fwName}：{fp}）");
+                sb.AppendLine($"  {LfFengShuiPillarDesc(fp)}");
+                sb.AppendLine();
+            }
+            sb.AppendLine("以上先天地理風水，指受孕當時所在地周圍的環境。驗證時，請參照父母受孕之地實際地貌加以對照。");
+            sb.AppendLine();
+
+            // === Ch.17 一生命運總評 ===
+            sb.AppendLine("【第十七章：一生命運總評】");
             sb.AppendLine();
             if (scored.Count > 0)
             {
@@ -5593,6 +5623,53 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 玉洞子命書 v2.0（內部版）");
             return sb.ToString();
+        }
+
+        // === 八字方位風水：單柱地理環境描述 ===
+        private static string LfFengShuiPillarDesc(string pillar)
+        {
+            // 風水標誌較明顯的干支組合，優先使用
+            var notableMap = new Dictionary<string, string>
+            {
+                ["甲寅"] = "有樹林、山林（陽性大樹如楊樹、榆樹、梧桐等），或木材相關場所（書店、紡織廠、農具行）",
+                ["乙卯"] = "有樹林或公園（陰性樹木如槐樹、柳樹、竹子等），或花圃、園藝、手工業相關場所",
+                ["甲子"] = "有一棵粗大顯眼的陽性大樹（水邊生長，樹形高大古老），或水邊有樹的環境",
+                ["乙亥"] = "有一棵粗大顯眼的陰性大樹（水邊生長，如古柳、古槐等），或水邊有樹的環境",
+                ["壬子"] = "有大水（水塘、水庫、河流、湖海、瀑布等），或寬闊繁忙的大馬路、交通幹道",
+                ["壬辰"] = "有大水（坑塘、水庫、河流、湖面），或繁忙的交通要道、高速公路",
+                ["癸亥"] = "有小水或靜水（水井、護城河、水溝、水渠等），或下水道、小型水利設施",
+                ["癸丑"] = "有小水或靜水（水井、水溝、小河），或地下水道、廁坑、豬圈等水性場所",
+                ["戊戌"] = "有山嶺、土丘、城牆、高牆、堤壩等高聳土石構造，或廟宇、庫房、窯場、鍋爐房",
+                ["己未"] = "地勢低凹（溝渠、河道、低窪地形），或地勢下坡、凹陷的街道",
+                ["己巳"] = "地勢低凹（水溝、河流、河床低陷），或與周圍相比明顯凹陷的地形",
+                ["庚申"] = "有山嶺、石牆、水泥或金屬建築，或石橋、鐵橋、瀝青大路、金屬塔架",
+                ["辛酉"] = "有石碑、石磨、假山、石景，或金屬器具店、珠寶業、武術館、交警單位等金屬性場所",
+            };
+
+            if (notableMap.TryGetValue(pillar, out string? notableDesc))
+                return notableDesc;
+
+            // 一般五行取象（依天干五行判斷）
+            string stem = pillar.Length >= 1 ? pillar[..1] : "";
+            string elem = stem switch
+            {
+                "甲" or "乙" => "木",
+                "丙" or "丁" => "火",
+                "戊" or "己" => "土",
+                "庚" or "辛" => "金",
+                "壬" or "癸" => "水",
+                _ => ""
+            };
+
+            return elem switch
+            {
+                "木" => $"方位五行屬木，有樹木、樹林，或書店、木材行、紡織廠、農業相關場所",
+                "火" => $"方位五行屬火，有高溫設施（鍋爐、煙囪）、工廠，或高大顯眼的建築物、電力設施",
+                "土" => $"方位五行屬土，有土山、土丘、農田，或土石建材相關場所、廟宇、倉庫",
+                "金" => $"方位五行屬金，有石山、金屬建築、道路，或金屬加工廠、礦場等金性場所",
+                "水" => $"方位五行屬水，有水源、河流、水道，或流動性強的大路、交通運輸相關場所",
+                _ => $"（干支五行待進一步分析，方位有相應地物或場所）",
+            };
         }
 
         // === 大運地支宮位關係文字 ===
