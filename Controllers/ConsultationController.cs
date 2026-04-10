@@ -570,6 +570,22 @@ namespace Ecanapi.Controllers
                 string starDescSps  = await KbQueryStarInPalace(palaces, "夫妻宮");
                 string starDescHlt  = await KbQueryStarInPalace(palaces, "疾厄宮");
 
+                // 紫微格局偵測 + 描述查詢
+                string ziweiGeJu = "";
+                if (palaces.ValueKind == JsonValueKind.Array)
+                {
+                    string mingBr = KbGetPalaceBranch(palaces, "命宮");
+                    var gjList = LfDetectZiweiGeJu(mingGongStars, mingBr, chartStars,
+                        siHuaLuPalace, siHuaQuanPalace, siHuaKePalace, palaces);
+                    var gjSb = new StringBuilder();
+                    foreach (var gj in gjList)
+                    {
+                        string desc = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='紫微格局說明.docx' AND \"Title\"='{gj}' LIMIT 1");
+                        if (!string.IsNullOrEmpty(desc)) { gjSb.AppendLine($"【{gj}】"); gjSb.AppendLine(desc); gjSb.AppendLine(); }
+                    }
+                    ziweiGeJu = gjSb.ToString();
+                }
+
                 // === 組裝命書 ===
                 var sb_out = new StringBuilder();
 
@@ -612,6 +628,11 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(nianSiHuaXing)) sb_out.AppendLine($"【先天四化】{nianSiHuaXing}");
                 if (!string.IsNullOrEmpty(ziweiMing))  sb_out.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing)) sb_out.AppendLine($"【命宮星情】{starDescMing}");
+                if (!string.IsNullOrEmpty(ziweiGeJu))
+                {
+                    sb_out.AppendLine("【命宮格局論斷】");
+                    sb_out.AppendLine(ziweiGeJu.TrimEnd());
+                }
                 // 先天四化與命格關聯
                 if (!string.IsNullOrEmpty(siHuaLu))    sb_out.AppendLine($"【先天化祿·{siHuaLuPalace}】{siHuaLu}");
                 if (!string.IsNullOrEmpty(siHuaQuan))  sb_out.AppendLine($"【先天化權·{siHuaQuanPalace}】{siHuaQuan}");
