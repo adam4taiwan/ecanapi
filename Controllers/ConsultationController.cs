@@ -1249,11 +1249,12 @@ namespace Ecanapi.Controllers
             if (string.IsNullOrEmpty(starAbbr)) return ("", "");
             string targetPalace = KbFindPalaceByStarAbbr(palaces, starAbbr);
             if (string.IsNullOrEmpty(targetPalace)) return ("", "");
-            // 宮位四化.docx 格式：Title='宮位四化'，ConditionText 為空，
-            // ResultText 以 "{源宮}{化type}入{目標宮短名}" 開頭（目標宮不一定帶"宮"字）
+            // 宮位四化.docx 格式：Title='{源宮}四化飛星－－{化type}'（如「命宮四化飛星－－化祿」）
+            // ResultText 以 "{源宮}{化type}入{目標宮}" 開頭
             string targetShort = targetPalace.TrimEnd('宮');
             string resultPrefix = $"{sourcePalaceName}{siHuaType}入{targetShort}";
-            string content = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='宮位四化.docx' AND \"Title\"='宮位四化' AND \"ResultText\" LIKE '{resultPrefix}%' LIMIT 1");
+            string titleKey = $"{sourcePalaceName}四化飛星－－{siHuaType}";
+            string content = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='宮位四化.docx' AND \"Title\"='{titleKey}' AND \"ResultText\" LIKE '{resultPrefix}%' LIMIT 1");
             return (targetPalace, content);
         }
 
@@ -1800,20 +1801,42 @@ namespace Ecanapi.Controllers
                     spsStarsYdz  = KbGetPalaceStars(palacesYdz, "夫妻");
                     hltStarsYdz  = KbGetPalaceStars(palacesYdz, "疾厄");
 
-                    var (mLuP, mLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
-                    var (mJiP, mJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化忌");
-                    var (oLuP, oLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化祿");
-                    var (oJiP, oJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化忌");
-                    var (wLuP, wLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化祿");
-                    var (wJiP, wJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化忌");
-                    var (sLuP, sLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化祿");
-                    var (sJiP, sJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化忌");
-                    var (hJiP, hJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化忌");
-                    siHuaYdz["命宮化祿"] = (mLuP, mLuC); siHuaYdz["命宮化忌"] = (mJiP, mJiC);
-                    siHuaYdz["官祿化祿"] = (oLuP, oLuC); siHuaYdz["官祿化忌"] = (oJiP, oJiC);
-                    siHuaYdz["財帛化祿"] = (wLuP, wLuC); siHuaYdz["財帛化忌"] = (wJiP, wJiC);
-                    siHuaYdz["夫妻化祿"] = (sLuP, sLuC); siHuaYdz["夫妻化忌"] = (sJiP, sJiC);
-                    siHuaYdz["疾厄化忌"] = (hJiP, hJiC);
+                    // 宮位四化：6宮 × 4化（命宮/官祿宮/財帛宮/夫妻宮/疾厄宮/遷移宮）
+                    var (mLuP, mLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
+                    var (mQuanP,mQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化權");
+                    var (mKeP, mKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化科");
+                    var (mJiP, mJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化忌");
+                    var (oLuP, oLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化祿");
+                    var (oQuanP,oQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化權");
+                    var (oKeP, oKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化科");
+                    var (oJiP, oJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化忌");
+                    var (wLuP, wLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化祿");
+                    var (wQuanP,wQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化權");
+                    var (wKeP, wKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化科");
+                    var (wJiP, wJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化忌");
+                    var (sLuP, sLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化祿");
+                    var (sQuanP,sQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化權");
+                    var (sKeP, sKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化科");
+                    var (sJiP, sJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化忌");
+                    var (hLuP, hLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化祿");
+                    var (hQuanP,hQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化權");
+                    var (hKeP, hKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化科");
+                    var (hJiP, hJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化忌");
+                    var (qQuanP,qQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化權");
+                    var (qKeP, qKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化科");
+                    var (qJiP, qJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化忌");
+                    siHuaYdz["命宮化祿"] = (mLuP,   mLuC);   siHuaYdz["命宮化權"] = (mQuanP, mQuanC);
+                    siHuaYdz["命宮化科"] = (mKeP,   mKeC);   siHuaYdz["命宮化忌"] = (mJiP,   mJiC);
+                    siHuaYdz["官祿化祿"] = (oLuP,   oLuC);   siHuaYdz["官祿化權"] = (oQuanP, oQuanC);
+                    siHuaYdz["官祿化科"] = (oKeP,   oKeC);   siHuaYdz["官祿化忌"] = (oJiP,   oJiC);
+                    siHuaYdz["財帛化祿"] = (wLuP,   wLuC);   siHuaYdz["財帛化權"] = (wQuanP, wQuanC);
+                    siHuaYdz["財帛化科"] = (wKeP,   wKeC);   siHuaYdz["財帛化忌"] = (wJiP,   wJiC);
+                    siHuaYdz["夫妻化祿"] = (sLuP,   sLuC);   siHuaYdz["夫妻化權"] = (sQuanP, sQuanC);
+                    siHuaYdz["夫妻化科"] = (sKeP,   sKeC);   siHuaYdz["夫妻化忌"] = (sJiP,   sJiC);
+                    siHuaYdz["疾厄化祿"] = (hLuP,   hLuC);   siHuaYdz["疾厄化權"] = (hQuanP, hQuanC);
+                    siHuaYdz["疾厄化科"] = (hKeP,   hKeC);   siHuaYdz["疾厄化忌"] = (hJiP,   hJiC);
+                    siHuaYdz["遷移化權"] = (qQuanP, qQuanC); siHuaYdz["遷移化科"] = (qKeP,   qKeC);
+                    siHuaYdz["遷移化忌"] = (qJiP,   qJiC);
                     // 先天四化（年干）
                     nianSiHuaXingYdz = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='四化干性.docx' AND \"Title\" LIKE '{yStem}年干%' LIMIT 1");
                     siHuaLuPalaceYdz   = KbGetSiHuaPalace(yStem, "化祿", palacesYdz);
@@ -2045,20 +2068,42 @@ namespace Ecanapi.Controllers
                 string siHuaJiPalaceYdz = "", siHuaJiYdz = "";
                 if (hasZiwei)
                 {
-                    var (mLuP, mLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
-                    var (mJiP, mJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化忌");
-                    var (oLuP, oLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化祿");
-                    var (oJiP, oJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化忌");
-                    var (wLuP, wLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化祿");
-                    var (wJiP, wJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化忌");
-                    var (sLuP, sLuC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化祿");
-                    var (sJiP, sJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化忌");
-                    var (hJiP, hJiC) = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化忌");
-                    siHuaYdz["命宮化祿"] = (mLuP, mLuC); siHuaYdz["命宮化忌"] = (mJiP, mJiC);
-                    siHuaYdz["官祿化祿"] = (oLuP, oLuC); siHuaYdz["官祿化忌"] = (oJiP, oJiC);
-                    siHuaYdz["財帛化祿"] = (wLuP, wLuC); siHuaYdz["財帛化忌"] = (wJiP, wJiC);
-                    siHuaYdz["夫妻化祿"] = (sLuP, sLuC); siHuaYdz["夫妻化忌"] = (sJiP, sJiC);
-                    siHuaYdz["疾厄化忌"] = (hJiP, hJiC);
+                    // 宮位四化：6宮 × 4化（命宮/官祿宮/財帛宮/夫妻宮/疾厄宮/遷移宮）
+                    var (mLuP, mLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
+                    var (mQuanP,mQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化權");
+                    var (mKeP, mKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化科");
+                    var (mJiP, mJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化忌");
+                    var (oLuP, oLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化祿");
+                    var (oQuanP,oQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化權");
+                    var (oKeP, oKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化科");
+                    var (oJiP, oJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "官祿宮", "化忌");
+                    var (wLuP, wLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化祿");
+                    var (wQuanP,wQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化權");
+                    var (wKeP, wKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化科");
+                    var (wJiP, wJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "財帛宮", "化忌");
+                    var (sLuP, sLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化祿");
+                    var (sQuanP,sQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化權");
+                    var (sKeP, sKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化科");
+                    var (sJiP, sJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "夫妻宮", "化忌");
+                    var (hLuP, hLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化祿");
+                    var (hQuanP,hQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化權");
+                    var (hKeP, hKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化科");
+                    var (hJiP, hJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "疾厄宮", "化忌");
+                    var (qQuanP,qQuanC)= await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化權");
+                    var (qKeP, qKeC)   = await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化科");
+                    var (qJiP, qJiC)   = await KbGongWeiSiHuaQuery(palacesYdz, "遷移宮", "化忌");
+                    siHuaYdz["命宮化祿"] = (mLuP,   mLuC);   siHuaYdz["命宮化權"] = (mQuanP, mQuanC);
+                    siHuaYdz["命宮化科"] = (mKeP,   mKeC);   siHuaYdz["命宮化忌"] = (mJiP,   mJiC);
+                    siHuaYdz["官祿化祿"] = (oLuP,   oLuC);   siHuaYdz["官祿化權"] = (oQuanP, oQuanC);
+                    siHuaYdz["官祿化科"] = (oKeP,   oKeC);   siHuaYdz["官祿化忌"] = (oJiP,   oJiC);
+                    siHuaYdz["財帛化祿"] = (wLuP,   wLuC);   siHuaYdz["財帛化權"] = (wQuanP, wQuanC);
+                    siHuaYdz["財帛化科"] = (wKeP,   wKeC);   siHuaYdz["財帛化忌"] = (wJiP,   wJiC);
+                    siHuaYdz["夫妻化祿"] = (sLuP,   sLuC);   siHuaYdz["夫妻化權"] = (sQuanP, sQuanC);
+                    siHuaYdz["夫妻化科"] = (sKeP,   sKeC);   siHuaYdz["夫妻化忌"] = (sJiP,   sJiC);
+                    siHuaYdz["疾厄化祿"] = (hLuP,   hLuC);   siHuaYdz["疾厄化權"] = (hQuanP, hQuanC);
+                    siHuaYdz["疾厄化科"] = (hKeP,   hKeC);   siHuaYdz["疾厄化忌"] = (hJiP,   hJiC);
+                    siHuaYdz["遷移化權"] = (qQuanP, qQuanC); siHuaYdz["遷移化科"] = (qKeP,   qKeC);
+                    siHuaYdz["遷移化忌"] = (qJiP,   qJiC);
                     // 先天四化（年干）
                     nianSiHuaXingYdz = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='四化干性.docx' AND \"Title\" LIKE '{yStem}年干%' LIMIT 1");
                     siHuaLuPalaceYdz   = KbGetSiHuaPalace(yStem, "化祿", palacesYdz);
@@ -5294,7 +5339,7 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // === Ch.8 命宮格局論（ziwei_patterns_144 格局文字，不重複第七章）===
+            // === Ch.8 命宮格局論 ===
             sb.AppendLine("【第八章：命宮格局論】");
             sb.AppendLine();
             if (!hasZiwei)
@@ -5303,30 +5348,71 @@ namespace Ecanapi.Controllers
             }
             else
             {
+                // 命宮主星 + 命主星/身主星
+                if (!string.IsNullOrEmpty(mingGongStars))
+                    sb.AppendLine($"命宮主星：{mingGongStars}　命主：{mingZhu}　身主：{shenZhu}");
+                sb.AppendLine();
+                // 主星性格特質（star in palace KB）
                 if (!string.IsNullOrEmpty(starDescMing))
+                {
+                    sb.AppendLine("【命宮特質】");
                     sb.AppendLine(starDescMing);
-                else
-                    sb.AppendLine("（命宮格局論尚待補充）");
+                    sb.AppendLine();
+                }
+                // 命宮宮干四化飛出（化祿/化忌）
+                if (siHua.TryGetValue("命宮化祿", out var mLuKv) && !string.IsNullOrEmpty(mLuKv.txt))
+                {
+                    sb.AppendLine($"【命宮化祿飛{mLuKv.pal}】{mLuKv.txt}");
+                    sb.AppendLine();
+                }
+                if (siHua.TryGetValue("命宮化忌", out var mJiKv) && !string.IsNullOrEmpty(mJiKv.txt))
+                {
+                    sb.AppendLine($"【命宮化忌飛{mJiKv.pal}】{mJiKv.txt}");
+                    sb.AppendLine();
+                }
+                // 命宮與八字格局交叉驗證
+                sb.AppendLine("【八字與紫微交叉】");
+                sb.AppendLine($"八字格局：{pattern}，日主 {dmElem}，用神 {yongShenElem}");
+                sb.AppendLine($"紫微命宮 {mingGongStars} 性質，與八字格局{(dmElem == yongShenElem ? "一致強化" : "互補參照")}，兩系統均需成立方可定論。");
             }
             sb.AppendLine();
 
             // === Ch.9 四化飛星論 ===
             sb.AppendLine("【第九章：四化飛星論】");
             sb.AppendLine();
-            if (!hasZiwei || siHua.Count == 0)
+            if (!hasZiwei)
             {
                 sb.AppendLine("（略去）");
             }
             else
             {
+                // 先天四化（年干）
+                if (!string.IsNullOrEmpty(nianSiHuaXing))
+                {
+                    sb.AppendLine("【先天四化・年干性質】");
+                    sb.AppendLine(nianSiHuaXing);
+                    sb.AppendLine();
+                }
+                bool anyNian = false;
+                if (!string.IsNullOrEmpty(siHuaLu))   { sb.AppendLine($"【先天化祿入{siHuaLuPalace}】{siHuaLu}");   anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaQuan)) { sb.AppendLine($"【先天化權入{siHuaQuanPalace}】{siHuaQuan}"); anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaKe))   { sb.AppendLine($"【先天化科入{siHuaKePalace}】{siHuaKe}");   anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaJi))   { sb.AppendLine($"【先天化忌入{siHuaJiPalace}】{siHuaJi}");   anyNian = true; }
+                if (anyNian) sb.AppendLine();
+
+                // 宮位四化（各宮宮干飛出）
                 bool anySiHua = false;
                 foreach (var kv in siHua)
+                {
+                    // 命宮四化已在 Ch.8 顯示，此處跳過
+                    if (kv.Key.StartsWith("命宮")) continue;
                     if (!string.IsNullOrEmpty(kv.Value.txt))
                     {
                         sb.AppendLine($"【{kv.Key}飛{kv.Value.pal}】{kv.Value.txt}");
                         anySiHua = true;
                     }
-                if (!anySiHua) sb.AppendLine("（四化飛星 KB 資料待補充）");
+                }
+                if (!anyNian && !anySiHua) sb.AppendLine("（四化 KB 資料待補充）");
             }
             sb.AppendLine();
 
