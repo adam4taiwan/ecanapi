@@ -5621,20 +5621,35 @@ namespace Ecanapi.Controllers
             }
             else
             {
-                // 從前一運開始，最多到第8大運（index 7）
+                // 一、大運走勢總覽表（全部大運）
+                sb.AppendLine("一、大運走勢總覽");
+                sb.AppendLine("| 歲數 | 干支 | 天干 | 地支 | 評分 | 等級 |");
+                sb.AppendLine("|------|------|------|------|------|------|");
                 int curIdx = scored.FindIndex(lc => lc.startAge <= currentAge && lc.endAge >= currentAge);
-                if (curIdx < 0) curIdx = scored.FindIndex(lc => lc.startAge > currentAge);
-                if (curIdx < 0) curIdx = scored.Count - 1;
-                int startIdx  = Math.Max(0, curIdx - 1);
-                int endIdx    = Math.Min(7, scored.Count - 1);
-                var displayScored = scored.Skip(startIdx).Take(endIdx - startIdx + 1).ToList();
+                foreach (var lc in scored)
+                {
+                    string bSS = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhAll) && bhAll.Count > 0
+                        ? LfStemShiShen(bhAll[0].stem, dStem) : "";
+                    string sSS = LfStemShiShen(lc.stem, dStem);
+                    bool isCur = lc.startAge <= currentAge && lc.endAge >= currentAge;
+                    string marker = isCur ? " ★" : "";
+                    sb.AppendLine($"| {lc.startAge}-{lc.endAge}{marker} | {lc.stem}{lc.branch} | {sSS} | {bSS} | {lc.score} | {lc.level} |");
+                }
+                sb.AppendLine();
+                sb.AppendLine($"（★ 現走大運，當前年齡 {currentAge} 歲，用神：{yongShenElem}，大忌：{jiShenElem}）");
+                sb.AppendLine();
 
-                foreach (var lc in displayScored)
+                // 二、逐運詳細論斷（全部大運）
+                sb.AppendLine("二、逐運詳細論斷");
+                sb.AppendLine();
+                foreach (var lc in scored)
                 {
                     string branchSS = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhLc) && bhLc.Count > 0
                         ? LfStemShiShen(bhLc[0].stem, dStem) : "";
                     string stemSS = LfStemShiShen(lc.stem, dStem);
-                    sb.AppendLine($"{lc.startAge}-{lc.endAge} 歲 大運：{lc.stem}{lc.branch}（天干{stemSS}·地支{branchSS}） 評分：{lc.score} 分（{lc.level}）");
+                    bool isCurrent = lc.startAge <= currentAge && lc.endAge >= currentAge;
+                    string curMark = isCurrent ? "【現走】" : "";
+                    sb.AppendLine($"{curMark}{lc.startAge}-{lc.endAge} 歲 大運：{lc.stem}{lc.branch}（天干{stemSS}·地支{branchSS}） 評分：{lc.score} 分（{lc.level}）");
                     string desc = lc.score >= 75 ? "黃金發展期，喜用五行大旺，宜積極進取，把握機遇擴展版圖。"
                                 : lc.score >= 55 ? "喜用五行得力，運勢上揚，宜積極行動，可有所成就。"
                                 : lc.score >= 40 ? "喜用五行略佔優勢，平中帶吉，宜穩健進取，持續耕耘。"
