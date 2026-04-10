@@ -2879,7 +2879,7 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(elem)) scores[elem] += pts * LfSeasonMult(elem, season);
             }
 
-            void AddBranch(string branch, double totalPts)
+            void AddBranch(string branch, double totalPts, double dispersionFactor = 1.0)
             {
                 if (!LfBranchHiddenRatio.TryGetValue(branch, out var hidden)) return;
                 double brMult = LfGetBranchMult(branch, branches);
@@ -2887,13 +2887,19 @@ namespace Ecanapi.Controllers
                 {
                     string elem = KbStemToElement(stem);
                     if (!string.IsNullOrEmpty(elem))
-                        scores[elem] += totalPts * ratio * LfSeasonMult(elem, season) * brMult;
+                        scores[elem] += totalPts * ratio * LfSeasonMult(elem, season) * brMult * dispersionFactor;
                 }
             }
 
+            // 月支藏干分散係數：藏干越多，主氣季節乘數效果適度降低
+            // 1藏干(子/卯/酉等)=1.0，2藏干(亥/午)=0.85，3藏干(寅/申/巳/辰/戌/丑/未)=0.75
+            // 待累積足夠案例後可再校正係數
+            int mHiddenCount = LfBranchHiddenRatio.TryGetValue(mBranch, out var mHid) ? mHid.Count : 1;
+            double mDispersion = mHiddenCount >= 3 ? 0.75 : mHiddenCount == 2 ? 0.85 : 1.0;
+
             AddStem(yStem, 10); AddStem(mStem, 10); AddStem(dStem, 10); AddStem(hStem, 10);
             AddBranch(yBranch, 10); AddBranch(dBranch, 10); AddBranch(hBranch, 10);
-            AddBranch(mBranch, 30);
+            AddBranch(mBranch, 30, mDispersion);
 
             double total = scores.Values.Sum();
             if (total > 0)
