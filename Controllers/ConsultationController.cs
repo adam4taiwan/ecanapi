@@ -1849,6 +1849,22 @@ namespace Ecanapi.Controllers
                     siHuaJiYdz   = await KbSiHuaQuery(yStem, "化忌", palacesYdz);
                 }
 
+                // 紫微格局偵測 + 描述查詢
+                string ziweiGeJuYdz = "";
+                if (hasZiwei)
+                {
+                    string mingBrYdz = KbGetPalaceBranch(palacesYdz, "命宮");
+                    var gjList = LfDetectZiweiGeJu(mingGongStarsYdz, mingBrYdz, chartStarsYdz,
+                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz);
+                    var gjSb = new StringBuilder();
+                    foreach (var gj in gjList)
+                    {
+                        string desc = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='紫微格局說明.docx' AND \"Title\"='{gj}' LIMIT 1");
+                        if (!string.IsNullOrEmpty(desc)) { gjSb.AppendLine($"【{gj}】"); gjSb.AppendLine(desc); gjSb.AppendLine(); }
+                    }
+                    ziweiGeJuYdz = gjSb.ToString();
+                }
+
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -1866,7 +1882,7 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb, zhongyuanRules);
+                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2116,6 +2132,22 @@ namespace Ecanapi.Controllers
                     siHuaJiYdz   = await KbSiHuaQuery(yStem, "化忌", palacesYdz);
                 }
 
+                // 紫微格局偵測 + 描述查詢
+                string ziweiGeJuYdz = "";
+                if (hasZiwei)
+                {
+                    string mingBrYdz = KbGetPalaceBranch(palacesYdz, "命宮");
+                    var gjList = LfDetectZiweiGeJu(mingGongStarsYdz, mingBrYdz, chartStarsYdz,
+                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz);
+                    var gjSb = new StringBuilder();
+                    foreach (var gj in gjList)
+                    {
+                        string desc = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='紫微格局說明.docx' AND \"Title\"='{gj}' LIMIT 1");
+                        if (!string.IsNullOrEmpty(desc)) { gjSb.AppendLine($"【{gj}】"); gjSb.AppendLine(desc); gjSb.AppendLine(); }
+                    }
+                    ziweiGeJuYdz = gjSb.ToString();
+                }
+
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2133,7 +2165,7 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb, zhongyuanRules);
+                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -4648,7 +4680,8 @@ namespace Ecanapi.Controllers
             string siHuaKePalace, string siHuaKe,
             string siHuaJiPalace, string siHuaJi,
             BaziDayPillarReading? kb,
-            List<BaziDirectRule>? zhongyuanRules = null)
+            List<BaziDirectRule>? zhongyuanRules = null,
+            string ziweiGeJuContent = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -5352,6 +5385,13 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(mingGongStars))
                     sb.AppendLine($"命宮主星：{mingGongStars}　命主：{mingZhu}　身主：{shenZhu}");
                 sb.AppendLine();
+                // 紫微格局（重點）
+                if (!string.IsNullOrEmpty(ziweiGeJuContent))
+                {
+                    sb.AppendLine("【命宮格局論斷】");
+                    sb.AppendLine(ziweiGeJuContent.TrimEnd());
+                    sb.AppendLine();
+                }
                 // 主星性格特質（star in palace KB）
                 if (!string.IsNullOrEmpty(starDescMing))
                 {
@@ -5716,6 +5756,50 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 玉洞子命書 v2.0（內部版）");
             return sb.ToString();
+        }
+
+        // === 紫微格局偵測（依命宮主星+地支+四化） ===
+        private static List<string> LfDetectZiweiGeJu(
+            string mingStars, string mingBranch,
+            HashSet<string> chartStars,
+            string siHuaLuPalace, string siHuaQuanPalace, string siHuaKePalace)
+        {
+            var matched = new List<string>();
+            if (string.IsNullOrEmpty(mingStars)) { matched.Add("命無正曜格"); return matched; }
+
+            bool Has(string s) => mingStars.Contains(s);
+
+            // 星曜坐命格局
+            if (Has("紫微") && Has("天府") && (mingBranch == "寅" || mingBranch == "申"))
+                matched.Add("紫府同宮格");
+            if (Has("太陽") && Has("太陰") && (mingBranch == "丑" || mingBranch == "未"))
+                matched.Add("日月照壁格");
+            if (Has("巨門") && Has("天機") && (mingBranch == "卯" || mingBranch == "酉"))
+                matched.Add("巨機同臨格");
+            if (Has("天同") && Has("太陰") && mingBranch == "子")
+                matched.Add("月生滄海格");
+            if (Has("武曲") && Has("貪狼") && (mingBranch == "丑" || mingBranch == "未"))
+                matched.Add("貪武同行格");
+            if (Has("左輔") && Has("右弼"))
+                matched.Add("左右同宮格");
+            if (Has("太陽") && Has("巨門") && (mingBranch == "寅" || mingBranch == "申"))
+                matched.Add("巨日同宮格");
+            if (Has("太陽") && mingBranch == "卯") matched.Add("日照雷門格");
+            if (Has("太陽") && mingBranch == "午") matched.Add("日麗中天格");
+            if (Has("太陰") && mingBranch == "亥") matched.Add("月朗天門格");
+            if (Has("破軍") && (mingBranch == "子" || mingBranch == "午")) matched.Add("英星入廟格");
+            if (Has("七殺") && (mingBranch == "子" || mingBranch == "午" || mingBranch == "寅" || mingBranch == "申"))
+                matched.Add("七殺朝鬥格");
+            if (Has("巨門") && (mingBranch == "子" || mingBranch == "午")) matched.Add("石中隱玉格");
+
+            // 四化格局（三方四正 = 命宮/財帛宮/官祿宮/遷移宮）
+            var sf4z = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "遷移宮" };
+            bool InSF(string p) => sf4z.Contains(p) || sf4z.Contains(p + "宮");
+            if (InSF(siHuaLuPalace) && InSF(siHuaQuanPalace) && InSF(siHuaKePalace)
+                && !string.IsNullOrEmpty(siHuaLuPalace))
+                matched.Add("三奇嘉會格");
+
+            return matched;
         }
 
         // === 八字方位風水：單柱地理環境描述 ===
