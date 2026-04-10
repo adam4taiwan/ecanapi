@@ -5370,10 +5370,17 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"【命宮化忌飛{mJiKv.pal}】{mJiKv.txt}");
                     sb.AppendLine();
                 }
-                // 命宮與八字格局交叉驗證
-                sb.AppendLine("【八字與紫微交叉】");
-                sb.AppendLine($"八字格局：{pattern}，日主 {dmElem}，用神 {yongShenElem}");
-                sb.AppendLine($"紫微命宮 {mingGongStars} 性質，與八字格局{(dmElem == yongShenElem ? "一致強化" : "互補參照")}，兩系統均需成立方可定論。");
+                // 命宮化權/化科也一併輸出
+                if (siHua.TryGetValue("命宮化權", out var mQuanKv) && !string.IsNullOrEmpty(mQuanKv.txt))
+                {
+                    sb.AppendLine($"【命宮化權飛{mQuanKv.pal}】{mQuanKv.txt}");
+                    sb.AppendLine();
+                }
+                if (siHua.TryGetValue("命宮化科", out var mKeKv) && !string.IsNullOrEmpty(mKeKv.txt))
+                {
+                    sb.AppendLine($"【命宮化科飛{mKeKv.pal}】{mKeKv.txt}");
+                    sb.AppendLine();
+                }
             }
             sb.AppendLine();
 
