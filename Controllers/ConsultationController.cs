@@ -2922,7 +2922,7 @@ namespace Ecanapi.Controllers
 
         private static string LfGetBodyStrengthLabel(double pct) => pct switch
         {
-            >= 70 => "身強（極強）", >= 60 => "身強", >= 45 => "中和", >= 35 => "身弱", _ => "身弱（極弱）"
+            >= 70 => "身強（極強）", >= 60 => "身強", >= 45 => "中和", >= 30 => "身弱", _ => "身弱（極弱）"
         };
 
         // 依格局 x 日主強弱 x 命局組合，取古文用神候選清單（優先序由前到後）
