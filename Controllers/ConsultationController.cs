@@ -1855,7 +1855,7 @@ namespace Ecanapi.Controllers
                 {
                     string mingBrYdz = KbGetPalaceBranch(palacesYdz, "命宮");
                     var gjList = LfDetectZiweiGeJu(mingGongStarsYdz, mingBrYdz, chartStarsYdz,
-                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz);
+                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz, palacesYdz);
                     var gjSb = new StringBuilder();
                     foreach (var gj in gjList)
                     {
@@ -2138,7 +2138,7 @@ namespace Ecanapi.Controllers
                 {
                     string mingBrYdz = KbGetPalaceBranch(palacesYdz, "命宮");
                     var gjList = LfDetectZiweiGeJu(mingGongStarsYdz, mingBrYdz, chartStarsYdz,
-                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz);
+                        siHuaLuPalaceYdz, siHuaQuanPalaceYdz, siHuaKePalaceYdz, palacesYdz);
                     var gjSb = new StringBuilder();
                     foreach (var gj in gjList)
                     {
@@ -5762,7 +5762,8 @@ namespace Ecanapi.Controllers
         private static List<string> LfDetectZiweiGeJu(
             string mingStars, string mingBranch,
             HashSet<string> chartStars,
-            string siHuaLuPalace, string siHuaQuanPalace, string siHuaKePalace)
+            string siHuaLuPalace, string siHuaQuanPalace, string siHuaKePalace,
+            JsonElement palaces)
         {
             var matched = new List<string>();
             if (string.IsNullOrEmpty(mingStars)) { matched.Add("命無正曜格"); return matched; }
@@ -5791,6 +5792,13 @@ namespace Ecanapi.Controllers
             if (Has("七殺") && (mingBranch == "子" || mingBranch == "午" || mingBranch == "寅" || mingBranch == "申"))
                 matched.Add("七殺朝鬥格");
             if (Has("巨門") && (mingBranch == "子" || mingBranch == "午")) matched.Add("石中隱玉格");
+
+            // 府相朝垣格：財帛宮及官祿宮各有天府或天相
+            string wltStarsGj = KbGetPalaceStars(palaces, "財帛");
+            string offStarsGj = KbGetPalaceStars(palaces, "官祿");
+            bool wltHasFuXiang = wltStarsGj.Contains("天府") || wltStarsGj.Contains("天相");
+            bool offHasFuXiang = offStarsGj.Contains("天府") || offStarsGj.Contains("天相");
+            if (wltHasFuXiang && offHasFuXiang) matched.Add("府相朝垣格");
 
             // 四化格局（三方四正 = 命宮/財帛宮/官祿宮/遷移宮）
             var sf4z = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "遷移宮" };
