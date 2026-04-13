@@ -819,6 +819,13 @@ namespace Ecanapi.Controllers
             return await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.ziwei_patterns_144 WHERE ziwei_position='{ziweiPos}' AND palace_position='{mingGongBranch}' LIMIT 1");
         }
 
+        // --- KB Helper: 以指定地支為命宮查詢紫微星盤格局（大限命宮用）---
+        private async Task<string> KbZiweiQueryByBranch(string ziweiPos, string palaceBranch)
+        {
+            if (string.IsNullOrEmpty(ziweiPos) || string.IsNullOrEmpty(palaceBranch)) return "";
+            return await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.ziwei_patterns_144 WHERE ziwei_position='{ziweiPos}' AND palace_position='{palaceBranch}' LIMIT 1");
+        }
+
         // --- KB Helper: 從完整命盤內容拆出指定宮位段落 ---
         private static string KbExtractPalaceSection(string fullContent, string palaceName)
         {
@@ -2675,11 +2682,26 @@ namespace Ecanapi.Controllers
                 // 預取紫微完整命盤內容（大限宮位主星格局用）
                 string ziweiFullContent = "";
                 var chartStars = new HashSet<string>();
+                // 大限命宮 KB：以每個大限宮位地支為 palace_position 查詢，取「命宮」段落作為該大限格局
+                var decadeKbMap = new Dictionary<string, string>();
                 if (hasZiwei)
                 {
                     string ziweiPos = KbGetZiweiPosition(palaces);
                     ziweiFullContent = await KbZiweiFullQuery(palaces, ziweiPos);
                     chartStars = KbGetAllChartStars(palaces);
+                    // 收集所有大限宮位的唯一地支並預查 KB
+                    var uniqueDecadeBranches = new HashSet<string>();
+                    foreach (var lc in luckCycles)
+                    {
+                        var overPals = DyGetOverlappingDecadePalaces(palaces, lc.startAge, lc.endAge);
+                        foreach (var (palName, _, _, _) in overPals)
+                        {
+                            string br = KbGetPalaceBranch(palaces, palName);
+                            if (!string.IsNullOrEmpty(br)) uniqueDecadeBranches.Add(br);
+                        }
+                    }
+                    foreach (var br in uniqueDecadeBranches)
+                        decadeKbMap[br] = await KbZiweiQueryByBranch(ziweiPos, br);
                 }
 
                 string report = DyBuildReport(
@@ -2688,7 +2710,7 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
-                    ziweiFullContent, chartStars,
+                    ziweiFullContent, chartStars, decadeKbMap,
                     gender, birthYear, years, branches, dStem);
 
                 // 九星氣學加成（純 KB）
@@ -7410,6 +7432,7 @@ namespace Ecanapi.Controllers
             bool hasZiwei, JsonElement palaces,
             Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
             string ziweiFullContent, HashSet<string> chartStars,
+            Dictionary<string, string> decadeKbMap,
             int gender, int birthYear, int years, string[] branches, string dStemRef)
         {
             var sb = new StringBuilder();
@@ -7537,11 +7560,13 @@ namespace Ecanapi.Controllers
                         string overlapNote = (overlapStart == pStart && overlapEnd == pEnd) ? ""
                             : $"（本大運涵蓋{overlapStart}-{overlapEnd}歲）";
                         sb.AppendLine($"  ▍ 大限（{decadeLabel}）{lcDecadePalace}·宮干 {lcDecadeStem}{overlapNote}");
-                        // 主星格局描述（三方四正廟旺）
+                        sb.AppendLine($"  以{lcDecadePalace}為大限命宮，論{pStart}-{pEnd}歲大限格局：");
+                        // 大限命宮格局：以該大限宮位地支為命宮查詢 KB，取「命宮」段落
                         string palaceStars = KbGetPalaceStars(palaces, lcDecadePalace);
-                        string contentKey = KbContentPalaceName(lcDecadePalace);
+                        string decadePalBranch = KbGetPalaceBranch(palaces, lcDecadePalace);
+                        string decadeKbFull = decadeKbMap.GetValueOrDefault(decadePalBranch, "");
                         string palaceContent = KbFilterZiweiContent(
-                            KbExtractPalaceSection(ziweiFullContent, contentKey),
+                            KbExtractPalaceSection(decadeKbFull, "命宮"),
                             KbGetPalaceStarsSet(palaces, lcDecadePalace),
                             KbGetSanFangStars(palaces, lcDecadePalace));
                         // 移除尾端不完整的段落標題（過濾後星空，只剩「在三方四正中：」之類）
@@ -7556,8 +7581,8 @@ namespace Ecanapi.Controllers
                         }
                         if (!string.IsNullOrEmpty(palaceStars))
                         {
-                            // 有主星：正常顯示主星 + 格局
-                            sb.AppendLine($"  宮位主星：{palaceStars}");
+                            // 有主星：以大限命宮角度顯示主星 + 格局
+                            sb.AppendLine($"  大限命宮主星：{palaceStars}");
                             // 生年化忌落入此大限宮位警示
                             if (YearStemSiHuaMap.TryGetValue(yStem, out var natalSiHuaDy))
                             {
