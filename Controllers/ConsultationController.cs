@@ -7426,6 +7426,45 @@ namespace Ecanapi.Controllers
             return (int)Math.Round(Math.Clamp(score, 0, 100));
         }
 
+        // 大限六親宮影響摘要：論對本命之助益或損失，考量年齡適切性，不談本命宮事項
+        private static string DyDecadeLiuQinNote(string palaceLabel, int pStart, bool isEmpty)
+        {
+            string emptyNote = isEmpty ? "（空宮，需借對宮主星判斷大限助力強弱）" : "";
+            string note = palaceLabel switch
+            {
+                "大限兄弟宮" =>
+                    "此大限中手足平輩與同儕運勢：若宮星吉旺，大限可得朋輩助力、資源共享；" +
+                    "若宮星不佳，則朋輩競爭或消耗較大，宜留意合夥與借貸關係。",
+                "大限夫妻宮" when pStart < 35 =>
+                    "此大限感情婚姻運：感情與婚姻為大限重點，宮星吉旺主緣份順利、伴侶得力；" +
+                    "宮星不佳則感情多波折，宜多溝通、避免衝動決策。",
+                "大限夫妻宮" when pStart < 55 =>
+                    "此大限伴侶相處運：伴侶關係對大限整體影響顯著，宮星吉旺主相互支持、家庭穩固；" +
+                    "宮星不佳則需多留意伴侶健康或感情摩擦，以穩定為要。",
+                "大限夫妻宮" =>
+                    "此大限晚年伴侶扶持運：宮星吉旺主伴侶陪伴得力、晚年生活品質佳；" +
+                    "宮星不佳則需多關注伴侶健康，彼此照顧為要。",
+                "大限子女宮" when pStart < 35 =>
+                    "此大限子女緣份與晚輩下屬運：宮星吉旺主子嗣緣深，且晚輩、部屬、學生等均有助力；" +
+                    "宮星不佳則子女緣薄，晚輩下屬亦難以依靠，宜多費心栽培。",
+                "大限子女宮" =>
+                    "此大限晚輩與下屬運：子女宮亦主晚輩、部屬、學生等後進關係；" +
+                    "宮星吉旺主下屬得力、後進貢獻明顯，事業有人脈支撐；" +
+                    "宮星不佳則部屬易生變故或難以信任，大限中需親力親為。",
+                "大限僕役宮" =>
+                    "此大限人際友誼與部屬運：宮星吉旺主社交廣博、得力助手多、貴人頻出；" +
+                    "宮星不佳則需防小人、合夥易生糾紛，人際關係宜謹慎。",
+                "大限父母宮" when pStart < 50 =>
+                    "此大限長輩貴人與文書運：宮星吉旺主上司提攜、文件合約順利、印信得力；" +
+                    "宮星不佳則長輩助力有限，凡事需自立，文書合約宜審慎。",
+                "大限父母宮" =>
+                    "此大限貴人文書與印信運：宮星吉旺主貴人相助、文件順利、名聲受保；" +
+                    "宮星不佳則易有文書糾紛或貴人緣薄，大限中宜低調行事。",
+                _ => $"此大限{palaceLabel.Replace("大限", "")}對整體大限運勢有間接影響，需結合宮干四化判斷助益或損失。"
+            };
+            return string.IsNullOrEmpty(emptyNote) ? note : note + emptyNote;
+        }
+
         private static string DyCrossClass(int baziScore, int ziweiScore)
         {
             string bazi  = baziScore  >= 70 ? "喜" : baziScore  >= 50 ? "平" : "忌";
@@ -7734,29 +7773,40 @@ namespace Ecanapi.Controllers
                                 "命宮", "兄弟宮", "夫妻宮", "子女宮",
                                 "財帛宮", "疾厄宮", "遷移宮", "交友宮",
                                 "事業宮", "田宅宮", "福德宮", "父母宮" };
+                            // 六親宮 offsets：兄弟(1)/夫妻(2)/子女(3)/僕役(7)/父母(11)
+                            // 六親宮不使用 KB 文字（均為本命宮論法，談幾子幾女等），改以大限影響摘要
+                            var liuQinOffsets = new HashSet<int> { 1, 2, 3, 7, 11 };
                             for (int po = 1; po < 12; po++) // offset 0 = 大限命宮，已在上方顯示
                             {
-                                string ccwBranch   = DyGetCCWBranch(decadePalBranch, po);
+                                string ccwBranch    = DyGetCCWBranch(decadePalBranch, po);
                                 string natalPalName = KbGetPalaceNameByBranch(palaces, ccwBranch);
                                 string natalStars   = KbGetPalaceStars(palaces, natalPalName);
-                                var natalStarsSet   = KbGetPalaceStarsSet(palaces, natalPalName);
-                                var natalSanFang    = KbGetSanFangStars(palaces, natalPalName);
-                                string sectionRaw   = KbExtractPalaceSection(decadeKbFull, dbSections[po]);
-                                string sectionFilt  = KbFilterZiweiContent(sectionRaw, natalStarsSet, natalSanFang);
-                                if (!string.IsNullOrEmpty(sectionFilt))
-                                {
-                                    var pcLines = sectionFilt.Split('\n')
-                                        .Reverse()
-                                        .SkipWhile(l => l.TrimEnd().EndsWith("：") || string.IsNullOrWhiteSpace(l))
-                                        .Reverse()
-                                        .ToList();
-                                    sectionFilt = string.Join("\n", pcLines).Trim();
-                                }
-                                string starsLabel  = string.IsNullOrEmpty(natalStars) ? "空宮" : natalStars;
-                                string natalLabel  = string.IsNullOrEmpty(natalPalName) ? "" : $"（本命{natalPalName}）";
+                                string starsLabel   = string.IsNullOrEmpty(natalStars) ? "空宮" : natalStars;
+                                string natalLabel   = string.IsNullOrEmpty(natalPalName) ? "" : $"（本命{natalPalName}）";
                                 sb.AppendLine($"  {dyPalLabels[po]}{natalLabel}：{starsLabel}");
-                                if (!string.IsNullOrEmpty(sectionFilt))
-                                    sb.AppendLine($"  {sectionFilt.Replace("\n", "\n  ").Trim()}");
+                                if (liuQinOffsets.Contains(po))
+                                {
+                                    // 六親宮：論大限對六親關係的助益/損失，不談本命事項，需考量年齡適切性
+                                    string liuQinNote = DyDecadeLiuQinNote(dyPalLabels[po], pStart, string.IsNullOrEmpty(natalStars));
+                                    sb.AppendLine($"  {liuQinNote}");
+                                }
+                                else
+                                {
+                                    // 非六親宮（財/疾/遷/官/田/福）：顯示 KB 星性描述
+                                    var natalStarsSet  = KbGetPalaceStarsSet(palaces, natalPalName);
+                                    string sectionRaw  = KbExtractPalaceSection(decadeKbFull, dbSections[po]);
+                                    string sectionFilt = KbFilterZiweiContent(sectionRaw, natalStarsSet, natalStarsSet);
+                                    if (!string.IsNullOrEmpty(sectionFilt))
+                                    {
+                                        var pcLines = sectionFilt.Split('\n')
+                                            .Reverse()
+                                            .SkipWhile(l => l.TrimEnd().EndsWith("：") || string.IsNullOrWhiteSpace(l))
+                                            .Reverse()
+                                            .ToList();
+                                        sectionFilt = string.Join("\n", pcLines).Trim();
+                                        sb.AppendLine($"  {sectionFilt.Replace("\n", "\n  ").Trim()}");
+                                    }
+                                }
                                 sb.AppendLine();
                             }
                         }
