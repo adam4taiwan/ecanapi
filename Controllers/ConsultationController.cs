@@ -934,6 +934,54 @@ namespace Ecanapi.Controllers
             {"馬頭帶箭格", new(){"擎羊","天馬"}},
         };
 
+        // --- KB Helper: 三方四正分組（地支 → 三合三方 + 四正對沖）---
+        private static readonly Dictionary<string, string[]> SanFangGroups = new()
+        {
+            {"亥", new[]{"亥","卯","未","巳"}}, {"卯", new[]{"卯","亥","未","酉"}}, {"未", new[]{"未","亥","卯","丑"}},
+            {"寅", new[]{"寅","午","戌","申"}}, {"午", new[]{"午","寅","戌","子"}}, {"戌", new[]{"戌","寅","午","辰"}},
+            {"巳", new[]{"巳","酉","丑","亥"}}, {"酉", new[]{"酉","巳","丑","卯"}}, {"丑", new[]{"丑","巳","酉","未"}},
+            {"申", new[]{"申","子","辰","寅"}}, {"子", new[]{"子","申","辰","午"}}, {"辰", new[]{"辰","申","子","戌"}},
+        };
+
+        // --- KB Helper: 取宮位三方四正內的所有星（用於「會照」過濾，比全盤更精確）---
+        private static HashSet<string> KbGetSanFangStars(JsonElement palaces, string palaceName)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return KbGetAllChartStars(palaces);
+            string palBranch = KbGetPalaceBranch(palaces, palaceName);
+            if (string.IsNullOrEmpty(palBranch) || !SanFangGroups.TryGetValue(palBranch, out var sfBranches))
+                return KbGetAllChartStars(palaces); // 無法計算時 fallback 至全盤
+            var sfBranchSet = new HashSet<string>(sfBranches);
+            var stars = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var majorMap = new Dictionary<string, string>
+            {
+                {"紫","紫微"},{"機","天機"},{"陽","太陽"},{"武","武曲"},
+                {"同","天同"},{"廉","廉貞"},{"府","天府"},{"陰","太陰"},
+                {"貪","貪狼"},{"巨","巨門"},{"相","天相"},{"梁","天梁"},
+                {"殺","七殺"},{"破","破軍"}
+            };
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string raw = p.TryGetProperty("earthlyBranch", out var br) ? br.GetString() ?? "" : "";
+                string branch = ExtractBranchChar(raw);
+                if (!sfBranchSet.Contains(branch)) continue;
+                foreach (var key in new[]{"majorStars","mainStars","secondaryStars","goodStars","badStars","smallStars"})
+                {
+                    if (!p.TryGetProperty(key, out var arr) || arr.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var s in arr.EnumerateArray())
+                    {
+                        var name = s.GetString() ?? "";
+                        if (string.IsNullOrEmpty(name)) continue;
+                        stars.Add(name);
+                        if (majorMap.TryGetValue(name, out var full)) stars.Add(full);
+                        foreach (var kn in KnownSecondaryStarNames)
+                            if (kn.StartsWith(name) || kn.EndsWith(name))
+                                stars.Add(kn);
+                    }
+                }
+            }
+            return stars;
+        }
+
         // --- KB Helper: 從命盤 JSON 取得所有星曜名稱（主星+副星）---
         private static HashSet<string> KbGetAllChartStars(JsonElement palaces)
         {
@@ -7494,7 +7542,8 @@ namespace Ecanapi.Controllers
                         string contentKey = KbContentPalaceName(lcDecadePalace);
                         string palaceContent = KbFilterZiweiContent(
                             KbExtractPalaceSection(ziweiFullContent, contentKey),
-                            KbGetPalaceStarsSet(palaces, lcDecadePalace), chartStars);
+                            KbGetPalaceStarsSet(palaces, lcDecadePalace),
+                            KbGetSanFangStars(palaces, lcDecadePalace));
                         // 移除尾端不完整的段落標題（過濾後星空，只剩「在三方四正中：」之類）
                         if (!string.IsNullOrEmpty(palaceContent))
                         {
@@ -7509,6 +7558,33 @@ namespace Ecanapi.Controllers
                         {
                             // 有主星：正常顯示主星 + 格局
                             sb.AppendLine($"  宮位主星：{palaceStars}");
+                            // 生年化忌落入此大限宮位警示
+                            if (YearStemSiHuaMap.TryGetValue(yStem, out var natalSiHuaDy))
+                            {
+                                string natalJiAbbr = natalSiHuaDy.ji;
+                                string natalJiFull = StarAbbrToFull.TryGetValue(natalJiAbbr, out var jf) ? jf : natalJiAbbr;
+                                var paStarsCheck = KbGetPalaceStarsSet(palaces, lcDecadePalace);
+                                if (paStarsCheck.Contains(natalJiAbbr) || paStarsCheck.Contains(natalJiFull))
+                                {
+                                    string natalJiNote = lcDecadePalace switch
+                                    {
+                                        "命宮"   => "大限體質與運勢較脆弱，謹防意外、健康變故",
+                                        "財帛宮" => "大限財運先天受阻，需防破財、投資損失",
+                                        "官祿宮" => "大限事業先天有阻，職場多是非，宜守成",
+                                        "夫妻宮" => "大限感情婚姻先天有波折，需多溝通經營",
+                                        "子女宮" => "大限子女緣薄，子女事宜需多費心",
+                                        "疾厄宮" => "大限體質偏弱，需注意健康保養",
+                                        "遷移宮" => "大限外出遷移先天不順，出行宜謹慎",
+                                        "田宅宮" => "大限財庫受損，不動產與積蓄需謹慎",
+                                        "福德宮" => "大限精神壓力大，心理狀態需調適",
+                                        "父母宮" => "大限與長輩緣薄，長輩健康或關係需留意",
+                                        "兄弟宮" => "大限手足平輩關係需留意",
+                                        "僕役宮" => "大限人際先天有阻，慎交友、防小人",
+                                        _       => $"大限{lcDecadePalace}受先天化忌影響，需特別留意"
+                                    };
+                                    sb.AppendLine($"  【生年化忌】{natalJiFull}帶生年化忌（命主{yStem}年生），{natalJiNote}");
+                                }
+                            }
                             if (!string.IsNullOrEmpty(palaceContent))
                                 sb.AppendLine($"  {palaceContent.Trim()}");
                         }
