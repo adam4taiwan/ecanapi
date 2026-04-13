@@ -1162,9 +1162,9 @@ namespace Ecanapi.Controllers
 
                 if (!inConditional || includeSection)
                 {
-                    // 在條件段落內，過濾開頭為「[主星組合]」但組合內有宮內不存在的主星的行
-                    // 例：[武曲貪狼]守命 → 若貪狼不在宮位則跳過
-                    if (inConditional && includeSection && KbLineStartsWithUnavailableCombination(line, palaceStars))
+                    // 在條件段落內，過濾行內任意 [主星組合] 包含宮位外主星的行
+                    // 例：丑未二垣[武曲貪狼]守命、[武貪]化忌 → 若貪狼不在宮位則跳過
+                    if (inConditional && includeSection && KbLineHasUnavailableCombination(line, palaceStars))
                         continue;
                     result.AppendLine(line);
                 }
@@ -1172,21 +1172,27 @@ namespace Ecanapi.Controllers
             return result.ToString().TrimEnd();
         }
 
-        // --- KB Helper: 行首為 [主星組合] 且組合包含宮位外主星 → 應過濾 ---
-        private static bool KbLineStartsWithUnavailableCombination(string line, HashSet<string> palaceStars)
+        // --- KB Helper: 行內任意 [主星組合] 括號包含宮位外主星 → 應過濾 ---
+        // 用於大限命宮 KB 內容：避免顯示武貪/武相等宮位外組合描述
+        private static bool KbLineHasUnavailableCombination(string line, HashSet<string> palaceStars)
         {
-            string trimmed = line.TrimStart();
-            if (!trimmed.StartsWith("[")) return false;
-            int end = trimmed.IndexOf(']');
-            if (end <= 0) return false;
-            string inner = trimmed.Substring(1, end - 1);
-            // 展開縮寫（武→武曲, 貪→貪狼 等），只針對主星
-            foreach (var (abbr, fullName) in StarAbbrToFull)
+            int pos = 0;
+            while (pos < line.Length)
             {
-                if (!Array.Exists(KnownMainStarFullNames, s => s == fullName)) continue;
-                if (!inner.Contains(abbr) && !inner.Contains(fullName)) continue;
-                if (!palaceStars.Contains(fullName) && !palaceStars.Contains(abbr))
-                    return true; // 組合包含宮位外主星
+                int s = line.IndexOf('[', pos);
+                if (s < 0) break;
+                int e = line.IndexOf(']', s);
+                if (e < 0) break;
+                string inner = line.Substring(s + 1, e - s - 1);
+                // 只針對主星縮寫/全名，略過[遷移宮]等宮位名括號
+                foreach (var (abbr, fullName) in StarAbbrToFull)
+                {
+                    if (!Array.Exists(KnownMainStarFullNames, n => n == fullName)) continue;
+                    if (!inner.Contains(abbr) && !inner.Contains(fullName)) continue;
+                    if (!palaceStars.Contains(fullName) && !palaceStars.Contains(abbr))
+                        return true; // 括號內有宮位外主星
+                }
+                pos = e + 1;
             }
             return false;
         }
@@ -7626,10 +7632,12 @@ namespace Ecanapi.Controllers
                         string palaceStars = KbGetPalaceStars(palaces, lcDecadePalace);
                         string decadePalBranch = KbGetPalaceBranch(palaces, lcDecadePalace);
                         string decadeKbFull = decadeKbMap.GetValueOrDefault(decadePalBranch, "");
+                        // 大限命宮格局：只傳宮位內星（不傳三方四正），避免三方四正星觸發會照描述
+                        var lcDecPalStars = KbGetPalaceStarsSet(palaces, lcDecadePalace);
                         string palaceContent = KbFilterZiweiContent(
                             KbExtractPalaceSection(decadeKbFull, "命宮"),
-                            KbGetPalaceStarsSet(palaces, lcDecadePalace),
-                            KbGetSanFangStars(palaces, lcDecadePalace));
+                            lcDecPalStars,
+                            lcDecPalStars);
                         // 移除尾端不完整的段落標題（過濾後星空，只剩「在三方四正中：」之類）
                         if (!string.IsNullOrEmpty(palaceContent))
                         {
