@@ -908,6 +908,34 @@ namespace Ecanapi.Controllers
         }
 
         // --- KB Helper: 取紫微所在宮位地支 ---
+        // --- 地支順時針環（index=0 子 ... 11 亥），逆時針偏移用於大限宮位展開 ---
+        private static readonly string[] DyBranchRing =
+            { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+
+        // 從起始地支出發，逆時針偏移 offset 步（用於大限十二宮展開）
+        private static string DyGetCCWBranch(string startBranch, int offset)
+        {
+            int idx = Array.IndexOf(DyBranchRing, startBranch);
+            if (idx < 0) return startBranch;
+            return DyBranchRing[(idx - offset + 12) % 12];
+        }
+
+        // 依地支找命盤宮位名稱
+        private static string KbGetPalaceNameByBranch(JsonElement palaces, string branch)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return "";
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string eb = p.TryGetProperty("earthlyBranch", out var br) ? br.GetString() ?? "" : "";
+                if (!string.IsNullOrEmpty(eb)) eb = eb.Split(' ')[0];
+                if (eb != branch) continue;
+                string pname = p.TryGetProperty("palaceName", out var pn) ? pn.GetString() ?? "" :
+                               p.TryGetProperty("name",       out var n2) ? n2.GetString() ?? "" : "";
+                return KbNormalizePalaceName(pname);
+            }
+            return "";
+        }
+
         private static string KbGetZiweiPosition(JsonElement palaces)
         {
             if (palaces.ValueKind != JsonValueKind.Array) return "";
@@ -1133,9 +1161,34 @@ namespace Ecanapi.Controllers
                     continue;
 
                 if (!inConditional || includeSection)
+                {
+                    // 在條件段落內，過濾開頭為「[主星組合]」但組合內有宮內不存在的主星的行
+                    // 例：[武曲貪狼]守命 → 若貪狼不在宮位則跳過
+                    if (inConditional && includeSection && KbLineStartsWithUnavailableCombination(line, palaceStars))
+                        continue;
                     result.AppendLine(line);
+                }
             }
             return result.ToString().TrimEnd();
+        }
+
+        // --- KB Helper: 行首為 [主星組合] 且組合包含宮位外主星 → 應過濾 ---
+        private static bool KbLineStartsWithUnavailableCombination(string line, HashSet<string> palaceStars)
+        {
+            string trimmed = line.TrimStart();
+            if (!trimmed.StartsWith("[")) return false;
+            int end = trimmed.IndexOf(']');
+            if (end <= 0) return false;
+            string inner = trimmed.Substring(1, end - 1);
+            // 展開縮寫（武→武曲, 貪→貪狼 等），只針對主星
+            foreach (var (abbr, fullName) in StarAbbrToFull)
+            {
+                if (!Array.Exists(KnownMainStarFullNames, s => s == fullName)) continue;
+                if (!inner.Contains(abbr) && !inner.Contains(fullName)) continue;
+                if (!palaceStars.Contains(fullName) && !palaceStars.Contains(abbr))
+                    return true; // 組合包含宮位外主星
+            }
+            return false;
         }
 
         // --- KB Helper: 主星全名列表（用於觸發偵測）---
@@ -7496,6 +7549,9 @@ namespace Ecanapi.Controllers
             var coveredLucks = luckCycles.Where(lc =>
                 annualDetails.Any(a => a.age >= lc.startAge && a.age < lc.endAge)).ToList();
             if (coveredLucks.Count == 0) coveredLucks = luckCycles.Take(2).ToList();
+            // 分析期實際年齡範圍（限制大限宮位搜尋範圍，避免顯示分析期外的大限）
+            int minAnalysisAge = annualDetails.Count > 0 ? annualDetails.Min(a => a.age) : int.MinValue;
+            int maxAnalysisAge = annualDetails.Count > 0 ? annualDetails.Max(a => a.age) : int.MaxValue;
             foreach (var lc in coveredLucks)
             {
                 string lcSS  = LfStemShiShen(lc.stem, dStemRef);
@@ -7514,7 +7570,10 @@ namespace Ecanapi.Controllers
                 // 大限宮干化忌入關鍵宮位警示（早於詳細宮位分析呈現，讓讀者優先注意重大風險）
                 if (hasZiwei)
                 {
-                    var warnPalaces = DyGetOverlappingDecadePalaces(palaces, lc.startAge, lc.endAge);
+                    // 以實際分析年齡範圍為準，避免出現分析期外的大限
+                    int lcAnalysisStart = Math.Max(lc.startAge, minAnalysisAge);
+                    int lcAnalysisEnd   = Math.Min(lc.endAge,   maxAnalysisAge);
+                    var warnPalaces = DyGetOverlappingDecadePalaces(palaces, lcAnalysisStart, lcAnalysisEnd);
                     var keyPalWarn  = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "夫妻宮", "田宅宮" };
                     foreach (var (warnPalName, warnStem, warnPs, warnPe) in warnPalaces)
                     {
@@ -7542,7 +7601,9 @@ namespace Ecanapi.Controllers
                 // 八字大運可能橫跨多個紫微大限，逐段列出
                 if (hasZiwei)
                 {
-                    var overlapPalaces = DyGetOverlappingDecadePalaces(palaces, lc.startAge, lc.endAge);
+                    int lcAnalysisStart2 = Math.Max(lc.startAge, minAnalysisAge);
+                    int lcAnalysisEnd2   = Math.Min(lc.endAge,   maxAnalysisAge);
+                    var overlapPalaces = DyGetOverlappingDecadePalaces(palaces, lcAnalysisStart2, lcAnalysisEnd2);
                     foreach (var (lcDecadePalace, lcDecadeStem, pStart, pEnd) in overlapPalaces)
                     {
                         int overlapStart = Math.Max(lc.startAge, pStart);
@@ -7591,22 +7652,8 @@ namespace Ecanapi.Controllers
                                 var paStarsCheck = KbGetPalaceStarsSet(palaces, lcDecadePalace);
                                 if (paStarsCheck.Contains(natalJiAbbr) || paStarsCheck.Contains(natalJiFull))
                                 {
-                                    string natalJiNote = lcDecadePalace switch
-                                    {
-                                        "命宮"   => "大限體質與運勢較脆弱，謹防意外、健康變故",
-                                        "財帛宮" => "大限財運先天受阻，需防破財、投資損失",
-                                        "官祿宮" => "大限事業先天有阻，職場多是非，宜守成",
-                                        "夫妻宮" => "大限感情婚姻先天有波折，需多溝通經營",
-                                        "子女宮" => "大限子女緣薄，子女事宜需多費心",
-                                        "疾厄宮" => "大限體質偏弱，需注意健康保養",
-                                        "遷移宮" => "大限外出遷移先天不順，出行宜謹慎",
-                                        "田宅宮" => "大限財庫受損，不動產與積蓄需謹慎",
-                                        "福德宮" => "大限精神壓力大，心理狀態需調適",
-                                        "父母宮" => "大限與長輩緣薄，長輩健康或關係需留意",
-                                        "兄弟宮" => "大限手足平輩關係需留意",
-                                        "僕役宮" => "大限人際先天有阻，慎交友、防小人",
-                                        _       => $"大限{lcDecadePalace}受先天化忌影響，需特別留意"
-                                    };
+                                    // 大限宮位即為大限命宮，生年化忌坐大限命宮，格局先天受制
+                                    string natalJiNote = "此星帶生年化忌坐大限命宮，整個大限格局先天受制，運勢易有起伏，行事宜謹慎務實，防範意外及突發變故";
                                     sb.AppendLine($"  【生年化忌】{natalJiFull}帶生年化忌（命主{yStem}年生），{natalJiNote}");
                                 }
                             }
@@ -7667,6 +7714,44 @@ namespace Ecanapi.Controllers
                             }
                         }
                         sb.AppendLine();
+                        // 大限十二宮星化象（以大限宮位為大限命宮，逆時針展開其餘十一宮）
+                        if (!string.IsNullOrEmpty(decadeKbFull))
+                        {
+                            sb.AppendLine($"  【大限十二宮星化象（以{lcDecadePalace}為大限命宮）】");
+                            string[] dyPalLabels = {
+                                "大限命宮", "大限兄弟宮", "大限夫妻宮", "大限子女宮",
+                                "大限財帛宮", "大限疾厄宮", "大限遷移宮", "大限僕役宮",
+                                "大限官祿宮", "大限田宅宮", "大限福德宮", "大限父母宮" };
+                            string[] dbSections = {
+                                "命宮", "兄弟宮", "夫妻宮", "子女宮",
+                                "財帛宮", "疾厄宮", "遷移宮", "交友宮",
+                                "事業宮", "田宅宮", "福德宮", "父母宮" };
+                            for (int po = 1; po < 12; po++) // offset 0 = 大限命宮，已在上方顯示
+                            {
+                                string ccwBranch   = DyGetCCWBranch(decadePalBranch, po);
+                                string natalPalName = KbGetPalaceNameByBranch(palaces, ccwBranch);
+                                string natalStars   = KbGetPalaceStars(palaces, natalPalName);
+                                var natalStarsSet   = KbGetPalaceStarsSet(palaces, natalPalName);
+                                var natalSanFang    = KbGetSanFangStars(palaces, natalPalName);
+                                string sectionRaw   = KbExtractPalaceSection(decadeKbFull, dbSections[po]);
+                                string sectionFilt  = KbFilterZiweiContent(sectionRaw, natalStarsSet, natalSanFang);
+                                if (!string.IsNullOrEmpty(sectionFilt))
+                                {
+                                    var pcLines = sectionFilt.Split('\n')
+                                        .Reverse()
+                                        .SkipWhile(l => l.TrimEnd().EndsWith("：") || string.IsNullOrWhiteSpace(l))
+                                        .Reverse()
+                                        .ToList();
+                                    sectionFilt = string.Join("\n", pcLines).Trim();
+                                }
+                                string starsLabel  = string.IsNullOrEmpty(natalStars) ? "空宮" : natalStars;
+                                string natalLabel  = string.IsNullOrEmpty(natalPalName) ? "" : $"（本命{natalPalName}）";
+                                sb.AppendLine($"  {dyPalLabels[po]}{natalLabel}：{starsLabel}");
+                                if (!string.IsNullOrEmpty(sectionFilt))
+                                    sb.AppendLine($"  {sectionFilt.Replace("\n", "\n  ").Trim()}");
+                                sb.AppendLine();
+                            }
+                        }
                     }
                 }
                 sb.AppendLine();
