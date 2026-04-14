@@ -855,7 +855,32 @@ namespace Ecanapi.Controllers
                     break;
                 }
             }
-            return string.Join("\n", lines.Skip(startIdx).Take(endIdx - startIdx)).Trim();
+            string extracted = string.Join("\n", lines.Skip(startIdx).Take(endIdx - startIdx)).Trim();
+            return KbRemoveOtherPalaceLines(extracted, palaceName);
+        }
+
+        // --- KB Helper: 過濾宮位 section 中偷帶其他宮位論述的行 ---
+        // 例：夫妻宮 section 內出現「事業宮見陀羅」「紫微在事業宮」等，予以過濾
+        private static string KbRemoveOtherPalaceLines(string extracted, string targetPalace)
+        {
+            if (string.IsNullOrEmpty(extracted)) return extracted;
+            var allPalaces = new[] { "命宮", "父母宮", "福德宮", "田宅宮", "事業宮", "交友宮", "遷移宮", "疾厄宮", "財帛宮", "子女宮", "夫妻宮", "兄弟宮" };
+            var otherPalaces = allPalaces.Where(p => p != targetPalace).ToArray();
+            string targetShort = targetPalace.TrimEnd('宮'); // 夫妻宮→夫妻
+
+            var lines = extracted.Split('\n');
+            var result = new List<string>();
+            foreach (var line in lines)
+            {
+                var trimmed = line.TrimEnd();
+                bool mentionsOther = otherPalaces.Any(p => trimmed.Contains(p));
+                bool mentionsTarget = trimmed.Contains(targetPalace) || trimmed.Contains(targetShort);
+                // 只過濾：提到其他宮位 且 完全沒提目標宮位的行
+                if (mentionsOther && !mentionsTarget)
+                    continue;
+                result.Add(trimmed);
+            }
+            return string.Join("\n", result).TrimEnd();
         }
 
         // --- KB Helper: 宮位名正規化（去宮/去身 → XXX宮格式）---
