@@ -2208,6 +2208,18 @@ namespace Ecanapi.Controllers
                     ziweiGeJuYdz = gjSb.ToString();
                 }
 
+                // 雙星組合 + 輔星入宮（5宮）
+                var doubleDescsYdz = new Dictionary<string, string>();
+                var minorDescsYdz  = new Dictionary<string, string>();
+                if (hasZiwei)
+                {
+                    foreach (var kbPal in new[] { "命宮", "官祿宮", "財帛宮", "夫妻宮", "疾厄宮" })
+                    {
+                        doubleDescsYdz[kbPal] = await KbQueryDoubleStarInPalace(palacesYdz, kbPal);
+                        minorDescsYdz[kbPal]  = await KbQueryMinorStarsInPalace(palacesYdz, kbPal);
+                    }
+                }
+
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2225,7 +2237,8 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz);
+                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
+                    doubleDescsYdz, minorDescsYdz);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2491,6 +2504,18 @@ namespace Ecanapi.Controllers
                     ziweiGeJuYdz = gjSb.ToString();
                 }
 
+                // 雙星組合 + 輔星入宮（5宮）
+                var doubleDescsYdz = new Dictionary<string, string>();
+                var minorDescsYdz  = new Dictionary<string, string>();
+                if (hasZiwei)
+                {
+                    foreach (var kbPal in new[] { "命宮", "官祿宮", "財帛宮", "夫妻宮", "疾厄宮" })
+                    {
+                        doubleDescsYdz[kbPal] = await KbQueryDoubleStarInPalace(palacesYdz, kbPal);
+                        minorDescsYdz[kbPal]  = await KbQueryMinorStarsInPalace(palacesYdz, kbPal);
+                    }
+                }
+
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2508,7 +2533,8 @@ namespace Ecanapi.Controllers
                     siHuaQuanPalaceYdz, siHuaQuanYdz,
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
-                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz);
+                    dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
+                    doubleDescsYdz, minorDescsYdz);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -5045,7 +5071,9 @@ namespace Ecanapi.Controllers
             string siHuaJiPalace, string siHuaJi,
             BaziDayPillarReading? kb,
             List<BaziDirectRule>? zhongyuanRules = null,
-            string ziweiGeJuContent = "")
+            string ziweiGeJuContent = "",
+            Dictionary<string, string>? doubleDescs = null,
+            Dictionary<string, string>? minorDescs = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -5731,6 +5759,12 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"▶ 特性診斷：{kbContent}");
                     else
                         sb.AppendLine("▶ 特性診斷：（待補充）");
+                    // 雙星 + 輔星
+                    string dblKey = KbNormalizePalaceName(palaceNamesAll[i]);
+                    if (doubleDescs != null && doubleDescs.TryGetValue(dblKey, out var dblTxt) && !string.IsNullOrEmpty(dblTxt))
+                        sb.AppendLine($"▶ 雙星論斷：{dblTxt}");
+                    if (minorDescs != null && minorDescs.TryGetValue(dblKey, out var minTxt) && !string.IsNullOrEmpty(minTxt))
+                        sb.AppendLine($"▶ 輔星加臨：{minTxt}");
                 }
                 sb.AppendLine("────────────────────────────────────");
             }
@@ -5914,6 +5948,10 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"【夫妻化祿飛{spsLu.pal}】{spsLu.txt}");
                 if (siHua.TryGetValue("夫妻化忌", out var spsJi) && !string.IsNullOrEmpty(spsJi.txt))
                     sb.AppendLine($"【夫妻化忌飛{spsJi.pal}】{spsJi.txt}");
+                if (doubleDescs != null && doubleDescs.TryGetValue("夫妻宮", out var dblSps) && !string.IsNullOrEmpty(dblSps))
+                    sb.AppendLine($"【夫妻雙星論斷】{dblSps}");
+                if (minorDescs != null && minorDescs.TryGetValue("夫妻宮", out var minSps) && !string.IsNullOrEmpty(minSps))
+                    sb.AppendLine($"【夫妻輔星加臨】{minSps}");
                 if (string.IsNullOrEmpty(ziweiSps)) sb.AppendLine("（紫微夫妻宮資料待補充）");
             }
             sb.AppendLine();
