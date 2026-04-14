@@ -570,6 +570,20 @@ namespace Ecanapi.Controllers
                 string starDescSps  = await KbQueryStarInPalace(palaces, "夫妻宮");
                 string starDescHlt  = await KbQueryStarInPalace(palaces, "疾厄宮");
 
+                // 雙星組合入宮
+                string doubleDescMing = await KbQueryDoubleStarInPalace(palaces, "命宮");
+                string doubleDescOff  = await KbQueryDoubleStarInPalace(palaces, "官祿宮");
+                string doubleDescWlt  = await KbQueryDoubleStarInPalace(palaces, "財帛宮");
+                string doubleDescSps  = await KbQueryDoubleStarInPalace(palaces, "夫妻宮");
+                string doubleDescHlt  = await KbQueryDoubleStarInPalace(palaces, "疾厄宮");
+
+                // 輔星（吉星/煞星）入宮
+                string minorDescMing = await KbQueryMinorStarsInPalace(palaces, "命宮");
+                string minorDescOff  = await KbQueryMinorStarsInPalace(palaces, "官祿宮");
+                string minorDescWlt  = await KbQueryMinorStarsInPalace(palaces, "財帛宮");
+                string minorDescSps  = await KbQueryMinorStarsInPalace(palaces, "夫妻宮");
+                string minorDescHlt  = await KbQueryMinorStarsInPalace(palaces, "疾厄宮");
+
                 // 紫微格局偵測 + 描述查詢
                 string ziweiGeJu = "";
                 if (palaces.ValueKind == JsonValueKind.Array)
@@ -628,6 +642,8 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(nianSiHuaXing)) sb_out.AppendLine($"【先天四化】{nianSiHuaXing}");
                 if (!string.IsNullOrEmpty(ziweiMing))  sb_out.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing)) sb_out.AppendLine($"【命宮星情】{starDescMing}");
+                if (!string.IsNullOrEmpty(doubleDescMing)) sb_out.AppendLine($"【命宮雙星論斷】{doubleDescMing}");
+                if (!string.IsNullOrEmpty(minorDescMing)) sb_out.AppendLine($"【命宮輔星加臨】{minorDescMing}");
                 if (!string.IsNullOrEmpty(ziweiGeJu))
                 {
                     sb_out.AppendLine("【命宮格局論斷】");
@@ -686,11 +702,15 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(starDescOff))  sb_out.AppendLine($"【官祿星性】{starDescOff}");
                 if (!string.IsNullOrEmpty(offLuContent)) sb_out.AppendLine($"【官祿宮化祿飛{offLuPalace}】{offLuContent}");
                 if (!string.IsNullOrEmpty(offJiContent)) sb_out.AppendLine($"【官祿宮化忌飛{offJiPalace}】{offJiContent}");
+                if (!string.IsNullOrEmpty(doubleDescOff)) sb_out.AppendLine($"【官祿雙星論斷】{doubleDescOff}");
+                if (!string.IsNullOrEmpty(minorDescOff)) sb_out.AppendLine($"【官祿輔星加臨】{minorDescOff}");
                 // 財帛宮12宮星情 + 宮位四化飛出 + 主星入宮
                 if (!string.IsNullOrEmpty(ziweiWlt))     sb_out.AppendLine($"【財帛宮·{ziweiWltStar}】{ziweiWlt}");
                 if (!string.IsNullOrEmpty(starDescWlt))  sb_out.AppendLine($"【財帛星性】{starDescWlt}");
                 if (!string.IsNullOrEmpty(wltLuContent)) sb_out.AppendLine($"【財帛宮化祿飛{wltLuPalace}】{wltLuContent}");
                 if (!string.IsNullOrEmpty(wltJiContent)) sb_out.AppendLine($"【財帛宮化忌飛{wltJiPalace}】{wltJiContent}");
+                if (!string.IsNullOrEmpty(doubleDescWlt)) sb_out.AppendLine($"【財帛雙星論斷】{doubleDescWlt}");
+                if (!string.IsNullOrEmpty(minorDescWlt)) sb_out.AppendLine($"【財帛輔星加臨】{minorDescWlt}");
                 // 先天四化與事業/財帛關聯
                 if (!string.IsNullOrEmpty(siHuaLu) && (siHuaLuPalace == "官祿宮" || siHuaLuPalace == "財帛宮"))
                     sb_out.AppendLine($"【先天化祿加成·{siHuaLuPalace}】{siHuaLu}");
@@ -716,6 +736,8 @@ namespace Ecanapi.Controllers
                     if (!string.IsNullOrEmpty(starDescSps))  sb_out.AppendLine($"【夫妻星性】{starDescSps}");
                     if (!string.IsNullOrEmpty(spsLuContent)) sb_out.AppendLine($"【夫妻宮化祿飛{spsLuPalace}】{spsLuContent}");
                     if (!string.IsNullOrEmpty(spsJiContent)) sb_out.AppendLine($"【夫妻宮化忌飛{spsJiPalace}】{spsJiContent}");
+                    if (!string.IsNullOrEmpty(doubleDescSps)) sb_out.AppendLine($"【夫妻雙星論斷】{doubleDescSps}");
+                    if (!string.IsNullOrEmpty(minorDescSps)) sb_out.AppendLine($"【夫妻輔星加臨】{minorDescSps}");
                     // 先天四化入夫妻宮
                     if (!string.IsNullOrEmpty(siHuaLu) && siHuaLuPalace == "夫妻宮")
                         sb_out.AppendLine($"【先天化祿加成·夫妻宮】{siHuaLu}");
@@ -737,6 +759,8 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(ziweiHlt))     sb_out.AppendLine($"【疾厄宮·{ziweiHltStar}】{ziweiHlt}");
                 if (!string.IsNullOrEmpty(starDescHlt))  sb_out.AppendLine($"【疾厄星性】{starDescHlt}");
                 if (!string.IsNullOrEmpty(hltJiContent)) sb_out.AppendLine($"【疾厄宮化忌飛{hltJiPalace}】{hltJiContent}");
+                if (!string.IsNullOrEmpty(doubleDescHlt)) sb_out.AppendLine($"【疾厄雙星論斷】{doubleDescHlt}");
+                if (!string.IsNullOrEmpty(minorDescHlt)) sb_out.AppendLine($"【疾厄輔星加臨】{minorDescHlt}");
                 // 先天化忌入疾厄
                 if (!string.IsNullOrEmpty(siHuaJi) && siHuaJiPalace == "疾厄宮")
                     sb_out.AppendLine($"【先天化忌警示·疾厄宮】{siHuaJi}");
@@ -1435,10 +1459,38 @@ namespace Ecanapi.Controllers
             {"巨", ("巨門",  "8紫微斗数主星相廉武巨入十二宮.docx", true)},
         };
 
+        // 5新.docx 格式：一條 ResultText 含所有十二宮，逐行提取
+        private static readonly Dictionary<string, string> NewFormatStarMap = new()
+        {
+            {"府", "天府"},
+            {"陽", "太陽"},
+            {"陰", "太陰"},
+        };
+
+        // 雙星組合 Key 對照（兩星縮寫 → 雙星文件 Title Key）
+        private static readonly Dictionary<string, string> DoubleStarKeyMap = new()
+        {
+            {"紫破","紫破"},{"破紫","紫破"}, {"紫府","紫府"},{"府紫","紫府"},
+            {"紫相","紫相"},{"相紫","紫相"}, {"紫殺","紫殺"},{"殺紫","紫殺"},
+            {"紫貪","紫貪"},{"貪紫","紫貪"},
+            {"武府","武府"},{"府武","武府"}, {"武相","武相"},{"相武","武相"},
+            {"武破","武破"},{"破武","武破"}, {"武殺","武殺"},{"殺武","武殺"},
+            {"武貪","武貪"},{"貪武","武貪"},
+            {"廉府","廉府"},{"府廉","廉府"}, {"廉相","廉相"},{"相廉","廉相"},
+            {"廉破","廉破"},{"破廉","廉破"}, {"廉殺","廉殺"},{"殺廉","廉殺"},
+            {"廉貪","廉貪"},{"貪廉","廉貪"},
+            {"同巨","同巨"},{"巨同","同巨"}, {"同梁","同梁"},{"梁同","同梁"},
+            {"同陰","同陰"},{"陰同","同陰"},
+            {"機巨","機巨"},{"巨機","機巨"}, {"機梁","機梁"},{"梁機","機梁"},
+            {"機陰","機陰"},{"陰機","機陰"},
+            {"陽梁","陽梁"},{"梁陽","陽梁"},
+            {"巨陽","巨日"},{"陽巨","巨日"},
+            {"陽陰","日月"},{"陰陽","日月"},
+        };
+
         private async Task<string> KbQueryStarInPalace(JsonElement palaces, string palaceName)
         {
             if (palaces.ValueKind != JsonValueKind.Array) return "";
-            // 找到該宮的主星列表
             var stars = new List<string>();
             foreach (var p in palaces.EnumerateArray())
             {
@@ -1463,6 +1515,15 @@ namespace Ecanapi.Controllers
             var parts = new StringBuilder();
             foreach (var star in stars)
             {
+                // 5新.docx 格式：天府/太陽/太陰
+                if (NewFormatStarMap.TryGetValue(star, out var fullStarName))
+                {
+                    string title = $"{fullStarName}星入十二宮";
+                    string fullText = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='5新 紫微斗数主星府陽陰四大主星入十二宮.docx' AND \"Title\"='{title}' LIMIT 1");
+                    string line = KbExtractNewFormatStarLine(fullText, fullStarName, palaceShort);
+                    if (!string.IsNullOrWhiteSpace(line)) parts.AppendLine(line.Trim());
+                    continue;
+                }
                 if (!StarInPalaceMap.TryGetValue(star, out var info)) continue;
                 string result;
                 if (info.useTitle)
@@ -1470,12 +1531,134 @@ namespace Ecanapi.Controllers
                 else
                     result = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='{info.file}' AND \"ResultText\" LIKE '{info.fullName}星入{palaceShort}宮：%' LIMIT 1");
                 if (string.IsNullOrWhiteSpace(result)) continue;
-                // ResultText style 含前綴 "七殺星入命宮：" → 去掉前綴取描述
                 if (!info.useTitle && result.Contains('：'))
                     result = result.Substring(result.IndexOf('：') + 1);
                 parts.AppendLine(result.Trim());
             }
             return parts.ToString().Trim();
+        }
+
+        // 從 5新.docx 的多宮合併 ResultText 中提取特定宮位描述
+        private static string KbExtractNewFormatStarLine(string fullText, string starFullName, string palaceShort)
+        {
+            string linePrefix = $"{starFullName}星入{palaceShort}宮：";
+            foreach (var line in fullText.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith(linePrefix))
+                    return trimmed.Substring(linePrefix.Length).Trim();
+            }
+            return "";
+        }
+
+        // 查詢雙星組合入宮（紫微斗数双星入十二宮(全).docx）
+        private async Task<string> KbQueryDoubleStarInPalace(JsonElement palaces, string palaceName)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return "";
+            var stars = new List<string>();
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string pn = p.TryGetProperty("palaceName", out var pp) ? pp.GetString() ?? "" :
+                            p.TryGetProperty("name", out var nn) ? nn.GetString() ?? "" : "";
+                if (!KbPalaceSame(pn, palaceName)) continue;
+                foreach (var key in new[] { "majorStars", "mainStars" })
+                {
+                    if (!p.TryGetProperty(key, out var s) || s.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var star in s.EnumerateArray())
+                    {
+                        var n = star.GetString() ?? "";
+                        if (!string.IsNullOrEmpty(n)) stars.Add(n);
+                    }
+                    break;
+                }
+                break;
+            }
+            if (stars.Count < 2) return "";
+
+            string doubleKey = "";
+            for (int i = 0; i < stars.Count && string.IsNullOrEmpty(doubleKey); i++)
+                for (int j = i + 1; j < stars.Count && string.IsNullOrEmpty(doubleKey); j++)
+                    if (DoubleStarKeyMap.TryGetValue(stars[i] + stars[j], out var k)) doubleKey = k;
+
+            if (string.IsNullOrEmpty(doubleKey)) return "";
+
+            // 官祿 → 事業（雙星文件使用「事業」）
+            string palaceNorm = KbNormalizePalaceName(palaceName).Replace("官祿", "事業");
+            string titlePalace = palaceNorm switch
+            {
+                "夫妻宮" or "子女宮" or "父母宮" or "兄弟宮" or "交友宮" => "六親宮位",
+                _ => palaceNorm
+            };
+
+            string result = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='紫微斗数双星入十二宮(全).docx' AND \"Title\" IN ('{doubleKey}居{titlePalace}', '{doubleKey}{titlePalace}') LIMIT 1");
+            return result?.Trim() ?? "";
+        }
+
+        // 查詢輔星（吉星/煞星）入宮
+        private async Task<string> KbQueryMinorStarsInPalace(JsonElement palaces, string palaceName)
+        {
+            if (palaces.ValueKind != JsonValueKind.Array) return "";
+            var secondarySet = new HashSet<string>();
+            var goodSet = new HashSet<string>();
+            var badSet = new HashSet<string>();
+
+            foreach (var p in palaces.EnumerateArray())
+            {
+                string pn = p.TryGetProperty("palaceName", out var pp) ? pp.GetString() ?? "" :
+                            p.TryGetProperty("name", out var nn) ? nn.GetString() ?? "" : "";
+                if (!KbPalaceSame(pn, palaceName)) continue;
+                void FillSet(HashSet<string> set, string jsonKey)
+                {
+                    if (!p.TryGetProperty(jsonKey, out var arr) || arr.ValueKind != JsonValueKind.Array) return;
+                    foreach (var s in arr.EnumerateArray()) { var n = s.GetString() ?? ""; if (!string.IsNullOrEmpty(n)) set.Add(n); }
+                }
+                FillSet(secondarySet, "secondaryStars");
+                FillSet(goodSet, "goodStars");
+                FillSet(badSet, "badStars");
+                break;
+            }
+
+            // 官祿 → 事業（副星/煞星文件使用「事業」）
+            string palaceNormForMinor = KbNormalizePalaceName(palaceName).Replace("官祿", "事業");
+            string palaceShortNoGong = palaceNormForMinor.TrimEnd('宮');
+            string palaceFull = palaceNormForMinor;
+            var sb = new StringBuilder();
+
+            bool HasStar(HashSet<string> set, string abbr) => set.Any(s => s == abbr || s.StartsWith(abbr + "("));
+
+            // 吉星（9.docx）：title 不含宮後綴
+            var luckyGroups = new (string[] abbrs, string titleKey)[]
+            {
+                (new[]{ "昌","曲" }, "文昌星、文曲星"),
+                (new[]{ "左","右" }, "左輔星、右弼星"),
+                (new[]{ "魁","鉞" }, "天魁星、天鉞星"),
+                (new[]{ "祿","馬" }, "䘵存星、天馬星"),
+            };
+            foreach (var (abbrs, titleKey) in luckyGroups)
+            {
+                if (!abbrs.Any(a => HasStar(secondarySet, a) || HasStar(goodSet, a))) continue;
+                string r = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='9紫微斗数辅星-吉星入十二宮.docx' AND \"Title\"='{titleKey}入{palaceShortNoGong}' LIMIT 1");
+                if (!string.IsNullOrWhiteSpace(r)) sb.AppendLine(r.Trim());
+            }
+
+            // 煞星（4.docx）：title 含宮後綴
+            var evilGroups = new (string abbr, HashSet<string> set, string starName)[]
+            {
+                ("羊", badSet, "擎羊星"),
+                ("陀", badSet, "陀羅星"),
+                ("火", badSet, "火星"),
+                ("鈴", badSet, "鈴星"),
+                ("劫", secondarySet, "地劫星"),
+                ("空", secondarySet, "地空星"),
+            };
+            foreach (var (abbr, set, starName) in evilGroups)
+            {
+                if (!HasStar(set, abbr)) continue;
+                string r = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='4紫微斗数煞星入十二宮.docx' AND \"Title\"='{starName}入{palaceFull}' LIMIT 1");
+                if (!string.IsNullOrWhiteSpace(r)) sb.AppendLine(r.Trim());
+            }
+
+            return sb.ToString().Trim();
         }
 
         // --- KB Helper: 取地支主氣十神 ---
