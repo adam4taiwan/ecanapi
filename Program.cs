@@ -157,6 +157,7 @@ builder.Services.AddScoped<IAstrologyService, AstrologyService>();
 builder.Services.AddScoped<IExcelExportService, ExcelExportService>();
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<IAnalysisReportService, AnalysisReportService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // --- LINE Bot 背景推播服務 ---
 builder.Services.AddScoped<Ecanapi.Controllers.NineStarController>();

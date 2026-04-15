@@ -125,7 +125,9 @@ namespace Ecanapi.Controllers
                 .SumAsync(r => (int?)r.Amount) ?? 0;
             var pendingAtm = await _context.AtmPaymentRequests
                 .CountAsync(r => r.Status == "pending");
-            return Ok(new { totalUsers, totalPointsSold, pendingAtm });
+            var pendingBookings = await _context.BookingRequests
+                .CountAsync(r => r.Status == "pending");
+            return Ok(new { totalUsers, totalPointsSold, pendingAtm, pendingBookings });
         }
 
         // GET /api/Admin/users?search=
