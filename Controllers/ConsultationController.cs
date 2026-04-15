@@ -7730,17 +7730,28 @@ namespace Ecanapi.Controllers
         {
             string baziDesc  = baziScore  >= 70 ? "八字喜用" : baziScore  >= 50 ? "八字平和" : "八字忌神";
             string ziweiDesc = ziweiScore >= 68 ? "紫微吉臨" : ziweiScore >= 50 ? "紫微平穩" : "紫微凶曜";
-            string action = crossClass switch
+            string bazi  = baziScore  >= 70 ? "喜" : baziScore  >= 50 ? "平" : "忌";
+            string ziwei = ziweiScore >= 68 ? "吉" : ziweiScore >= 50 ? "平" : "凶";
+            // 9種組合各給獨立建議，避免「平」一律守成的問題
+            string action = (bazi, ziwei) switch
             {
-                "大吉" => "宜積極進取，把握機遇。",
-                "吉"   => "整體向好，宜穩健前進。",
-                "平"   => "平穩為主，守成待機。",
-                "小凶" => "宜謹慎保守，避免冒進。",
-                "大凶" => "宜低調守成，防範風險。",
-                _      => "平穩行事。"
+                ("喜", "吉") => "雙重加持，此為難得機遇年，宜大膽佈局、積極進取。",
+                ("喜", "平") => "八字得力為主，宜主動進取，穩中求進，趁勢而為。",
+                ("平", "吉") => "紫微助力明顯，善用人際與外部資源，可借勢推進。",
+                ("喜", "凶") => "八字雖好，紫微有阻，宜守好既有優勢，防外部因素干擾。",
+                ("平", "平") => "八字紫微均屬平穩，無大起伏，靜守積累，蓄勢待發。",
+                ("忌", "吉") => "八字承壓但紫微扶持，宜借重外力、人脈化解，少獨力硬幹。",
+                ("平", "凶") => "紫微有阻，宜低調行事，避免不必要風險與正面衝突。",
+                ("忌", "平") => "八字忌神為主要壓力，宜謹慎守成，減少重大決策。",
+                ("忌", "凶") => "八字紫微雙重壓力，宜低調守成，防範風險，靜待轉機。",
+                _            => "平穩行事，量力而為。"
             };
+            // 極端分數加提示
+            string extreme = (baziScore <= 22 && ziwei == "吉")
+                ? "（八字壓力極重，紫微雖扶，仍需格外謹慎）"
+                : (baziScore >= 80 && ziweiScore >= 75) ? "（得分極高，把握此難得好年）" : "";
             string ssDesc = !string.IsNullOrEmpty(flStemSS) ? $"（{flStemSS}年）" : "";
-            return $"{baziDesc}、{ziweiDesc}，{crossClass}{ssDesc}。{action}";
+            return $"{baziDesc}、{ziweiDesc}，{crossClass}{ssDesc}。{action}{extreme}";
         }
 
         private static string DyCrossDesc(string crossClass, string flStemSS, string flBranchSS, int baziScore, int ziweiScore)
