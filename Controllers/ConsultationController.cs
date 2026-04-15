@@ -2914,7 +2914,8 @@ namespace Ecanapi.Controllers
                     annualForecasts.Add(new {
                         year = yr, age, stemBranch = flStem + flBranch,
                         daiyunStem, daiyunBranch, baziScore, ziweiScore, crossClass,
-                        summary = DyYearSummary(crossClass, flStemSS, flBranchSS, baziScore, ziweiScore)
+                        summary = DyYearSummary(crossClass, flStemSS, flBranchSS, baziScore, ziweiScore),
+                        detail  = DyCrossDesc(crossClass, flStemSS, flBranchSS, baziScore, ziweiScore)
                     });
                 }
 
@@ -7756,19 +7757,25 @@ namespace Ecanapi.Controllers
 
         private static string DyCrossDesc(string crossClass, string flStemSS, string flBranchSS, int baziScore, int ziweiScore)
         {
-            string desc = crossClass switch
+            string bazi  = baziScore  >= 70 ? "喜" : baziScore  >= 50 ? "平" : "忌";
+            string ziwei = ziweiScore >= 68 ? "吉" : ziweiScore >= 50 ? "平" : "凶";
+            string desc = (bazi, ziwei) switch
             {
-                "大吉" => "八字用神得力、紫微吉曜臨宮，雙重加持，為黃金年份。宜積極進取，把握機遇，無論事業投資婚姻皆可有所作為。",
-                "吉"   => "八字與紫微均向好，整體運勢順暢。宜穩健前進，趁勢佈局，擴展人脈與資源。",
-                "平"   => "八字與紫微各有吉凶相抵，整體平穩。宜守成待機，不急進不冒險，積累實力。",
-                "小凶" => "八字或紫微有一方出現凶象，需提高警覺。宜謹慎保守，避免重大決策，做好風險管理。",
-                "大凶" => "八字忌神活躍、紫微凶曜臨宮，雙重壓力，需謹慎應對。宜低調守成，避免冒進，積極化解，以守為攻。",
-                _      => "平穩行事，量力而為。"
+                ("喜", "吉") => "八字用神得力、紫微吉曜臨宮，雙重加持，為難得黃金年份。事業、投資、感情皆可大膽佈局，宜積極進取，乘勢而上，此種年份一生難得幾回。",
+                ("喜", "平") => "八字喜用神活躍，八字面整體順暢；紫微宮位平穩，無特殊加分或減分。以八字優勢為主，宜主動進取，趁勢推進計畫，外部環境不阻力。",
+                ("平", "吉") => "紫微吉曜加持明顯，外部機遇、人際貴人較多；八字本身平穩，無明顯阻力。宜把握外部帶來的機會，借勢推進，善用人脈與外部資源是關鍵。",
+                ("喜", "凶") => "八字用神得力，自身狀態良好；惟紫微有凶曜干擾，外部環境或人際可能帶來摩擦。宜守好既有優勢，減少對外拓展，防範外部突發變數。",
+                ("平", "平") => "八字與紫微均屬平穩中庸，無明顯吉凶加持。此年平中有機，宜靜守積累、鞏固基礎，不宜冒進，蓄勢待發，厚積薄發自有收穫。",
+                ("忌", "吉") => $"八字忌神活躍（得分{baziScore}），自身承受一定壓力；幸有紫微吉曜扶持（得分{ziweiScore}），外部環境有助力。關鍵在於善用外部人脈資源化解內部壓力，切勿獨力硬幹，借勢借力可穩住局面。",
+                ("平", "凶") => "紫微凶曜臨宮，外部干擾、意外變數較多；八字本身平穩，自身實力尚可。宜低調行事，減少對外衝突，專注內部鞏固，避免主動引發外部糾紛。",
+                ("忌", "平") => $"八字忌神為主要壓力（得分{baziScore}），自身行事易有阻滯；紫微平穩，外部無特殊加減。宜謹慎守成，暫緩重大決策，以穩健低調行事為上策，減少犯錯機會。",
+                ("忌", "凶") => $"八字忌神（得分{baziScore}）與紫微凶曜（得分{ziweiScore}）雙重壓力，內外均有阻礙。此年宜極度低調守成，切勿冒進或主動出擊，做好風險管理，靜待轉機，以守為攻。",
+                _            => "平穩行事，量力而為，靜待機遇。"
             };
             string ssNote = "";
-            if (!string.IsNullOrEmpty(flStemSS)) ssNote = $"流年天干為{flStemSS}";
-            if (!string.IsNullOrEmpty(flBranchSS)) ssNote += (ssNote.Length > 0 ? "、" : "") + $"地支藏{flBranchSS}";
-            return string.IsNullOrEmpty(ssNote) ? desc : $"（{ssNote}）{desc}";
+            if (!string.IsNullOrEmpty(flStemSS)) ssNote = $"流年天干{flStemSS}";
+            if (!string.IsNullOrEmpty(flBranchSS)) ssNote += (ssNote.Length > 0 ? "、地支藏" : "地支藏") + flBranchSS;
+            return string.IsNullOrEmpty(ssNote) ? desc : $"【{ssNote}】{desc}";
         }
 
         private static string DyBuildReport(
