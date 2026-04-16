@@ -2030,14 +2030,8 @@ namespace Ecanapi.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
             if (user == null) return BadRequest(new { error = "找不到用戶" });
 
-            bool ydIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
-            int ydSubId = -1;
-            if (!ydIsAdmin)
-            {
-                var (ydOk, ydErr, ydSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
-                if (!ydOk) return BadRequest(new { error = ydErr });
-                ydSubId = ydSubIdVal;
-            }
+            if (!string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase))
+                return StatusCode(403, new { error = "此功能僅限管理員使用" });
 
             var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
@@ -2351,8 +2345,7 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(kbNsSection)) report += kbNsSection;
 
-                if (!ydIsAdmin) await RecordSubscriptionClaim(user.Id, ydSubId, "BOOK_BAZI");
-                await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子八字紫微命書", report,
+                await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子命書（內部版）", report,
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
 
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points,
