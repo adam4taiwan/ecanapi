@@ -2017,6 +2017,258 @@ namespace Ecanapi.Controllers
             }
         }
 
+        // ============================================================
+        // ANALYZE-BAZI-ZIWEI: 玉洞子八字紫微命書（銅會員版）
+        // 完整讀取 DB JSON（八字 + 紫微 palaces），八字主體 + 紫微補充
+        // ============================================================
+
+        [HttpGet("analyze-bazi-ziwei")]
+        [Authorize]
+        public async Task<IActionResult> GetBaziZiweiAnalysis()
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            bool bzIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int bzSubId = -1;
+            if (!bzIsAdmin)
+            {
+                var (bzOk, bzErr, bzSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_BAZI");
+                if (!bzOk) return BadRequest(new { error = bzErr });
+                bzSubId = bzSubIdVal;
+            }
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            try
+            {
+                // === 完整讀取 DB JSON（包含 palaces）===
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                string yStemSS   = LfPillarStemSS(yearP);
+                string mStemSS   = LfPillarStemSS(monthP);
+                string hStemSS   = LfPillarStemSS(timeP);
+                string yBranchSS = LfPillarBranchMainSS(yearP);
+                string mBranchSS = LfPillarBranchMainSS(monthP);
+                string dBranchSS = LfPillarBranchMainSS(dayP);
+                string hBranchSS = LfPillarBranchMainSS(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender    = user.BirthGender ?? 1;
+                var luckCycles = LfExtractLuckCycles(root);
+
+                string dmElem  = KbStemToElement(dStem);
+                var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+                string season  = LfGetSeason(mBranch);
+                string seaLabel = LfGetSeasonLabel(mBranch);
+
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+
+                var chartStems = new[] { yStem, mStem, dStem, hStem };
+                var scored = luckCycles.Select(lc =>
+                {
+                    int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems, dStem);
+                    return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
+                }).ToList();
+
+                // === 八字主體 ===
+                string report = LfBuildReport(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
+                    pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
+                    scored, gender, birthYear);
+
+                // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
+                bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
+                    && bzPalaces.ValueKind == JsonValueKind.Array;
+
+                // Fallback：若存檔命盤無 palaces，從生辰重算
+                if (!bzHasZiwei && user.BirthYear.HasValue && user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    try
+                    {
+                        var bzReq = new AstrologyRequest(
+                            user.BirthYear.Value, user.BirthMonth.Value, user.BirthDay.Value,
+                            user.BirthHour ?? 0, user.BirthMinute ?? 0,
+                            user.BirthGender ?? 1, user.ChartName ?? user.UserName ?? "",
+                            user.DateType ?? "solar");
+                        var bzFresh = await _astrologyService.CalculateChartAsync(bzReq);
+                        var bzOpts = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                        string bzFreshJson = System.Text.Json.JsonSerializer.Serialize(bzFresh, bzOpts);
+                        var bzFreshRoot = System.Text.Json.JsonDocument.Parse(bzFreshJson).RootElement;
+                        bzHasZiwei = bzFreshRoot.TryGetProperty("palaces", out bzPalaces)
+                            && bzPalaces.ValueKind == System.Text.Json.JsonValueKind.Array;
+                        if (bzHasZiwei)
+                        {
+                            userChart.ChartJson = bzFreshJson;
+                            userChart.UpdatedAt = DateTime.UtcNow;
+                            await _context.SaveChangesAsync();
+                        }
+                    }
+                    catch (Exception exBz) { _logger.LogWarning(exBz, "BaziZiwei Ziwei recalc fallback failed"); }
+                }
+
+                if (bzHasZiwei)
+                {
+                    string bzPos = KbGetZiweiPosition(bzPalaces);
+                    var bzChartStars = KbGetAllChartStars(bzPalaces);
+                    string bzFullContent = await KbZiweiFullQuery(bzPalaces, bzPos);
+                    string bzMingGongStars = userChart.MingGongMainStars ?? "";
+                    string bzMingZhu = root.TryGetProperty("mingZhu", out var mzBz) ? mzBz.GetString() ?? "" : "";
+                    string bzShenZhu = root.TryGetProperty("shenZhu", out var szBz) ? szBz.GetString() ?? "" : "";
+                    string bzWuXingJu = root.TryGetProperty("wuXingJuText", out var wxBz) ? wxBz.GetString() ?? "" : "";
+
+                    string bzMing = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "命宮"), KbGetPalaceStarsSet(bzPalaces, "命宮"), bzChartStars);
+                    string bzOff  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "事業宮"), KbGetPalaceStarsSet(bzPalaces, "官祿"), bzChartStars);
+                    string bzWlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "財帛宮"), KbGetPalaceStarsSet(bzPalaces, "財帛"), bzChartStars);
+                    string bzSps  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "夫妻宮"), KbGetPalaceStarsSet(bzPalaces, "夫妻"), bzChartStars);
+                    string bzHlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "疾厄宮"), KbGetPalaceStarsSet(bzPalaces, "疾厄"), bzChartStars);
+                    string bzDescMing = await KbQueryStarInPalace(bzPalaces, "命宮");
+                    string bzDescOff  = await KbQueryStarInPalace(bzPalaces, "官祿宮");
+                    string bzDescWlt  = await KbQueryStarInPalace(bzPalaces, "財帛宮");
+                    string bzDescSps  = await KbQueryStarInPalace(bzPalaces, "夫妻宮");
+                    string bzDescHlt  = await KbQueryStarInPalace(bzPalaces, "疾厄宮");
+                    string bzOffStars = KbGetPalaceStars(bzPalaces, "官祿");
+                    string bzWltStars = KbGetPalaceStars(bzPalaces, "財帛");
+                    string bzSpsStars = KbGetPalaceStars(bzPalaces, "夫妻");
+                    string bzHltStars = KbGetPalaceStars(bzPalaces, "疾厄");
+
+                    var bzSb = new System.Text.StringBuilder();
+                    bzSb.AppendLine();
+                    bzSb.AppendLine("=================================================================");
+                    bzSb.AppendLine("                  紫微斗數輔助鑑定");
+                    bzSb.AppendLine("=================================================================");
+                    if (!string.IsNullOrEmpty(bzMingGongStars)) bzSb.AppendLine($"命宮主星：{bzMingGongStars}");
+                    if (!string.IsNullOrEmpty(bzMingZhu))       bzSb.AppendLine($"命主：{bzMingZhu}");
+                    if (!string.IsNullOrEmpty(bzShenZhu))       bzSb.AppendLine($"身主：{bzShenZhu}");
+                    if (!string.IsNullOrEmpty(bzWuXingJu))      bzSb.AppendLine($"五行局：{bzWuXingJu}");
+                    bzSb.AppendLine();
+                    if (!string.IsNullOrEmpty(bzDescMing)) bzSb.AppendLine($"【命宮星性】{bzDescMing}");
+                    if (!string.IsNullOrEmpty(bzMing))
+                    {
+                        bzSb.AppendLine($"【命宮主星·{bzMingGongStars}（命格特質）】");
+                        bzSb.AppendLine(bzMing);
+                    }
+                    bzSb.AppendLine();
+                    if (!string.IsNullOrEmpty(bzOff))
+                    {
+                        bzSb.AppendLine($"【官祿宮主星·{bzOffStars}（事業個性）】");
+                        bzSb.AppendLine(bzOff);
+                    }
+                    if (!string.IsNullOrEmpty(bzDescOff)) bzSb.AppendLine($"【官祿星性】{bzDescOff}");
+                    if (!string.IsNullOrEmpty(bzWlt))
+                    {
+                        bzSb.AppendLine($"【財帛宮主星·{bzWltStars}（財富個性）】");
+                        bzSb.AppendLine(bzWlt);
+                    }
+                    if (!string.IsNullOrEmpty(bzDescWlt)) bzSb.AppendLine($"【財帛星性】{bzDescWlt}");
+                    if (!string.IsNullOrEmpty(bzSps))
+                    {
+                        bzSb.AppendLine($"【夫妻宮主星·{bzSpsStars}（感情個性）】");
+                        bzSb.AppendLine(bzSps);
+                    }
+                    if (!string.IsNullOrEmpty(bzDescSps)) bzSb.AppendLine($"【夫妻星性】{bzDescSps}");
+                    if (!string.IsNullOrEmpty(bzHlt))
+                    {
+                        bzSb.AppendLine($"【疾厄宮主星·{bzHltStars}（健康傾向）】");
+                        bzSb.AppendLine(bzHlt);
+                    }
+                    if (!string.IsNullOrEmpty(bzDescHlt)) bzSb.AppendLine($"【疾厄星性】{bzDescHlt}");
+
+                    report += bzSb.ToString();
+                }
+
+                // === 九星氣學加成 ===
+                string bzNsSection = await NsBuildBirthSection(
+                    user.BirthYear ?? DateTime.Today.Year - 30,
+                    user.BirthMonth ?? 1,
+                    user.BirthDay ?? 1,
+                    user.BirthHour ?? 0,
+                    user.BirthGender ?? 1);
+                if (!string.IsNullOrEmpty(bzNsSection)) report += bzNsSection;
+
+                var cycleData = scored.Select(c => new {
+                    stem = c.stem, branch = c.branch, liuShen = c.liuShen,
+                    startAge = c.startAge, endAge = c.endAge,
+                    score = c.score, level = c.level
+                }).ToList();
+
+                var baziTable = new {
+                    pillars = new[] {
+                        new { label = "年", stem = yStem, branch = yBranch, stemSS = yStemSS,
+                              naYin = LfPillarNaYin(yearP), hiddenPairs = LfPillarHiddenPairs(yearP) },
+                        new { label = "月", stem = mStem, branch = mBranch, stemSS = mStemSS,
+                              naYin = LfPillarNaYin(monthP), hiddenPairs = LfPillarHiddenPairs(monthP) },
+                        new { label = "日", stem = dStem, branch = dBranch, stemSS = "元神",
+                              naYin = LfPillarNaYin(dayP), hiddenPairs = LfPillarHiddenPairs(dayP) },
+                        new { label = "時", stem = hStem, branch = hBranch, stemSS = hStemSS,
+                              naYin = LfPillarNaYin(timeP), hiddenPairs = LfPillarHiddenPairs(timeP) },
+                    }
+                };
+
+                string bzTuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+                string bzJiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+                string BzCls(string elem) {
+                    if (elem == jiShenElem) return "X";
+                    if (elem == yongShenElem || elem == fuYiElem || (!string.IsNullOrEmpty(bzTuneElem) && elem == bzTuneElem)) return "○";
+                    if (elem == bzJiYongElem && bzJiYongElem != jiShenElem) return "△忌";
+                    return "△";
+                }
+                string[] bzAllStems = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                string[] bzAllBrs   = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                var yongJiTable = new {
+                    stems = bzAllStems.Select(s => new {
+                        stem = s, elem = KbStemToElement(s),
+                        shiShen = LfStemShiShen(s, dStem), cls = BzCls(KbStemToElement(s))
+                    }).ToArray(),
+                    branches = bzAllBrs.Select(br => {
+                        string brElem = LfBranchHiddenRatio.TryGetValue(br, out var bh) && bh.Count > 0 ? KbStemToElement(bh[0].stem) : "-";
+                        string brMs = LfBranchHiddenRatio.TryGetValue(br, out var bh2) && bh2.Count > 0 ? bh2[0].stem : "";
+                        string brSS = !string.IsNullOrEmpty(brMs) ? LfStemShiShen(brMs, dStem) : "-";
+                        return new { branch = br, elem = brElem, shiShen = brSS, cls = brElem != "-" ? BzCls(brElem) : "-", inChart = branches.Contains(br) };
+                    }).ToArray()
+                };
+
+                if (!bzIsAdmin) await RecordSubscriptionClaim(user.Id, bzSubId, "BOOK_BAZI");
+                await SaveUserReportAsync(user.Id, "bazi-ziwei", "玉洞子八字紫微命書", report,
+                    new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
+                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "八字紫微命書失敗 User={User}", identity);
+                return StatusCode(500, new { error = "八字紫微命書生成失敗，請稍後再試", details = ex.Message });
+            }
+        }
+
         [HttpGet("analyze-yudongzi")]
         [Authorize]
         public async Task<IActionResult> GetYudongziAnalysis()
