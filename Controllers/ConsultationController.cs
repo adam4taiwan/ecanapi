@@ -2121,11 +2121,41 @@ namespace Ecanapi.Controllers
                 string ziweiWltYdz = "", wltStarsYdz = "";
                 string ziweiSpsYdz = "", spsStarsYdz = "";
                 string ziweiHltYdz = "", hltStarsYdz = "";
+                string starDescOffYdz = "", starDescWltYdz = "", starDescSpsYdz = "", starDescHltYdz = "";
+                string ziweiParStarYdz = "", ziweiParYdz = "", ziweiCldStarYdz = "", ziweiCldYdz = "";
                 string nianSiHuaXingYdz = "";
                 string siHuaLuPalaceYdz = "", siHuaLuYdz = "";
                 string siHuaQuanPalaceYdz = "", siHuaQuanYdz = "";
                 string siHuaKePalaceYdz = "", siHuaKeYdz = "";
                 string siHuaJiPalaceYdz = "", siHuaJiYdz = "";
+
+                // Fallback: if saved chart has no palaces, recalculate Ziwei from user birth data
+                if (!hasZiwei && user.BirthYear.HasValue && user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    try
+                    {
+                        var ziweiReq = new AstrologyRequest(
+                            user.BirthYear.Value, user.BirthMonth.Value, user.BirthDay.Value,
+                            user.BirthHour ?? 0, user.BirthMinute ?? 0,
+                            user.BirthGender ?? 1, user.ChartName ?? user.UserName ?? "",
+                            user.DateType ?? "solar");
+                        var freshChart = await _astrologyService.CalculateChartAsync(ziweiReq);
+                        var ccOpts = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                        string freshJson = System.Text.Json.JsonSerializer.Serialize(freshChart, ccOpts);
+                        var freshRoot = System.Text.Json.JsonDocument.Parse(freshJson).RootElement;
+                        hasZiwei = freshRoot.TryGetProperty("palaces", out palacesYdz) && palacesYdz.ValueKind == System.Text.Json.JsonValueKind.Array;
+                        if (hasZiwei)
+                        {
+                            if (freshRoot.TryGetProperty("mingZhu", out var mzFresh)) mingZhuYdz = mzFresh.GetString() ?? "";
+                            if (freshRoot.TryGetProperty("shenZhu", out var szFresh)) shenZhuYdz = szFresh.GetString() ?? "";
+                            if (freshRoot.TryGetProperty("wuXingJuText", out var wxFresh)) wuXingJuTextYdz = wxFresh.GetString() ?? "";
+                            userChart.ChartJson = freshJson;
+                            userChart.UpdatedAt = DateTime.UtcNow;
+                            await _context.SaveChangesAsync();
+                        }
+                    }
+                    catch (Exception exFresh) { _logger.LogWarning(exFresh, "Yudongzi Ziwei recalc fallback failed"); }
+                }
 
                 if (hasZiwei)
                 {
@@ -2143,6 +2173,14 @@ namespace Ecanapi.Controllers
                     wltStarsYdz  = KbGetPalaceStars(palacesYdz, "財帛");
                     spsStarsYdz  = KbGetPalaceStars(palacesYdz, "夫妻");
                     hltStarsYdz  = KbGetPalaceStars(palacesYdz, "疾厄");
+                    starDescOffYdz = await KbQueryStarInPalace(palacesYdz, "官祿宮");
+                    starDescWltYdz = await KbQueryStarInPalace(palacesYdz, "財帛宮");
+                    starDescSpsYdz = await KbQueryStarInPalace(palacesYdz, "夫妻宮");
+                    starDescHltYdz = await KbQueryStarInPalace(palacesYdz, "疾厄宮");
+                    ziweiParStarYdz = KbGetPalaceStars(palacesYdz, "父母");
+                    ziweiParYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "父母宮"), KbGetPalaceStarsSet(palacesYdz, "父母"), chartStarsYdz);
+                    ziweiCldStarYdz = KbGetPalaceStars(palacesYdz, "子女");
+                    ziweiCldYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "子女宮"), KbGetPalaceStarsSet(palacesYdz, "子女"), chartStarsYdz);
 
                     // 宮位四化：6宮 × 4化（命宮/官祿宮/財帛宮/夫妻宮/疾厄宮/遷移宮）
                     var (mLuP, mLuC)   = await KbGongWeiSiHuaQuery(palacesYdz, "命宮",   "化祿");
@@ -2238,7 +2276,9 @@ namespace Ecanapi.Controllers
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
                     dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
-                    doubleDescsYdz, minorDescsYdz);
+                    doubleDescsYdz, minorDescsYdz,
+                    starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
+                    ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2309,7 +2349,8 @@ namespace Ecanapi.Controllers
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
 
                 // 管理員免費，不扣點
-                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points });
+                return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points,
+                    _debug = new { hasZiwei, ziweiWlt = ziweiWltYdz?.Length ?? 0, ziweiOff = ziweiOffYdz?.Length ?? 0, starDescOff = starDescOffYdz?.Length ?? 0, ziweiPar = ziweiParYdz?.Length ?? 0 } });
             }
             catch (Exception ex)
             {
@@ -2432,6 +2473,14 @@ namespace Ecanapi.Controllers
                 string spsStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "夫妻") : "";
                 string ziweiHltYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "疾厄宮"), KbGetPalaceStarsSet(palacesYdz, "疾厄"), chartStarsYdz);
                 string hltStarsYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "疾厄") : "";
+                string starDescOffYdz = hasZiwei ? await KbQueryStarInPalace(palacesYdz, "官祿宮") : "";
+                string starDescWltYdz = hasZiwei ? await KbQueryStarInPalace(palacesYdz, "財帛宮") : "";
+                string starDescSpsYdz = hasZiwei ? await KbQueryStarInPalace(palacesYdz, "夫妻宮") : "";
+                string starDescHltYdz = hasZiwei ? await KbQueryStarInPalace(palacesYdz, "疾厄宮") : "";
+                string ziweiParStarYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "父母") : "";
+                string ziweiParYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "父母宮"), KbGetPalaceStarsSet(palacesYdz, "父母"), chartStarsYdz);
+                string ziweiCldStarYdz = hasZiwei ? KbGetPalaceStars(palacesYdz, "子女") : "";
+                string ziweiCldYdz = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContentYdz, "子女宮"), KbGetPalaceStarsSet(palacesYdz, "子女"), chartStarsYdz);
                 var siHuaYdz = new Dictionary<string, (string pal, string txt)>();
                 string nianSiHuaXingYdz = "";
                 string siHuaLuPalaceYdz = "", siHuaLuYdz = "";
@@ -2534,7 +2583,9 @@ namespace Ecanapi.Controllers
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
                     dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
-                    doubleDescsYdz, minorDescsYdz);
+                    doubleDescsYdz, minorDescsYdz,
+                    starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
+                    ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -5074,7 +5125,15 @@ namespace Ecanapi.Controllers
             List<BaziDirectRule>? zhongyuanRules = null,
             string ziweiGeJuContent = "",
             Dictionary<string, string>? doubleDescs = null,
-            Dictionary<string, string>? minorDescs = null)
+            Dictionary<string, string>? minorDescs = null,
+            string starDescOff = "",
+            string starDescWlt = "",
+            string starDescSps = "",
+            string starDescHlt = "",
+            string ziweiParStar = "",
+            string ziweiPar = "",
+            string ziweiCldStar = "",
+            string ziweiCld = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -5884,6 +5943,33 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"【官祿宮主星·{offStars}（事業個性）】");
                 sb.AppendLine(ziweiOff);
             }
+            if (!string.IsNullOrEmpty(starDescOff))
+                sb.AppendLine($"【官祿星性】{starDescOff}");
+            if (siHua.TryGetValue("官祿化祿", out var offLu) && !string.IsNullOrEmpty(offLu.txt))
+                sb.AppendLine($"【官祿化祿飛{offLu.pal}】{offLu.txt}");
+            if (siHua.TryGetValue("官祿化忌", out var offJi) && !string.IsNullOrEmpty(offJi.txt))
+                sb.AppendLine($"【官祿化忌飛{offJi.pal}】{offJi.txt}");
+            if (doubleDescs != null && doubleDescs.TryGetValue("官祿宮", out var dblOff) && !string.IsNullOrEmpty(dblOff))
+                sb.AppendLine($"【官祿雙星論斷】{dblOff}");
+            if (minorDescs != null && minorDescs.TryGetValue("官祿宮", out var minOff) && !string.IsNullOrEmpty(minOff))
+                sb.AppendLine($"【官祿輔星加臨】{minOff}");
+            // 財帛宮紫微鑑定
+            if (hasZiwei && !string.IsNullOrEmpty(ziweiWlt))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"【財帛宮主星·{wltStars}（財富個性）】");
+                sb.AppendLine(ziweiWlt);
+            }
+            if (!string.IsNullOrEmpty(starDescWlt))
+                sb.AppendLine($"【財帛星性】{starDescWlt}");
+            if (siHua.TryGetValue("財帛化祿", out var wltLu) && !string.IsNullOrEmpty(wltLu.txt))
+                sb.AppendLine($"【財帛化祿飛{wltLu.pal}】{wltLu.txt}");
+            if (siHua.TryGetValue("財帛化忌", out var wltJi) && !string.IsNullOrEmpty(wltJi.txt))
+                sb.AppendLine($"【財帛化忌飛{wltJi.pal}】{wltJi.txt}");
+            if (doubleDescs != null && doubleDescs.TryGetValue("財帛宮", out var dblWlt) && !string.IsNullOrEmpty(dblWlt))
+                sb.AppendLine($"【財帛雙星論斷】{dblWlt}");
+            if (minorDescs != null && minorDescs.TryGetValue("財帛宮", out var minWlt) && !string.IsNullOrEmpty(minWlt))
+                sb.AppendLine($"【財帛輔星加臨】{minWlt}");
             sb.AppendLine();
 
             // 事業格局判定（過三關分析）
@@ -5917,6 +6003,15 @@ namespace Ecanapi.Controllers
                 dmElem, pattern, bodyPct, yongShenElem, jiShenElem, wuXing, gender, birthYear, scored));
             sb.AppendLine();
 
+            // 紫微父母宮/子女宮補充
+            if (hasZiwei)
+            {
+                if (!LfShouldSkipPalace("父母宮", currentAge) && !string.IsNullOrEmpty(ziweiPar))
+                    sb.AppendLine($"【{LfPalaceAgeLabel("父母宮", currentAge)}·{ziweiParStar}】{ziweiPar}");
+                if (!LfShouldSkipPalace("子女宮", currentAge) && !string.IsNullOrEmpty(ziweiCld))
+                    sb.AppendLine($"【{LfPalaceAgeLabel("子女宮", currentAge)}·{ziweiCldStar}】{ziweiCld}");
+            }
+
             // 中原盲派 - 六親直斷參照
             AppZrList(sb, zRules.Where(r => r.RuleType == "ParentInfo"  && ZrApplies(r)), "【父母緣份補充論斷】");
             AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo" && ZrApplies(r)), "【兄弟姐妹補充論斷】");
@@ -5945,6 +6040,8 @@ namespace Ecanapi.Controllers
                     if (!string.IsNullOrEmpty(spsFiltered))
                         sb.AppendLine($"【夫妻宮主星·{spsStars}（感情個性）】{spsFiltered}");
                 }
+                if (!string.IsNullOrEmpty(starDescSps))
+                    sb.AppendLine($"【夫妻星性】{starDescSps}");
                 if (siHua.TryGetValue("夫妻化祿", out var spsLu) && !string.IsNullOrEmpty(spsLu.txt))
                     sb.AppendLine($"【夫妻化祿飛{spsLu.pal}】{spsLu.txt}");
                 if (siHua.TryGetValue("夫妻化忌", out var spsJi) && !string.IsNullOrEmpty(spsJi.txt))
@@ -5979,8 +6076,14 @@ namespace Ecanapi.Controllers
             {
                 if (!string.IsNullOrEmpty(ziweiHlt))
                     sb.AppendLine($"【疾厄宮主星·{hltStars}】{ziweiHlt}");
+                if (!string.IsNullOrEmpty(starDescHlt))
+                    sb.AppendLine($"【疾厄星性】{starDescHlt}");
                 if (siHua.TryGetValue("疾厄化忌", out var hltJi) && !string.IsNullOrEmpty(hltJi.txt))
                     sb.AppendLine($"【疾厄化忌飛{hltJi.pal}】{hltJi.txt}");
+                if (doubleDescs != null && doubleDescs.TryGetValue("疾厄宮", out var dblHlt) && !string.IsNullOrEmpty(dblHlt))
+                    sb.AppendLine($"【疾厄雙星論斷】{dblHlt}");
+                if (minorDescs != null && minorDescs.TryGetValue("疾厄宮", out var minHlt) && !string.IsNullOrEmpty(minHlt))
+                    sb.AppendLine($"【疾厄輔星加臨】{minHlt}");
             }
             sb.AppendLine();
 
