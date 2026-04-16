@@ -4677,7 +4677,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.5 六親論斷 ===
-            sb.AppendLine("【第五章：六親論斷（量化版）】");
+            sb.AppendLine("【第五章：六親論斷】");
             int yrSc  = LfCalcRelativeScore(yStemSS, yBranchSS, yongShenElem, jiShenElem, yStem, yBranch, branches);
             int moSc  = LfCalcRelativeScore(mStemSS, mBranchSS, yongShenElem, jiShenElem, mStem, mBranch, branches);
             int daySc = LfCalcRelativeScore(dBranchSS, dBranchSS, yongShenElem, jiShenElem, dStem, dBranch, branches);
@@ -4780,12 +4780,27 @@ namespace Ecanapi.Controllers
 
             // === Ch.10（原Ch.12）總評 ===
             sb.AppendLine("【第十章：一生命運總評】");
-            double earlyAvg = scored.Where(c => c.endAge <= 30).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
-            double midAvg   = scored.Where(c => c.startAge >= 31 && c.endAge <= 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
-            double lateAvg  = scored.Where(c => c.startAge > 50).Select(c => (double)c.score).DefaultIfEmpty(50).Average();
-            sb.AppendLine($"前運（0-30 歲）平均 {earlyAvg:F0} 分：{LfPeriodDesc(earlyAvg)}");
-            sb.AppendLine($"中運（31-50 歲）平均 {midAvg:F0} 分：{LfPeriodDesc(midAvg)}");
-            sb.AppendLine($"後運（51 歲後）平均 {lateAvg:F0} 分：{LfPeriodDesc(lateAvg)}");
+
+            // Age-band analysis with life-stage specific topics
+            var ageBands = new[]
+            {
+                (label: "童年學藝期",  s:  0, e: 13),
+                (label: "青少成長期",  s: 14, e: 18),
+                (label: "青年立志期",  s: 19, e: 25),
+                (label: "成家立業期",  s: 26, e: 35),
+                (label: "壯年拼搏期",  s: 36, e: 50),
+                (label: "晚年守成期",  s: 51, e: 70),
+            };
+            foreach (var band in ageBands)
+            {
+                var bandCycles = scored.Where(c => c.endAge > band.s && c.startAge <= band.e).ToList();
+                if (bandCycles.Count == 0) continue;
+                double bandAvg = bandCycles.Average(c => (double)c.score);
+                sb.AppendLine($"【{band.label}（{band.s}-{band.e}歲）】運勢 {bandAvg:F0} 分 — {LfPeriodDesc(bandAvg)}");
+                sb.AppendLine($"  {LfAgeBandAdvice(band.s, bandAvg, gender, yongShenElem, jiShenElem, dStem, bandCycles)}");
+            }
+            sb.AppendLine();
+
             if (scored.Count > 0)
             {
                 var best  = scored.MaxBy(c => c.score)!;
@@ -7635,10 +7650,96 @@ namespace Ecanapi.Controllers
 
         private static string LfPeriodDesc(double avg) => avg switch
         {
-            >= 70 => "整體走勢佳，運勢蒸蒸日上，把握機遇積極發展。",
-            >= 50 => "整體平穩，有起有伏，宜穩中求進。",
-            _ => "整體考驗較多，宜低調蓄積，靜待轉機。"
+            >= 90 => "運勢極旺，天時地利人和，此段為人生黃金期，宜大膽開創積極進取。",
+            >= 85 => "運勢極強，貴人扶持，機遇頻現，宜主動出擊把握良機。",
+            >= 80 => "運勢旺盛，諸事較為順遂，宜積極佈局擴大格局。",
+            >= 75 => "運勢良好，整體走勢向上，偶有小阻，穩中可求大進。",
+            >= 70 => "運勢偏吉，大方向順遂，細節需留意，宜穩步前行。",
+            >= 65 => "運勢中上，起伏適中，把握時機仍可有所成就。",
+            >= 60 => "運勢平穩，平中有吉，宜守成待機，蓄積實力。",
+            >= 55 => "運勢平平，有吉有凶，宜謹慎行事，避免冒進。",
+            >= 50 => "運勢中平，考驗與機遇並存，心態穩定是關鍵。",
+            >= 45 => "運勢偏弱，考驗較多，宜低調行事，以守為主。",
+            >= 40 => "運勢偏凶，起伏較大，宜謹慎保守，化解阻力。",
+            >= 35 => "運勢較差，多遇波折，宜靜待轉機，切忌輕舉妄動。",
+            _ => "運勢艱難，諸事考驗多，宜韜光養晦，厚積薄發。"
         };
+
+        // Age-band specific advice for Ch.10, based on life-stage topics + 十神 in cycles
+        private static string LfAgeBandAdvice(
+            int ageStart, double avg, int gender, string yongElem, string jiElem, string dStem,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> cycles)
+        {
+            bool hasYin  = cycles.Any(c => { var ss = LfStemShiShen(c.stem, dStem); return ss == "正印" || ss == "偏印"; });
+            bool hasGuan = cycles.Any(c => { var ss = LfStemShiShen(c.stem, dStem); return ss == "正官" || ss == "七殺"; });
+            bool hasCai  = cycles.Any(c => { var ss = LfStemShiShen(c.stem, dStem); return ss == "正財" || ss == "偏財"; });
+            bool hasJiInStem = cycles.Any(c => LfElemStems(jiElem).Contains(c.stem));
+
+            if (ageStart == 0) // 0-13 童年學藝期
+            {
+                if (avg >= 70)
+                    return "此期身體強健，成長順遂，才藝學習事半功倍，父母助力足。宜積極培養一技之長，奠定日後發展基礎。";
+                if (avg >= 55)
+                    return "身體大致平穩，偶有小恙，才藝培育宜循序漸進，注意交通安全與意外傷害，父母多加留心。";
+                return "此期身體較弱，易有意外或疾病，父母宜多留意安全健康，才藝學習量力而為，莫強求。";
+            }
+
+            if (ageStart == 14) // 14-18 青少成長期
+            {
+                string studyPart = hasYin ? "印星入運，升學考試有利，學業表現亮眼，"
+                                  : hasJiInStem ? "忌神干擾，學業壓力稍大，考試需加倍努力，"
+                                  : "學業表現中規中矩，";
+                if (avg >= 70)
+                    return $"{studyPart}此期才藝發展順遂，感情初萌可自然發展，有出國讀書或遊學機遇，宜把握。";
+                if (avg >= 55)
+                    return $"{studyPart}感情宜晚，以學業才藝為重，出國機遇視大運配合而定，保持穩定為宜。";
+                return $"{studyPart}宜低調努力，感情暫緩，避免分心，先穩固學業基礎，出國計劃謹慎評估。";
+            }
+
+            if (ageStart == 19) // 19-25 青年立志期
+            {
+                if (avg >= 65 && hasYin)
+                    return "印星扶助，此期最適合繼續深造，碩博可期，學術成就佳；若選擇就業，學習能力強，晉升機遇多。";
+                if (avg >= 65 && hasGuan)
+                    return "官殺入運，投入職場體系最為有利，循規蹈矩可獲晉升；也可考慮深造以強化競爭力。";
+                if (avg >= 65)
+                    return "整體運勢強，可評估深造或就業，順應自身格局選擇，此期奠定的基礎將影響未來走向。";
+                if (avg >= 50)
+                    return hasYin ? "雖有印星之利，但運勢稍弱，宜穩步深造或紮實學習技能，切勿好高騖遠，厚積薄發。"
+                                  : "運勢平平，宜先就業積累一技之長，打好根基，待大運轉強再圖深造或晉升。";
+                return "此期起步考驗多，建議先就業學習實際技能，打好根基，待大運轉強再謀深造或升遷。";
+            }
+
+            if (ageStart == 26) // 26-35 成家立業期
+            {
+                string spouseStar = gender == 1 ? "財星（妻星）" : "官星（夫星）";
+                bool hasSpouseStar = gender == 1 ? hasCai : hasGuan;
+                string marriagePart = hasSpouseStar && avg >= 60
+                    ? $"{spouseStar}入運，姻緣水到渠成，此期婚配順利，宜把握感情適時論嫁娶。"
+                    : avg >= 65 ? $"感情發展中，{spouseStar}配合尚可，婚配時機需觀察流年共同判斷。"
+                    : $"此期{spouseStar}受制，感情易有波折，婚配宜謹慎評估，不急於一時。";
+                string careerPart = avg >= 65 ? "事業同步奠基，財富逐漸積累，置產時機可待有利流年。"
+                                  : avg >= 50 ? "事業仍在打拼，財務量力而為，置產計劃宜謹慎評估。"
+                                  : "事業遭逢考驗，財務保守為宜，婚配與置產均需量力而行。";
+                return $"{marriagePart} {careerPart}";
+            }
+
+            if (ageStart == 36) // 36-50 壯年拼搏期
+            {
+                if (avg >= 75)
+                    return "壯年黃金期，事業進入高峰，財運亨通，宜積極拓展版圖，購屋置產時機佳；注意維繫家庭關係，子女教育同步用心。";
+                if (avg >= 60)
+                    return "事業穩健推進，財運中平，守成為主，量力投資切勿冒進；關注家庭子女教育，定期健康檢查，注意出行安全。";
+                return "此期事業財運考驗較多，宜保守理財、鞏固現有根基，注意身體健康與意外風險，家庭關係多加維繫，以穩為要。";
+            }
+
+            // 51+ 晚年守成期
+            if (avg >= 70)
+                return "晚運旺盛，田宅家業穩固，身體康健，宜保持良好生活習慣，享受家庭天倫，適度養生，晚年安樂。";
+            if (avg >= 55)
+                return "晚運平穩，家庭生活安定，宜定期健康檢查，注意慢性病預防；財務量力而行，安養天年為要。";
+            return "晚運考驗較多，身體宜多保養，財務保守，避免高風險投資，家人陪伴與照護至關重要，晚年以健康為首。";
+        }
 
         private static string LfWealthLevel(double caiPct, double bodyPct)
         {
