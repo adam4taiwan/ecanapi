@@ -4910,23 +4910,22 @@ namespace Ecanapi.Controllers
             // === Ch.10（原Ch.12）總評 ===
             sb.AppendLine("【第十章：一生命運總評】");
 
-            // Age-band analysis with life-stage specific topics
-            var ageBands = new[]
+            // 逐大運輸出，依實際大運年齡區間對應人生階段
+            foreach (var cycle in scored)
             {
-                (label: "童年學藝期",  s:  0, e: 13),
-                (label: "青少成長期",  s: 14, e: 18),
-                (label: "青年立志期",  s: 19, e: 25),
-                (label: "成家立業期",  s: 26, e: 35),
-                (label: "壯年拼搏期",  s: 36, e: 50),
-                (label: "晚年守成期",  s: 51, e: 70),
-            };
-            foreach (var band in ageBands)
-            {
-                var bandCycles = scored.Where(c => c.endAge > band.s && c.startAge <= band.e).ToList();
-                if (bandCycles.Count == 0) continue;
-                double bandAvg = bandCycles.Average(c => (double)c.score);
-                sb.AppendLine($"【{band.label}（{band.s}-{band.e}歲）】運勢 {bandAvg:F0} 分 — {LfPeriodDesc(bandAvg)}");
-                sb.AppendLine($"  {LfAgeBandAdvice(band.s, bandAvg, gender, yongShenElem, jiShenElem, dStem, bandCycles)}");
+                // 依大運起始年齡判斷人生階段
+                string stageLabel;
+                int stageAgeStart;
+                if (cycle.startAge <= 13)       { stageLabel = "童年學藝期"; stageAgeStart = 0; }
+                else if (cycle.startAge <= 18)  { stageLabel = "青少成長期"; stageAgeStart = 14; }
+                else if (cycle.startAge <= 25)  { stageLabel = "青年立志期"; stageAgeStart = 19; }
+                else if (cycle.startAge <= 35)  { stageLabel = "成家立業期"; stageAgeStart = 26; }
+                else if (cycle.startAge <= 50)  { stageLabel = "壯年拼搏期"; stageAgeStart = 36; }
+                else                             { stageLabel = "晚年守成期"; stageAgeStart = 51; }
+
+                var singleCycle = new System.Collections.Generic.List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> { cycle };
+                sb.AppendLine($"【{cycle.startAge}-{cycle.endAge}歲（{stageLabel}）{cycle.stem}{cycle.branch}】運勢 {cycle.score} 分 — {LfPeriodDesc(cycle.score)}");
+                sb.AppendLine($"  {LfAgeBandAdvice(stageAgeStart, cycle.score, gender, yongShenElem, jiShenElem, dStem, singleCycle)}");
             }
             sb.AppendLine();
 
