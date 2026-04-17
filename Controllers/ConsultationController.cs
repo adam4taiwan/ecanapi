@@ -2146,16 +2146,61 @@ namespace Ecanapi.Controllers
                     string bzShenZhu = root.TryGetProperty("shenZhu", out var szBz) ? szBz.GetString() ?? "" : "";
                     string bzWuXingJu = root.TryGetProperty("wuXingJuText", out var wxBz) ? wxBz.GetString() ?? "" : "";
 
+                    // 加入先天四化至 chartStars 確保過濾正確
+                    KbAddActiveTransformations(bzChartStars, yStem);
+
+                    // 先天四化（年干）
+                    string bzSiHuaLuPalace   = KbGetSiHuaPalace(yStem, "化祿", bzPalaces);
+                    string bzSiHuaQuanPalace = KbGetSiHuaPalace(yStem, "化權", bzPalaces);
+                    string bzSiHuaKePalace   = KbGetSiHuaPalace(yStem, "化科", bzPalaces);
+                    string bzSiHuaJiPalace   = KbGetSiHuaPalace(yStem, "化忌", bzPalaces);
+                    string bzSiHuaLu   = await KbSiHuaQuery(yStem, "化祿", bzPalaces);
+                    string bzSiHuaQuan = await KbSiHuaQuery(yStem, "化權", bzPalaces);
+                    string bzSiHuaKe   = await KbSiHuaQuery(yStem, "化科", bzPalaces);
+                    string bzSiHuaJi   = await KbSiHuaQuery(yStem, "化忌", bzPalaces);
+
+                    // 4.1 格局說明（命宮格局偵測）
+                    string bzGeJu = "";
+                    string bzMingBr = KbGetPalaceBranch(bzPalaces, "命宮");
+                    var bzGjList = LfDetectZiweiGeJu(bzMingGongStars, bzMingBr, bzChartStars,
+                        bzSiHuaLuPalace, bzSiHuaQuanPalace, bzSiHuaKePalace, bzPalaces);
+                    if (bzGjList.Count > 0)
+                    {
+                        var bzGjSb = new System.Text.StringBuilder();
+                        foreach (var gj in bzGjList)
+                        {
+                            string desc = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='紫微格局說明.docx' AND \"Title\"='{gj}' LIMIT 1");
+                            if (!string.IsNullOrEmpty(desc)) { bzGjSb.AppendLine($"【{gj}】"); bzGjSb.AppendLine(desc); bzGjSb.AppendLine(); }
+                        }
+                        bzGeJu = bzGjSb.ToString();
+                    }
+
+                    // 主星宮位內容（ziwei_patterns_144 過濾版）
                     string bzMing = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "命宮"), KbGetPalaceStarsSet(bzPalaces, "命宮"), bzChartStars);
                     string bzOff  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "事業宮"), KbGetPalaceStarsSet(bzPalaces, "官祿"), bzChartStars);
                     string bzWlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "財帛宮"), KbGetPalaceStarsSet(bzPalaces, "財帛"), bzChartStars);
                     string bzSps  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "夫妻宮"), KbGetPalaceStarsSet(bzPalaces, "夫妻"), bzChartStars);
                     string bzHlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "疾厄宮"), KbGetPalaceStarsSet(bzPalaces, "疾厄"), bzChartStars);
+
+                    // 4.2/4.3 雙星或單星入宮（6/7/8 docx）
                     string bzDescMing = await KbQueryStarInPalace(bzPalaces, "命宮");
                     string bzDescOff  = await KbQueryStarInPalace(bzPalaces, "官祿宮");
                     string bzDescWlt  = await KbQueryStarInPalace(bzPalaces, "財帛宮");
                     string bzDescSps  = await KbQueryStarInPalace(bzPalaces, "夫妻宮");
                     string bzDescHlt  = await KbQueryStarInPalace(bzPalaces, "疾厄宮");
+                    string bzDoubleDescMing = await KbQueryDoubleStarInPalace(bzPalaces, "命宮");
+                    string bzDoubleDescOff  = await KbQueryDoubleStarInPalace(bzPalaces, "官祿宮");
+                    string bzDoubleDescWlt  = await KbQueryDoubleStarInPalace(bzPalaces, "財帛宮");
+                    string bzDoubleDescSps  = await KbQueryDoubleStarInPalace(bzPalaces, "夫妻宮");
+                    string bzDoubleDescHlt  = await KbQueryDoubleStarInPalace(bzPalaces, "疾厄宮");
+
+                    // 4.4 副星/小星入宮（吉星 9.docx + 煞星 4.docx）
+                    string bzMinorDescMing = await KbQueryMinorStarsInPalace(bzPalaces, "命宮");
+                    string bzMinorDescOff  = await KbQueryMinorStarsInPalace(bzPalaces, "官祿宮");
+                    string bzMinorDescWlt  = await KbQueryMinorStarsInPalace(bzPalaces, "財帛宮");
+                    string bzMinorDescSps  = await KbQueryMinorStarsInPalace(bzPalaces, "夫妻宮");
+                    string bzMinorDescHlt  = await KbQueryMinorStarsInPalace(bzPalaces, "疾厄宮");
+
                     string bzOffStars = KbGetPalaceStars(bzPalaces, "官祿");
                     string bzWltStars = KbGetPalaceStars(bzPalaces, "財帛");
                     string bzSpsStars = KbGetPalaceStars(bzPalaces, "夫妻");
@@ -2170,38 +2215,122 @@ namespace Ecanapi.Controllers
                     if (!string.IsNullOrEmpty(bzMingZhu))       bzSb.AppendLine($"命主：{bzMingZhu}");
                     if (!string.IsNullOrEmpty(bzShenZhu))       bzSb.AppendLine($"身主：{bzShenZhu}");
                     if (!string.IsNullOrEmpty(bzWuXingJu))      bzSb.AppendLine($"五行局：{bzWuXingJu}");
-                    bzSb.AppendLine();
-                    if (!string.IsNullOrEmpty(bzDescMing)) bzSb.AppendLine($"【命宮星性】{bzDescMing}");
-                    if (!string.IsNullOrEmpty(bzMing))
                     {
-                        bzSb.AppendLine($"【命宮主星·{bzMingGongStars}（命格特質）】");
-                        bzSb.AppendLine(bzMing);
+                        var bzSiHuaLines = new System.Collections.Generic.List<string>();
+                        if (!string.IsNullOrEmpty(bzSiHuaLuPalace))   bzSiHuaLines.Add($"化祿入{bzSiHuaLuPalace}");
+                        if (!string.IsNullOrEmpty(bzSiHuaQuanPalace)) bzSiHuaLines.Add($"化權入{bzSiHuaQuanPalace}");
+                        if (!string.IsNullOrEmpty(bzSiHuaKePalace))   bzSiHuaLines.Add($"化科入{bzSiHuaKePalace}");
+                        if (!string.IsNullOrEmpty(bzSiHuaJiPalace))   bzSiHuaLines.Add($"化忌入{bzSiHuaJiPalace}");
+                        if (bzSiHuaLines.Count > 0)
+                            bzSb.AppendLine($"先天四化：{yStem}年干 → {string.Join("、", bzSiHuaLines)}");
                     }
                     bzSb.AppendLine();
-                    if (!string.IsNullOrEmpty(bzOff))
+
+                    // 命格格局（4.1）
+                    if (!string.IsNullOrEmpty(bzGeJu))
                     {
-                        bzSb.AppendLine($"【官祿宮主星·{bzOffStars}（事業個性）】");
-                        bzSb.AppendLine(bzOff);
+                        bzSb.AppendLine("【命格格局】");
+                        bzSb.AppendLine(bzGeJu.TrimEnd());
+                        bzSb.AppendLine();
                     }
-                    if (!string.IsNullOrEmpty(bzDescOff)) bzSb.AppendLine($"【官祿星性】{bzDescOff}");
-                    if (!string.IsNullOrEmpty(bzWlt))
+
+                    // 命宮
+                    bzSb.AppendLine($"--- 命宮（{bzMingGongStars}）---");
+                    if (!string.IsNullOrEmpty(bzDoubleDescMing))
+                        bzSb.AppendLine($"【雙星論斷】{bzDoubleDescMing}");
+                    else if (!string.IsNullOrEmpty(bzDescMing))
+                        bzSb.AppendLine($"【主星星情】{bzDescMing}");
+                    if (!string.IsNullOrEmpty(bzMing)) bzSb.AppendLine(bzMing);
+                    if (!string.IsNullOrEmpty(bzMinorDescMing)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescMing}");
+                    if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace == "命宮")
+                        bzSb.AppendLine($"【生年化祿入命宮】{bzSiHuaLu}");
+                    if (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace == "命宮")
+                        bzSb.AppendLine($"【生年化權入命宮】{bzSiHuaQuan}");
+                    if (!string.IsNullOrEmpty(bzSiHuaKe) && bzSiHuaKePalace == "命宮")
+                        bzSb.AppendLine($"【生年化科入命宮】{bzSiHuaKe}");
+                    if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace == "命宮")
+                        bzSb.AppendLine($"【生年化忌入命宮】{bzSiHuaJi}");
+                    bzSb.AppendLine();
+
+                    // 官祿宮
+                    bzSb.AppendLine($"--- 官祿宮（{bzOffStars}）---");
+                    if (!string.IsNullOrEmpty(bzDoubleDescOff))
+                        bzSb.AppendLine($"【雙星論斷】{bzDoubleDescOff}");
+                    else if (!string.IsNullOrEmpty(bzDescOff))
+                        bzSb.AppendLine($"【主星星情】{bzDescOff}");
+                    if (!string.IsNullOrEmpty(bzOff)) bzSb.AppendLine(bzOff);
+                    if (!string.IsNullOrEmpty(bzMinorDescOff)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescOff}");
+                    if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace == "官祿宮")
+                        bzSb.AppendLine($"【生年化祿入官祿】{bzSiHuaLu}");
+                    if (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace == "官祿宮")
+                        bzSb.AppendLine($"【生年化權入官祿】{bzSiHuaQuan}");
+                    if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace == "官祿宮")
+                        bzSb.AppendLine($"【生年化忌入官祿】{bzSiHuaJi}");
+                    bzSb.AppendLine();
+
+                    // 財帛宮
+                    bzSb.AppendLine($"--- 財帛宮（{bzWltStars}）---");
+                    if (!string.IsNullOrEmpty(bzDoubleDescWlt))
+                        bzSb.AppendLine($"【雙星論斷】{bzDoubleDescWlt}");
+                    else if (!string.IsNullOrEmpty(bzDescWlt))
+                        bzSb.AppendLine($"【主星星情】{bzDescWlt}");
+                    if (!string.IsNullOrEmpty(bzWlt)) bzSb.AppendLine(bzWlt);
+                    if (!string.IsNullOrEmpty(bzMinorDescWlt)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescWlt}");
+                    if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace == "財帛宮")
+                        bzSb.AppendLine($"【生年化祿入財帛】{bzSiHuaLu}");
+                    if (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace == "財帛宮")
+                        bzSb.AppendLine($"【生年化權入財帛】{bzSiHuaQuan}");
+                    if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace == "財帛宮")
+                        bzSb.AppendLine($"【生年化忌入財帛】{bzSiHuaJi}");
+                    bzSb.AppendLine();
+
+                    // 夫妻宮
+                    bzSb.AppendLine($"--- 夫妻宮（{bzSpsStars}）---");
+                    if (!string.IsNullOrEmpty(bzDoubleDescSps))
+                        bzSb.AppendLine($"【雙星論斷】{bzDoubleDescSps}");
+                    else if (!string.IsNullOrEmpty(bzDescSps))
+                        bzSb.AppendLine($"【主星星情】{bzDescSps}");
+                    if (!string.IsNullOrEmpty(bzSps)) bzSb.AppendLine(bzSps);
+                    if (!string.IsNullOrEmpty(bzMinorDescSps)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescSps}");
+                    if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace == "夫妻宮")
+                        bzSb.AppendLine($"【生年化祿入夫妻】{bzSiHuaLu}");
+                    if (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace == "夫妻宮")
+                        bzSb.AppendLine($"【生年化權入夫妻】{bzSiHuaQuan}");
+                    if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace == "夫妻宮")
+                        bzSb.AppendLine($"【生年化忌入夫妻】{bzSiHuaJi}");
+                    bzSb.AppendLine();
+
+                    // 疾厄宮
+                    bzSb.AppendLine($"--- 疾厄宮（{bzHltStars}）---");
+                    if (!string.IsNullOrEmpty(bzDoubleDescHlt))
+                        bzSb.AppendLine($"【雙星論斷】{bzDoubleDescHlt}");
+                    else if (!string.IsNullOrEmpty(bzDescHlt))
+                        bzSb.AppendLine($"【主星星情】{bzDescHlt}");
+                    if (!string.IsNullOrEmpty(bzHlt)) bzSb.AppendLine(bzHlt);
+                    if (!string.IsNullOrEmpty(bzMinorDescHlt)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescHlt}");
+                    if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace == "疾厄宮")
+                        bzSb.AppendLine($"【生年化祿入疾厄】{bzSiHuaLu}");
+                    if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace == "疾厄宮")
+                        bzSb.AppendLine($"【生年化忌入疾厄】{bzSiHuaJi}");
+                    bzSb.AppendLine();
+
+                    // 生年四化總論（其餘落宮）
+                    bool bzHasOtherSiHua = (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace != "命宮" && bzSiHuaLuPalace != "官祿宮" && bzSiHuaLuPalace != "財帛宮" && bzSiHuaLuPalace != "夫妻宮" && bzSiHuaLuPalace != "疾厄宮")
+                                        || (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace != "官祿宮" && bzSiHuaQuanPalace != "財帛宮" && bzSiHuaQuanPalace != "夫妻宮" && bzSiHuaQuanPalace != "命宮")
+                                        || (!string.IsNullOrEmpty(bzSiHuaJi)  && bzSiHuaJiPalace  != "命宮"  && bzSiHuaJiPalace  != "官祿宮" && bzSiHuaJiPalace  != "財帛宮" && bzSiHuaJiPalace  != "夫妻宮" && bzSiHuaJiPalace  != "疾厄宮");
+                    if (bzHasOtherSiHua)
                     {
-                        bzSb.AppendLine($"【財帛宮主星·{bzWltStars}（財富個性）】");
-                        bzSb.AppendLine(bzWlt);
+                        bzSb.AppendLine("--- 先天四化其餘落宮 ---");
+                        if (!string.IsNullOrEmpty(bzSiHuaLu) && bzSiHuaLuPalace != "命宮" && bzSiHuaLuPalace != "官祿宮" && bzSiHuaLuPalace != "財帛宮" && bzSiHuaLuPalace != "夫妻宮" && bzSiHuaLuPalace != "疾厄宮")
+                            bzSb.AppendLine($"【生年化祿入{bzSiHuaLuPalace}】{bzSiHuaLu}");
+                        if (!string.IsNullOrEmpty(bzSiHuaQuan) && bzSiHuaQuanPalace != "命宮" && bzSiHuaQuanPalace != "官祿宮" && bzSiHuaQuanPalace != "財帛宮" && bzSiHuaQuanPalace != "夫妻宮" && bzSiHuaQuanPalace != "疾厄宮")
+                            bzSb.AppendLine($"【生年化權入{bzSiHuaQuanPalace}】{bzSiHuaQuan}");
+                        if (!string.IsNullOrEmpty(bzSiHuaKe) && bzSiHuaKePalace != "命宮" && bzSiHuaKePalace != "官祿宮" && bzSiHuaKePalace != "財帛宮" && bzSiHuaKePalace != "夫妻宮" && bzSiHuaKePalace != "疾厄宮")
+                            bzSb.AppendLine($"【生年化科入{bzSiHuaKePalace}】{bzSiHuaKe}");
+                        if (!string.IsNullOrEmpty(bzSiHuaJi) && bzSiHuaJiPalace != "命宮" && bzSiHuaJiPalace != "官祿宮" && bzSiHuaJiPalace != "財帛宮" && bzSiHuaJiPalace != "夫妻宮" && bzSiHuaJiPalace != "疾厄宮")
+                            bzSb.AppendLine($"【生年化忌入{bzSiHuaJiPalace}】{bzSiHuaJi}");
+                        bzSb.AppendLine();
                     }
-                    if (!string.IsNullOrEmpty(bzDescWlt)) bzSb.AppendLine($"【財帛星性】{bzDescWlt}");
-                    if (!string.IsNullOrEmpty(bzSps))
-                    {
-                        bzSb.AppendLine($"【夫妻宮主星·{bzSpsStars}（感情個性）】");
-                        bzSb.AppendLine(bzSps);
-                    }
-                    if (!string.IsNullOrEmpty(bzDescSps)) bzSb.AppendLine($"【夫妻星性】{bzDescSps}");
-                    if (!string.IsNullOrEmpty(bzHlt))
-                    {
-                        bzSb.AppendLine($"【疾厄宮主星·{bzHltStars}（健康傾向）】");
-                        bzSb.AppendLine(bzHlt);
-                    }
-                    if (!string.IsNullOrEmpty(bzDescHlt)) bzSb.AppendLine($"【疾厄星性】{bzDescHlt}");
 
                     report += bzSb.ToString();
                 }
