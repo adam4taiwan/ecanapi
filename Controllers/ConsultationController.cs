@@ -897,8 +897,10 @@ namespace Ecanapi.Controllers
             foreach (var line in lines)
             {
                 var trimmed = line.TrimEnd();
-                bool mentionsOther = otherPalaces.Any(p => trimmed.Contains(p));
-                bool mentionsTarget = trimmed.Contains(targetPalace) || trimmed.Contains(targetShort);
+                // 正規化：移除空白字元（含全形空格），以識別「命　宮」等帶空格寫法
+                string normalized = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\s+", "");
+                bool mentionsOther = otherPalaces.Any(p => normalized.Contains(p));
+                bool mentionsTarget = normalized.Contains(targetPalace) || normalized.Contains(targetShort);
                 // 只過濾：提到其他宮位 且 完全沒提目標宮位的行
                 if (mentionsOther && !mentionsTarget)
                     continue;
@@ -2209,7 +2211,7 @@ namespace Ecanapi.Controllers
                     var bzSb = new System.Text.StringBuilder();
                     bzSb.AppendLine();
                     bzSb.AppendLine("=================================================================");
-                    bzSb.AppendLine("                  紫微斗數輔助鑑定");
+                    bzSb.AppendLine("【第十一章：紫微星盤鑑定】");
                     bzSb.AppendLine("=================================================================");
                     if (!string.IsNullOrEmpty(bzMingGongStars)) bzSb.AppendLine($"命宮主星：{bzMingGongStars}");
                     if (!string.IsNullOrEmpty(bzMingZhu))       bzSb.AppendLine($"命主：{bzMingZhu}");
@@ -4910,22 +4912,13 @@ namespace Ecanapi.Controllers
             // === Ch.10（原Ch.12）總評 ===
             sb.AppendLine("【第十章：一生命運總評】");
 
-            // 逐大運輸出，依實際大運年齡區間對應人生階段
+            // 大運行運一覽（詳細論斷見大運命書）
+            sb.AppendLine("一生大運行運一覽（詳細吉凶論斷，請購買【大運命書】）：");
             foreach (var cycle in scored)
             {
-                // 依大運起始年齡判斷人生階段
-                string stageLabel;
-                int stageAgeStart;
-                if (cycle.startAge <= 13)       { stageLabel = "童年學藝期"; stageAgeStart = 0; }
-                else if (cycle.startAge <= 18)  { stageLabel = "青少成長期"; stageAgeStart = 14; }
-                else if (cycle.startAge <= 25)  { stageLabel = "青年立志期"; stageAgeStart = 19; }
-                else if (cycle.startAge <= 35)  { stageLabel = "成家立業期"; stageAgeStart = 26; }
-                else if (cycle.startAge <= 50)  { stageLabel = "壯年拼搏期"; stageAgeStart = 36; }
-                else                             { stageLabel = "晚年守成期"; stageAgeStart = 51; }
-
-                var singleCycle = new System.Collections.Generic.List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> { cycle };
-                sb.AppendLine($"【{cycle.startAge}-{cycle.endAge}歲（{stageLabel}）{cycle.stem}{cycle.branch}】運勢 {cycle.score} 分 — {LfPeriodDesc(cycle.score)}");
-                sb.AppendLine($"  {LfAgeBandAdvice(stageAgeStart, cycle.score, gender, yongShenElem, jiShenElem, dStem, singleCycle)}");
+                bool isCurrent = currentAge >= cycle.startAge && currentAge <= cycle.endAge;
+                string currentMark = isCurrent ? $"  ← 目前行運（今年 {currentAge} 歲）" : "";
+                sb.AppendLine($"  {cycle.startAge}-{cycle.endAge} 歲：{cycle.stem}{cycle.branch}{currentMark}");
             }
             sb.AppendLine();
 
