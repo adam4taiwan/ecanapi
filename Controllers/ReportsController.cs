@@ -51,9 +51,7 @@ namespace Ecanapi.Controllers
         {
             var identity = GetCurrentUserIdentity();
             if (string.IsNullOrEmpty(identity)) return Unauthorized();
-
-            var user = await _userManager.FindByEmailAsync(identity)
-                    ?? await _userManager.FindByNameAsync(identity);
+            var user = await _userManager.FindByEmailAsync(identity) ?? await _userManager.FindByNameAsync(identity);
             if (user == null) return Unauthorized();
 
             var reports = await _context.UserReports
@@ -68,50 +66,38 @@ namespace Ecanapi.Controllers
                     r.CreatedAt,
                     r.ApprovedAt,
                     r.AdminNote,
-                    HasDownloadToken = r.DownloadToken != null && r.DownloadTokenExpiry > DateTime.UtcNow
+                    HasDownloadToken = r.DownloadToken != null && r.DownloadTokenExpiry > DateTime.UtcNow,
+                    HasApprovedDocx = r.ApprovedDocxBytes != null
                 })
                 .ToListAsync();
 
             return Ok(reports);
         }
 
-        // GET /api/Reports/by-token?token={token}
-        // Public: return report content for DOCX generation on frontend
-        [HttpGet("by-token")]
-        public async Task<IActionResult> GetByToken([FromQuery] string token)
+        // GET /api/Reports/download-approved?token={token}
+        // Public direct download of the admin-approved DOCX file
+        [HttpGet("download-approved")]
+        public async Task<IActionResult> DownloadApproved([FromQuery] string token)
         {
-            if (string.IsNullOrEmpty(token)) return BadRequest(new { error = "無效的下載連結" });
+            if (string.IsNullOrEmpty(token))
+                return BadRequest("無效的下載連結");
 
-            var report = await _context.UserReports
-                .FirstOrDefaultAsync(r => r.DownloadToken == token);
-
-            if (report == null) return NotFound(new { error = "找不到命書，請確認連結正確" });
-            if (report.Status != "approved") return BadRequest(new { error = "命書尚未審核完成" });
+            var report = await _context.UserReports.FirstOrDefaultAsync(r => r.DownloadToken == token);
+            if (report == null) return NotFound("找不到命書，請確認連結正確");
+            if (report.Status != "approved") return BadRequest("命書尚未審核完成");
             if (report.DownloadTokenExpiry == null || report.DownloadTokenExpiry < DateTime.UtcNow)
-                return BadRequest(new { error = "下載連結已過期，請聯繫玉洞子重新發送" });
+                return BadRequest("下載連結已過期，請聯繫玉洞子重新發送");
+            if (report.ApprovedDocxBytes == null || report.ApprovedDocxBytes.Length == 0)
+                return StatusCode(500, "命書檔案尚未上傳，請聯繫玉洞子");
 
             var user = await _userManager.FindByIdAsync(report.UserId);
             var personName = user?.UserName ?? "命主";
+            var fileName = report.ApprovedDocxFileName
+                ?? $"{personName}_{report.Title}.docx";
 
-            var (bookTitle, skipTitle) = report.ReportType switch
-            {
-                "bazi" or "bazi-ziwei" => ("八 字 命 書", "八 字 命 書"),
-                "daiyun" => ("大 運 命 書", "大 運 命 書"),
-                "liunian" => ("流 年 命 書", "流 年 命 書"),
-                "lifelong" => ("終 身 命 書", "終 身 命 書"),
-                _ => ("命書", "命書")
-            };
-
-            return Ok(new
-            {
-                reportId = report.Id,
-                title = report.Title,
-                reportType = report.ReportType,
-                content = report.Content,
-                personName,
-                bookTitle,
-                skipTitle
-            });
+            return File(report.ApprovedDocxBytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                fileName);
         }
 
         // ─── Admin endpoints ──────────────────────────────────────────────
@@ -139,6 +125,8 @@ namespace Ecanapi.Controllers
                     r.CreatedAt,
                     r.ApprovedAt,
                     r.AdminNote,
+                    HasApprovedDocx = r.ApprovedDocxBytes != null,
+                    ApprovedDocxFileName = r.ApprovedDocxFileName,
                     ContentPreview = r.Content.Length > 300 ? r.Content.Substring(0, 300) + "..." : r.Content
                 })
                 .ToListAsync();
@@ -163,6 +151,8 @@ namespace Ecanapi.Controllers
                     r.CreatedAt,
                     r.ApprovedAt,
                     r.AdminNote,
+                    r.HasApprovedDocx,
+                    r.ApprovedDocxFileName,
                     r.ContentPreview,
                     UserEmail = u?.Email,
                     UserName = u?.UserName
@@ -173,15 +163,14 @@ namespace Ecanapi.Controllers
         }
 
         // GET /api/Reports/admin/{id}
+        // Full report content for admin review
         [HttpGet("admin/{id:guid}")]
         [Authorize]
         public async Task<IActionResult> GetReportAdmin(Guid id)
         {
             if (!IsAdmin()) return Forbid();
-
             var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
             if (report == null) return NotFound();
-
             var user = await _userManager.FindByIdAsync(report.UserId);
 
             return Ok(new
@@ -196,12 +185,85 @@ namespace Ecanapi.Controllers
                 report.CreatedAt,
                 report.ApprovedAt,
                 report.AdminNote,
+                HasApprovedDocx = report.ApprovedDocxBytes != null,
+                report.ApprovedDocxFileName,
                 UserEmail = user?.Email,
                 UserName = user?.UserName
             });
         }
 
+        // GET /api/Reports/admin/{id}/download-draft-docx
+        // Admin downloads AI-generated DOCX draft (for local editing)
+        [HttpGet("admin/{id:guid}/download-draft-docx")]
+        [Authorize]
+        public async Task<IActionResult> DownloadDraftDocx(Guid id)
+        {
+            if (!IsAdmin()) return Forbid();
+
+            var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
+            if (report == null) return NotFound(new { error = "找不到命書" });
+
+            // If admin-approved DOCX already exists, serve that instead
+            if (report.ApprovedDocxBytes != null && report.ApprovedDocxBytes.Length > 0)
+            {
+                var approvedName = report.ApprovedDocxFileName ?? $"修正版_{report.Title}.docx";
+                return File(report.ApprovedDocxBytes,
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    approvedName);
+            }
+
+            // Build DOCX from AI-generated content using the export endpoint
+            // Return the report content as JSON for the admin panel to call export-generic-docx
+            var user = await _userManager.FindByIdAsync(report.UserId);
+            var personName = user?.UserName ?? "命主";
+
+            var (bookTitle, skipTitle) = report.ReportType switch
+            {
+                "bazi" or "bazi-ziwei" => ("八 字 命 書", "八 字 命 書"),
+                "daiyun" => ("大 運 命 書", "大 運 命 書"),
+                "liunian" => ("流 年 命 書", "流 年 命 書"),
+                "lifelong" => ("終 身 命 書", "終 身 命 書"),
+                _ => ("命書", "命書")
+            };
+
+            return Ok(new
+            {
+                reportId = report.Id,
+                title = report.Title,
+                reportType = report.ReportType,
+                content = report.Content,
+                personName,
+                bookTitle,
+                skipTitle
+            });
+        }
+
+        // POST /api/Reports/admin/{id}/upload-docx
+        // Admin uploads the corrected DOCX file
+        [HttpPost("admin/{id:guid}/upload-docx")]
+        [Authorize]
+        [RequestSizeLimit(20 * 1024 * 1024)] // 20 MB
+        public async Task<IActionResult> UploadDocx(Guid id, IFormFile file)
+        {
+            if (!IsAdmin()) return Forbid();
+            if (file == null || file.Length == 0) return BadRequest(new { error = "請選擇檔案" });
+            if (!file.FileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { error = "只接受 .docx 格式" });
+
+            var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
+            if (report == null) return NotFound(new { error = "找不到命書" });
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            report.ApprovedDocxBytes = ms.ToArray();
+            report.ApprovedDocxFileName = file.FileName;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"已上傳：{file.FileName}（{ms.Length / 1024} KB）" });
+        }
+
         // POST /api/Reports/admin/{id}/approve
+        // Approve + generate download token + send email to user
         [HttpPost("admin/{id:guid}/approve")]
         [Authorize]
         public async Task<IActionResult> ApproveReport(Guid id)
@@ -211,6 +273,8 @@ namespace Ecanapi.Controllers
             var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
             if (report == null) return NotFound(new { error = "找不到命書" });
             if (report.Status == "approved") return BadRequest(new { error = "命書已核准" });
+            if (report.ApprovedDocxBytes == null || report.ApprovedDocxBytes.Length == 0)
+                return BadRequest(new { error = "請先上傳修正後的命書 DOCX，再執行核准" });
 
             var user = await _userManager.FindByIdAsync(report.UserId);
             if (user == null) return BadRequest(new { error = "找不到用戶" });
@@ -224,10 +288,17 @@ namespace Ecanapi.Controllers
             report.DownloadTokenExpiry = expiry;
             await _context.SaveChangesAsync();
 
-            var frontendBase = _config["App:FrontendUrl"] ?? "https://yudongzi.tw";
-            var downloadUrl = $"{frontendBase}/disk?downloadToken={token}";
-            var expiryDesc = TimeZoneInfo.ConvertTimeFromUtc(expiry,
-                TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei")).ToString("yyyy/MM/dd HH:mm");
+            // Email link points directly to Ecanapi download endpoint
+            var apiBase = _config["ECPay:ApiBase"] ?? "https://ecanapi.fly.dev";
+            var downloadUrl = $"{apiBase}/api/Reports/download-approved?token={token}";
+
+            string expiryDesc;
+            try
+            {
+                expiryDesc = TimeZoneInfo.ConvertTimeFromUtc(expiry,
+                    TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei")).ToString("yyyy/MM/dd HH:mm");
+            }
+            catch { expiryDesc = expiry.AddHours(8).ToString("yyyy/MM/dd HH:mm"); }
 
             var toEmail = user.Email ?? string.Empty;
             var toName = user.UserName ?? "命主";
@@ -242,27 +313,26 @@ namespace Ecanapi.Controllers
         public async Task<IActionResult> RejectReport(Guid id, [FromBody] RejectReportRequest req)
         {
             if (!IsAdmin()) return Forbid();
-
             var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
             if (report == null) return NotFound(new { error = "找不到命書" });
 
             report.Status = "rejected";
             report.AdminNote = req.Note;
             await _context.SaveChangesAsync();
-
             return Ok(new { message = "已退回" });
         }
 
         // POST /api/Reports/admin/{id}/resend
+        // Resend email with new token (if 72hr expired)
         [HttpPost("admin/{id:guid}/resend")]
         [Authorize]
         public async Task<IActionResult> ResendReport(Guid id)
         {
             if (!IsAdmin()) return Forbid();
-
             var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
             if (report == null) return NotFound(new { error = "找不到命書" });
             if (report.Status != "approved") return BadRequest(new { error = "只有已核准的命書才能重發" });
+            if (report.ApprovedDocxBytes == null) return BadRequest(new { error = "尚無上傳的命書檔案" });
 
             var user = await _userManager.FindByIdAsync(report.UserId);
             if (user == null) return BadRequest(new { error = "找不到用戶" });
@@ -273,10 +343,16 @@ namespace Ecanapi.Controllers
             report.DownloadTokenExpiry = expiry;
             await _context.SaveChangesAsync();
 
-            var frontendBase = _config["App:FrontendUrl"] ?? "https://yudongzi.tw";
-            var downloadUrl = $"{frontendBase}/disk?downloadToken={token}";
-            var expiryDesc = TimeZoneInfo.ConvertTimeFromUtc(expiry,
-                TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei")).ToString("yyyy/MM/dd HH:mm");
+            var apiBase = _config["ECPay:ApiBase"] ?? "https://ecanapi.fly.dev";
+            var downloadUrl = $"{apiBase}/api/Reports/download-approved?token={token}";
+
+            string expiryDesc;
+            try
+            {
+                expiryDesc = TimeZoneInfo.ConvertTimeFromUtc(expiry,
+                    TimeZoneInfo.FindSystemTimeZoneById("Asia/Taipei")).ToString("yyyy/MM/dd HH:mm");
+            }
+            catch { expiryDesc = expiry.AddHours(8).ToString("yyyy/MM/dd HH:mm"); }
 
             var toEmail = user.Email ?? string.Empty;
             var toName = user.UserName ?? "命主";

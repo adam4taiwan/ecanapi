@@ -45,5 +45,13 @@ namespace Ecanapi.Models
         public string? DownloadToken { get; set; }
 
         public DateTime? DownloadTokenExpiry { get; set; }
+
+        /// <summary>管理員上傳的最終修正版 DOCX 二進位（核准後供用戶下載）</summary>
+        [Column(TypeName = "bytea")]
+        public byte[]? ApprovedDocxBytes { get; set; }
+
+        /// <summary>最終 DOCX 原始檔名</summary>
+        [MaxLength(200)]
+        public string? ApprovedDocxFileName { get; set; }
     }
 }

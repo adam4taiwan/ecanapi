@@ -9,6 +9,7 @@ namespace Ecanapi.Services
         Task SendAdminBookingNotifyAsync(string serviceType, string name, string contactType, string contactInfo, string? notes, string? preferredDate, string? userEmail, int bookingId);
         Task SendClientConfirmationAsync(string toEmail, string name, string serviceType);
         Task SendReportReadyAsync(string toEmail, string toName, string reportTitle, string downloadUrl, string expiryDesc);
+        Task SendAdminReportNotifyAsync(string userName, string userEmail, string reportTitle, string reportType, string adminReviewUrl);
     }
 
     public class EmailService : IEmailService
@@ -126,6 +127,32 @@ namespace Ecanapi.Services
             {
                 _logger.LogError(ex, "Failed to send report ready email to {Email}", toEmail);
             }
+        }
+
+        public async Task SendAdminReportNotifyAsync(string userName, string userEmail, string reportTitle, string reportType, string adminReviewUrl)
+        {
+            var adminEmail = _config["Admin:Email"];
+            if (string.IsNullOrEmpty(adminEmail)) return;
+
+            var subject = $"[玉洞子] 新命書申請 - {userName}：{reportTitle}";
+
+            var html = $@"
+<div style='font-family:sans-serif;max-width:600px;margin:0 auto;background:#fffbf0;padding:24px;border-radius:8px;'>
+  <h2 style='color:#b45309;'>新命書申請通知</h2>
+  <table style='width:100%;border-collapse:collapse;margin-bottom:16px;'>
+    <tr><td style='padding:8px;background:#fef3c7;font-weight:bold;width:100px;'>申請人</td><td style='padding:8px;border-bottom:1px solid #eee;'>{userName} ({userEmail})</td></tr>
+    <tr><td style='padding:8px;background:#fef3c7;font-weight:bold;'>命書種類</td><td style='padding:8px;border-bottom:1px solid #eee;'>{reportTitle}（{reportType}）</td></tr>
+  </table>
+  <div style='text-align:center;margin:24px 0;'>
+    <a href='{adminReviewUrl}' style='background:#b45309;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:bold;display:inline-block;'>
+      前往後台審核命書
+    </a>
+  </div>
+  <p style='color:#999;font-size:12px;'>此為系統自動發送。</p>
+</div>";
+
+            try { await SendAsync(adminEmail, "玉洞子", subject, html); }
+            catch (Exception ex) { _logger.LogError(ex, "Failed to send admin report notification"); }
         }
 
         public async Task SendClientConfirmationAsync(string toEmail, string name, string serviceType)

@@ -22,14 +22,16 @@ namespace Ecanapi.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
         private readonly ILogger<ConsultationController> _logger;
+        private readonly IEmailService _email;
         private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
 
-        public ConsultationController(IAstrologyService astrologyService, ApplicationDbContext context, IConfiguration config, ILogger<ConsultationController> logger)
+        public ConsultationController(IAstrologyService astrologyService, ApplicationDbContext context, IConfiguration config, ILogger<ConsultationController> logger, IEmailService email)
         {
             _astrologyService = astrologyService;
             _context = context;
             _config = config;
             _logger = logger;
+            _email = email;
         }
 
         [Authorize]
@@ -9758,7 +9760,6 @@ namespace Ecanapi.Controllers
             try
             {
                 string? paramsJson = parameters != null ? JsonSerializer.Serialize(parameters) : null;
-                // Always create a new record for each application (apply-review flow)
                 _context.UserReports.Add(new Ecanapi.Models.UserReport
                 {
                     UserId = userId,
@@ -9770,6 +9771,20 @@ namespace Ecanapi.Controllers
                     Status = "pending_review"
                 });
                 await _context.SaveChangesAsync();
+
+                // Notify admin of new report application
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (user != null)
+                {
+                    var frontendBase = _config["App:FrontendUrl"] ?? "https://yudongzi.tw";
+                    var adminUrl = $"{frontendBase}/admin/reports";
+                    _ = _email.SendAdminReportNotifyAsync(
+                        user.UserName ?? userId,
+                        user.Email ?? "",
+                        title,
+                        reportType,
+                        adminUrl);
+                }
             }
             catch (Exception ex)
             {
