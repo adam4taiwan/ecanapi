@@ -29,5 +29,21 @@ namespace Ecanapi.Models
         public string? Parameters { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>審核狀態: pending_review / approved / rejected</summary>
+        [MaxLength(20)]
+        public string Status { get; set; } = "pending_review";
+
+        public DateTime? ApprovedAt { get; set; }
+
+        /// <summary>管理員備註（退回原因等）</summary>
+        [Column(TypeName = "text")]
+        public string? AdminNote { get; set; }
+
+        /// <summary>時效下載 token（核准送出時產生，72小時有效）</summary>
+        [MaxLength(64)]
+        public string? DownloadToken { get; set; }
+
+        public DateTime? DownloadTokenExpiry { get; set; }
     }
 }

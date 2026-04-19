@@ -9758,27 +9758,17 @@ namespace Ecanapi.Controllers
             try
             {
                 string? paramsJson = parameters != null ? JsonSerializer.Serialize(parameters) : null;
-                var existing = await _context.UserReports
-                    .FirstOrDefaultAsync(r => r.UserId == userId && r.ReportType == reportType);
-                if (existing != null)
+                // Always create a new record for each application (apply-review flow)
+                _context.UserReports.Add(new Ecanapi.Models.UserReport
                 {
-                    existing.Title = title;
-                    existing.Content = content;
-                    existing.Parameters = paramsJson;
-                    existing.CreatedAt = DateTime.UtcNow;
-                }
-                else
-                {
-                    _context.UserReports.Add(new Ecanapi.Models.UserReport
-                    {
-                        UserId = userId,
-                        ReportType = reportType,
-                        Title = title,
-                        Content = content,
-                        Parameters = paramsJson,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
+                    UserId = userId,
+                    ReportType = reportType,
+                    Title = title,
+                    Content = content,
+                    Parameters = paramsJson,
+                    CreatedAt = DateTime.UtcNow,
+                    Status = "pending_review"
+                });
                 await _context.SaveChangesAsync();
             }
             catch (Exception ex)

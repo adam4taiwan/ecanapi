@@ -8,6 +8,7 @@ namespace Ecanapi.Services
     {
         Task SendAdminBookingNotifyAsync(string serviceType, string name, string contactType, string contactInfo, string? notes, string? preferredDate, string? userEmail, int bookingId);
         Task SendClientConfirmationAsync(string toEmail, string name, string serviceType);
+        Task SendReportReadyAsync(string toEmail, string toName, string reportTitle, string downloadUrl, string expiryDesc);
     }
 
     public class EmailService : IEmailService
@@ -93,6 +94,37 @@ namespace Ecanapi.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send admin booking notification");
+            }
+        }
+
+        public async Task SendReportReadyAsync(string toEmail, string toName, string reportTitle, string downloadUrl, string expiryDesc)
+        {
+            if (string.IsNullOrEmpty(toEmail)) return;
+
+            var subject = $"【玉洞子星相古學堂】您的{reportTitle}已審閱完成，請點擊下載";
+
+            var html = $@"
+<div style='font-family:sans-serif;max-width:600px;margin:0 auto;background:#fffbf0;padding:24px;border-radius:8px;'>
+  <h2 style='color:#b45309;margin-bottom:8px;'>命書已審閱完成</h2>
+  <p style='color:#333;'>親愛的 {toName}，</p>
+  <p style='color:#333;'>您申請的「{reportTitle}」已由玉洞子親自審閱完成，請在有效期限內點擊下方按鈕下載。</p>
+  <div style='text-align:center;margin:28px 0;'>
+    <a href='{downloadUrl}' style='background:#b45309;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:bold;display:inline-block;'>
+      點擊下載命書
+    </a>
+  </div>
+  <p style='color:#e67e22;font-size:13px;font-weight:bold;'>下載連結有效期限：{expiryDesc}（72小時）</p>
+  <p style='color:#999;font-size:12px;margin-top:16px;'>此為系統自動發送，請勿直接回覆此信。如有問題請透過 LINE 聯繫。</p>
+  <p style='color:#b45309;font-weight:bold;margin-top:16px;'>玉洞子星相古學堂</p>
+</div>";
+
+            try
+            {
+                await SendAsync(toEmail, toName, subject, html);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send report ready email to {Email}", toEmail);
             }
         }
 
