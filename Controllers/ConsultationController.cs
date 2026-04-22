@@ -3283,6 +3283,24 @@ namespace Ecanapi.Controllers
                 r.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
             }
 
+            // 換頁 + 標題合為同一段落：換頁符放在標題段落開頭 run，避免獨立換頁段落落在新頁頂端產生空白頁
+            void AddParaWithPageBreak(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
+            {
+                var p = doc.CreateParagraph();
+                p.Alignment = align;
+                if (bold) p.SpacingBefore = 80;
+                // run 1: page break
+                var rBreak = p.CreateRun();
+                rBreak.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
+                // run 2: chapter title text
+                var r = p.CreateRun();
+                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r.FontSize = fontSize;
+                r.IsBold = bold;
+                r.SetColor(colorHex);
+                r.SetText(text ?? "");
+            }
+
             // === 封面 ===
             if (coverBytes.Length > 0)
                 AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
@@ -3392,8 +3410,7 @@ namespace Ecanapi.Controllers
                     line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
                     line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
                 {
-                    AddPageBreak();
-                    AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                    AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
                 {
@@ -3405,7 +3422,11 @@ namespace Ecanapi.Controllers
                         {
                             string chStr = chM.Groups[1].Value;
                             int chN = int.TryParse(chStr, out var cn) ? cn : LfChineseNumToInt(chStr);
-                            if (chN >= 2) AddPageBreak();
+                            if (chN >= 2)
+                                AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                            else
+                                AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                            continue;
                         }
                     }
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
