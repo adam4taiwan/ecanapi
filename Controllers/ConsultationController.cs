@@ -2448,7 +2448,6 @@ namespace Ecanapi.Controllers
                     }
 
                     var bzSb = new System.Text.StringBuilder();
-                    bzSb.AppendLine();
                     bzSb.AppendLine("=================================================================");
                     bzSb.AppendLine("【第十一章：紫微星盤鑑定】");
                     bzSb.AppendLine("=================================================================");
@@ -2578,7 +2577,7 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "父母宮");
                     bzSb.AppendLine();
 
-                    report += bzSb.ToString();
+                    report = report.TrimEnd() + Environment.NewLine + bzSb.ToString();
                 }
 
                 // === 九星氣學加成 ===
