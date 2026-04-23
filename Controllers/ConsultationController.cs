@@ -6729,8 +6729,8 @@ namespace Ecanapi.Controllers
             // === Ch.1 審時聞切 ===
             sb.AppendLine("【第一章：審時聞切 · 四時定數】");
             sb.AppendLine();
-            sb.AppendLine(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
-            sb.AppendLine(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
+            sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
+            sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
 
             // 中原盲派 - 時支/時干直斷
             if (zRules.Count > 0)
