@@ -3299,16 +3299,13 @@ namespace Ecanapi.Controllers
                 r.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
             }
 
-            // 換頁 + 標題合為同一段落：換頁符放在標題段落開頭 run，避免獨立換頁段落落在新頁頂端產生空白頁
+            // 用 IsPageBreak 段落屬性換頁：段落從新頁開始，不在前頁留空白段落
             void AddParaWithPageBreak(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
             {
                 var p = doc.CreateParagraph();
                 p.Alignment = align;
                 if (bold) p.SpacingBefore = 80;
-                // run 1: page break
-                var rBreak = p.CreateRun();
-                rBreak.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
-                // run 2: chapter title text
+                p.IsPageBreak = true; // 段落從新頁起始，根治空白頁問題
                 var r = p.CreateRun();
                 r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
                 r.FontSize = fontSize;
@@ -6969,6 +6966,7 @@ namespace Ecanapi.Controllers
                 string[] palaceLookups = { "命宮","兄弟","夫妻","子女","財帛","疾厄","遷移","奴僕","官祿","田宅","福德","父母" };
                 for (int i = 0; i < palaceNamesAll.Length; i++)
                 {
+                    if (palaceNamesAll[i] == "命宮") continue; // 第六章已描述命宮，此處略去
                     string pStars  = KbGetPalaceStars(palacesYdz, palaceLookups[i]);
                     string pBranch = KbGetPalaceBranch(palacesYdz, palaceLookups[i]);
                     string kbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars);
