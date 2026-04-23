@@ -7344,6 +7344,57 @@ namespace Ecanapi.Controllers
                     if (interParts14.Count > 0)
                         sb.AppendLine($"干支互動：{string.Join("；", interParts14)}");
 
+                    // 紫微大限命宮分析
+                    if (hasZiwei && palacesYdz.ValueKind == JsonValueKind.Array)
+                    {
+                        var zDecades14 = DyGetOverlappingDecadePalaces(palacesYdz, lc.startAge, lc.endAge);
+                        foreach (var (zDecPal14, zDecStem14, zDs14, zDe14) in zDecades14)
+                        {
+                            if (string.IsNullOrEmpty(zDecPal14)) continue;
+                            string zPalStars14 = KbGetPalaceStars(palacesYdz, zDecPal14);
+                            var (zGood14, zBad14) = DyGetPalaceAuxiliaryStars(palacesYdz, zDecPal14);
+                            string zLu14   = string.IsNullOrEmpty(zDecStem14) ? "" : KbGetSiHuaPalace(zDecStem14, "化祿", palacesYdz);
+                            string zQuan14 = string.IsNullOrEmpty(zDecStem14) ? "" : KbGetSiHuaPalace(zDecStem14, "化權", palacesYdz);
+                            string zJi14   = string.IsNullOrEmpty(zDecStem14) ? "" : KbGetSiHuaPalace(zDecStem14, "化忌", palacesYdz);
+                            // 輔星說明
+                            var zAux14 = new List<string>();
+                            if (zGood14.Count > 0) zAux14.Add($"六吉：{string.Join("、", zGood14)}");
+                            if (zBad14.Count > 0)  zAux14.Add($"四煞：{string.Join("、", zBad14)}");
+                            // 宮干四化
+                            var zSiHua14 = new List<string>();
+                            if (!string.IsNullOrEmpty(zLu14))   zSiHua14.Add($"化祿飛{zLu14}");
+                            if (!string.IsNullOrEmpty(zQuan14)) zSiHua14.Add($"化權飛{zQuan14}");
+                            if (!string.IsNullOrEmpty(zJi14))   zSiHua14.Add($"化忌飛{zJi14}");
+                            // 主星質性
+                            var goodMajor14   = new HashSet<string> { "紫微","天府","天相","天同","天梁","太陽","太陰" };
+                            var activeMajor14 = new HashSet<string> { "七殺","破軍" };
+                            var mixMajor14    = new HashSet<string> { "天機","武曲","廉貞","貪狼","巨門" };
+                            var sArr14 = string.IsNullOrEmpty(zPalStars14) ? Array.Empty<string>()
+                                : zPalStars14.Split(new[] { '、', ',', '，', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            bool zHasGood14   = sArr14.Any(s => goodMajor14.Contains(s));
+                            bool zHasActive14 = sArr14.Any(s => activeMajor14.Contains(s));
+                            bool zHasMix14    = sArr14.Any(s => mixMajor14.Contains(s));
+                            string zQuality14 =
+                                string.IsNullOrEmpty(zPalStars14) ? "大限命宮空宮，借對宮主星論格局，大限方向較難聚焦。"
+                              : zHasGood14 && zBad14.Count == 0 ? $"大限命宮{zPalStars14}入守，主星吉和穩健，大限格局有支撐。"
+                              : zHasGood14 ? $"大限命宮{zPalStars14}入守，吉星有力；惟四煞同臨，格局有起伏，宜防意外突發。"
+                              : zHasActive14 ? $"大限命宮{zPalStars14}入守，主星剛烈主變動，大限衝勁強，適合主動出擊，亦需防破耗。"
+                              : zHasMix14 && zBad14.Count > 0 ? $"大限命宮{zPalStars14}入守，主星吉凶兩用，四煞同臨，大限阻力較多，宜謹慎行事。"
+                              : $"大限命宮{zPalStars14}入守，主星吉凶需視宮干四化定論。";
+                            var keyPals14 = new HashSet<string> { "命宮","財帛宮","官祿宮","遷移宮" };
+                            if (!string.IsNullOrEmpty(zJi14) && keyPals14.Contains(zJi14))
+                                zQuality14 += $" 宮干化忌入{zJi14.Replace("宮", "")}，大限此宮事項宜謹慎。";
+                            else if (!string.IsNullOrEmpty(zLu14) && keyPals14.Contains(zLu14))
+                                zQuality14 += $" 宮干化祿入{zLu14.Replace("宮", "")}，大限此宮事項有進益。";
+                            // 輸出
+                            string zDecRange14 = (zDs14 != lc.startAge || zDe14 != lc.endAge) ? $"（紫微大限 {zDs14}-{zDe14} 歲）" : "";
+                            sb.AppendLine($"紫微大限{zDecRange14}：{zDecPal14}為大限命宮，主星：{(string.IsNullOrEmpty(zPalStars14) ? "空宮" : zPalStars14)}" +
+                                (zAux14.Count > 0 ? $"，{string.Join("，", zAux14)}" : "") +
+                                (!string.IsNullOrEmpty(zDecStem14) && zSiHua14.Count > 0 ? $"，宮干{zDecStem14}：{string.Join("、", zSiHua14)}" : ""));
+                            sb.AppendLine($"  {zQuality14}");
+                        }
+                    }
+
                     // 天干期（前5年）
                     int stPeriodStart = lc.startAge;
                     int stPeriodEnd   = lc.startAge + 4;
