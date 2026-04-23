@@ -5760,7 +5760,7 @@ namespace Ecanapi.Controllers
             string zodiac = zodiacNames.TryGetValue(yBranch, out var zn) ? zn : yBranch;
             if (zodiacTexts.TryGetValue(yBranch, out var ztArr) && hIdx < ztArr.Length)
             {
-                sb.AppendLine($"{zodiac}年生，{hBranch}時出生：{ztArr[hIdx]}");
+                sb.AppendLine($"特性注意 ：{ztArr[hIdx]}");
             }
             sb.AppendLine();
 
@@ -5825,7 +5825,7 @@ namespace Ecanapi.Controllers
                 else if (timeSection == "中") { gjText = gjInfo.midText; gjFather = gjInfo.midFather; }
                 else { gjText = gjInfo.finText; gjFather = gjInfo.finFather; }
 
-                sb.AppendLine($"{hBranch}時生人（{gjInfo.name}），時{timeSection}：");
+                sb.AppendLine($"{hBranch}時生人（{gjInfo.name}）");
                 sb.AppendLine($"命格：{gjText}");
                 sb.AppendLine($"父母：{gjFather}");
             }
@@ -5908,7 +5908,6 @@ namespace Ecanapi.Controllers
 
                 if (!string.IsNullOrEmpty(body4) && bodyTexts4.TryGetValue(body4, out var bDict4) && bDict4.TryGetValue(season4, out var bText4))
                 {
-                    sb.AppendLine($"{season4}季，{hBranch}時生人：");
                     sb.AppendLine(bText4);
                     sb.AppendLine();
                 }
@@ -5951,7 +5950,7 @@ namespace Ecanapi.Controllers
                 if (found5.Count > 0)
                 {
                     string shaNames = string.Join("、", found5);
-                    sb.AppendLine($"{season5}季，{hBranch}時生人，帶有：{shaNames}。");
+                    sb.AppendLine($"帶有：{shaNames}。");
                     if (found5.Count >= 2)
                         sb.AppendLine("多重關煞疊加，幼年凶險較重，宜提早化解。");
                     else
@@ -5959,7 +5958,7 @@ namespace Ecanapi.Controllers
                 }
                 else
                 {
-                    sb.AppendLine($"{season5}季，{hBranch}時生人，幼年平順。");
+                    sb.AppendLine("幼年平順。");
                 }
                 sb.AppendLine();
             }
@@ -5987,7 +5986,7 @@ namespace Ecanapi.Controllers
             };
 
             string palaceText = palaceTexts.TryGetValue(palace, out var pt) ? pt : "";
-            sb.AppendLine($"{zodiac}年生，{hBranch}時：{palaceText}");
+            sb.AppendLine(palaceText);
             sb.AppendLine();
 
             // === 條件 7：查流年 ===
@@ -6098,7 +6097,7 @@ namespace Ecanapi.Controllers
                 };
                 string geju8Text = geju8Texts.TryGetValue(geju8, out var gt) ? gt : "";
 
-                sb.AppendLine($"{yBranch}年生（{group8}組），{mBranch}月（農曆{lunarMonthFromBranch}月）：{geju8}格——{geju8Text}");
+                sb.AppendLine($"{geju8}格——{geju8Text}");
                 sb.AppendLine();
             }
 
@@ -6130,7 +6129,6 @@ namespace Ecanapi.Controllers
                 group9TimeSect = group9Parent + group9OutHome;
             }
 
-            sb.AppendLine($"{hBranch}時生人（{group9Name}），時{timeSection}：");
             sb.AppendLine(group9Common);
             sb.AppendLine(group9TimeSect);
             sb.AppendLine();
@@ -6156,7 +6154,7 @@ namespace Ecanapi.Controllers
             string markLocation = relativeQuarter switch { 1 => "臉上", 2 => "身上", 3 => "手上", 4 => "腳上", _ => "身上" };
             bool isYangBranch = "子寅辰午申戌".Contains(timeBranch);
             string lookLike = gender == 1 ? (isYangBranch ? "像母親" : "像父親") : (isYangBranch ? "像父親" : "像母親");
-            string personality = ((gender == 1 && isYangBranch) || (gender == 2 && !isYangBranch)) ? "。為人比較強勢。" : "。";
+            string personality = "。";
             string markText = hasMark ? $"依古法推算，您在「{markLocation}」應有胎記或疤痕。" : "依四時定數，您天生外觀應無明顯胎記。";
 
             string mingshuDetail = "";
@@ -6170,7 +6168,7 @@ namespace Ecanapi.Controllers
             var sb = new StringBuilder();
             sb.AppendLine("【審時聞切 · 四時定數】");
             sb.AppendLine($"您生於 {timeBranch}時之{timeSection}（第{totalQuarter}刻）。外貌個性{lookLike}{personality}");
-            sb.AppendLine($"印記印證：{markText}根據出生的刻分判定，您出生時母親身邊只有 {personCount} 個人。");
+            sb.AppendLine($"印記印證：{markText}");
             if (!string.IsNullOrEmpty(mingshuDetail))
             {
                 sb.AppendLine();
