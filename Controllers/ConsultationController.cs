@@ -6137,6 +6137,30 @@ namespace Ecanapi.Controllers
         }
 
         // === ShiWenSection (審時聞切) ===
+        // === 按季節過濾 MonthInfluence / MaleChart 文字 ===
+        // 格式：「生於春季（...），文字；生於夏季（...），文字。」用「；」分段，只保留當前季節
+        private static string LfFilterSeasonText(string? text, string seasonChar)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text ?? "";
+            if (!text.Contains("生於") || !text.Contains("季")) return text;
+            var parts = text.Split('；');
+            var kept = new List<string>();
+            foreach (var part in parts)
+            {
+                var m = System.Text.RegularExpressions.Regex.Match(part.TrimStart(), @"^生於([春夏秋冬])季");
+                if (m.Success)
+                {
+                    if (m.Groups[1].Value == seasonChar) kept.Add(part.Trim());
+                }
+                else
+                {
+                    kept.Add(part.Trim());
+                }
+            }
+            if (kept.Count == 0) return text;
+            return string.Join("；", kept);
+        }
+
         private static string LfShiWenSection(string timeBranch, int? birthHour, int? birthMinuteRaw, int gender)
         {
             if (!birthHour.HasValue || !birthMinuteRaw.HasValue)
@@ -6175,7 +6199,7 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("【時柱驗明】");
                 sb.AppendLine(mingshuDetail);
             }
-            return sb.ToString();
+            return sb.ToString().TrimEnd('\n', '\r') + "\n";
         }
 
         // === 十神縮寫 ===
@@ -6802,8 +6826,11 @@ namespace Ecanapi.Controllers
                 AppKb("事業傾向", kb.Career);
                 AppKb("天生弱點", kb.Weaknesses);
                 AppKb("母星影響", kb.MotherInfluence);
-                AppKb("月令影響", kb.MonthInfluence);
-                AppKb(gender == 1 ? "男命論斷" : "女命論斷", gender == 1 ? kb.MaleChart : kb.FemaleChart);
+                string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋" : "冬";
+                AppKb("月令影響", LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar));
+                AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar));
                 AppKb("最佳時辰", kb.SpecialHours);
             }
             sb.AppendLine();
