@@ -3421,7 +3421,7 @@ namespace Ecanapi.Controllers
 
                 if (line == "【第二章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
                     line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
-                    line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
+                    line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
                 {
                     AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
@@ -6133,7 +6133,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine(group9TimeSect);
             sb.AppendLine();
 
-            return sb.ToString();
+            return sb.ToString().TrimEnd('\n', '\r') + "\n";
         }
 
         // === ShiWenSection (審時聞切) ===
