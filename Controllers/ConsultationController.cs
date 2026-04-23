@@ -7018,23 +7018,23 @@ namespace Ecanapi.Controllers
                 // 命宮宮干四化飛出（化祿/化忌）
                 if (siHua.TryGetValue("命宮化祿", out var mLuKv) && !string.IsNullOrEmpty(mLuKv.txt))
                 {
-                    sb.AppendLine($"【命宮化祿飛{mLuKv.pal}】{mLuKv.txt}");
+                    sb.AppendLine(mLuKv.txt);
                     sb.AppendLine();
                 }
                 if (siHua.TryGetValue("命宮化忌", out var mJiKv) && !string.IsNullOrEmpty(mJiKv.txt))
                 {
-                    sb.AppendLine($"【命宮化忌飛{mJiKv.pal}】{mJiKv.txt}");
+                    sb.AppendLine(mJiKv.txt);
                     sb.AppendLine();
                 }
                 // 命宮化權/化科也一併輸出
                 if (siHua.TryGetValue("命宮化權", out var mQuanKv) && !string.IsNullOrEmpty(mQuanKv.txt))
                 {
-                    sb.AppendLine($"【命宮化權飛{mQuanKv.pal}】{mQuanKv.txt}");
+                    sb.AppendLine(mQuanKv.txt);
                     sb.AppendLine();
                 }
                 if (siHua.TryGetValue("命宮化科", out var mKeKv) && !string.IsNullOrEmpty(mKeKv.txt))
                 {
-                    sb.AppendLine($"【命宮化科飛{mKeKv.pal}】{mKeKv.txt}");
+                    sb.AppendLine(mKeKv.txt);
                     sb.AppendLine();
                 }
             }
@@ -7057,10 +7057,10 @@ namespace Ecanapi.Controllers
                     sb.AppendLine();
                 }
                 bool anyNian = false;
-                if (!string.IsNullOrEmpty(siHuaLu))   { sb.AppendLine($"【先天化祿入{siHuaLuPalace}】{siHuaLu}");   anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaQuan)) { sb.AppendLine($"【先天化權入{siHuaQuanPalace}】{siHuaQuan}"); anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaKe))   { sb.AppendLine($"【先天化科入{siHuaKePalace}】{siHuaKe}");   anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaJi))   { sb.AppendLine($"【先天化忌入{siHuaJiPalace}】{siHuaJi}");   anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaLu))   { sb.AppendLine(siHuaLu);   anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaQuan)) { sb.AppendLine(siHuaQuan); anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaKe))   { sb.AppendLine(siHuaKe);   anyNian = true; }
+                if (!string.IsNullOrEmpty(siHuaJi))   { sb.AppendLine(siHuaJi);   anyNian = true; }
                 if (anyNian) sb.AppendLine();
 
                 // 宮位四化（各宮宮干飛出）
@@ -7071,7 +7071,7 @@ namespace Ecanapi.Controllers
                     if (kv.Key.StartsWith("命宮")) continue;
                     if (!string.IsNullOrEmpty(kv.Value.txt))
                     {
-                        sb.AppendLine($"【{kv.Key}飛{kv.Value.pal}】{kv.Value.txt}");
+                        sb.AppendLine(kv.Value.txt);
                         anySiHua = true;
                     }
                 }
