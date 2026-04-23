@@ -2656,8 +2656,14 @@ namespace Ecanapi.Controllers
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
             if (user == null) return BadRequest(new { error = "找不到用戶" });
 
-            if (!string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase))
-                return StatusCode(403, new { error = "此功能僅限管理員使用" });
+            bool ydIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            int ydSubId = -1;
+            if (!ydIsAdmin)
+            {
+                var (ydOk, ydErr, ydSubIdVal) = await CheckSubscriptionQuota(user.Id, "BOOK_VIP");
+                if (!ydOk) return BadRequest(new { error = ydErr });
+                ydSubId = ydSubIdVal;
+            }
 
             var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
             if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
@@ -2971,7 +2977,8 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(kbNsSection)) report += kbNsSection;
 
-                await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子命書（內部版）", report,
+                if (!ydIsAdmin) await RecordSubscriptionClaim(user.Id, ydSubId, "BOOK_VIP");
+                await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子傳家寶典", report,
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
 
                 return Ok(new { result = report, luckCycles = cycleData, baziTable, yongJiTable, remainingPoints = user.Points,
@@ -3373,15 +3380,21 @@ namespace Ecanapi.Controllers
             int kbSectionCount = 0; // 計算 === === 章節數，用於換頁
 
             // 過濾：移除緊接在章節標題前的空白行，防止 DOCX 出現空白頁
+            // 向前看時跳過所有最終會被 DOCX 忽略的行（空白行、=====、-----、頁尾簽名）
             var rawLines = reportText.Split('\n');
             var filteredLines = new List<string>(rawLines.Length);
+            bool IsSkippableLine(string s) =>
+                string.IsNullOrWhiteSpace(s) ||
+                s.StartsWith("=====") ||
+                s.StartsWith("-----") ||
+                ShouldSkipReportLine(s);
             for (int li = 0; li < rawLines.Length; li++)
             {
                 string lt = rawLines[li].TrimEnd();
                 if (string.IsNullOrWhiteSpace(lt))
                 {
                     int nxt = li + 1;
-                    while (nxt < rawLines.Length && string.IsNullOrWhiteSpace(rawLines[nxt].TrimEnd())) nxt++;
+                    while (nxt < rawLines.Length && IsSkippableLine(rawLines[nxt].TrimEnd())) nxt++;
                     if (nxt < rawLines.Length)
                     {
                         string nl = rawLines[nxt].TrimEnd();
