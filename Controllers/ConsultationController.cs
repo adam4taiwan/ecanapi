@@ -1380,8 +1380,13 @@ namespace Ecanapi.Controllers
                         continue;
                     // 過濾描述「副星同度/加臨」但該副星不在此宮的內容行
                     // 例：「巳亥[廉貪]有火鈴同度，...」→ 宮位無火星/鈴星時跳過
+                    // 若非條件段落內（即獨立副星段落標題如「文曲」），同時設 skipUntilBlank
+                    // 確保後續不含副星字的內容行也一起被略過
                     if (KbContentLineHasAbsentSecondaryStar(line, palaceStars))
+                    {
+                        if (!inConditional) skipUntilBlank = true;
                         continue;
+                    }
                     result.AppendLine(line);
                 }
             }
