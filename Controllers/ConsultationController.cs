@@ -7250,7 +7250,7 @@ namespace Ecanapi.Controllers
             AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"  && ZrApplies(r)), "【身體特徵補充論斷】");
 
             // === Ch.14 大運逐運論斷 ===
-            sb.AppendLine("【第十四章：大運逐運論斷（百分制評分）】");
+            sb.AppendLine("【第十四章：大運逐運論斷（天干地支分期）】");
             sb.AppendLine();
             if (scored.Count == 0)
             {
@@ -7258,46 +7258,127 @@ namespace Ecanapi.Controllers
             }
             else
             {
+                bool isBodyStrong14 = bodyPct >= 50;
+                var (goodElems14, badElems14) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong14);
+
                 // 一、大運走勢總覽表（全部大運）
                 sb.AppendLine("一、大運走勢總覽");
                 sb.AppendLine("| 歲數 | 干支 | 天干 | 地支 | 評分 | 等級 |");
                 sb.AppendLine("|------|------|------|------|------|------|");
-                int curIdx = scored.FindIndex(lc => lc.startAge <= currentAge && lc.endAge >= currentAge);
-                foreach (var lc in scored)
+                foreach (var lc14 in scored)
                 {
-                    string bSS = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhAll) && bhAll.Count > 0
-                        ? LfStemShiShen(bhAll[0].stem, dStem) : "";
-                    string sSS = LfStemShiShen(lc.stem, dStem);
-                    bool isCur = lc.startAge <= currentAge && lc.endAge >= currentAge;
-                    string marker = isCur ? " ★" : "";
-                    sb.AppendLine($"| {lc.startAge}-{lc.endAge}{marker} | {lc.stem}{lc.branch} | {sSS} | {bSS} | {lc.score} | {lc.level} |");
+                    string bSS14 = LfBranchHiddenRatio.TryGetValue(lc14.branch, out var bhAll14) && bhAll14.Count > 0
+                        ? LfStemShiShen(bhAll14[0].stem, dStem) : "";
+                    string sSS14 = LfStemShiShen(lc14.stem, dStem);
+                    bool isCur14 = lc14.startAge <= currentAge && lc14.endAge >= currentAge;
+                    string marker14 = isCur14 ? " ★" : "";
+                    sb.AppendLine($"| {lc14.startAge}-{lc14.endAge}{marker14} | {lc14.stem}{lc14.branch} | {sSS14} | {bSS14} | {lc14.score} | {lc14.level} |");
                 }
                 sb.AppendLine();
                 sb.AppendLine($"（★ 現走大運，當前年齡 {currentAge} 歲，用神：{yongShenElem}，大忌：{jiShenElem}）");
                 sb.AppendLine();
 
-                // 二、逐運詳細論斷（全部大運）
+                // 二、逐運詳細論斷（天干期 + 地支期 + 紫微交叉）
                 sb.AppendLine("二、逐運詳細論斷");
                 sb.AppendLine();
                 foreach (var lc in scored)
                 {
-                    string branchSS = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhLc) && bhLc.Count > 0
-                        ? LfStemShiShen(bhLc[0].stem, dStem) : "";
-                    string stemSS = LfStemShiShen(lc.stem, dStem);
+                    string stemElem14  = KbStemToElement(lc.stem);
+                    bool hasHidden14 = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhLc14) && bhLc14.Count > 0;
+                    string branchMainElem14 = hasHidden14 ? KbStemToElement(bhLc14[0].stem) : "";
+                    string stemSS  = LfStemShiShen(lc.stem, dStem);
+                    string branchSS = hasHidden14 ? LfStemShiShen(bhLc14[0].stem, dStem) : "";
                     bool isCurrent = lc.startAge <= currentAge && lc.endAge >= currentAge;
                     string curMark = isCurrent ? "【現走】" : "";
-                    sb.AppendLine($"{curMark}{lc.startAge}-{lc.endAge} 歲 大運：{lc.stem}{lc.branch}（天干{stemSS}·地支{branchSS}） 評分：{lc.score} 分（{lc.level}）");
-                    string desc = lc.score >= 75 ? "黃金發展期，喜用五行大旺，宜積極進取，把握機遇擴展版圖。"
-                                : lc.score >= 55 ? "喜用五行得力，運勢上揚，宜積極行動，可有所成就。"
-                                : lc.score >= 40 ? "喜用五行略佔優勢，平中帶吉，宜穩健進取，持續耕耘。"
-                                : lc.score >= 25 ? "忌神五行偏旺，宜保守行事，低調蓄積，謹防輕率決策。"
-                                :                  "忌神五行大旺，喜用全無，宜保守守成，謹防重大損失。";
-                    sb.AppendLine(desc);
-                    // 地支宮位事項
+
+                    // 通根：地支藏干含天干五行（干支同氣，互相加持）
+                    bool hasStemRoot14 = hasHidden14 && bhLc14.Any(h => KbStemToElement(h.stem) == stemElem14);
+                    // 干克支 / 支克干
+                    bool stemOverridesBranch14 = !string.IsNullOrEmpty(stemElem14) && !string.IsNullOrEmpty(branchMainElem14)
+                        && LfElemOvercome.GetValueOrDefault(stemElem14, "") == branchMainElem14;
+                    bool branchOverridesStem14 = !string.IsNullOrEmpty(branchMainElem14) && !string.IsNullOrEmpty(stemElem14)
+                        && LfElemOvercome.GetValueOrDefault(branchMainElem14, "") == stemElem14;
+
+                    bool stemIsGood14   = !string.IsNullOrEmpty(stemElem14)       && goodElems14.Contains(stemElem14);
+                    bool stemIsBad14    = !string.IsNullOrEmpty(stemElem14)       && badElems14.Contains(stemElem14);
+                    bool branchIsGood14 = !string.IsNullOrEmpty(branchMainElem14) && goodElems14.Contains(branchMainElem14);
+                    bool branchIsBad14  = !string.IsNullOrEmpty(branchMainElem14) && badElems14.Contains(branchMainElem14);
+
+                    // 天干期評分（天干為主×20，地支為輔×10）
+                    // 通根 → 天干效力×1.5；支克干 → 天干效力×0.5；干克支 → 地支輔助×0.5
+                    double stemMult14   = branchOverridesStem14  ? 0.5 : 1.0;
+                    double branchMult14 = stemOverridesBranch14  ? 0.5 : 1.0;
+                    double rootMult14   = hasStemRoot14 ? 1.5 : 1.0;
+                    double stemDelta14 = stemIsGood14  ? 20 * stemMult14 * rootMult14
+                                      : stemIsBad14   ? -20 * stemMult14 * rootMult14 : 0;
+                    double branchAux14 = branchIsGood14 ? 10 * branchMult14
+                                      : branchIsBad14  ? -10 * branchMult14 : 0;
+                    int stemPeriodScore14 = (int)Math.Round(Math.Clamp(50 + stemDelta14 + branchAux14, 0, 100));
+
+                    // 地支期評分（地支為主×20，天干為輔×10）
+                    // 通根 → 地支效力×1.5（同一通根條件，干支同元互助）
+                    double branchDelta14 = branchIsGood14 ? 20 * branchMult14 * rootMult14
+                                        : branchIsBad14  ? -20 * branchMult14 * rootMult14 : 0;
+                    double stemAux14 = stemIsGood14  ? 10 * stemMult14
+                                    : stemIsBad14   ? -10 * stemMult14 : 0;
+                    int branchPeriodScore14 = (int)Math.Round(Math.Clamp(50 + branchDelta14 + stemAux14, 0, 100));
+
+                    // 紫微大限分析（以大運天干為主要流星，取大限中段年齡作年齡門控）
+                    int midAge14 = (lc.startAge + lc.endAge) / 2;
+                    int ziweiDecadeScore14 = hasZiwei ? DyCalcZiweiScore(lc.stem, palacesYdz, "", midAge14) : 50;
+
+                    string stemCrossClass14   = DyCrossClass(stemPeriodScore14,   ziweiDecadeScore14);
+                    string branchCrossClass14 = DyCrossClass(branchPeriodScore14, ziweiDecadeScore14);
+
+                    // 大運標頭
+                    sb.AppendLine($"{curMark}{lc.startAge}-{lc.endAge} 歲  大運：{lc.stem}{lc.branch}（天干{stemSS}·地支{branchSS}）  整體評分：{lc.score} 分·{lc.level}");
+
+                    // 干支互動說明
+                    var interParts14 = new List<string>();
+                    if (hasStemRoot14)
+                        interParts14.Add($"天干通根地支，{stemElem14}同氣相助，喜忌效力加倍");
+                    if (stemOverridesBranch14)
+                        interParts14.Add($"干（{stemElem14}）克支（{branchMainElem14}），地支力道減半");
+                    else if (branchOverridesStem14)
+                        interParts14.Add($"支（{branchMainElem14}）克干（{stemElem14}），天干力道減半");
+                    if (interParts14.Count > 0)
+                        sb.AppendLine($"干支互動：{string.Join("；", interParts14)}");
+
+                    // 天干期（前5年）
+                    int stPeriodStart = lc.startAge;
+                    int stPeriodEnd   = lc.startAge + 4;
+                    string stCurMark = (currentAge >= stPeriodStart && currentAge <= stPeriodEnd) ? "★" : "";
+                    sb.AppendLine($"  天干期（{stPeriodStart}-{stPeriodEnd} 歲）{stCurMark}：{lc.stem}（{stemSS}） 評分 {stemPeriodScore14} · 紫微 {ziweiDecadeScore14} · 綜合：{stemCrossClass14}");
+                    string stemPeriodDesc14 =
+                        stemPeriodScore14 >= 75 ? $"天干{lc.stem}（{stemSS}）喜用旺盛{(hasStemRoot14 ? "，更得地支通根加持" : "")}，此五年宜積極進取，把握機遇，拓展版圖的黃金窗口。"
+                      : stemPeriodScore14 >= 55 ? $"天干{lc.stem}（{stemSS}）喜用有力{(branchOverridesStem14 ? "，雖受地支壓制，仍具動能" : "")}，宜順勢而為，主動佈局，積極推進。"
+                      : stemPeriodScore14 >= 40 ? $"天干{lc.stem}（{stemSS}）力道平穩{(stemOverridesBranch14 ? "，地支力道已弱" : "")}，宜穩健行事，平中求吉，蓄勢積累。"
+                      : stemPeriodScore14 >= 25 ? $"天干{lc.stem}（{stemSS}）忌神有力{(branchOverridesStem14 ? "，且受地支壓制，自身阻滯明顯" : "")}，宜低調守成，避免冒進決策。"
+                      :                           $"天干{lc.stem}（{stemSS}）忌神旺盛{(hasStemRoot14 && stemIsBad14 ? "，更得通根強化，忌上加忌" : "")}，此五年壓力沉重，宜靜守蓄積，嚴防重大損失。";
+                    sb.AppendLine($"  {stemPeriodDesc14}");
+                    sb.AppendLine($"  {DyCrossDesc(stemCrossClass14, stemSS, branchSS, stemPeriodScore14, ziweiDecadeScore14)}");
+                    sb.AppendLine();
+
+                    // 地支期（後5年）
+                    int brPeriodStart = lc.startAge + 5;
+                    int brPeriodEnd   = lc.endAge;
+                    string brCurMark = (currentAge >= brPeriodStart && currentAge <= brPeriodEnd) ? "★" : "";
+                    sb.AppendLine($"  地支期（{brPeriodStart}-{brPeriodEnd} 歲）{brCurMark}：{lc.branch}（{branchSS}） 評分 {branchPeriodScore14} · 紫微 {ziweiDecadeScore14} · 綜合：{branchCrossClass14}");
+                    string branchPeriodDesc14 =
+                        branchPeriodScore14 >= 75 ? $"地支{lc.branch}（{branchSS}）喜用旺盛{(hasStemRoot14 ? "，干支同氣共振，力量更強" : "")}，此後五年宜積極深化，鞏固前期成果。"
+                      : branchPeriodScore14 >= 55 ? $"地支{lc.branch}（{branchSS}）喜用有力{(stemOverridesBranch14 ? "，雖受天干壓制，根基仍穩" : "")}，宜鞏固成果，穩健推進。"
+                      : branchPeriodScore14 >= 40 ? $"地支{lc.branch}（{branchSS}）力道平穩，宜守成蓄積，靜待時機，量力而為。"
+                      : branchPeriodScore14 >= 25 ? $"地支{lc.branch}（{branchSS}）忌神有力{(branchOverridesStem14 && branchIsBad14 ? "，更克天干，干支雙忌" : "")}，宜低調守成，謹慎決策，減少風險暴露。"
+                      :                             $"地支{lc.branch}（{branchSS}）忌神旺盛{(hasStemRoot14 && branchIsBad14 ? "，得天干同氣助長，忌上加忌" : "")}，此後五年持續承壓，宜極度守成，嚴控風險。";
+                    sb.AppendLine($"  {branchPeriodDesc14}");
+                    sb.AppendLine($"  {DyCrossDesc(branchCrossClass14, stemSS, branchSS, branchPeriodScore14, ziweiDecadeScore14)}");
+                    sb.AppendLine();
+
+                    // 地支六親宮位事項
                     string branchRelStr = LfGetBranchRelationsText(lc.branch, branches, dStem, yBranch, mBranch, hBranch);
                     if (!string.IsNullOrEmpty(branchRelStr))
                     {
-                        sb.AppendLine($"【地支事項】大運地支{lc.branch}（{branchSS}）：");
+                        sb.AppendLine($"  地支六親：大運地支 {lc.branch}（{branchSS}）");
                         sb.AppendLine(branchRelStr);
                     }
                     sb.AppendLine();
