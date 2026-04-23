@@ -1346,6 +1346,10 @@ namespace Ecanapi.Controllers
                         var checkSet = isSameGong ? palaceStars : allChartStars;
                         includeSection = triggers.Any(s => checkSet.Contains(s));
                     }
+                    // 若 trigger 標題行本身含有此宮不存在的副星 → 整個 section 不顯示
+                    // 例：「文曲會照」中 '曲' 不在此宮 → 壓制整個段落，避免內容出現而標題被過濾
+                    if (includeSection && KbContentLineHasAbsentSecondaryStar(line, palaceStars))
+                        includeSection = false;
                 }
                 else if (!inConditional)
                 {
@@ -6750,11 +6754,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
-            // === Ch.1 審時聞切 ===
-            sb.AppendLine("【第一章：審時聞切 · 四時定數】");
-            sb.AppendLine();
-            sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
-            sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
+            // === Ch.1 審時聞切（用獨立 StringBuilder，最後 TrimEnd 避免空白頁）===
+            var ch1Sb = new StringBuilder();
+            ch1Sb.AppendLine("【第一章：審時聞切 · 四時定數】");
+            ch1Sb.AppendLine();
+            ch1Sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
+            ch1Sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
 
             // 中原盲派 - 時支/時干直斷
             if (zRules.Count > 0)
@@ -6771,11 +6776,13 @@ namespace Ecanapi.Controllers
                 var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
                 if (hBranchRule != null || hStemRule != null)
                 {
-                    sb.AppendLine("【時柱印記】");
-                    if (hBranchRule != null) { sb.AppendLine($"▍時支（{hBranchGroup}）"); sb.AppendLine(hBranchRule.Content); sb.AppendLine(); }
-                    if (hStemRule   != null) { sb.AppendLine($"▍時干（{hStem}）"); sb.AppendLine(hStemRule.Content); sb.AppendLine(); }
+                    ch1Sb.AppendLine("【時柱印記】");
+                    if (hBranchRule != null) { ch1Sb.AppendLine($"▍時支（{hBranchGroup}）"); ch1Sb.AppendLine(hBranchRule.Content.TrimEnd()); }
+                    if (hStemRule   != null) { ch1Sb.AppendLine($"▍時干（{hStem}）"); ch1Sb.AppendLine(hStemRule.Content.TrimEnd()); }
                 }
             }
+            // 去除第一章尾部所有空白，確保第二章前不產生空白頁
+            sb.AppendLine(ch1Sb.ToString().TrimEnd());
 
             // === Ch.2 四柱根苗花果 ===
             sb.AppendLine("【第二章：先天八字依古制定】");
