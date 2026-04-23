@@ -3239,9 +3239,9 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(docxNsSection)) reportText += docxNsSection;
 
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
-                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName);
+                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
 
-                string fileName = $"{personName}_玉洞子命書.docx";
+                string fileName = $"{personName}_玉洞子傳家寶典.docx";
                 return File(docxBytes,
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     fileName);
@@ -3253,7 +3253,7 @@ namespace Ecanapi.Controllers
             }
         }
 
-        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 命 書", string? skipTitle = null)
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 傳 家 寶 典", string? skipTitle = null)
         {
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
@@ -3427,8 +3427,8 @@ namespace Ecanapi.Controllers
                 }
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
                 {
-                    // 非玉洞子命書：第2章以後自動換頁（支援中文章號如四、五）
-                    if (bookTitle != "玉 洞 子 命 書")
+                    // 非玉洞子傳家寶典：第2章以後自動換頁（支援中文章號如四、五）
+                    if (bookTitle != "玉 洞 子 傳 家 寶 典")
                     {
                         var chM = System.Text.RegularExpressions.Regex.Match(line, @"【第([一二三四五六七八九十\d]+)章");
                         if (chM.Success)
@@ -6718,7 +6718,7 @@ namespace Ecanapi.Controllers
 
             // === 表頭 ===
             sb.AppendLine("=================================================================");
-            sb.AppendLine("                   玉 洞 子 命 書（內部版）");
+            sb.AppendLine("                   玉 洞 子 傳 家 寶 典");
             sb.AppendLine("=================================================================");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年  虛齡：{currentAge} 歲");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
@@ -7398,7 +7398,7 @@ namespace Ecanapi.Controllers
 
             // === 表尾 ===
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 玉洞子命書 v2.0（內部版）");
+            sb.AppendLine("命理大師：玉洞子 | 玉洞子傳家寶典 v2.0");
             return sb.ToString();
         }
 
