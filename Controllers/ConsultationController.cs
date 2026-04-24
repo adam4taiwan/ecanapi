@@ -641,7 +641,7 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(tongBao))    sb_out.AppendLine($"【月令精論·窮通寶鑑】{tongBao}");
                 if (!string.IsNullOrEmpty(rgzfx))      sb_out.AppendLine($"【日柱綜合論述】{KbStripHtml(rgzfx)}");
                 sb_out.AppendLine("--- 紫微格局論 ---");
-                if (!string.IsNullOrEmpty(nianSiHuaXing)) sb_out.AppendLine($"【先天四化】{nianSiHuaXing}");
+                if (!string.IsNullOrEmpty(nianSiHuaXing)) sb_out.AppendLine($"【先天特性】{StripNianShengRen(nianSiHuaXing)}");
                 if (!string.IsNullOrEmpty(ziweiMing))  sb_out.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing)) sb_out.AppendLine($"【命宮星情】{starDescMing}");
                 if (!string.IsNullOrEmpty(doubleDescMing)) sb_out.AppendLine($"【命宮雙星論斷】{doubleDescMing}");
@@ -2036,6 +2036,13 @@ namespace Ecanapi.Controllers
         }
 
         // --- KB Helper: 地支→生肖 ---
+        // 移除 nianSiHuaXing 開頭的「X年生人」前綴（如「癸年生人」）
+        private static string StripNianShengRen(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return s;
+            return System.Text.RegularExpressions.Regex.Replace(s, @"^[\u4e00-\u9fa5]年生人", "").TrimStart();
+        }
+
         private static string KbBranchToZodiac(string branch) => branch switch
         {
             "子" => "鼠", "丑" => "牛", "寅" => "虎", "卯" => "兔",
@@ -6377,6 +6384,32 @@ namespace Ecanapi.Controllers
                             var ss4 = new[] { yStemSS, mStemSS, hStemSS };
                             return ss4.Contains("正官") && ss4.Contains("正印") && ss4.Contains("正財");
                         }
+                        if (cond == "月柱甲辰乙未截腳兄弟有損")
+                            return mPillarZ == "甲辰" || mPillarZ == "乙未";
+                        if (cond == "身弱干無比劫地支比劫被沖無兄弟")
+                        {
+                            var sStemBJ = new[] { yStemSS, mStemSS, hStemSS };
+                            bool stemHasBJ = sStemBJ.Any(s => s == "比肩" || s == "劫財");
+                            return bodyPct < 50 && !stemHasBJ;
+                        }
+                        if (cond == "年干支皆偏財幼年多為養子")
+                            return yStemSS == "偏財" && yBranchSS == "偏財";
+                        if (cond == "男命七殺旺逢比劫有兄無弟")
+                        {
+                            if (gender != 1) return false;
+                            var aSS28 = new[] { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                            return aSS28.Any(s => s == "七殺") && aSS28.Any(s => s == "比肩" || s == "劫財");
+                        }
+                        if (cond == "柱中比肩偏財旺獨生子")
+                        {
+                            var aSS29 = new[] { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                            return aSS29.Count(s => s == "比肩") >= 2 || aSS29.Count(s => s == "偏財") >= 2;
+                        }
+                        if (cond == "偏官偏印偏財重疊定是庶子")
+                        {
+                            var aSS30 = new[] { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                            return aSS30.Any(s => s == "七殺") && aSS30.Any(s => s == "偏印") && aSS30.Any(s => s == "偏財");
+                        }
                         return true;
 
                     case "CareerInfo":
@@ -6936,7 +6969,7 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(wuXingJuText)) sb.AppendLine($"【五行局】{wuXingJuText}　命主星：{mingZhu}　身主星：{shenZhu}");
                 sb.AppendLine();
                 if (!string.IsNullOrEmpty(nianSiHuaXing))
-                    sb.AppendLine($"【先天四化】{nianSiHuaXing}");
+                    sb.AppendLine($"【先天特性】{StripNianShengRen(nianSiHuaXing)}");
                 if (!string.IsNullOrEmpty(ziweiMing))
                     sb.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing))
@@ -7052,8 +7085,8 @@ namespace Ecanapi.Controllers
                 // 先天四化（年干）
                 if (!string.IsNullOrEmpty(nianSiHuaXing))
                 {
-                    sb.AppendLine("【先天四化・年干性質】");
-                    sb.AppendLine(nianSiHuaXing);
+                    sb.AppendLine("【先天特性】");
+                    sb.AppendLine(StripNianShengRen(nianSiHuaXing));
                     sb.AppendLine();
                 }
                 bool anyNian = false;
