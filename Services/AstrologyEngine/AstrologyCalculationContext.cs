@@ -9,6 +9,9 @@ namespace Ecanapi.Services.AstrologyEngine
     {
         public AstrologyRequest Request { get; }
         public EcanChineseCalendar Calendar { get; }
+        // 紫微專用農曆：夜子時(23:xx)用隔日，其餘同 Calendar
+        public EcanChineseCalendar ZiweiCalendar { get; }
+        public int ZiweiLunarDay { get; }
         public AstrologyChartResult Result { get; set; }
 
         public int CUE1 { get; set; }
@@ -58,6 +61,11 @@ namespace Ecanapi.Services.AstrologyEngine
             Calendar = new EcanChineseCalendar(birthDate);
             LunarDay = Calendar.ChineseDay;
             Day = request.Day;
+            // 夜子時(23:xx)：紫微用隔日農曆
+            ZiweiCalendar = request.Hour >= 23
+                ? new EcanChineseCalendar(birthDate.AddDays(1))
+                : Calendar;
+            ZiweiLunarDay = ZiweiCalendar.ChineseDay;
 
             for (int i = 0; i < 13; i++)
             {

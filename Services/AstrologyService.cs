@@ -438,9 +438,17 @@ namespace Ecanapi.Services
 
         private void RunZiWeiChartCalculations(AstrologyCalculationContext context)
         {
-            int startGan = 0; switch (context.CUE1) { case 1: case 6: startGan = 3; break; case 2: case 7: startGan = 5; break; case 3: case 8: startGan = 7; break; case 4: case 9: startGan = 9; break; case 5: case 10: startGan = 1; break; }
+            // 夜子時(23:xx)：紫微以隔日農曆年干起CCO宮干，農曆月起命宮
+            int ziweiYearCue1 = context.CUE1;
+            if (context.Request.Hour >= 23)
+            {
+                var yyStr = context.ZiweiCalendar.GanZhiYYString;
+                if (!string.IsNullOrEmpty(yyStr))
+                    ziweiYearCue1 = AstrologyHelper.SkyToNumber(yyStr.Substring(0, 1));
+            }
+            int startGan = 0; switch (ziweiYearCue1) { case 1: case 6: startGan = 3; break; case 2: case 7: startGan = 5; break; case 3: case 8: startGan = 7; break; case 4: case 9: startGan = 9; break; case 5: case 10: startGan = 1; break; }
             for (int i = 0; i < 12; i++) { int palaceIndex = i + 3; if (palaceIndex > 12) palaceIndex -= 12; int currentGan = startGan + i; if (currentGan > 10) currentGan -= 10; context.CCO[palaceIndex] = AstrologyConstants.S_SKY[currentGan]; }
-            int month = context.Calendar.ChineseMonth; int hour = AstrologyHelper.GetChineseHourValue(context.Calendar.ChineseHour); int mingGongIndex = 3 + (month - 1) - (hour - 1); while (mingGongIndex < 1) mingGongIndex += 12; while (mingGongIndex > 12) mingGongIndex -= 12; context.MingGongIndex = mingGongIndex; int shenGongIndex = 3 + (month - 1) + (hour - 1); while (shenGongIndex < 1) shenGongIndex += 12; while (shenGongIndex > 12) shenGongIndex -= 12; context.ShenGongIndex = shenGongIndex; string mingGongGan = context.CCO[context.MingGongIndex]; string naYin = AstrologyConstants.NaYinSound[(AstrologyHelper.SkyToNumber(mingGongGan), context.MingGongIndex)];
+            int month = context.ZiweiCalendar.ChineseMonth; int hour = AstrologyHelper.GetChineseHourValue(context.Calendar.ChineseHour); int mingGongIndex = 3 + (month - 1) - (hour - 1); while (mingGongIndex < 1) mingGongIndex += 12; while (mingGongIndex > 12) mingGongIndex -= 12; context.MingGongIndex = mingGongIndex; int shenGongIndex = 3 + (month - 1) + (hour - 1); while (shenGongIndex < 1) shenGongIndex += 12; while (shenGongIndex > 12) shenGongIndex -= 12; context.ShenGongIndex = shenGongIndex; string mingGongGan = context.CCO[context.MingGongIndex]; string naYin = AstrologyConstants.NaYinSound[(AstrologyHelper.SkyToNumber(mingGongGan), context.MingGongIndex)];
             string wuXingJuText = "";
             switch (naYin.Substring(naYin.Length - 1, 1)) { case "水": context.WuXingJu = 2; wuXingJuText = "水二局"; break; case "木": context.WuXingJu = 3; wuXingJuText = "木三局"; break; case "金": context.WuXingJu = 4; wuXingJuText = "金四局"; break; case "土": context.WuXingJu = 5; wuXingJuText = "土五局"; break; case "火": context.WuXingJu = 6; wuXingJuText = "火六局"; break; }
             context.WuXingJuText = wuXingJuText;
@@ -466,7 +474,7 @@ namespace Ecanapi.Services
         }
         private void DetermineMajorStars(AstrologyCalculationContext context)
         {
-            int day = context.LunarDay; int wuXingJu = context.WuXingJu; string[] mstarTable = AstrologyConstants.MSTAR[wuXingJu].Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries); int nor = int.Parse(mstarTable[day - 1]); string[] norTable = AstrologyConstants.CRC[2, nor].Split(','); context.CCM[int.Parse(norTable[0])] = "紫"; context.CCM[int.Parse(norTable[1])] = "機"; context.CCM[int.Parse(norTable[3])] = "陽"; context.CCM[int.Parse(norTable[4])] = "武"; context.CCM[int.Parse(norTable[5])] = "同"; context.CCM[int.Parse(norTable[8])] = "廉"; int sou = nor switch { 1 => 5, 2 => 4, 3 => 3, 4 => 2, 5 => 1, 6 => 12, 7 => 11, 8 => 10, 9 => 9, 10 => 8, 11 => 7, 12 => 6, _ => 0 }; string[] souTable = AstrologyConstants.CRC[1, sou].Split(','); context.CCN[int.Parse(souTable[0])] = "府"; context.CCN[int.Parse(souTable[1])] = "陰"; context.CCN[int.Parse(souTable[2])] = "貪"; context.CCN[int.Parse(souTable[3])] = "巨"; context.CCN[int.Parse(souTable[4])] = "相"; context.CCN[int.Parse(souTable[5])] = "梁"; context.CCN[int.Parse(souTable[6])] = "殺"; context.CCN[int.Parse(souTable[10])] = "破";
+            int day = context.ZiweiLunarDay; int wuXingJu = context.WuXingJu; string[] mstarTable = AstrologyConstants.MSTAR[wuXingJu].Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries); int nor = int.Parse(mstarTable[day - 1]); string[] norTable = AstrologyConstants.CRC[2, nor].Split(','); context.CCM[int.Parse(norTable[0])] = "紫"; context.CCM[int.Parse(norTable[1])] = "機"; context.CCM[int.Parse(norTable[3])] = "陽"; context.CCM[int.Parse(norTable[4])] = "武"; context.CCM[int.Parse(norTable[5])] = "同"; context.CCM[int.Parse(norTable[8])] = "廉"; int sou = nor switch { 1 => 5, 2 => 4, 3 => 3, 4 => 2, 5 => 1, 6 => 12, 7 => 11, 8 => 10, 9 => 9, 10 => 8, 11 => 7, 12 => 6, _ => 0 }; string[] souTable = AstrologyConstants.CRC[1, sou].Split(','); context.CCN[int.Parse(souTable[0])] = "府"; context.CCN[int.Parse(souTable[1])] = "陰"; context.CCN[int.Parse(souTable[2])] = "貪"; context.CCN[int.Parse(souTable[3])] = "巨"; context.CCN[int.Parse(souTable[4])] = "相"; context.CCN[int.Parse(souTable[5])] = "梁"; context.CCN[int.Parse(souTable[6])] = "殺"; context.CCN[int.Parse(souTable[10])] = "破";
         }
         private int PalaceWrap(int val) { while (val > 12) val -= 12; while (val < 1) val += 12; return val; }
 
@@ -678,7 +686,7 @@ namespace Ecanapi.Services
             int monthBranchNum = context.CUF2;
             // 獲取生年天干數 (甲=1, 乙=2, ...)
             int yearStemNum = context.CUE1;
-            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.Calendar.ChineseMonth;
+            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.ZiweiCalendar.ChineseMonth;
             int day = context.LunarDay;
             int hour = AstrologyHelper.GetChineseHourValue(context.Calendar.ChineseHour); int hourZhi = context.CUF4;
             context.ZuoFuPos = PalaceWrap(5 + month - 1); context.YouBiPos = PalaceWrap(11 - (month - 1));
