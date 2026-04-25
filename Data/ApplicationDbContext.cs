@@ -69,6 +69,9 @@ namespace Ecanapi.Data
         // 命書記錄
         public DbSet<UserReport> UserReports { get; set; }
 
+        // 學生白名單
+        public DbSet<StudentWhiteList> StudentWhiteLists { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

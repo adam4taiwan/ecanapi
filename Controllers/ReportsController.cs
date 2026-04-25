@@ -91,7 +91,7 @@ namespace Ecanapi.Controllers
                 return StatusCode(500, "命書檔案尚未上傳，請聯繫玉洞子");
 
             var user = await _userManager.FindByIdAsync(report.UserId);
-            var personName = user?.UserName ?? "命主";
+            var personName = !string.IsNullOrEmpty(user?.ChartName) ? user.ChartName : (user?.UserName ?? "命主");
             var fileName = report.ApprovedDocxFileName
                 ?? $"{personName}_{report.Title}.docx";
 
@@ -215,7 +215,7 @@ namespace Ecanapi.Controllers
             // Build DOCX from AI-generated content using the export endpoint
             // Return the report content as JSON for the admin panel to call export-generic-docx
             var user = await _userManager.FindByIdAsync(report.UserId);
-            var personName = user?.UserName ?? "命主";
+            var personName = !string.IsNullOrEmpty(user?.ChartName) ? user.ChartName : (user?.UserName ?? "命主");
 
             var (bookTitle, skipTitle) = report.ReportType switch
             {
