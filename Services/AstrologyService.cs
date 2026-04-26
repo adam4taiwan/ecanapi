@@ -933,15 +933,9 @@ namespace Ecanapi.Services
             //context.BadStars[tianXuPos] = (string.IsNullOrEmpty(context.BadStars[tianXuPos]) ? "" : context.BadStars[tianXuPos] + " ") + "虛";
 
             // 4. (以截路空亡處理，論年干)
+            // 截路：甲己申、乙庚午、丙辛辰、丁壬寅、戊癸子，永遠取第一個位置(jieLu1)
             var (jieLu1, jieLu2) = PlaceJieLuKongWang(yearGan);
-            if (yearGan == 1 | yearGan == 3 | yearGan == 5 | yearGan == 7 | yearGan == 9 | yearGan == 11)
-            {
-                if (jieLu1 != 0) context.BadStars[jieLu1] = (string.IsNullOrEmpty(context.BadStars[jieLu1]) ? "" : context.BadStars[jieLu1] + " ") + "截";
-            }
-            else
-            {
-                if (jieLu2 != 0) context.BadStars[jieLu2] = (string.IsNullOrEmpty(context.BadStars[jieLu2]) ? "" : context.BadStars[jieLu2] + " ") + "截";
-            }
+            if (jieLu1 != 0) context.BadStars[jieLu1] = (string.IsNullOrEmpty(context.BadStars[jieLu1]) ? "" : context.BadStars[jieLu1] + " ") + "截";
 
             // ==========================================================
             // 【13. 旬空 (Xun Kong) -> 旬 (修正邏輯，放入 BadStars)】
