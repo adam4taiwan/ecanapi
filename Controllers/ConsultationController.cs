@@ -1736,7 +1736,7 @@ namespace Ecanapi.Controllers
                     string title = $"{fullStarName}星入十二宮";
                     string fullText = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='5新 紫微斗数主星府陽陰四大主星入十二宮.docx' AND \"Title\"='{title}' LIMIT 1");
                     string line = KbExtractNewFormatStarLine(fullText, fullStarName, palaceShort);
-                    if (!string.IsNullOrWhiteSpace(line)) parts.AppendLine(line.Trim());
+                    if (!string.IsNullOrWhiteSpace(line)) parts.AppendLine($"【{fullStarName}】{line.Trim()}");
                     continue;
                 }
                 if (!StarInPalaceMap.TryGetValue(star, out var info)) continue;
@@ -1748,7 +1748,7 @@ namespace Ecanapi.Controllers
                 if (string.IsNullOrWhiteSpace(result)) continue;
                 if (!info.useTitle && result.Contains('：'))
                     result = result.Substring(result.IndexOf('：') + 1);
-                parts.AppendLine(result.Trim());
+                parts.AppendLine($"【{info.fullName}】{result.Trim()}");
             }
             return parts.ToString().Trim();
         }
