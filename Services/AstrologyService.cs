@@ -879,7 +879,7 @@ namespace Ecanapi.Services
             // 口訣：亥上起子順安劫，逆去便是地空鄉。
 
             // 地劫：起亥宮(12)順數到生時
-            int diJiePos = (12 + hourBranchNum - 1) % 12 ; // 12 + hour - 1 (起數在亥=12), % 12 + 1
+            int diJiePos = PalaceWrap(12 + hourBranchNum - 1); // 地劫：亥(12)起子時順數，子時時%12=0故改用PalaceWrap
                                                               // 天空：起亥宮(12)逆數到生時
             int tianKongPos = 12 - (hourBranchNum - 1); // 12 - (hour - 1)
 
