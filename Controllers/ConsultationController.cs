@@ -7012,6 +7012,10 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"【主星宮位】{ziweiMing}");
                 if (!string.IsNullOrEmpty(starDescMing))
                     sb.AppendLine($"【命宮星情】{starDescMing}");
+                if (doubleDescs != null && doubleDescs.TryGetValue("命宮", out var dblMing) && !string.IsNullOrEmpty(dblMing))
+                    sb.AppendLine($"【命宮雙星論斷】{dblMing}");
+                if (minorDescs != null && minorDescs.TryGetValue("命宮", out var minMing) && !string.IsNullOrEmpty(minMing))
+                    sb.AppendLine($"【命宮輔星加臨】{minMing}");
                 if (!string.IsNullOrEmpty(siHuaLu))
                     sb.AppendLine($"【先天化祿·{siHuaLuPalace}】{siHuaLu}");
                 if (!string.IsNullOrEmpty(siHuaQuan))
