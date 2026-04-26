@@ -857,7 +857,7 @@ namespace Ecanapi.Services
             context.BadStars[guPosMap[yearZhi - 1]] += "孤 "; context.BadStars[guaPosMap[yearZhi - 1]] += "寡 ";
             context.GoodStars[PalaceWrap(context.ZuoFuPos + day)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day)] += "八 ";
             //少判斷文昌文曲在命宮或身宮時，不加恩貴
-            context.GoodStars[PalaceWrap(WenChangPos + day - 2)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 2)] += "貴 ";
+            context.GoodStars[PalaceWrap(WenChangPos + day - 1)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 1)] += "貴 ";
             //if (WenQuPos != -1)
             //{
             //    // 1. 從文曲宮(wenQuPos)起算初一
@@ -969,6 +969,10 @@ namespace Ecanapi.Services
             // 5. 破碎 (論年支)
             int poSuiPos = PlacePoSui(yearZhi);
             context.BadStars[poSuiPos] = (string.IsNullOrEmpty(context.BadStars[poSuiPos]) ? "" : context.BadStars[poSuiPos] + " ") + "碎";
+
+            // 蜚廉 (論年支): 寅宮起子年，逐年支順數
+            int feiLianPos = PalaceWrap(3 + yearZhi - 1);
+            context.BadStars[feiLianPos] = (string.IsNullOrEmpty(context.BadStars[feiLianPos]) ? "" : context.BadStars[feiLianPos] + " ") + "蜚";
 
             //// 6. 天壽 (論身宮，年支) (保留原邏輯並加入SmallStars)
             //// 原有邏輯： context.GoodStars[PalaceWrap(context.ShenGongIndex + day - 1)] += "壽 ";
