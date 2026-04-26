@@ -3985,6 +3985,26 @@ namespace Ecanapi.Controllers
             return m;
         }
 
+        // 天干通根乘數：本氣(主氣)通根1.5，中氣/餘氣通根1.3，無根1.0
+        private static double LfGetStemRootMult(string stemElem, string[] branches)
+        {
+            double best = 1.0;
+            foreach (var branch in branches)
+            {
+                if (!LfBranchHiddenRatio.TryGetValue(branch, out var hidden)) continue;
+                for (int i = 0; i < hidden.Count; i++)
+                {
+                    if (KbStemToElement(hidden[i].stem) == stemElem)
+                    {
+                        double m = i == 0 ? 1.5 : 1.3; // 本氣1.5，中氣/餘氣1.3
+                        if (m > best) best = m;
+                        break;
+                    }
+                }
+            }
+            return best;
+        }
+
         private static Dictionary<string, double> LfCalcWuXingMatrix(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch)
@@ -3996,7 +4016,11 @@ namespace Ecanapi.Controllers
             void AddStem(string stem, double pts)
             {
                 string elem = KbStemToElement(stem);
-                if (!string.IsNullOrEmpty(elem)) scores[elem] += pts * LfSeasonMult(elem, season);
+                if (!string.IsNullOrEmpty(elem))
+                {
+                    double rootMult = LfGetStemRootMult(elem, branches);
+                    scores[elem] += pts * LfSeasonMult(elem, season) * rootMult;
+                }
             }
 
             void AddBranch(string branch, double totalPts, double dispersionFactor = 1.0)
@@ -4476,18 +4500,31 @@ namespace Ecanapi.Controllers
             // 從格/從旺格
             if (string.IsNullOrEmpty(pattern) && bodyPct <= 20)
             {
-                string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
-                string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");
-                string shiElemD  = LfElemGen.GetValueOrDefault(dmElem, "");
-                double guanPctD  = wuXing.GetValueOrDefault(guanElemD, 0);
-                double caiPctD   = wuXing.GetValueOrDefault(caiElemD, 0);
-                double shiPctD   = wuXing.GetValueOrDefault(shiElemD, 0);
-                double oppPct    = guanPctD + caiPctD + shiPctD;
-                if (oppPct >= 70)
+                // 前置條件：天干有比劫/印通根 → 不能從格
+                bool hasRootedBiJiYin = new[] { yStem, mStem, hStem }.Any(s =>
                 {
-                    if      (guanPctD >= caiPctD && guanPctD >= shiPctD) pattern = "從殺格";
-                    else if (caiPctD  >= guanPctD && caiPctD >= shiPctD) pattern = "從財格";
-                    else                                                  pattern = "從兒格";
+                    string ss = LfStemShiShen(s, dStem);
+                    if (ss != "比肩" && ss != "劫財" && ss != "正印" && ss != "偏印") return false;
+                    string sElem = KbStemToElement(s);
+                    return allBranches.Any(b =>
+                        LfBranchHiddenRatio.TryGetValue(b, out var h) && h.Any(hh => KbStemToElement(hh.stem) == sElem));
+                });
+
+                if (!hasRootedBiJiYin)
+                {
+                    string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                    string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+                    string shiElemD  = LfElemGen.GetValueOrDefault(dmElem, "");
+                    double guanPctD  = wuXing.GetValueOrDefault(guanElemD, 0);
+                    double caiPctD   = wuXing.GetValueOrDefault(caiElemD, 0);
+                    double shiPctD   = wuXing.GetValueOrDefault(shiElemD, 0);
+                    double oppPct    = guanPctD + caiPctD + shiPctD;
+                    if (oppPct >= 70)
+                    {
+                        if      (guanPctD >= caiPctD && guanPctD >= shiPctD) pattern = "從殺格";
+                        else if (caiPctD  >= guanPctD && caiPctD >= shiPctD) pattern = "從財格";
+                        else                                                  pattern = "從兒格";
+                    }
                 }
             }
             if (string.IsNullOrEmpty(pattern) && bodyPct >= 80)
