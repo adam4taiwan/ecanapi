@@ -747,8 +747,8 @@ namespace Ecanapi.Services
             int monthBranchNum = context.CUF2;
             // 獲取生年天干數 (甲=1, 乙=2, ...)
             int yearStemNum = context.CUE1;
-            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.Calendar.ChineseMonth; // 輔助星論實際出生農曆月，不套子時換日
-            int day = context.LunarDay;
+            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.ZiweiCalendar.ChineseMonth;
+            int day = context.ZiweiLunarDay; // 三台八座恩光天貴等論農曆生日，23:xx用隔日(ZiweiLunarDay)
             int hour = AstrologyHelper.GetChineseHourValue(context.Calendar.ChineseHour); int hourZhi = context.CUF4;
             context.ZuoFuPos = PalaceWrap(5 + month - 1); context.YouBiPos = PalaceWrap(11 - (month - 1));
             context.WenChangPos = PalaceWrap(11 - (hour - 1)); context.WenQuPos = PalaceWrap(5 + hour - 1);
@@ -855,9 +855,9 @@ namespace Ecanapi.Services
             context.GoodStars[PalaceWrap(5 + yearZhi - 1)] += "龍 "; context.GoodStars[PalaceWrap(11 - (yearZhi - 1))] += "鳳 ";
             int[] guPosMap = { 3, 3, 3, 6, 6, 6, 9, 9, 9, 12, 12, 12 }; int[] guaPosMap = { 11, 11, 11, 2, 2, 2, 5, 5, 5, 8, 8, 8 };
             context.BadStars[guPosMap[yearZhi - 1]] += "孤 "; context.BadStars[guaPosMap[yearZhi - 1]] += "寡 ";
-            context.GoodStars[PalaceWrap(context.ZuoFuPos + day)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day)] += "八 ";
+            context.GoodStars[PalaceWrap(context.ZuoFuPos + day - 1)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day + 1)] += "八 ";
             //少判斷文昌文曲在命宮或身宮時，不加恩貴
-            context.GoodStars[PalaceWrap(WenChangPos + day - 1)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 1)] += "貴 ";
+            context.GoodStars[PalaceWrap(WenChangPos + day - 2)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 2)] += "貴 ";
             //if (WenQuPos != -1)
             //{
             //    // 1. 從文曲宮(wenQuPos)起算初一
@@ -933,9 +933,10 @@ namespace Ecanapi.Services
             //context.BadStars[tianXuPos] = (string.IsNullOrEmpty(context.BadStars[tianXuPos]) ? "" : context.BadStars[tianXuPos] + " ") + "虛";
 
             // 4. (以截路空亡處理，論年干)
-            // 截路：甲己申、乙庚午、丙辛辰、丁壬寅、戊癸子，永遠取第一個位置(jieLu1)
+            // 截路：甲己年取jieLu1，乙庚年取jieLu1；yearGan 1-5(甲乙丙丁戊)→jieLu1，yearGan 6-10(己庚辛壬癸)→jieLu2
             var (jieLu1, jieLu2) = PlaceJieLuKongWang(yearGan);
-            if (jieLu1 != 0) context.BadStars[jieLu1] = (string.IsNullOrEmpty(context.BadStars[jieLu1]) ? "" : context.BadStars[jieLu1] + " ") + "截";
+            int jieLuTarget = (yearGan <= 5) ? jieLu1 : jieLu2;
+            if (jieLuTarget != 0) context.BadStars[jieLuTarget] = (string.IsNullOrEmpty(context.BadStars[jieLuTarget]) ? "" : context.BadStars[jieLuTarget] + " ") + "截";
 
             // ==========================================================
             // 【13. 旬空 (Xun Kong) -> 旬 (修正邏輯，放入 BadStars)】
