@@ -330,6 +330,67 @@ namespace Ecanapi.Services
                 yearZhi = prevYearCalendar.GanZhiYYString.Substring(1, 1);
             }
 
+            // Fallback month pillar correction: when DB data is unavailable, the Ecan library's
+            // GanZhiMMString may use lunar month boundaries instead of solar term (節) boundaries.
+            // Recalculate month pillar using ChineseTwentyFour odd indices (the 12 節).
+            // Odd index mapping: [1]=立春(寅), [3]=驚蟄(卯), ..., [21]=大雪(子), [23]=小寒(丑)
+            if (calendarData == null || string.IsNullOrEmpty(calendarData.MonthGanzhi))
+            {
+                string[] wuhuTiangan = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+                string[] monthDizhi = { "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥", "子", "丑" };
+                var birthSolar = context.Result.SolarBirthDate;
+
+                // Collect the 12 節 dates from current year's ChineseTwentyFour
+                bool hasTerms = calendar.ChineseTwentyFour.Length >= 24;
+                var jieTerms = new System.DateTime[12];
+                if (hasTerms)
+                {
+                    for (int j = 0; j < 12; j++)
+                        System.DateTime.TryParse(calendar.ChineseTwentyFour[1 + j * 2], out jieTerms[j]);
+                }
+
+                // Find bazi month by searching backwards through 節 dates
+                int baziMonthNum = -1;
+                if (hasTerms)
+                {
+                    for (int j = 11; j >= 0; j--)
+                    {
+                        if (jieTerms[j] != default && birthSolar >= jieTerms[j])
+                        {
+                            baziMonthNum = j + 1; // 1=寅月 ... 12=丑月
+                            break;
+                        }
+                    }
+                }
+
+                if (baziMonthNum == -1)
+                {
+                    // Birth is before 立春 of this year; check previous year's 節 terms
+                    var prevMonthCal = new Ecan.EcanChineseCalendar(new System.DateTime(birthDate.Year - 1, 6, 1));
+                    if (prevMonthCal.ChineseTwentyFour.Length >= 24)
+                    {
+                        for (int j = 11; j >= 0; j--)
+                        {
+                            if (System.DateTime.TryParse(prevMonthCal.ChineseTwentyFour[1 + j * 2], out var prevJieDate)
+                                && prevJieDate != default && birthSolar >= prevJieDate)
+                            {
+                                baziMonthNum = j + 1;
+                                break;
+                            }
+                        }
+                    }
+                    if (baziMonthNum == -1) baziMonthNum = 12; // last resort: 丑月
+                }
+
+                monthZhi = monthDizhi[baziMonthNum - 1];
+
+                // Calculate month Gan using 五虎遁年法 (yearGan already corrected above)
+                int yearGanIdx = System.Array.IndexOf(wuhuTiangan, yearGan);
+                if (yearGanIdx < 0) yearGanIdx = 0;
+                int baseMonthGanIdx = ((yearGanIdx % 5) * 2 + 2) % 10; // 寅月 base gan
+                monthGan = wuhuTiangan[(baseMonthGanIdx + baziMonthNum - 1) % 10];
+            }
+
             context.CUE1 = AstrologyHelper.SkyToNumber(yearGan); context.CUF1 = AstrologyHelper.FloorToNumber(yearZhi); context.CUE2 = AstrologyHelper.SkyToNumber(monthGan); context.CUF2 = AstrologyHelper.FloorToNumber(monthZhi); context.CUE3 = AstrologyHelper.SkyToNumber(dayGan); context.CUF3 = AstrologyHelper.FloorToNumber(dayZhi); context.CUE4 = AstrologyHelper.SkyToNumber(hourGan); context.CUF4 = AstrologyHelper.FloorToNumber(hourZhi);
 
             string dayMaster = dayGan;
@@ -686,7 +747,7 @@ namespace Ecanapi.Services
             int monthBranchNum = context.CUF2;
             // 獲取生年天干數 (甲=1, 乙=2, ...)
             int yearStemNum = context.CUE1;
-            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.ZiweiCalendar.ChineseMonth;
+            int yearGan = context.CUE1; int yearZhi = context.CUF1; int month = context.Calendar.ChineseMonth; // 輔助星論實際出生農曆月，不套子時換日
             int day = context.LunarDay;
             int hour = AstrologyHelper.GetChineseHourValue(context.Calendar.ChineseHour); int hourZhi = context.CUF4;
             context.ZuoFuPos = PalaceWrap(5 + month - 1); context.YouBiPos = PalaceWrap(11 - (month - 1));
@@ -794,7 +855,7 @@ namespace Ecanapi.Services
             context.GoodStars[PalaceWrap(5 + yearZhi - 1)] += "龍 "; context.GoodStars[PalaceWrap(11 - (yearZhi - 1))] += "鳳 ";
             int[] guPosMap = { 3, 3, 3, 6, 6, 6, 9, 9, 9, 12, 12, 12 }; int[] guaPosMap = { 11, 11, 11, 2, 2, 2, 5, 5, 5, 8, 8, 8 };
             context.BadStars[guPosMap[yearZhi - 1]] += "孤 "; context.BadStars[guaPosMap[yearZhi - 1]] += "寡 ";
-            context.GoodStars[PalaceWrap(context.ZuoFuPos + day - 1)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day + 1)] += "八 ";
+            context.GoodStars[PalaceWrap(context.ZuoFuPos + day)] += "三 "; context.GoodStars[PalaceWrap(context.YouBiPos - day)] += "八 ";
             //少判斷文昌文曲在命宮或身宮時，不加恩貴
             context.GoodStars[PalaceWrap(WenChangPos + day - 2)] += "恩 ";  context.GoodStars[PalaceWrap(WenQuPos + day - 2)] += "貴 ";
             //if (WenQuPos != -1)
