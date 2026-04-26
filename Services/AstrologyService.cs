@@ -940,25 +940,11 @@ namespace Ecanapi.Services
             // ==========================================================
             // 【13. 旬空 (Xun Kong) -> 旬 (修正邏輯，放入 BadStars)】
             // ==========================================================
+            // 旬空：永遠取第一位置(xunKongPos1)
             var (xunKongPos1, xunKongPos2) = PlaceXunKong(yearGan, yearZhi);
-            bool isYearGanYang = yearGan % 2 != 0;
-            int xunKongTargetPos = 0;
-
-            // 陽年空陽支 (陽支: 1, 3, 5, 7, 9, 11 - 奇數宮位)
-            // 陰年空陰支 (陰支: 2, 4, 6, 8, 10, 12 - 偶數宮位)
-            if (isYearGanYang)
+            if (xunKongPos1 != 0)
             {
-                // 陽年取陽支 (奇數)
-                xunKongTargetPos = (xunKongPos1 % 2 != 0) ? xunKongPos1 : xunKongPos2;
-            }
-            else
-            {
-                // 陰年取陰支 (偶數)
-                xunKongTargetPos = (xunKongPos1 % 2 == 0) ? xunKongPos1 : xunKongPos2;
-            }
-            if (xunKongTargetPos != 0)
-            {
-                context.BadStars[xunKongTargetPos] += "旬 ";
+                context.BadStars[xunKongPos1] += "旬 ";
             }
             // 5. 破碎 (論年支)
             int poSuiPos = PlacePoSui(yearZhi);
