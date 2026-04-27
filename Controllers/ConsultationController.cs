@@ -7326,11 +7326,48 @@ namespace Ecanapi.Controllers
                 string ageHint = LfAgeTopicHint(currentAge);
                 if (!string.IsNullOrEmpty(ageHint)) sb.AppendLine(ageHint);
             }
-            // KB MotherInfluence 優先
-            if (!string.IsNullOrEmpty(kb?.MotherInfluence))
+            // 六親日柱影響（DB 有內容優先，否則依五行百分比自動計算）
             {
-                sb.AppendLine("【日柱母星影響（古傳斷語）】");
-                sb.AppendLine(kb.MotherInfluence);
+                string fatherElem = dmElem switch { "木"=>"土","火"=>"金","土"=>"水","金"=>"木","水"=>"火",_=>"" };
+                string siblingElem = dmElem;
+                string childElem   = dmElem switch { "木"=>"火","火"=>"土","土"=>"金","金"=>"水","水"=>"木",_=>"" };
+                double fPct = wuXing.GetValueOrDefault(fatherElem, 0);
+                double sPct = wuXing.GetValueOrDefault(siblingElem, 0);
+                double cPct = wuXing.GetValueOrDefault(childElem, 0);
+
+                string fatherDesc = !string.IsNullOrEmpty(kb?.FatherInfluence) ? kb.FatherInfluence :
+                    fPct >= 35 ? $"日主（{dmElem}）以{fatherElem}為偏財父星，命局{fatherElem}氣旺（{fPct:F0}%），父親能幹有成，在家中影響力大，對命主期望高，親子關係深厚。" :
+                    fPct >= 20 ? $"日主（{dmElem}）以{fatherElem}為偏財父星，命局{fatherElem}氣中等（{fPct:F0}%），父親盡職持家，能給予命主基本支持，親子關係平順。" :
+                    fPct >= 10 ? $"日主（{dmElem}）以{fatherElem}為偏財父星，命局{fatherElem}氣偏弱（{fPct:F0}%），父親早年較辛苦，與命主互動有限，命主較早養成自立個性。" :
+                               $"日主（{dmElem}）以{fatherElem}為偏財父星，命局{fatherElem}氣極弱（{fPct:F0}%），父緣偏薄，命主與父親聚少離多，靠自身奮鬥成長。";
+
+                string siblingDesc = !string.IsNullOrEmpty(kb?.SiblingInfluence) ? kb.SiblingInfluence :
+                    sPct >= 35 ? $"比劫（{siblingElem}）在命局旺盛（{sPct:F0}%），兄弟姐妹緣深，手足情誼濃厚，但競爭意識強，需防因財務資源產生摩擦。" :
+                    sPct >= 20 ? $"比劫（{siblingElem}）力量適中（{sPct:F0}%），手足關係平衡，兄弟姐妹感情穩定，彼此尊重各自空間。" :
+                    sPct >= 10 ? $"比劫（{siblingElem}）偏弱（{sPct:F0}%），兄弟姐妹人數較少或手足緣薄，凡事較需靠自己解決。" :
+                               $"比劫（{siblingElem}）極弱（{sPct:F0}%），手足緣薄，兄弟姐妹分散各地，命主個性獨立自主。";
+
+                string childDesc = !string.IsNullOrEmpty(kb?.ChildInfluence) ? kb.ChildInfluence :
+                    cPct >= 35 ? $"食傷（{childElem}）在命局旺盛（{cPct:F0}%），子女緣深，子女聰明有才，親子感情濃厚，但需防過度干涉子女成長。" :
+                    cPct >= 20 ? $"食傷（{childElem}）力量適中（{cPct:F0}%），子女緣份平順，子女有一定才幹，親子關係和諧自然。" :
+                    cPct >= 10 ? $"食傷（{childElem}）偏弱（{cPct:F0}%），子女緣較薄，或子女個性獨立，需主動用心經營親子感情。" :
+                               $"食傷（{childElem}）極弱（{cPct:F0}%），子女緣薄，或子女較少，命主需特別用心才能維持深厚親子情。";
+
+                // 母親
+                if (!string.IsNullOrEmpty(kb?.MotherInfluence))
+                {
+                    sb.AppendLine("【日柱母星影響】");
+                    sb.AppendLine(kb.MotherInfluence);
+                    sb.AppendLine();
+                }
+                sb.AppendLine("【日柱父星影響】");
+                sb.AppendLine(fatherDesc);
+                sb.AppendLine();
+                sb.AppendLine("【日柱手足影響】");
+                sb.AppendLine(siblingDesc);
+                sb.AppendLine();
+                sb.AppendLine("【日柱子女影響】");
+                sb.AppendLine(childDesc);
                 sb.AppendLine();
             }
             sb.AppendLine(KbSanmenSixRelatives(

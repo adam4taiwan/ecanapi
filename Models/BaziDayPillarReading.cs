@@ -26,6 +26,9 @@ namespace Ecanapi.Models
         public string? Career { get; set; }
         public string? Weaknesses { get; set; }
         public string? MotherInfluence { get; set; }
+        public string? FatherInfluence { get; set; }
+        public string? SiblingInfluence { get; set; }
+        public string? ChildInfluence { get; set; }
         public string? MonthInfluence { get; set; }
         public string? MaleChart { get; set; }
         public string? FemaleChart { get; set; }
