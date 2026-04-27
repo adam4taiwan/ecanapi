@@ -2906,6 +2906,19 @@ namespace Ecanapi.Controllers
                     }
                 }
 
+                // 十二宮星情特質（Ch.7 用）
+                var allPalaceStarDescsYdz = new Dictionary<string, string>();
+                if (hasZiwei)
+                {
+                    allPalaceStarDescsYdz["命宮"]   = starDescMingYdz;
+                    allPalaceStarDescsYdz["官祿宮"] = starDescOffYdz;
+                    allPalaceStarDescsYdz["財帛宮"] = starDescWltYdz;
+                    allPalaceStarDescsYdz["夫妻宮"] = starDescSpsYdz;
+                    allPalaceStarDescsYdz["疾厄宮"] = starDescHltYdz;
+                    foreach (var pal in new[] { "兄弟宮", "子女宮", "遷移宮", "奴僕宮", "田宅宮", "福德宮", "父母宮" })
+                        allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
+                }
+
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2924,7 +2937,7 @@ namespace Ecanapi.Controllers
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
                     dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
-                    doubleDescsYdz, minorDescsYdz,
+                    doubleDescsYdz, minorDescsYdz, allPalaceStarDescsYdz,
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz);
 
@@ -3213,6 +3226,19 @@ namespace Ecanapi.Controllers
                     }
                 }
 
+                // 十二宮星情特質（Ch.7 用）
+                var allPalaceStarDescsYdz = new Dictionary<string, string>();
+                if (hasZiwei)
+                {
+                    allPalaceStarDescsYdz["命宮"]   = starDescMingYdz;
+                    allPalaceStarDescsYdz["官祿宮"] = starDescOffYdz;
+                    allPalaceStarDescsYdz["財帛宮"] = starDescWltYdz;
+                    allPalaceStarDescsYdz["夫妻宮"] = starDescSpsYdz;
+                    allPalaceStarDescsYdz["疾厄宮"] = starDescHltYdz;
+                    foreach (var pal in new[] { "兄弟宮", "子女宮", "遷移宮", "奴僕宮", "田宅宮", "福德宮", "父母宮" })
+                        allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
+                }
+
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3231,7 +3257,7 @@ namespace Ecanapi.Controllers
                     siHuaKePalaceYdz, siHuaKeYdz,
                     siHuaJiPalaceYdz, siHuaJiYdz,
                     dayPillarKb, zhongyuanRules, ziweiGeJuYdz,
-                    doubleDescsYdz, minorDescsYdz,
+                    doubleDescsYdz, minorDescsYdz, allPalaceStarDescsYdz,
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz);
 
@@ -6322,6 +6348,7 @@ namespace Ecanapi.Controllers
             string ziweiGeJuContent = "",
             Dictionary<string, string>? doubleDescs = null,
             Dictionary<string, string>? minorDescs = null,
+            Dictionary<string, string>? allPalaceStarDescs = null,
             string starDescOff = "",
             string starDescWlt = "",
             string starDescSps = "",
@@ -7044,12 +7071,34 @@ namespace Ecanapi.Controllers
                     if (palaceNamesAll[i] == "命宮") continue; // 第六章已描述命宮，此處略去
                     string pStars  = KbGetPalaceStars(palacesYdz, palaceLookups[i]);
                     string pBranch = KbGetPalaceBranch(palacesYdz, palaceLookups[i]);
-                    string kbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars);
+                    string rawKbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars);
+                    // 過濾內部門派術語（不得出現在命書正文）
+                    string kbContent = string.Join("\n", rawKbContent.Split('\n').Where(l => !l.Contains("[中州派]"))).Trim();
                     sb.AppendLine("────────────────────────────────────");
                     string brLabel = string.IsNullOrEmpty(pBranch) ? "" : $"（坐{pBranch}）";
-                    sb.AppendLine($"● {palaceNamesAll[i]}{brLabel} - 【{pStars}】");
+                    string starsLabel = string.IsNullOrEmpty(pStars) ? "空宮" : pStars;
+                    sb.AppendLine($"● {palaceNamesAll[i]}{brLabel} - 【{starsLabel}】");
+                    // 星情特質（KbQueryStarInPalace）
+                    if (allPalaceStarDescs != null && allPalaceStarDescs.TryGetValue(palaceNamesAll[i], out var palStarDesc) && !string.IsNullOrEmpty(palStarDesc))
+                        sb.AppendLine($"▶ 星情特質：{palStarDesc}");
                     if (!string.IsNullOrEmpty(kbContent))
                         sb.AppendLine($"▶ 特性診斷：{kbContent}");
+                    else if (string.IsNullOrEmpty(pStars))
+                    {
+                        // 空宮：顯示三方四正主星作為參考方向
+                        var sfszIdxs = new[] { (i + 4) % 12, (i + 6) % 12, (i + 8) % 12 };
+                        var sfszParts = sfszIdxs
+                            .Select(j => {
+                                string s = KbGetPalaceStars(palacesYdz, palaceLookups[j]);
+                                return string.IsNullOrEmpty(s) ? null : $"{palaceNamesAll[j]}（{s}）";
+                            })
+                            .Where(s => s != null)
+                            .ToList();
+                        if (sfszParts.Count > 0)
+                            sb.AppendLine($"▶ 三方四正主星：{string.Join("、", sfszParts)}");
+                        else
+                            sb.AppendLine("▶ 特性診斷：（待補充）");
+                    }
                     else
                         sb.AppendLine("▶ 特性診斷：（待補充）");
                     // 雙星 + 輔星
