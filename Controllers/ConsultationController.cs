@@ -6479,15 +6479,78 @@ namespace Ecanapi.Controllers
                         return true;
 
                     case "CareerInfo":
+                    {
+                        var stAll = new[] { yStem, mStem, hStem }; // 年月時干（不含日干）
+                        var asSS7 = new[] { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                        // 身強弱職業分類（三選一）
+                        if (cond == "身強財弱宜工業")   return bodyPct >= 60;
+                        if (cond == "身財兩停宜商業")   return bodyPct >= 45 && bodyPct < 60;
+                        if (cond == "身弱財多宜服務業") return bodyPct < 45;
+                        // 辰戌公吏
                         if (cond == "四柱地支辰戌公吏獄官")
                             return BrHas("辰") || BrHas("戌");
+                        // 天醫宜醫學（四長生地支：辰巳戌亥）
+                        if (cond == "柱中辰巳戌亥天醫星旺宜醫學")
+                            return BrHas("辰") || BrHas("巳") || BrHas("戌") || BrHas("亥");
+                        // 身弱印旺侍奉人
+                        if (cond == "身弱印旺侍奉人之工作")
+                        {
+                            string yinElem = dmElem switch { "木"=>"水","火"=>"木","土"=>"火","金"=>"土","水"=>"金",_=>"" };
+                            return bodyPct < 45 && wuXing.GetValueOrDefault(yinElem, 0) >= 25;
+                        }
+                        // 年支巳日時申
+                        if (cond == "年支巳日時支申長年奔波行業")
+                            return yBranch == "巳" && (dBranch == "申" || hBranch == "申");
+                        // 天干庚甲地支寅申
+                        if (cond == "天干庚甲地支寅申商販郵遞")
+                            return (stAll.Contains("庚") || stAll.Contains("甲")) && (BrHas("寅") || BrHas("申"));
+                        // 甲丙戊年干+丁+戌亥重 僧道
+                        if (cond == "年干甲丙戊丁火地支重戌亥僧道")
+                        {
+                            bool yOk = yStem == "甲" || yStem == "丙" || yStem == "戊";
+                            bool hasD = new[] { mStem, dStem, hStem }.Contains("丁");
+                            int xuHai = brZ.Count(b => b == "戌" || b == "亥");
+                            return yOk && hasD && xuHai >= 2;
+                        }
+                        // 華蓋（神殺計算複雜，暫保留顯示）
+                        if (cond == "華蓋逢空多為五術之人" || cond == "華蓋太極臨戌亥多為五玄之人")
+                            return true;
+                        // 女傷官支旺藏財
+                        if (cond == "女子傷官在支旺藏財風塵")
+                        {
+                            if (gender != 2) return false;
+                            var brSS4 = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                            return brSS4.Any(s => s == "傷官") && brSS4.Any(s => s == "正財" || s == "偏財");
+                        }
+                        // 水土農民
+                        if (cond == "四柱水土重重為農民")
+                            return (wuXing.GetValueOrDefault("水", 0) + wuXing.GetValueOrDefault("土", 0)) >= 60;
+                        // 正星/偏星
+                        if (cond == "正星在柱中多旺從公家政府")
+                        {
+                            int zheng = asSS7.Count(s => s=="正財"||s=="正官"||s=="正印"||s=="食神"||s=="比肩");
+                            int pian  = asSS7.Count(s => s=="偏財"||s=="七殺"||s=="偏印"||s=="傷官"||s=="劫財");
+                            return zheng > pian;
+                        }
+                        if (cond == "偏星在柱中多旺從偏業")
+                        {
+                            int zheng = asSS7.Count(s => s=="正財"||s=="正官"||s=="正印"||s=="食神"||s=="比肩");
+                            int pian  = asSS7.Count(s => s=="偏財"||s=="七殺"||s=="偏印"||s=="傷官"||s=="劫財");
+                            return pian > zheng;
+                        }
+                        // 辛丁巳支酉亥未 酒店
+                        if (cond == "柱中辛丁巳支酉亥未宜酒店生意")
+                            return (stAll.Contains("辛") || stAll.Contains("丁")) &&
+                                   (BrHas("巳") || BrHas("酉") || BrHas("亥") || BrHas("未"));
+                        // 沖類（職業/居地變遷）
                         if (cond == "子午卯酉沖地域變遷職業不變")
                             return (BrHas("子") && BrHas("午")) || (BrHas("卯") && BrHas("酉"));
                         if (cond == "寅申巳亥沖居位地和職業都改變")
                             return (BrHas("寅") && BrHas("申")) || (BrHas("巳") && BrHas("亥"));
                         if (cond == "辰戌丑未沖職業改變居住地不變")
                             return (BrHas("辰") && BrHas("戌")) || (BrHas("丑") && BrHas("未"));
-                        return true;
+                        return false; // 未對應條件，不輸出
+                    }
 
                     case "InjuryInfo":
                         if (cond == "日柱庚午時柱辛巳多心血之疾")
