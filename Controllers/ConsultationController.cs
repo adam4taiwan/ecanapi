@@ -7072,8 +7072,8 @@ namespace Ecanapi.Controllers
                     string pStars  = KbGetPalaceStars(palacesYdz, palaceLookups[i]);
                     string pBranch = KbGetPalaceBranch(palacesYdz, palaceLookups[i]);
                     string rawKbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars);
-                    // 過濾內部門派術語（不得出現在命書正文）
-                    string kbContent = string.Join("\n", rawKbContent.Split('\n').Where(l => !l.Contains("[中州派]"))).Trim();
+                    // 移除命書正文中的門派標籤（[中州派]），保留內容
+                    string kbContent = rawKbContent.Replace("[中州派]", "").Trim();
                     sb.AppendLine("────────────────────────────────────");
                     string brLabel = string.IsNullOrEmpty(pBranch) ? "" : $"（坐{pBranch}）";
                     string starsLabel = string.IsNullOrEmpty(pStars) ? "空宮" : pStars;
