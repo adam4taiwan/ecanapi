@@ -1323,6 +1323,7 @@ namespace Ecanapi.Controllers
         private static string KbFilterZiweiContent(string content, HashSet<string> palaceStars, HashSet<string> allChartStars)
         {
             if (string.IsNullOrEmpty(content)) return content;
+            content = content.Replace("[中州派]", ""); // 移除內部門派標籤，保留內容
             var lines = content.Split('\n');
             var result = new StringBuilder();
             bool inConditional = false;
@@ -7071,9 +7072,7 @@ namespace Ecanapi.Controllers
                     if (palaceNamesAll[i] == "命宮") continue; // 第六章已描述命宮，此處略去
                     string pStars  = KbGetPalaceStars(palacesYdz, palaceLookups[i]);
                     string pBranch = KbGetPalaceBranch(palacesYdz, palaceLookups[i]);
-                    string rawKbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars);
-                    // 移除命書正文中的門派標籤（[中州派]），保留內容
-                    string kbContent = rawKbContent.Replace("[中州派]", "").Trim();
+                    string kbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars).Trim();
                     sb.AppendLine("────────────────────────────────────");
                     string brLabel = string.IsNullOrEmpty(pBranch) ? "" : $"（坐{pBranch}）";
                     string starsLabel = string.IsNullOrEmpty(pStars) ? "空宮" : pStars;
@@ -7083,24 +7082,16 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"▶ 星情特質：{palStarDesc}");
                     if (!string.IsNullOrEmpty(kbContent))
                         sb.AppendLine($"▶ 特性診斷：{kbContent}");
-                    else if (string.IsNullOrEmpty(pStars))
-                    {
-                        // 空宮：顯示三方四正主星作為參考方向
-                        var sfszIdxs = new[] { (i + 4) % 12, (i + 6) % 12, (i + 8) % 12 };
-                        var sfszParts = sfszIdxs
-                            .Select(j => {
-                                string s = KbGetPalaceStars(palacesYdz, palaceLookups[j]);
-                                return string.IsNullOrEmpty(s) ? null : $"{palaceNamesAll[j]}（{s}）";
-                            })
-                            .Where(s => s != null)
-                            .ToList();
-                        if (sfszParts.Count > 0)
-                            sb.AppendLine($"▶ 三方四正主星：{string.Join("、", sfszParts)}");
-                        else
-                            sb.AppendLine("▶ 特性診斷：（待補充）");
-                    }
                     else
                         sb.AppendLine("▶ 特性診斷：（待補充）");
+                    // 空宮：額外顯示對宮主星作為參考
+                    if (string.IsNullOrEmpty(pStars))
+                    {
+                        int opIdx = (i + 6) % 12;
+                        string opStars = KbGetPalaceStars(palacesYdz, palaceLookups[opIdx]);
+                        if (!string.IsNullOrEmpty(opStars))
+                            sb.AppendLine($"▶ 對宮（{palaceNamesAll[opIdx]}）主星：{opStars}");
+                    }
                     // 雙星 + 輔星
                     string dblKey = KbNormalizePalaceName(palaceNamesAll[i]);
                     if (doubleDescs != null && doubleDescs.TryGetValue(dblKey, out var dblTxt) && !string.IsNullOrEmpty(dblTxt))
