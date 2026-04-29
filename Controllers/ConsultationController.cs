@@ -6985,7 +6985,6 @@ namespace Ecanapi.Controllers
                 AppKb("內在特質", kb.InnerTraits);
                 AppKb("事業傾向", kb.Career);
                 AppKb("天生弱點", kb.Weaknesses);
-                AppKb("母星影響", kb.MotherInfluence);
                 string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
                     : "巳午未".Contains(mBranch) ? "夏"
                     : "申酉戌".Contains(mBranch) ? "秋" : "冬";
