@@ -7010,6 +7010,15 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
+            // === 空亡論斷 ===
+            string kongWangDesc = LfKongWang(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+            if (!string.IsNullOrEmpty(kongWangDesc))
+            {
+                sb.AppendLine("【空亡論斷】");
+                sb.AppendLine(kongWangDesc);
+                sb.AppendLine();
+            }
+
             // 中原盲派 - 天干地支重複直斷
             if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
             {
@@ -8759,6 +8768,67 @@ namespace Ecanapi.Controllers
 
         private static string LfElemBranches(string elem) => elem switch
         { "木"=>"寅卯","火"=>"巳午","土"=>"辰戌丑未","金"=>"申酉","水"=>"亥子",_=>"" };
+
+    // 空亡論斷（依文檔：空亡在八字中的用法.docx）
+    // 年月時以日柱天干查旬空；日支以年柱天干查旬空
+    private static string LfKongWang(
+        string yStem, string yBranch, string mStem, string mBranch,
+        string dStem, string dBranch, string hStem, string hBranch)
+    {
+        var stems   = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+        var branches = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+
+        // 計算旬空：起始支 = (地支索引 - 天干索引 + 12) % 12；空亡 = 起始支+10、+11
+        string[] CalcEmpty(string stem, string branch)
+        {
+            int si = Array.IndexOf(stems, stem);
+            int bi = Array.IndexOf(branches, branch);
+            if (si < 0 || bi < 0) return Array.Empty<string>();
+            int start = (bi - si + 12) % 12;
+            return new[] { branches[(start + 10) % 12], branches[(start + 11) % 12] };
+        }
+
+        // 日柱旬空 → 供年/月/時柱地支判斷
+        var dayEmpty  = CalcEmpty(dStem, dBranch);
+        // 年柱旬空 → 供日支判斷
+        var yearEmpty = CalcEmpty(yStem, yBranch);
+
+        if (dayEmpty.Length == 0 && yearEmpty.Length == 0) return "";
+
+        bool yKong = dayEmpty.Contains(yBranch);
+        bool mKong = dayEmpty.Contains(mBranch);
+        bool dKong = yearEmpty.Contains(dBranch);  // 日支以年查
+        bool hKong = dayEmpty.Contains(hBranch);
+
+        if (!yKong && !mKong && !dKong && !hKong) return "";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"（日柱旬空：{dayEmpty[0]}、{dayEmpty[1]}；年柱旬空：{yearEmpty[0]}、{yearEmpty[1]}）");
+        sb.AppendLine();
+
+        if (yKong)
+            sb.AppendLine($"▍年柱（{yBranch}）落空亡：祖宗緣份薄，得不到祖上蔭庇或遺產，幼年至十六歲前多有阻滯。");
+        if (mKong)
+            sb.AppendLine($"▍月柱（{mBranch}）落空亡：父母緣薄，聚少離多，手足情分亦淡，青年運多有不順。");
+        if (dKong)
+            sb.AppendLine($"▍日支（{dBranch}）落空亡：夫妻緣薄，婚姻難以美滿，伴侶聚少離多，或同床異夢。");
+        if (hKong)
+            sb.AppendLine($"▍時柱（{hBranch}）落空亡：子女緣薄，或有損子之象，晚年易陷孤困之境。");
+
+        // 坐空天干補充
+        var seatNotes = new List<string>();
+        if (yKong)  seatNotes.Add($"年干{yStem}");
+        if (mKong)  seatNotes.Add($"月干{mStem}");
+        if (dKong)  seatNotes.Add($"日干{dStem}");
+        if (hKong)  seatNotes.Add($"時干{hStem}");
+        if (seatNotes.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"坐空天干（{string.Join("、", seatNotes)}）力量虛浮，應事能力有所削減。");
+        }
+
+        return sb.ToString().Trim();
+    }
 
     // 納音論斷（師傳.doc 七章）
     // yBranch_mBranch => 年生肖x月支; yBranch_dBranch => 年生肖x日支; yBranch_hBranch => 年生肖x時支
