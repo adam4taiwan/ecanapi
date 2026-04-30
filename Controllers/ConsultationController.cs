@@ -3814,6 +3814,27 @@ namespace Ecanapi.Controllers
 
         // === Lf Static Data Tables ===
 
+        // 三干論斷（DB public."三干"，hardcoded）：key="三甲"/"四甲"...
+        private static readonly Dictionary<string, string> LfSanGanMap = new()
+        {
+            ["三甲"]="天上貴，孤獨守空房", ["三乙"]="多陰私，又要敗祖業",
+            ["三丙"]="人孤老，母在產中亡", ["三丁"]="多惡疾，手足也自傷",
+            ["三戊"]="子隨出，離祖別家鄉", ["三己"]="別父母，兄弟各一方",
+            ["三庚"]="是財郎，萬里置田莊", ["三辛"]="壽數長，財滯多災郎",
+            ["三壬"]="家業盛，有富不久長", ["三癸"]="一亥全，烈火燒屋房",
+            ["四甲"]="少夫妻", ["四乙"]="命早亡", ["四丙"]="子息空", ["四丁"]="壽不長",
+            ["四戊"]="人孤刑", ["四己"]="人忠良", ["四庚"]="他鄉走", ["四辛"]="壽限長",
+            ["四壬"]="定富足", ["四癸"]="人夭亡",
+        };
+
+        // 三支論斷（DB public."三支"，hardcoded）：key="三子"/"三丑"...
+        private static readonly Dictionary<string, string> LfSanZhiMap = new()
+        {
+            ["三子"]="婚事重", ["三丑"]="四夫妻", ["三寅"]="守孤寡", ["三卯"]="兇惡多",
+            ["三辰"]="好鬥傷", ["三巳"]="遭刑害", ["三午"]="克夫妻", ["三未"]="守空房",
+            ["三申"]="人不足", ["三酉"]="獨居房", ["三戌"]="訟事多", ["三亥"]="孤苦憐",
+        };
+
         // 地支神煞查表：地支(SKYNO) → 地支(TOFLO) → 神煞名稱
         // 來源：DB public."地支星剎"（四 KIND 資料相同）
         private static readonly Dictionary<string, Dictionary<string, string[]>> DiZhiShenShaMap = new()
@@ -7588,6 +7609,12 @@ namespace Ecanapi.Controllers
             }
             else
             {
+                // 預先計算旬空（供干支引動用）
+                var dayEmpty14 = LfCalcDayEmpty(dStem, dBranch);
+                var pillarStems14    = new[] { yStem, mStem, dStem, hStem };
+                var pillarBranches14 = new[] { yBranch, mBranch, dBranch, hBranch };
+                var pillarBranchSS14 = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+
                 bool isBodyStrong14 = bodyPct >= 50;
                 var (goodElems14, badElems14) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong14);
 
@@ -7761,6 +7788,17 @@ namespace Ecanapi.Controllers
                     {
                         sb.AppendLine($"  地支六親：大運地支 {lc.branch}（{branchSS}）");
                         sb.AppendLine(branchRelStr);
+                    }
+
+                    // 干支引動論斷（刑沖害合三合三會、空亡、三干三支）
+                    string dyStepDesc = LfDyStepAnalysis(
+                        lc.stem, lc.branch, lc.startAge, lc.endAge, currentAge,
+                        dStem, pillarStems14, pillarBranches14, pillarBranchSS14,
+                        yongShenElem, jiShenElem, dayEmpty14);
+                    if (!string.IsNullOrEmpty(dyStepDesc))
+                    {
+                        sb.AppendLine("  【干支引動】");
+                        sb.Append(dyStepDesc);
                     }
                     sb.AppendLine();
                 }
@@ -8859,6 +8897,390 @@ namespace Ecanapi.Controllers
         private static string LfElemBranches(string elem) => elem switch
         { "木"=>"寅卯","火"=>"巳午","土"=>"辰戌丑未","金"=>"申酉","水"=>"亥子",_=>"" };
 
+    // ======================================================================
+    // 大運/流年分析通用方法（LfRun*）與大運專屬方法（LfDy*）
+    // 方法論：memory/daiyun-liunian-methodology.md
+    // ======================================================================
+
+    // 單條引動結果
+    private record BranchImpact(
+        string RunChar,        // 大運/流年地支（顯示用）
+        string RelationType,   // 六合/六沖/六害/三刑/三刑成局/爭合/六沖解合/三合/三會
+        string Scenario,       // 1v1 / 解合 / 爭合 / 加入戰局 / 2+1成局 / 跨域成局
+        string TargetBranch,   // 被引動的四柱地支（逗號分隔）
+        string TargetPillar,   // 年/月/日/時（逗號分隔）
+        string TargetSS,       // 被引動地支十神（+分隔）
+        string PalaceName,     // 宮位名稱
+        string FormedElement,  // 三合/三會成局五行；其他空字串
+        string FavorStatus,    // 喜神/忌神/混合/中性
+        string ImpactLevel     // ★重大運★ / 重大運
+    );
+
+    // ─── A：地支六關係引動（四情境）─────────────────────────────────────
+    private static List<BranchImpact> LfRunBranchRelations(
+        string runBranch,
+        string[] pillarBranches,   // [年支, 月支, 日支, 時支]
+        string[] pillarBranchSS,   // [年支十神, 月支十神, 日支十神, 時支十神]
+        string yongShenElem, string jiShenElem,
+        string dayunBranch = "")   // 僅流年分析傳入，啟用情境四
+    {
+        var results = new List<BranchImpact>();
+        var labels  = new[] { "年", "月", "日", "時" };
+        var palaces = new[] { "祖先宮", "父母宮", "夫妻宮", "子女宮" };
+
+        // 取地支主氣元素 → 判斷喜忌
+        string BranchFavor(string b)
+        {
+            if (!LfBranchHiddenRatio.TryGetValue(b, out var h)) return "中性";
+            string e = KbStemToElement(h[0].stem);
+            return e == yongShenElem ? "喜神" : e == jiShenElem ? "忌神" : "中性";
+        }
+
+        // ── 情境一：1v1 基本引動 ────────────────────────────
+        for (int pi = 0; pi < 4; pi++)
+        {
+            string b = pillarBranches[pi];
+            string rel = "";
+
+            if (LfHe.TryGetValue(runBranch, out var heInfo) && heInfo.partner == b)
+                rel = "六合";
+            else if (LfChong.Contains(runBranch + b))
+                rel = "六沖";
+            else if (LfHai.Contains(runBranch + b))
+                rel = "六害";
+            else if (LfXing.Any(g => g.Contains(runBranch) && g.Contains(b) && b != runBranch))
+                rel = "三刑";
+            else if (b == runBranch && new[] { "辰","午","酉","亥" }.Contains(b))
+                rel = "自刑";
+
+            if (rel != "")
+                results.Add(new BranchImpact(runBranch, rel, "1v1",
+                    b, labels[pi], pillarBranchSS[pi], palaces[pi],
+                    "", BranchFavor(b), "重大運"));
+        }
+
+        // ── 情境二：原有關係 + 運介入（解合 / 爭合 / 擴刑） ──
+        for (int pi = 0; pi < 4; pi++)
+        for (int pj = pi + 1; pj < 4; pj++)
+        {
+            string bi = pillarBranches[pi], bj = pillarBranches[pj];
+            // 原有六合
+            if (LfHe.TryGetValue(bi, out var heBI) && heBI.partner == bj)
+            {
+                // 運沖 bi → 解合
+                if (LfChong.Contains(runBranch + bi))
+                    results.Add(new BranchImpact(runBranch, "六沖解合", "解合",
+                        $"{bi},{bj}", $"{labels[pi]},{labels[pj]}",
+                        $"{pillarBranchSS[pi]}+{pillarBranchSS[pj]}",
+                        $"{palaces[pi]}與{palaces[pj]}", "", BranchFavor(bi), "重大運"));
+                // 運合 bi → 爭合
+                if (LfHe.TryGetValue(runBranch, out var heRun) && heRun.partner == bi)
+                    results.Add(new BranchImpact(runBranch, "爭合", "爭合",
+                        $"{bi},{bj}", $"{labels[pi]},{labels[pj]}",
+                        $"{pillarBranchSS[pi]}+{pillarBranchSS[pj]}",
+                        $"{palaces[pi]}與{palaces[pj]}", "", BranchFavor(bi), "重大運"));
+            }
+        }
+        // 原有刑 + 運擴為三刑
+        foreach (var xGrp in LfXing.Where(g => g.Length == 3))
+        {
+            var inBazi = xGrp.Where(b => pillarBranches.Contains(b)).Distinct().ToList();
+            if (inBazi.Count == 2 && xGrp.Contains(runBranch) && !inBazi.Contains(runBranch))
+            {
+                var inv = inBazi.Select(b => {
+                    int i = Array.IndexOf(pillarBranches, b);
+                    return (labels[i], pillarBranchSS[i], palaces[i]);
+                }).ToList();
+                string fav = new HashSet<string>(inBazi.Select(BranchFavor)).Count == 1
+                    ? BranchFavor(inBazi[0]) : "混合";
+                results.Add(new BranchImpact(runBranch, "三刑成局", "加入戰局",
+                    string.Join(",", inBazi),
+                    string.Join(",", inv.Select(x => x.Item1)),
+                    string.Join("+", inv.Select(x => x.Item2)),
+                    string.Join("、", inv.Select(x => x.Item3)),
+                    "", fav, "★重大運★"));
+            }
+        }
+
+        // ── 情境三：三合/三會 2+1 成局 ──────────────────────
+        var allGroups = LfSanHe.Select(g => (g.branches, g.elem, "三合"))
+            .Concat(LfSanHui.Select(g => (g.branches, g.elem, "三會")));
+        foreach (var (grp, elem, gType) in allGroups)
+        {
+            if (!grp.Contains(runBranch)) continue;
+            var needed = grp.Where(b => b != runBranch).ToList();
+            var inBazi = needed.Where(b => pillarBranches.Contains(b)).Distinct().ToList();
+            if (inBazi.Count < 2) continue;
+            var inv = inBazi.Take(2).Select(b => {
+                int i = Array.IndexOf(pillarBranches, b);
+                return (labels[i], pillarBranchSS[i], palaces[i]);
+            }).ToList();
+            string fav = elem == yongShenElem ? "喜神" : elem == jiShenElem ? "忌神" : "中性";
+            results.Add(new BranchImpact(runBranch, gType, "2+1成局",
+                string.Join(",", inBazi.Take(2)),
+                string.Join(",", inv.Select(x => x.Item1)),
+                string.Join("+", inv.Select(x => x.Item2)),
+                string.Join("、", inv.Select(x => x.Item3)),
+                elem, fav, "★重大運★"));
+        }
+
+        // ── 情境四：跨域三合三會（流年傳入 dayunBranch 才啟用）──
+        if (!string.IsNullOrEmpty(dayunBranch))
+        {
+            foreach (var (grp, elem, gType) in allGroups)
+            {
+                if (!grp.Contains(runBranch) || !grp.Contains(dayunBranch)) continue;
+                if (runBranch == dayunBranch) continue;
+                var remaining = grp.Where(b => b != runBranch && b != dayunBranch).ToList();
+                var inBazi = remaining.Where(b => pillarBranches.Contains(b)).ToList();
+                if (inBazi.Count == 0) continue;
+                int idx = Array.IndexOf(pillarBranches, inBazi[0]);
+                string fav = elem == yongShenElem ? "喜神" : elem == jiShenElem ? "忌神" : "中性";
+                results.Add(new BranchImpact(runBranch, gType, "跨域成局",
+                    inBazi[0], labels[idx], pillarBranchSS[idx], palaces[idx],
+                    elem, fav, "★重大運★"));
+            }
+        }
+
+        return results;
+    }
+
+    // ─── 白話說明生成 ───────────────────────────────────────────────────
+    private static string LfRunBranchWhiteTalk(BranchImpact imp)
+    {
+        string ss = imp.TargetSS.Split('+')[0];   // 取第一個十神作主軸
+        string palace = imp.PalaceName.Split('、')[0];
+        string fav = imp.FavorStatus;
+
+        // 十神 → 人事物類象
+        string ssLabel = ss switch {
+            "比肩" => "競爭朋友", "劫財" => "損財合夥", "食神" => "才藝子女口才",
+            "傷官" => "換業官非才華突破", "偏財" => "偏財父緣投資",
+            "正財" => "穩定財婚配（男）", "七殺" => "壓力官非異性（女）",
+            "正官" => "升遷名譽婚配（女）", "偏印" => "學習宗教孤獨",
+            "正印" => "貴人文書長輩護持", _ => ss
+        };
+
+        return (imp.Scenario, imp.RelationType, fav) switch {
+            // 三合三會成局
+            ("2+1成局" or "跨域成局", _, "喜神") =>
+                $"{imp.FormedElement}局{imp.RelationType}成，喜神大旺，{palace}所主{ssLabel}爆發大機遇，此段全力把握。",
+            ("2+1成局" or "跨域成局", _, "忌神") =>
+                $"{imp.FormedElement}局{imp.RelationType}成，忌神大旺，{palace}所主{ssLabel}禍事大發，此段謹慎守成。",
+            ("2+1成局" or "跨域成局", _, _) =>
+                $"{imp.FormedElement}局{imp.RelationType}成，{palace}所主{ssLabel}出現重大變化，須密切觀察。",
+            // 三刑成局
+            ("加入戰局", "三刑成局", "喜神") =>
+                $"三刑成局，{palace}喜神受多方衝擊，{ssLabel}有機遇但磨擦爭議難免，需防耗損。",
+            ("加入戰局", "三刑成局", "忌神") =>
+                $"三刑成局，{palace}忌神交戰，{ssLabel}衝突激烈，傷損官非需嚴防。",
+            ("加入戰局", "三刑成局", _) =>
+                $"三刑成局，{palace}多方磨擦，{ssLabel}糾纏不清，宜低調應對。",
+            // 解合/爭合
+            ("解合", _, _) =>
+                $"大運沖開原有合局，{palace}關係生變，{ssLabel}方面出現重大轉折，情感或合作格局重組。",
+            ("爭合", _, _) =>
+                $"大運與原合局爭合，{palace}兩方拉鋸，{ssLabel}方面猶豫不決，難以兼顧，需擇一而行。",
+            // 1v1 基本引動
+            (_, "六合", "喜神") => $"喜神被合引動，{palace}所主{ssLabel}有機遇降臨，逢合易得貴緣，把握時機。",
+            (_, "六合", "忌神") => $"忌神被合引動，{palace}所主{ssLabel}困擾被觸發，需防此類糾纏牽絆。",
+            (_, "六合", _) => $"{palace}所主{ssLabel}被合引動，有緣分或合作機遇出現。",
+            (_, "六沖", "喜神") => $"喜神被沖，{palace}所主{ssLabel}受衝擊，計劃易生變動，需謹慎保守。",
+            (_, "六沖", "忌神") => $"忌神被沖破，{palace}所主{ssLabel}舊有阻礙有望突破，把握改變機會。",
+            (_, "六沖", _) => $"{palace}所主{ssLabel}受沖，此方面易生衝突變動。",
+            (_, "六害", "喜神") => $"喜神受害，{palace}所主{ssLabel}暗損，防此方面無形耗損。",
+            (_, "六害", "忌神") => $"忌神受害，{palace}所主{ssLabel}受損，有助削弱不利因素。",
+            (_, "六害", _) => $"{palace}所主{ssLabel}受害，易有暗損阻礙。",
+            (_, "三刑" or "自刑", "喜神") => $"喜神受刑，{palace}所主{ssLabel}磨擦糾紛，防傷損官非。",
+            (_, "三刑" or "自刑", "忌神") => $"忌神受刑，{palace}所主{ssLabel}衝突更烈，此類問題特別突出。",
+            (_, "三刑" or "自刑", _) => $"{palace}所主{ssLabel}受刑，此方面有磨擦爭議，宜低調處理。",
+            (_, "六沖解合", _) => $"原合局被沖開，{palace}所主{ssLabel}關係斷裂，情感或合作出現轉折。",
+            _ => $"{palace}所主{ssLabel}受{imp.RelationType}影響，此方面出現變化。"
+        };
+    }
+
+    // ─── 格式化單條引動輸出（含空亡/神煞/白話）──────────────────────────
+    private static string LfRunFormatImpact(
+        BranchImpact imp,
+        string[] dayEmpty,
+        string[] pillarBranches,
+        string runLabel,        // "運（申）" 或 "年（申）"
+        string crossDayun = "")  // 跨域成局時顯示大運地支
+    {
+        var sb = new System.Text.StringBuilder();
+        bool isBig = imp.ImpactLevel.StartsWith("★");
+        string mark = isBig ? " ★重大運★" : "";
+        string crossNote = imp.Scenario == "跨域成局" && !string.IsNullOrEmpty(crossDayun)
+            ? $"＋運（{crossDayun}）" : "";
+
+        sb.AppendLine($"  ┌─{mark} {runLabel} {imp.RelationType} 四柱{imp.TargetPillar}宮（{imp.TargetBranch}）{crossNote}");
+        sb.AppendLine($"  │   十神：{imp.TargetSS}　宮位：{imp.PalaceName}");
+
+        // 空亡判斷
+        var kbBranches = imp.TargetBranch.Split(',').Where(b => dayEmpty.Contains(b)).ToList();
+        sb.AppendLine(kbBranches.Count > 0
+            ? $"  │   空亡：（{string.Join(",", kbBranches)}）落空亡，力量減半"
+            : "  │   空亡：無");
+
+        // 神煞判斷（以四柱各地支為SKYNO，查被引動地支的神煞）
+        var starSet = new HashSet<string>();
+        foreach (var tb in imp.TargetBranch.Split(','))
+            foreach (var pb in pillarBranches)
+                if (DiZhiShenShaMap.TryGetValue(pb, out var m) && m.TryGetValue(tb, out var ss))
+                    foreach (var s in ss) starSet.Add(s);
+        sb.AppendLine(starSet.Count > 0
+            ? $"  │   神煞：{string.Join("、", starSet.Select(s => $"({s})"))}引動"
+            : "  │   神煞：無");
+
+        // 白話
+        sb.AppendLine($"  │   白話：{LfRunBranchWhiteTalk(imp)}");
+        sb.AppendLine("  └─");
+        return sb.ToString();
+    }
+
+    // ─── D：三干三支成局檢查 ─────────────────────────────────────────────
+    private static string LfRunSanGanZhiCheck(
+        string runStem, string runBranch,
+        string[] pillarStems, string[] pillarBranches)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        // 三干
+        var stemCounts = pillarStems.GroupBy(s => s).ToDictionary(g => g.Key, g => g.Count());
+        if (stemCounts.TryGetValue(runStem, out int sc) && sc >= 2)
+        {
+            string prefix = sc == 2 ? "三" : "四";
+            string key = $"{prefix}{runStem}";
+            if (LfSanGanMap.TryGetValue(key, out var desc))
+            {
+                sb.AppendLine($"  八字已有 {sc} 個「{runStem}」，運（{runStem}）形成第 {sc+1} 個");
+                sb.AppendLine($"  → 古傳 {key}：{desc}");
+            }
+        }
+
+        // 三支
+        var branchCounts = pillarBranches.GroupBy(b => b).ToDictionary(g => g.Key, g => g.Count());
+        if (branchCounts.TryGetValue(runBranch, out int bc) && bc >= 2)
+        {
+            string key = $"三{runBranch}";
+            if (LfSanZhiMap.TryGetValue(key, out var desc))
+            {
+                sb.AppendLine($"  八字已有 {bc} 個「{runBranch}」，運（{runBranch}）形成第 {bc+1} 個");
+                sb.AppendLine($"  → 古傳 {key}：{desc}");
+            }
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    // ─── E：大運干支關係論斷（同氣/干克支/支克干）────────────────────────
+    private static string LfDyStemBranchRelation(
+        string dyStem, string dyStemSS, string dyStemElem,
+        string dyBranch, string dyBranchSS, string dyBranchElem,
+        int startAge, int endAge)
+    {
+        bool sameQi = dyStemElem == dyBranchElem
+            || LfElemGen.GetValueOrDefault(dyStemElem) == dyBranchElem
+            || LfElemGen.GetValueOrDefault(dyBranchElem) == dyStemElem;
+        bool stemKills  = LfElemOvercome.GetValueOrDefault(dyStemElem)  == dyBranchElem;
+        bool branchKills = LfElemOvercome.GetValueOrDefault(dyBranchElem) == dyStemElem;
+
+        if (sameQi)
+            return $"  天干（{dyStem}·{dyStemElem}）與地支（{dyBranch}·{dyBranchElem}）五行同氣相輔\n" +
+                   $"  → 整段 {startAge}-{endAge} 歲方向一致，{dyStemSS}與{dyBranchSS}同向發力，吉凶十年貫串。";
+        if (stemKills)
+            return $"  天干（{dyStem}·{dyStemElem}）克地支（{dyBranch}·{dyBranchElem}）\n" +
+                   $"  → 前五年（{startAge}-{startAge+4}歲）天干{dyStemSS}事件較主導；" +
+                   $"後五年（{startAge+5}-{endAge}歲）地支{dyBranchSS}影響漸強。";
+        if (branchKills)
+            return $"  地支（{dyBranch}·{dyBranchElem}）克天干（{dyStem}·{dyStemElem}）\n" +
+                   $"  → 前五年（{startAge}-{startAge+4}歲）地支{dyBranchSS}先發；" +
+                   $"後五年（{startAge+5}-{endAge}歲）天干{dyStemSS}反作用漸顯。";
+
+        return $"  天干（{dyStem}·{dyStemElem}）與地支（{dyBranch}·{dyBranchElem}）各行其是\n" +
+               $"  → 前五年天干{dyStemSS}、後五年地支{dyBranchSS}分段主導。";
+    }
+
+    // ─── 大運單步完整分析 ────────────────────────────────────────────────
+    private static string LfDyStepAnalysis(
+        string dyStem, string dyBranch, int startAge, int endAge, int currentAge,
+        string dStem,   // 日主天干（用於計算大運天干十神）
+        string[] pillarStems, string[] pillarBranches,
+        string[] pillarBranchSS,
+        string yongShenElem, string jiShenElem,
+        string[] dayEmpty)
+    {
+        // 大運天干十神
+        string dyStemSS  = LfStemShiShen(dyStem, dStem);
+        string dyStemElem = KbStemToElement(dyStem);
+
+        // 大運地支主氣元素與十神
+        string dyBranchMainStem = LfBranchHiddenRatio.TryGetValue(dyBranch, out var h)
+            ? h[0].stem : "";
+        string dyBranchSS  = string.IsNullOrEmpty(dyBranchMainStem) ? ""
+            : LfStemShiShen(dyBranchMainStem, dStem);
+        string dyBranchElem = string.IsNullOrEmpty(dyBranchMainStem) ? ""
+            : KbStemToElement(dyBranchMainStem);
+
+        bool isCurrent = currentAge >= startAge && currentAge <= endAge;
+        var sb = new System.Text.StringBuilder();
+
+        string currentMark = isCurrent ? $"  ← 目前行運（{currentAge}歲）" : "";
+        sb.AppendLine($"【{startAge}-{endAge}歲｜{dyStem}{dyBranch} 大運】{currentMark}");
+        sb.AppendLine();
+
+        // ▌一、天干論斷
+        sb.AppendLine("▌一、天干論斷");
+        sb.AppendLine($"  運（{dyStem}）為{dyStemSS}，五行{dyStemElem}");
+        sb.AppendLine(LfDyStemBranchRelation(
+            dyStem, dyStemSS, dyStemElem,
+            dyBranch, dyBranchSS, dyBranchElem,
+            startAge, endAge));
+        sb.AppendLine();
+
+        // ▌二、地支引動逐條分析
+        sb.AppendLine("▌二、地支引動逐條分析");
+        // pillarStemSS 在此方法不傳入，以空串替代（只需要 branchSS）
+        var impacts = LfRunBranchRelations(
+            dyBranch, pillarBranches, pillarBranchSS,
+            yongShenElem, jiShenElem);
+        if (impacts.Count == 0)
+            sb.AppendLine("  （大運地支與四柱無刑沖害合，此段運勢較為平穩）");
+        else
+            foreach (var imp in impacts)
+                sb.Append(LfRunFormatImpact(imp, dayEmpty, pillarBranches, $"運（{dyBranch}）"));
+        sb.AppendLine();
+
+        // ▌三、三干三支
+        sb.AppendLine("▌三、三干/三支成局");
+        string sanCheck = LfRunSanGanZhiCheck(dyStem, dyBranch, pillarStems, pillarBranches);
+        sb.AppendLine(string.IsNullOrEmpty(sanCheck) ? "  （無三干三支成局）" : sanCheck);
+        sb.AppendLine();
+
+        // ▌四、空亡
+        sb.AppendLine("▌四、空亡");
+        if (dayEmpty.Contains(dyBranch))
+        {
+            string fav = LfBranchHiddenRatio.TryGetValue(dyBranch, out var hd)
+                ? KbStemToElement(hd[0].stem) == yongShenElem ? "喜神"
+                : KbStemToElement(hd[0].stem) == jiShenElem   ? "忌神" : "中性"
+                : "中性";
+            sb.AppendLine($"  運（{dyBranch}）落入空亡（旬空：{dayEmpty[0]}{dayEmpty[1]}）");
+            sb.AppendLine(fav == "喜神"
+                ? "  → 喜神行空亡運，十年努力易名存實亡，謀事宜保守，成效打折。"
+                : fav == "忌神"
+                ? "  → 忌神行空亡運，凶性虛而不實，十年禍事力道減半。"
+                : "  → 此步行空亡，整體謀事宜低調保守。");
+        }
+        else
+        {
+            sb.AppendLine("  （無空亡）");
+        }
+        sb.AppendLine();
+
+        return sb.ToString().TrimEnd();
+    }
+
     // 四柱神煞論斷（來源：DB 地支星剎 + 天干星剎，四 KIND 全部交叉）
     private static string LfShenShaStarDesc(string star) => star switch
     {
@@ -8927,6 +9349,18 @@ namespace Ecanapi.Controllers
     }
 
     // 空亡論斷（依文檔：空亡在八字中的用法.docx）
+    // 計算旬空二字（日柱天干基準）
+    private static string[] LfCalcDayEmpty(string dStem, string dBranch)
+    {
+        var stems    = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+        var branches = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+        int si = Array.IndexOf(stems, dStem);
+        int bi = Array.IndexOf(branches, dBranch);
+        if (si < 0 || bi < 0) return Array.Empty<string>();
+        int start = (bi - si + 12) % 12;
+        return new[] { branches[(start + 10) % 12], branches[(start + 11) % 12] };
+    }
+
     // 年月時以日柱天干查旬空；日支以年柱天干查旬空
     private static string LfKongWang(
         string yStem, string yBranch, string mStem, string mBranch,
