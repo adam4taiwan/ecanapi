@@ -9316,8 +9316,9 @@ namespace Ecanapi.Controllers
             new Dictionary<string, string>(), new Dictionary<string, string>()
         };
 
-        // 四種 KIND（年/月/日/時），每種以該柱干支為 SKYNO，查四柱地支是否命中 TOFLO
-        for (int ki = 0; ki < 4; ki++)
+        // 四柱本身神煞：只以「年柱」(ki=0) 和「日柱」(ki=2) 為 KIND 基準查四柱
+        // 月柱/時柱不作為基準（它們是被查對象，不是起算依據）
+        foreach (int ki in new[] { 0, 2 })
         {
             if (DiZhiShenShaMap.TryGetValue(brs[ki], out var dzMap))
                 for (int pi = 0; pi < 4; pi++)
