@@ -2926,7 +2926,7 @@ namespace Ecanapi.Controllers
                     yNaYin, mNaYin, dNaYin, hNaYin,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear, user.BirthHour, user.BirthMinute, lunarMonthYdz,
+                    scored, gender, birthYear, user.BirthMonth, user.BirthDay, user.BirthHour, user.BirthMinute, lunarMonthYdz,
                     hasZiwei, palacesYdz, mingGongStarsYdz, mingZhuYdz, shenZhuYdz, wuXingJuTextYdz,
                     ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
                     ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
@@ -3246,7 +3246,7 @@ namespace Ecanapi.Controllers
                     yNaYin, mNaYin, dNaYin, hNaYin,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear, user.BirthHour, user.BirthMinute, lunarMonthDocx,
+                    scored, gender, birthYear, user.BirthMonth, user.BirthDay, user.BirthHour, user.BirthMinute, lunarMonthDocx,
                     hasZiwei, palacesYdz, mingGongStarsYdz, mingZhuYdz, shenZhuYdz, wuXingJuTextYdz,
                     ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
                     ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
@@ -3972,6 +3972,32 @@ namespace Ecanapi.Controllers
 
         private static readonly List<string[]> LfXing = new()
             { new[] { "寅","巳","申" }, new[] { "丑","戌","未" }, new[] { "子","卯" } };
+
+        // 二十四節氣人元司令用事表：月支 → [(藏干, 累積天數上限), ...]
+        private static readonly Dictionary<string, (string stem, int endDay)[]> LfSilingTable = new()
+        {
+            ["寅"] = new[] { ("戊", 7),  ("丙", 14), ("甲", 30) },
+            ["卯"] = new[] { ("甲", 10), ("乙", 30) },
+            ["辰"] = new[] { ("乙", 9),  ("癸", 12), ("戊", 30) },
+            ["巳"] = new[] { ("戊", 5),  ("庚", 14), ("丙", 30) },
+            ["午"] = new[] { ("丙", 10), ("己", 19), ("丁", 30) },
+            ["未"] = new[] { ("丁", 9),  ("乙", 12), ("己", 30) },
+            ["申"] = new[] { ("戊", 10), ("壬", 13), ("庚", 30) },
+            ["酉"] = new[] { ("庚", 10), ("辛", 30) },
+            ["戌"] = new[] { ("辛", 9),  ("丁", 12), ("戊", 30) },
+            ["亥"] = new[] { ("戊", 7),  ("甲", 12), ("壬", 30) },
+            ["子"] = new[] { ("壬", 10), ("癸", 30) },
+            ["丑"] = new[] { ("癸", 9),  ("辛", 12), ("己", 30) },
+        };
+
+        // 月支對應節氣名稱（每月兩個節氣）
+        private static readonly Dictionary<string, (string jie, string qi)> LfBranchSolarTerms = new()
+        {
+            ["寅"] = ("立春", "雨水"),  ["卯"] = ("驚蟄", "春分"),  ["辰"] = ("清明", "穀雨"),
+            ["巳"] = ("立夏", "小滿"),  ["午"] = ("芒種", "夏至"),  ["未"] = ("小暑", "大暑"),
+            ["申"] = ("立秋", "處暑"),  ["酉"] = ("白露", "秋分"),  ["戌"] = ("寒露", "霜降"),
+            ["亥"] = ("立冬", "小雪"),  ["子"] = ("大雪", "冬至"),  ["丑"] = ("小寒", "大寒"),
+        };
 
         // 天干合 (五合)
         private static readonly Dictionary<string, (string stem, string elem)> LfTianGanHeMap = new()
@@ -6549,7 +6575,7 @@ namespace Ecanapi.Controllers
             string season, string seaLabel, string pattern, string yongShenElem, string fuYiElem,
             string yongReason, string jiShenElem,
             List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
-            int gender, int birthYear, int? birthHour, int? birthMinute, int lunarMonth,
+            int gender, int birthYear, int? birthMonth, int? birthDay, int? birthHour, int? birthMinute, int lunarMonth,
             bool hasZiwei, JsonElement palacesYdz, string mingGongStars, string mingZhu, string shenZhu, string wuXingJuText,
             string ziweiMing, string starDescMing, string ziweiFullContent, HashSet<string> chartStars,
             string ziweiOff, string offStars, string ziweiWlt, string wltStars,
@@ -7305,6 +7331,17 @@ namespace Ecanapi.Controllers
             double yongPct2 = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
             sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%   (印比食)體 {tiPct2:F0}%  (財官)用 {yongPct2:F0}%");
             sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
+            // 節氣司令用事（驗算日主強弱參考）
+            if (birthMonth.HasValue && birthDay.HasValue)
+            {
+                string siLingDesc = LfCalcSiLing(birthYear, birthMonth.Value, birthDay.Value, mBranch, dStem);
+                if (!string.IsNullOrEmpty(siLingDesc))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("【節氣司令用事（驗算強弱參考）】");
+                    sb.AppendLine(siLingDesc);
+                }
+            }
             sb.AppendLine();
             sb.AppendLine("【格局判定】");
             sb.AppendLine($"格局：【{pattern}】");
@@ -7782,10 +7819,12 @@ namespace Ecanapi.Controllers
                     if (!string.IsNullOrEmpty(relNote))
                     {
                         hasAnyRelNotes = true;
-                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge} {lc14r.stem}{lc14r.branch}：{relNote}");
+                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge}歲 {lc14r.stem}{lc14r.branch} 【最終評分：{lc14r.score} {lc14r.level}】");
+                        foreach (var noteLine in relNote.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                            relNoteLines.Add($"    {noteLine.Trim()}");
                     }
                     else
-                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge} {lc14r.stem}{lc14r.branch}：（無特殊關係加減）");
+                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge}歲 {lc14r.stem}{lc14r.branch} 【最終評分：{lc14r.score} {lc14r.level}】（無特殊關係加減）");
                 }
                 if (hasAnyRelNotes)
                 {
@@ -9517,6 +9556,78 @@ namespace Ecanapi.Controllers
     }
 
     // 空亡論斷（依文檔：空亡在八字中的用法.docx）
+    // 節氣司令用事：計算出生日入節第幾天、當令藏干
+    private static string LfCalcSiLing(int birthYear, int birthMonth, int birthDay, string mBranch, string dStem)
+    {
+        if (birthYear <= 0 || birthMonth <= 0 || birthDay <= 0) return "";
+
+        DateTime birthDate = new DateTime(birthYear, birthMonth, birthDay);
+        string termName = "";
+        DateTime termStart = birthDate;
+
+        // 掃描最近的節氣起始日（向前最多60天）
+        for (int offset = 0; offset <= 60; offset++)
+        {
+            var testDate = birthDate.AddDays(-offset);
+            var testCal = new Ecan.EcanChineseCalendar(testDate);
+            string st = testCal.SolarTermString;
+            if (!string.IsNullOrEmpty(st))
+            {
+                termStart = testDate;
+                termName  = st;
+                break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(termName)) return "";
+
+        int dayInTerm = (int)(birthDate - termStart).TotalDays + 1; // 第1天起算
+
+        // 查司令天干
+        string siLingStem = "";
+        string siLingPeriod = "";
+        if (LfSilingTable.TryGetValue(mBranch, out var periods))
+        {
+            int prev = 0;
+            foreach (var (s, end) in periods)
+            {
+                if (dayInTerm <= end)
+                {
+                    siLingStem = s;
+                    siLingPeriod = $"第{prev + 1}-{end}天";
+                    break;
+                }
+                prev = end;
+            }
+            if (string.IsNullOrEmpty(siLingStem))
+            {
+                siLingStem   = periods[^1].stem;
+                siLingPeriod = $"第{periods[^2].endDay + 1}天以後";
+            }
+        }
+
+        string siLingSS = string.IsNullOrEmpty(siLingStem) ? "" : LfStemShiShen(siLingStem, dStem);
+
+        // 完整司令順序文字
+        string fullOrder = "";
+        if (LfSilingTable.TryGetValue(mBranch, out var pFull))
+        {
+            int p2 = 0;
+            var parts = pFull.Select(pf => {
+                string r = $"{pf.stem}（{p2 + 1}-{pf.endDay}天）";
+                p2 = pf.endDay;
+                return r;
+            });
+            fullOrder = string.Join(" → ", parts);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"  入節第 {dayInTerm} 天（節氣：{termName}）");
+        sb.AppendLine($"  當令藏干：{siLingStem}（{siLingPeriod}）→ 十神：{siLingSS}");
+        sb.AppendLine($"  {mBranch}月司令順序：{fullOrder}");
+        return sb.ToString().TrimEnd();
+    }
+
     // 計算旬空二字（日柱天干基準）
     private static string[] LfCalcDayEmpty(string dStem, string dBranch)
     {
