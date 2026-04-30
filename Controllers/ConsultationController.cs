@@ -9309,10 +9309,11 @@ namespace Ecanapi.Controllers
             "夫妻宮（自身伴侶）",   "子女宮（晚年）"
         };
 
-        // pillarStars[pi] = 落在第 pi 柱的神煞（以四柱各為 KIND 基準交叉取星）
+        // pillarStars[pi] = 落在第 pi 柱的神煞（記錄來源柱與類型）
+        // key = star name, value = "年支→支" / "日干→支" 等來源標注（取最先命中者）
         var pillarStars = new[] {
-            new HashSet<string>(), new HashSet<string>(),
-            new HashSet<string>(), new HashSet<string>()
+            new Dictionary<string, string>(), new Dictionary<string, string>(),
+            new Dictionary<string, string>(), new Dictionary<string, string>()
         };
 
         // 四種 KIND（年/月/日/時），每種以該柱干支為 SKYNO，查四柱地支是否命中 TOFLO
@@ -9321,12 +9322,14 @@ namespace Ecanapi.Controllers
             if (DiZhiShenShaMap.TryGetValue(brs[ki], out var dzMap))
                 for (int pi = 0; pi < 4; pi++)
                     if (dzMap.TryGetValue(brs[pi], out var ss))
-                        foreach (var s in ss) pillarStars[pi].Add(s);
+                        foreach (var s in ss)
+                            pillarStars[pi].TryAdd(s, $"{labels[ki]}支→支");
 
             if (TianGanShenShaMap.TryGetValue(stems[ki], out var tgMap))
                 for (int pi = 0; pi < 4; pi++)
                     if (tgMap.TryGetValue(brs[pi], out var ss))
-                        foreach (var s in ss) pillarStars[pi].Add(s);
+                        foreach (var s in ss)
+                            pillarStars[pi].TryAdd(s, $"{labels[ki]}干→支");
         }
 
         var sb = new System.Text.StringBuilder();
@@ -9336,7 +9339,11 @@ namespace Ecanapi.Controllers
             if (pillarStars[i].Count > 0)
             {
                 var starList = pillarStars[i]
-                    .Select(s => { var d = LfShenShaStarDesc(s); return string.IsNullOrEmpty(d) ? s : $"{s}({d})"; });
+                    .Select(kv => {
+                        var d = LfShenShaStarDesc(kv.Key);
+                        string name = string.IsNullOrEmpty(d) ? kv.Key : $"{kv.Key}({d})";
+                        return $"{name}〔{kv.Value}〕";
+                    });
                 sb.AppendLine($"  神煞：{string.Join("、", starList)}");
             }
             else
