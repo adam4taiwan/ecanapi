@@ -4936,6 +4936,20 @@ namespace Ecanapi.Controllers
             foreach (var (brs, elem) in LfSanHe)
                 if (brs.Contains(lcBranch) && brs.Count(b => b != lcBranch && chartBranches.Contains(b)) == 2)
                 { if (goodElems.Contains(elem)) score += 7; else if (badElems.Contains(elem)) score -= 7; }
+            // 三合半合（命局已有1字，大運帶第2字引動）
+            foreach (var (brs, elem) in LfSanHe)
+                if (brs.Contains(lcBranch) && brs.Count(b => b != lcBranch && chartBranches.Contains(b)) == 1)
+                {
+                    if (badElems.Contains(lcBranchMainElem))      score += 4;  // 忌神被半合，減凶
+                    else if (goodElems.Contains(lcBranchMainElem)) score -= 3;  // 喜神被半合，吉稍減
+                }
+            // 三會半合
+            foreach (var (brs, elem) in LfSanHui)
+                if (brs.Contains(lcBranch) && brs.Count(b => b != lcBranch && chartBranches.Contains(b)) == 1)
+                {
+                    if (badElems.Contains(lcBranchMainElem))      score += 5;  // 忌神被半會，減凶
+                    else if (goodElems.Contains(lcBranchMainElem)) score -= 4;  // 喜神被半會，吉稍減
+                }
             if (LfHe.TryGetValue(lcBranch, out var heInfo) && chartBranches.Contains(heInfo.partner))
             { if (goodElems.Contains(heInfo.elem)) score += 4; else if (badElems.Contains(heInfo.elem)) score -= 4; }
             foreach (var xg in LfXing)
@@ -4957,6 +4971,120 @@ namespace Ecanapi.Controllers
         {
             >= 80 => "大吉運", >= 65 => "中吉運", >= 50 => "平吉運", >= 38 => "平運", >= 20 => "中凶運", _ => "大凶運"
         };
+
+        // 大運干支 vs 四柱完整關係表（供走勢總覽驗算）
+        private static string LfDyRelNotesStr(
+            string lcStem, string lcBranch, string lcStemSS, string lcBranchSS,
+            string[] chartBranches, string[] chartStems,
+            string[] chartBranchSS, string[] chartStemSS,
+            string[] goodElems, string[] badElems)
+        {
+            var sb2 = new StringBuilder();
+            var bl = new[] { "年", "月", "日", "時" };
+            string lcStemElem    = KbStemToElement(lcStem);
+            string lcBranchMainElem = LfBranchHiddenRatio.TryGetValue(lcBranch, out var lcBH) && lcBH.Count > 0
+                ? KbStemToElement(lcBH[0].stem) : "";
+            bool runStemBad  = badElems.Contains(lcStemElem);
+            bool runStemGood = goodElems.Contains(lcStemElem);
+            bool runBrBad    = badElems.Contains(lcBranchMainElem);
+            bool runBrGood   = goodElems.Contains(lcBranchMainElem);
+
+            // === 運干 vs 四柱天干：生/克/合 ===
+            var stemParts = new List<string>();
+            for (int ci = 0; ci < chartStems.Length; ci++)
+            {
+                string tarElem = KbStemToElement(chartStems[ci]);
+                string rel, note = "";
+
+                // 天干合優先
+                if (LfTianGanHeMap.TryGetValue(lcStem, out var tgHe2) && tgHe2.stem == chartStems[ci])
+                {
+                    int imp = runStemGood ? -5 : runStemBad ? +5 : 0;
+                    rel = $"合→{tgHe2.elem}[{(imp >= 0 ? "+" : "")}{imp}]";
+                }
+                else if (lcStem == chartStems[ci])          rel = "同干";
+                else if (lcStemElem == tarElem)              rel = "同五行";
+                else if (LfElemGen.GetValueOrDefault(lcStemElem) == tarElem)
+                    rel = $"運生{bl[ci]}干";
+                else if (LfElemGen.GetValueOrDefault(tarElem) == lcStemElem)
+                    rel = $"{bl[ci]}干生運";
+                else if (LfElemOvercome.GetValueOrDefault(lcStemElem) == tarElem)
+                    rel = $"運克{bl[ci]}干";
+                else if (LfElemOvercome.GetValueOrDefault(tarElem) == lcStemElem)
+                    rel = $"{bl[ci]}干克運";
+                else
+                    rel = "無";
+
+                stemParts.Add($"{bl[ci]}干{chartStems[ci]}({chartStemSS[ci]})→{rel}");
+            }
+            sb2.AppendLine($"  干({lcStem}·{lcStemSS}·{lcStemElem})：{string.Join("｜", stemParts)}");
+
+            // === 運支 vs 四柱地支：六合/六沖/六害/三刑（1對1）===
+            var brParts = new List<string>();
+            for (int ci = 0; ci < chartBranches.Length; ci++)
+            {
+                string cb  = chartBranches[ci];
+                string cbss = chartBranchSS[ci];
+                string cbElem = LfBranchHiddenRatio.TryGetValue(cb, out var cbH2) && cbH2.Count > 0
+                    ? KbStemToElement(cbH2[0].stem) : "";
+                var relList = new List<string>();
+
+                // 六合
+                if (LfHe.TryGetValue(lcBranch, out var heI) && heI.partner == cb)
+                {
+                    int imp = goodElems.Contains(heI.elem) ? +4 : badElems.Contains(heI.elem) ? -4 : 0;
+                    string why = runBrBad ? "忌神被合凶減" : runBrGood ? "喜神被合吉稍減" : "";
+                    relList.Add($"六合→{heI.elem} {why}[{(imp >= 0 ? "+" : "")}{imp}]");
+                }
+                // 六沖
+                if (LfChong.Contains(lcBranch + cb))
+                {
+                    bool tarGood = goodElems.Contains(cbElem), tarBad = badElems.Contains(cbElem);
+                    int imp = (runBrBad && tarGood) ? -6 : (runBrGood && tarBad) ? +4 : (runBrBad && tarBad) ? -3 : 0;
+                    string why = (runBrBad && tarGood) ? "忌沖喜凶增" : (runBrGood && tarBad) ? "沖走忌凶減" : (runBrBad && tarBad) ? "雙忌沖動盪" : "震盪";
+                    relList.Add($"六沖 {why}[{(imp >= 0 ? "+" : "")}{imp}]");
+                }
+                // 六害
+                if (LfHai.Contains(lcBranch + cb))
+                    relList.Add("六害 暗損[-3]");
+                // 三刑
+                foreach (var xg in LfXing)
+                    if (xg.Contains(lcBranch) && xg.Contains(cb))
+                        relList.Add("三刑 動盪[-4]");
+
+                brParts.Add($"{bl[ci]}支{cb}({cbss})→{(relList.Count > 0 ? string.Join("/", relList) : "無")}");
+            }
+            sb2.AppendLine($"  支({lcBranch}·{lcBranchSS}·{lcBranchMainElem})：{string.Join("｜", brParts)}");
+
+            // === 三合/三會 統覽 ===
+            var groupLines = new List<string>();
+            foreach (var (brs, elem) in LfSanHe)
+            {
+                if (!brs.Contains(lcBranch)) continue;
+                var inChart  = brs.Where(b => b != lcBranch && chartBranches.Contains(b)).ToList();
+                var missing  = brs.Where(b => b != lcBranch && !chartBranches.Contains(b)).ToList();
+                int cnt = inChart.Count;
+                string status = cnt == 2 ? "全局成立" : cnt == 1 ? $"半合（有{string.Join(",", inChart)}，缺{string.Join(",", missing)}）" : $"孤立（命局無其他字，缺{string.Join(",", missing)}）";
+                int impact = cnt == 2 ? (goodElems.Contains(elem) ? +7 : badElems.Contains(elem) ? -7 : 0)
+                           : cnt == 1 ? (runBrBad ? +4 : runBrGood ? -3 : 0) : 0;
+                groupLines.Add($"三合{string.Join("+", brs)}→{elem}局：{status}[{(impact >= 0 ? "+" : "")}{impact}]");
+            }
+            foreach (var (brs, elem) in LfSanHui)
+            {
+                if (!brs.Contains(lcBranch)) continue;
+                var inChart = brs.Where(b => b != lcBranch && chartBranches.Contains(b)).ToList();
+                var missing = brs.Where(b => b != lcBranch && !chartBranches.Contains(b)).ToList();
+                int cnt = inChart.Count;
+                string status = cnt == 2 ? "全局成立" : cnt == 1 ? $"半會（有{string.Join(",", inChart)}，缺{string.Join(",", missing)}）" : $"孤立（缺{string.Join(",", missing)}）";
+                int impact = cnt == 2 ? (goodElems.Contains(elem) ? +10 : badElems.Contains(elem) ? -10 : 0)
+                           : cnt == 1 ? (runBrBad ? +5 : runBrGood ? -4 : 0) : 0;
+                groupLines.Add($"三會{string.Join("+", brs)}→{elem}局：{status}[{(impact >= 0 ? "+" : "")}{impact}]");
+            }
+            if (groupLines.Count > 0)
+                sb2.AppendLine($"  三合三會：{string.Join("｜", groupLines)}");
+
+            return sb2.ToString().TrimEnd();
+        }
 
         // 偵測大運地支與命局地支的沖刑會合破，僅供文字描述，不影響評分
         private static string LfBranchEvents(string lcBranch, string[] chartBranches)
@@ -7634,6 +7762,38 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
                 sb.AppendLine($"（★ 現走大運，當前年齡 {currentAge} 歲，用神：{yongShenElem}，大忌：{jiShenElem}）");
                 sb.AppendLine();
+
+                // 大運關係加減說明
+                var chartStemSS14 = new[] { yStemSS, mStemSS, "日主", hStemSS };
+                bool hasAnyRelNotes = false;
+                var relNoteLines = new List<string>();
+                foreach (var lc14r in scored)
+                {
+                    string lc14rStemSS   = LfStemShiShen(lc14r.stem, dStem);
+                    string lc14rBranchSS = LfBranchHiddenRatio.TryGetValue(lc14r.branch, out var lc14rBH) && lc14rBH.Count > 0
+                        ? LfStemShiShen(lc14rBH[0].stem, dStem) : "";
+                    string relNote = LfDyRelNotesStr(
+                        lc14r.stem, lc14r.branch, lc14rStemSS, lc14rBranchSS,
+                        pillarBranches14, pillarStems14,
+                        pillarBranchSS14, chartStemSS14,
+                        goodElems14, badElems14);
+                    bool isCur = lc14r.startAge <= currentAge && lc14r.endAge >= currentAge;
+                    string curMk = isCur ? "★" : "";
+                    if (!string.IsNullOrEmpty(relNote))
+                    {
+                        hasAnyRelNotes = true;
+                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge} {lc14r.stem}{lc14r.branch}：{relNote}");
+                    }
+                    else
+                        relNoteLines.Add($"  {curMk}{lc14r.startAge}-{lc14r.endAge} {lc14r.stem}{lc14r.branch}：（無特殊關係加減）");
+                }
+                if (hasAnyRelNotes)
+                {
+                    sb.AppendLine("【大運干支關係加減說明】");
+                    sb.AppendLine("（評分基準50 ± 干支喜忌 ± 刑沖害合三合三會；括號[]為加減分值）");
+                    foreach (var line in relNoteLines) sb.AppendLine(line);
+                    sb.AppendLine();
+                }
 
                 // 二、逐運詳細論斷（天干期 + 地支期 + 紫微交叉）
                 sb.AppendLine("二、逐運詳細論斷");
