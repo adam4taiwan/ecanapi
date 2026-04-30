@@ -7783,11 +7783,17 @@ namespace Ecanapi.Controllers
                 bool isBodyStrong14 = bodyPct >= 50;
                 var (goodElems14, badElems14) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong14);
 
-                // 一、大運走勢總覽表（全部大運）
+                // 只顯示目前大運前一步到往後第8步（過去已過，無論斷意義）
+                int curIdx14 = scored.FindIndex(lc => lc.startAge <= currentAge && lc.endAge >= currentAge);
+                int startIdx14 = Math.Max(0, curIdx14 - 1);
+                var scored14 = scored.Skip(startIdx14).Take(8).ToList();
+
+                // 一、大運走勢總覽表
                 sb.AppendLine("一、大運走勢總覽");
+                sb.AppendLine($"（顯示範圍：前一步大運至往後第8步，共 {scored14.Count} 步；全部 {scored.Count} 步）");
                 sb.AppendLine("| 歲數 | 干支 | 天干 | 地支 | 評分 | 等級 |");
                 sb.AppendLine("|------|------|------|------|------|------|");
-                foreach (var lc14 in scored)
+                foreach (var lc14 in scored14)
                 {
                     string bSS14 = LfBranchHiddenRatio.TryGetValue(lc14.branch, out var bhAll14) && bhAll14.Count > 0
                         ? LfStemShiShen(bhAll14[0].stem, dStem) : "";
@@ -7804,7 +7810,7 @@ namespace Ecanapi.Controllers
                 var chartStemSS14 = new[] { yStemSS, mStemSS, "日主", hStemSS };
                 bool hasAnyRelNotes = false;
                 var relNoteLines = new List<string>();
-                foreach (var lc14r in scored)
+                foreach (var lc14r in scored14)
                 {
                     string lc14rStemSS   = LfStemShiShen(lc14r.stem, dStem);
                     string lc14rBranchSS = LfBranchHiddenRatio.TryGetValue(lc14r.branch, out var lc14rBH) && lc14rBH.Count > 0
@@ -7837,7 +7843,7 @@ namespace Ecanapi.Controllers
                 // 二、逐運詳細論斷（天干期 + 地支期 + 紫微交叉）
                 sb.AppendLine("二、逐運詳細論斷");
                 sb.AppendLine();
-                foreach (var lc in scored)
+                foreach (var lc in scored14)
                 {
                     string stemElem14  = KbStemToElement(lc.stem);
                     bool hasHidden14 = LfBranchHiddenRatio.TryGetValue(lc.branch, out var bhLc14) && bhLc14.Count > 0;
