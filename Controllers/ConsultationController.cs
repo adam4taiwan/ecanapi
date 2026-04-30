@@ -3814,6 +3814,84 @@ namespace Ecanapi.Controllers
 
         // === Lf Static Data Tables ===
 
+        // 地支神煞查表：地支(SKYNO) → 地支(TOFLO) → 神煞名稱
+        // 來源：DB public."地支星剎"（四 KIND 資料相同）
+        private static readonly Dictionary<string, Dictionary<string, string[]>> DiZhiShenShaMap = new()
+        {
+            ["子"] = new() { ["子"]=new[]{"將星"}, ["寅"]=new[]{"驛馬","孤辰"}, ["卯"]=new[]{"紅鸞"},
+                             ["辰"]=new[]{"華蓋"}, ["巳"]=new[]{"劫煞"}, ["午"]=new[]{"災煞"},
+                             ["酉"]=new[]{"桃花","天喜"}, ["戌"]=new[]{"寡宿"}, ["亥"]=new[]{"亡神"} },
+            ["丑"] = new() { ["丑"]=new[]{"華蓋"}, ["寅"]=new[]{"劫煞","孤辰","紅鸞"}, ["卯"]=new[]{"災煞"},
+                             ["午"]=new[]{"桃花"}, ["申"]=new[]{"亡神","天喜"}, ["酉"]=new[]{"將星"},
+                             ["戌"]=new[]{"寡宿"}, ["亥"]=new[]{"驛馬"} },
+            ["寅"] = new() { ["子"]=new[]{"災煞"}, ["丑"]=new[]{"寡宿","紅鸞"}, ["卯"]=new[]{"桃花"},
+                             ["午"]=new[]{"將星"}, ["未"]=new[]{"天喜"}, ["申"]=new[]{"驛馬"},
+                             ["巳"]=new[]{"亡神","孤辰"}, ["戌"]=new[]{"華蓋"}, ["亥"]=new[]{"劫煞"} },
+            ["卯"] = new() { ["子"]=new[]{"桃花","紅鸞"}, ["丑"]=new[]{"寡宿"}, ["卯"]=new[]{"將星"},
+                             ["午"]=new[]{"天喜"}, ["未"]=new[]{"華蓋"}, ["申"]=new[]{"劫煞"},
+                             ["巳"]=new[]{"驛馬","孤辰"}, ["酉"]=new[]{"災煞"}, ["寅"]=new[]{"亡神"} },
+            ["辰"] = new() { ["子"]=new[]{"將星"}, ["丑"]=new[]{"寡宿"}, ["辰"]=new[]{"華蓋"},
+                             ["午"]=new[]{"災煞"}, ["酉"]=new[]{"桃花"}, ["寅"]=new[]{"驛馬"},
+                             ["巳"]=new[]{"劫煞","孤辰","天喜"}, ["亥"]=new[]{"亡神","紅鸞"} },
+            ["巳"] = new() { ["丑"]=new[]{"華蓋"}, ["寅"]=new[]{"劫煞"}, ["卯"]=new[]{"災煞"},
+                             ["辰"]=new[]{"寡宿","天喜"}, ["午"]=new[]{"桃花"}, ["申"]=new[]{"亡神","孤辰"},
+                             ["酉"]=new[]{"將星"}, ["戌"]=new[]{"紅鸞"}, ["亥"]=new[]{"驛馬"} },
+            ["午"] = new() { ["子"]=new[]{"災煞"}, ["卯"]=new[]{"桃花","天喜"}, ["辰"]=new[]{"寡宿"},
+                             ["午"]=new[]{"將星"}, ["巳"]=new[]{"亡神"}, ["申"]=new[]{"驛馬","孤辰"},
+                             ["酉"]=new[]{"紅鸞"}, ["戌"]=new[]{"華蓋"}, ["亥"]=new[]{"劫煞"} },
+            ["未"] = new() { ["子"]=new[]{"桃花"}, ["卯"]=new[]{"將星"}, ["辰"]=new[]{"寡宿"},
+                             ["未"]=new[]{"華蓋"}, ["巳"]=new[]{"驛馬"}, ["申"]=new[]{"劫煞","孤辰","紅鸞"},
+                             ["酉"]=new[]{"災煞"}, ["寅"]=new[]{"亡神","天喜"} },
+            ["申"] = new() { ["子"]=new[]{"將星"}, ["丑"]=new[]{"天喜"}, ["辰"]=new[]{"華蓋"},
+                             ["午"]=new[]{"災煞"}, ["未"]=new[]{"寡宿","紅鸞"}, ["巳"]=new[]{"劫煞"},
+                             ["酉"]=new[]{"桃花"}, ["寅"]=new[]{"驛馬"}, ["亥"]=new[]{"亡神","孤辰"} },
+            ["酉"] = new() { ["子"]=new[]{"天喜"}, ["丑"]=new[]{"華蓋"}, ["卯"]=new[]{"災煞"},
+                             ["午"]=new[]{"桃花","紅鸞"}, ["未"]=new[]{"寡宿"}, ["申"]=new[]{"亡神"},
+                             ["酉"]=new[]{"將星"}, ["寅"]=new[]{"劫煞"}, ["亥"]=new[]{"驛馬","孤辰"} },
+            ["戌"] = new() { ["子"]=new[]{"災煞"}, ["卯"]=new[]{"桃花"}, ["午"]=new[]{"將星"},
+                             ["未"]=new[]{"寡宿"}, ["巳"]=new[]{"亡神","紅鸞"}, ["申"]=new[]{"驛馬"},
+                             ["戌"]=new[]{"華蓋"}, ["亥"]=new[]{"劫煞","孤辰","天喜"} },
+            ["亥"] = new() { ["子"]=new[]{"桃花"}, ["卯"]=new[]{"將星"}, ["辰"]=new[]{"紅鸞"},
+                             ["未"]=new[]{"華蓋"}, ["巳"]=new[]{"驛馬"}, ["申"]=new[]{"劫煞"},
+                             ["酉"]=new[]{"災煞"}, ["戌"]=new[]{"寡宿","天喜"}, ["寅"]=new[]{"亡神","孤辰"} },
+        };
+
+        // 天干神煞查表：天干(SKYNO) → 地支(TOFLO) → 神煞名稱
+        // 來源：DB public."天干星剎" KIND=日（各KIND資料幾乎相同）
+        private static readonly Dictionary<string, Dictionary<string, string[]>> TianGanShenShaMap = new()
+        {
+            ["甲"] = new() { ["子"]=new[]{"學士"}, ["丑"]=new[]{"乙貴","血刃"}, ["寅"]=new[]{"干祿"},
+                             ["卯"]=new[]{"羊刃","桃花"}, ["巳"]=new[]{"文昌"}, ["午"]=new[]{"紅艷"},
+                             ["未"]=new[]{"乙貴"}, ["申"]=new[]{"路空"}, ["酉"]=new[]{"飛刃"}, ["亥"]=new[]{"桃花"} },
+            ["乙"] = new() { ["子"]=new[]{"乙貴"}, ["寅"]=new[]{"血刃"}, ["卯"]=new[]{"干祿","桃花"},
+                             ["辰"]=new[]{"羊刃"}, ["午"]=new[]{"紅艷"}, ["申"]=new[]{"乙貴"},
+                             ["戌"]=new[]{"飛刃"}, ["亥"]=new[]{"學士","桃花"} },
+            ["丙"] = new() { ["子"]=new[]{"飛刃","桃花"}, ["寅"]=new[]{"紅艷"}, ["卯"]=new[]{"學士"},
+                             ["辰"]=new[]{"血刃"}, ["巳"]=new[]{"干祿"}, ["午"]=new[]{"羊刃"},
+                             ["申"]=new[]{"文昌","桃花"}, ["酉"]=new[]{"乙貴"}, ["亥"]=new[]{"乙貴"} },
+            ["丁"] = new() { ["子"]=new[]{"桃花"}, ["寅"]=new[]{"學士"}, ["巳"]=new[]{"血刃"},
+                             ["午"]=new[]{"干祿"}, ["未"]=new[]{"紅艷","羊刃"}, ["申"]=new[]{"桃花"},
+                             ["酉"]=new[]{"乙貴","文昌"}, ["亥"]=new[]{"乙貴"} },
+            ["戊"] = new() { ["子"]=new[]{"飛刃"}, ["丑"]=new[]{"乙貴"}, ["卯"]=new[]{"桃花"},
+                             ["辰"]=new[]{"紅艷","血刃"}, ["巳"]=new[]{"干祿"}, ["午"]=new[]{"羊刃","學士"},
+                             ["未"]=new[]{"乙貴"}, ["申"]=new[]{"文昌"} },
+            ["己"] = new() { ["子"]=new[]{"乙貴"}, ["丑"]=new[]{"飛刃"}, ["辰"]=new[]{"紅艷"},
+                             ["巳"]=new[]{"學士","血刃"}, ["午"]=new[]{"干祿"}, ["未"]=new[]{"羊刃"},
+                             ["申"]=new[]{"乙貴"}, ["酉"]=new[]{"文昌"}, ["戌"]=new[]{"桃花"} },
+            ["庚"] = new() { ["丑"]=new[]{"乙貴"}, ["卯"]=new[]{"飛刃"}, ["巳"]=new[]{"桃花"},
+                             ["午"]=new[]{"學士"}, ["未"]=new[]{"乙貴","血刃"}, ["申"]=new[]{"干祿"},
+                             ["酉"]=new[]{"羊刃"}, ["戌"]=new[]{"紅艷"}, ["亥"]=new[]{"文昌","桃花"} },
+            ["辛"] = new() { ["子"]=new[]{"文昌"}, ["寅"]=new[]{"乙貴"}, ["辰"]=new[]{"飛刃"},
+                             ["巳"]=new[]{"學士"}, ["午"]=new[]{"乙貴"}, ["申"]=new[]{"血刃"},
+                             ["酉"]=new[]{"干祿","紅艷"}, ["戌"]=new[]{"羊刃"} },
+            ["壬"] = new() { ["子"]=new[]{"紅艷","羊刃"}, ["寅"]=new[]{"文昌"}, ["卯"]=new[]{"乙貴"},
+                             ["巳"]=new[]{"乙貴"}, ["午"]=new[]{"飛刃","桃花"}, ["申"]=new[]{"學士"},
+                             ["戌"]=new[]{"血刃"}, ["亥"]=new[]{"干祿"} },
+            ["癸"] = new() { ["子"]=new[]{"干祿"}, ["丑"]=new[]{"羊刃"}, ["卯"]=new[]{"文昌","乙貴"},
+                             ["巳"]=new[]{"乙貴"}, ["未"]=new[]{"飛刃"}, ["申"]=new[]{"紅艷","學士"},
+                             ["亥"]=new[]{"血刃"} },
+        };
+
         private static readonly Dictionary<string, List<(string stem, double ratio)>> LfBranchHiddenRatio = new()
         {
             { "子", new() { ("癸", 1.0) } },
@@ -7019,6 +7097,18 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
+            // === 四柱神煞 ===
+            string shenShaDesc = LfShenSha(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                yStemSS, mStemSS, hStemSS,
+                yBranchSS, mBranchSS, dBranchSS, hBranchSS);
+            if (!string.IsNullOrEmpty(shenShaDesc))
+            {
+                sb.AppendLine("【四柱神煞】");
+                sb.AppendLine(shenShaDesc);
+                sb.AppendLine();
+            }
+
             // 中原盲派 - 天干地支重複直斷
             if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
             {
@@ -8768,6 +8858,73 @@ namespace Ecanapi.Controllers
 
         private static string LfElemBranches(string elem) => elem switch
         { "木"=>"寅卯","火"=>"巳午","土"=>"辰戌丑未","金"=>"申酉","水"=>"亥子",_=>"" };
+
+    // 四柱神煞論斷（來源：DB 地支星剎 + 天干星剎，四 KIND 全部交叉）
+    private static string LfShenShaStarDesc(string star) => star switch
+    {
+        "將星" => "領導掌權", "劫煞" => "破財小人", "災煞" => "傷病意外",
+        "驛馬" => "奔波移動", "桃花" => "人緣感情", "亡神" => "損耗消散",
+        "華蓋" => "孤高藝術", "寡宿" => "孤寂清冷", "孤辰" => "孤立不群",
+        "紅鸞" => "喜慶婚嫁", "天喜" => "吉慶喜事", "乙貴" => "天乙貴人",
+        "文昌" => "文才學術", "干祿" => "本命食祿", "羊刃" => "剛烈衝動",
+        "飛刃" => "刑剋傷損", "血刃" => "血光意外", "紅艷" => "異性桃花",
+        "學士" => "才學聰穎", "路空" => "虛而不實", _ => ""
+    };
+
+    private static string LfShenSha(
+        string yStem, string yBranch, string mStem, string mBranch,
+        string dStem, string dBranch, string hStem, string hBranch,
+        string yStemSS, string mStemSS, string hStemSS,
+        string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS)
+    {
+        var stems   = new[] { yStem,   mStem,   dStem,   hStem   };
+        var brs     = new[] { yBranch, mBranch, dBranch, hBranch };
+        var labels  = new[] { "年", "月", "日", "時" };
+        var stemSS  = new[] { yStemSS, mStemSS, "日主", hStemSS };
+        var brSS    = new[] { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+        var palaces = new[] {
+            "祖先宮（早年0-16歲）", "父母宮（青年17-32歲）",
+            "夫妻宮（自身伴侶）",   "子女宮（晚年）"
+        };
+
+        // pillarStars[pi] = 落在第 pi 柱的神煞（以四柱各為 KIND 基準交叉取星）
+        var pillarStars = new[] {
+            new HashSet<string>(), new HashSet<string>(),
+            new HashSet<string>(), new HashSet<string>()
+        };
+
+        // 四種 KIND（年/月/日/時），每種以該柱干支為 SKYNO，查四柱地支是否命中 TOFLO
+        for (int ki = 0; ki < 4; ki++)
+        {
+            if (DiZhiShenShaMap.TryGetValue(brs[ki], out var dzMap))
+                for (int pi = 0; pi < 4; pi++)
+                    if (dzMap.TryGetValue(brs[pi], out var ss))
+                        foreach (var s in ss) pillarStars[pi].Add(s);
+
+            if (TianGanShenShaMap.TryGetValue(stems[ki], out var tgMap))
+                for (int pi = 0; pi < 4; pi++)
+                    if (tgMap.TryGetValue(brs[pi], out var ss))
+                        foreach (var s in ss) pillarStars[pi].Add(s);
+        }
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < 4; i++)
+        {
+            sb.AppendLine($"▍{labels[i]}柱（{stems[i]}{brs[i]}）天干：{stemSS[i]}　地支：{brSS[i]}　宮位：{palaces[i]}");
+            if (pillarStars[i].Count > 0)
+            {
+                var starList = pillarStars[i]
+                    .Select(s => { var d = LfShenShaStarDesc(s); return string.IsNullOrEmpty(d) ? s : $"{s}({d})"; });
+                sb.AppendLine($"  神煞：{string.Join("、", starList)}");
+            }
+            else
+            {
+                sb.AppendLine("  神煞：無");
+            }
+            if (i < 3) sb.AppendLine();
+        }
+        return sb.ToString().Trim();
+    }
 
     // 空亡論斷（依文檔：空亡在八字中的用法.docx）
     // 年月時以日柱天干查旬空；日支以年柱天干查旬空
