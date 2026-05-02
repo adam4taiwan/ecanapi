@@ -556,16 +556,27 @@ namespace Ecanapi.Controllers
                 string siHuaKe   = await KbSiHuaQuery(nianGan, "化科", palaces);
                 string siHuaJi   = await KbSiHuaQuery(nianGan, "化忌", palaces);
 
-                // 宮位四化（各宮宮干→化星飛入目標宮）
-                var (mingLuPalace,  mingLuContent)  = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化祿");
-                var (mingJiPalace,  mingJiContent)  = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化忌");
-                var (offLuPalace,   offLuContent)   = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化祿");
-                var (offJiPalace,   offJiContent)   = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化忌");
-                var (wltLuPalace,   wltLuContent)   = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化祿");
-                var (wltJiPalace,   wltJiContent)   = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化忌");
-                var (spsLuPalace,   spsLuContent)   = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化祿");
-                var (spsJiPalace,   spsJiContent)   = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化忌");
-                var (hltJiPalace,   hltJiContent)   = await KbGongWeiSiHuaQuery(palaces, "疾厄宮","化忌");
+                // 宮位四化（各宮宮干→化星飛入目標宮，每宮查全四化）
+                var (mingLuPalace,   mingLuContent)   = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化祿");
+                var (mingQuanPalace, mingQuanContent) = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化權");
+                var (mingKePalace,   mingKeContent)   = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化科");
+                var (mingJiPalace,   mingJiContent)   = await KbGongWeiSiHuaQuery(palaces, "命宮",  "化忌");
+                var (offLuPalace,    offLuContent)    = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化祿");
+                var (offQuanPalace,  offQuanContent)  = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化權");
+                var (offKePalace,    offKeContent)    = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化科");
+                var (offJiPalace,    offJiContent)    = await KbGongWeiSiHuaQuery(palaces, "官祿宮","化忌");
+                var (wltLuPalace,    wltLuContent)    = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化祿");
+                var (wltQuanPalace,  wltQuanContent)  = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化權");
+                var (wltKePalace,    wltKeContent)    = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化科");
+                var (wltJiPalace,    wltJiContent)    = await KbGongWeiSiHuaQuery(palaces, "財帛宮","化忌");
+                var (spsLuPalace,    spsLuContent)    = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化祿");
+                var (spsQuanPalace,  spsQuanContent)  = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化權");
+                var (spsKePalace,    spsKeContent)    = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化科");
+                var (spsJiPalace,    spsJiContent)    = await KbGongWeiSiHuaQuery(palaces, "夫妻宮","化忌");
+                var (hltLuPalace,    hltLuContent)    = await KbGongWeiSiHuaQuery(palaces, "疾厄宮","化祿");
+                var (hltQuanPalace,  hltQuanContent)  = await KbGongWeiSiHuaQuery(palaces, "疾厄宮","化權");
+                var (hltKePalace,    hltKeContent)    = await KbGongWeiSiHuaQuery(palaces, "疾厄宮","化科");
+                var (hltJiPalace,    hltJiContent)    = await KbGongWeiSiHuaQuery(palaces, "疾厄宮","化忌");
 
                 // 主星入宮（6/7/8三個主星文件）
                 string starDescMing = await KbQueryStarInPalace(palaces, "命宮");
@@ -658,8 +669,10 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(siHuaQuan))  sb_out.AppendLine($"【先天化權·{siHuaQuanPalace}】{siHuaQuan}");
                 if (!string.IsNullOrEmpty(siHuaJi))    sb_out.AppendLine($"【先天化忌·{siHuaJiPalace}】{siHuaJi}");
                 // 命宮宮位四化飛出
-                if (!string.IsNullOrEmpty(mingLuContent)) sb_out.AppendLine($"【命宮化祿飛{mingLuPalace}】{mingLuContent}");
-                if (!string.IsNullOrEmpty(mingJiContent)) sb_out.AppendLine($"【命宮化忌飛{mingJiPalace}】{mingJiContent}");
+                if (!string.IsNullOrEmpty(mingLuContent))   sb_out.AppendLine($"【命宮化祿飛{mingLuPalace}】{mingLuContent}");
+                if (!string.IsNullOrEmpty(mingQuanContent)) sb_out.AppendLine($"【命宮化權飛{mingQuanPalace}】{mingQuanContent}");
+                if (!string.IsNullOrEmpty(mingKeContent))   sb_out.AppendLine($"【命宮化科飛{mingKePalace}】{mingKeContent}");
+                if (!string.IsNullOrEmpty(mingJiContent))   sb_out.AppendLine($"【命宮化忌飛{mingJiPalace}】{mingJiContent}");
                 bool ch2BaziHas  = !string.IsNullOrEmpty(phenomenon) || !string.IsNullOrEmpty(rootType);
                 bool ch2ZiweiHas = !string.IsNullOrEmpty(ziweiMing);
                 if (ch2BaziHas && ch2ZiweiHas) sb_out.AppendLine("【格局交叉驗證】八字與紫微雙重印證，命格論斷可信度高。");
@@ -704,15 +717,19 @@ namespace Ecanapi.Controllers
                 // 官祿宮12宮星情 + 宮位四化飛出 + 主星入宮
                 if (!string.IsNullOrEmpty(ziweiOff))     sb_out.AppendLine($"【官祿宮·{ziweiOffStar}】{ziweiOff}");
                 if (!string.IsNullOrEmpty(starDescOff))  sb_out.AppendLine($"【官祿星性】{starDescOff}");
-                if (!string.IsNullOrEmpty(offLuContent)) sb_out.AppendLine($"【官祿宮化祿飛{offLuPalace}】{offLuContent}");
-                if (!string.IsNullOrEmpty(offJiContent)) sb_out.AppendLine($"【官祿宮化忌飛{offJiPalace}】{offJiContent}");
+                if (!string.IsNullOrEmpty(offLuContent))   sb_out.AppendLine($"【官祿宮化祿飛{offLuPalace}】{offLuContent}");
+                if (!string.IsNullOrEmpty(offQuanContent)) sb_out.AppendLine($"【官祿宮化權飛{offQuanPalace}】{offQuanContent}");
+                if (!string.IsNullOrEmpty(offKeContent))   sb_out.AppendLine($"【官祿宮化科飛{offKePalace}】{offKeContent}");
+                if (!string.IsNullOrEmpty(offJiContent))   sb_out.AppendLine($"【官祿宮化忌飛{offJiPalace}】{offJiContent}");
                 if (!string.IsNullOrEmpty(doubleDescOff)) sb_out.AppendLine($"【官祿雙星論斷】{doubleDescOff}");
                 if (!string.IsNullOrEmpty(minorDescOff)) sb_out.AppendLine($"【官祿輔星加臨】{minorDescOff}");
                 // 財帛宮12宮星情 + 宮位四化飛出 + 主星入宮
                 if (!string.IsNullOrEmpty(ziweiWlt))     sb_out.AppendLine($"【財帛宮·{ziweiWltStar}】{ziweiWlt}");
                 if (!string.IsNullOrEmpty(starDescWlt))  sb_out.AppendLine($"【財帛星性】{starDescWlt}");
-                if (!string.IsNullOrEmpty(wltLuContent)) sb_out.AppendLine($"【財帛宮化祿飛{wltLuPalace}】{wltLuContent}");
-                if (!string.IsNullOrEmpty(wltJiContent)) sb_out.AppendLine($"【財帛宮化忌飛{wltJiPalace}】{wltJiContent}");
+                if (!string.IsNullOrEmpty(wltLuContent))   sb_out.AppendLine($"【財帛宮化祿飛{wltLuPalace}】{wltLuContent}");
+                if (!string.IsNullOrEmpty(wltQuanContent)) sb_out.AppendLine($"【財帛宮化權飛{wltQuanPalace}】{wltQuanContent}");
+                if (!string.IsNullOrEmpty(wltKeContent))   sb_out.AppendLine($"【財帛宮化科飛{wltKePalace}】{wltKeContent}");
+                if (!string.IsNullOrEmpty(wltJiContent))   sb_out.AppendLine($"【財帛宮化忌飛{wltJiPalace}】{wltJiContent}");
                 if (!string.IsNullOrEmpty(doubleDescWlt)) sb_out.AppendLine($"【財帛雙星論斷】{doubleDescWlt}");
                 if (!string.IsNullOrEmpty(minorDescWlt)) sb_out.AppendLine($"【財帛輔星加臨】{minorDescWlt}");
                 // 先天四化與事業/財帛關聯
@@ -738,8 +755,10 @@ namespace Ecanapi.Controllers
                     // 夫妻宮12宮星情 + 宮位四化飛出 + 主星入宮
                     if (!string.IsNullOrEmpty(ziweiSps))     sb_out.AppendLine($"【夫妻宮·{ziweiSpsStar}】{ziweiSps}");
                     if (!string.IsNullOrEmpty(starDescSps))  sb_out.AppendLine($"【夫妻星性】{starDescSps}");
-                    if (!string.IsNullOrEmpty(spsLuContent)) sb_out.AppendLine($"【夫妻宮化祿飛{spsLuPalace}】{spsLuContent}");
-                    if (!string.IsNullOrEmpty(spsJiContent)) sb_out.AppendLine($"【夫妻宮化忌飛{spsJiPalace}】{spsJiContent}");
+                    if (!string.IsNullOrEmpty(spsLuContent))   sb_out.AppendLine($"【夫妻宮化祿飛{spsLuPalace}】{spsLuContent}");
+                    if (!string.IsNullOrEmpty(spsQuanContent)) sb_out.AppendLine($"【夫妻宮化權飛{spsQuanPalace}】{spsQuanContent}");
+                    if (!string.IsNullOrEmpty(spsKeContent))   sb_out.AppendLine($"【夫妻宮化科飛{spsKePalace}】{spsKeContent}");
+                    if (!string.IsNullOrEmpty(spsJiContent))   sb_out.AppendLine($"【夫妻宮化忌飛{spsJiPalace}】{spsJiContent}");
                     if (!string.IsNullOrEmpty(doubleDescSps)) sb_out.AppendLine($"【夫妻雙星論斷】{doubleDescSps}");
                     if (!string.IsNullOrEmpty(minorDescSps)) sb_out.AppendLine($"【夫妻輔星加臨】{minorDescSps}");
                     // 先天四化入夫妻宮
@@ -762,7 +781,10 @@ namespace Ecanapi.Controllers
                 // 疾厄宮12宮星情 + 化忌飛出 + 主星入宮
                 if (!string.IsNullOrEmpty(ziweiHlt))     sb_out.AppendLine($"【疾厄宮·{ziweiHltStar}】{ziweiHlt}");
                 if (!string.IsNullOrEmpty(starDescHlt))  sb_out.AppendLine($"【疾厄星性】{starDescHlt}");
-                if (!string.IsNullOrEmpty(hltJiContent)) sb_out.AppendLine($"【疾厄宮化忌飛{hltJiPalace}】{hltJiContent}");
+                if (!string.IsNullOrEmpty(hltLuContent))   sb_out.AppendLine($"【疾厄宮化祿飛{hltLuPalace}】{hltLuContent}");
+                if (!string.IsNullOrEmpty(hltQuanContent)) sb_out.AppendLine($"【疾厄宮化權飛{hltQuanPalace}】{hltQuanContent}");
+                if (!string.IsNullOrEmpty(hltKeContent))   sb_out.AppendLine($"【疾厄宮化科飛{hltKePalace}】{hltKeContent}");
+                if (!string.IsNullOrEmpty(hltJiContent))   sb_out.AppendLine($"【疾厄宮化忌飛{hltJiPalace}】{hltJiContent}");
                 if (!string.IsNullOrEmpty(doubleDescHlt)) sb_out.AppendLine($"【疾厄雙星論斷】{doubleDescHlt}");
                 if (!string.IsNullOrEmpty(minorDescHlt)) sb_out.AppendLine($"【疾厄輔星加臨】{minorDescHlt}");
                 // 先天化忌入疾厄
