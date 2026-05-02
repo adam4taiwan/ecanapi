@@ -477,6 +477,101 @@ namespace Ecanapi.Controllers
             return Ok(new { message = $"已為用戶開通 {plan.Name}" });
         }
 
+        // ─── Subscription list management ─────────────────────────────────────
+
+        // GET /api/Admin/subscriptions?status=&planCode=&page=1
+        [HttpGet("subscriptions")]
+        public async Task<IActionResult> GetSubscriptions([FromQuery] string? status, [FromQuery] string? planCode, [FromQuery] int page = 1)
+        {
+            if (!IsAdmin()) return Forbid();
+            var query = _context.UserSubscriptions
+                .Include(s => s.Plan)
+                .AsQueryable();
+            if (!string.IsNullOrWhiteSpace(status)) query = query.Where(s => s.Status == status);
+            if (!string.IsNullOrWhiteSpace(planCode))
+                query = query.Where(s => s.Plan.Code == planCode);
+            var total = await query.CountAsync();
+            var items = await query
+                .OrderByDescending(s => s.CreatedAt)
+                .Skip((page - 1) * 20).Take(20)
+                .ToListAsync();
+            // enrich with user email/name
+            var userIds = items.Select(s => s.UserId).Distinct().ToList();
+            var users = await _context.Users
+                .Where(u => userIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.Email })
+                .ToListAsync();
+            var userMap = users.ToDictionary(u => u.Id);
+            var result = items.Select(s => new
+            {
+                s.Id,
+                s.UserId,
+                userName  = userMap.TryGetValue(s.UserId, out var u) ? u.Name  : "",
+                userEmail = userMap.TryGetValue(s.UserId, out var u2) ? u2.Email : "",
+                planCode  = s.Plan.Code,
+                planName  = s.Plan.Name,
+                s.Status,
+                s.StartDate,
+                s.ExpiryDate,
+                s.PaymentRef,
+                s.CreatedAt,
+                daysLeft  = (int)(s.ExpiryDate - DateTime.UtcNow).TotalDays
+            });
+            return Ok(new { total, page, items = result });
+        }
+
+        // PUT /api/Admin/subscriptions/{id}/extend
+        [HttpPut("subscriptions/{id}/extend")]
+        public async Task<IActionResult> ExtendSubscription(int id, [FromBody] ExtendSubscriptionRequest req)
+        {
+            if (!IsAdmin()) return Forbid();
+            var sub = await _context.UserSubscriptions.FindAsync(id);
+            if (sub == null) return NotFound();
+            // extend from expiry (or now if already expired)
+            var base_ = sub.ExpiryDate > DateTime.UtcNow ? sub.ExpiryDate : DateTime.UtcNow;
+            sub.ExpiryDate = base_.AddDays(req.Days);
+            if (sub.Status == "expired") sub.Status = "active";
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"已延長 {req.Days} 天，新到期日：{sub.ExpiryDate:yyyy-MM-dd}" });
+        }
+
+        // PUT /api/Admin/subscriptions/{id}/cancel
+        [HttpPut("subscriptions/{id}/cancel")]
+        public async Task<IActionResult> CancelSubscription(int id)
+        {
+            if (!IsAdmin()) return Forbid();
+            var sub = await _context.UserSubscriptions.FindAsync(id);
+            if (sub == null) return NotFound();
+            sub.Status = "cancelled";
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "訂閱已取消" });
+        }
+
+        // ─── LINE push stats ───────────────────────────────────────────────────
+
+        // GET /api/Admin/line-push/stats
+        [HttpGet("line-push/stats")]
+        public async Task<IActionResult> GetLinePushStats()
+        {
+            if (!IsAdmin()) return Forbid();
+            var total   = await _context.LineUsers.CountAsync();
+            var enabled = await _context.LineUsers.CountAsync(u => u.NotifyEnabled);
+            var subscribers = await _context.UserSubscriptions
+                .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
+                .Join(_context.Users, s => s.UserId, u => u.Id, (s, u) => u)
+                .Where(u => u.LineUserId != null)
+                .Select(u => u.LineUserId)
+                .Distinct()
+                .CountAsync();
+            return Ok(new
+            {
+                totalLineUsers    = total,
+                notifyEnabled     = enabled,
+                notifyDisabled    = total - enabled,
+                subscribersBound  = subscribers
+            });
+        }
+
         // ─── Booking request management ───────────────────────────────────────
 
         // GET /api/Admin/bookings?type=&status=&page=1
@@ -534,5 +629,10 @@ namespace Ecanapi.Controllers
     {
         public string? Status { get; set; }   // pending / confirmed / completed / cancelled
         public string? AdminNote { get; set; }
+    }
+
+    public class ExtendSubscriptionRequest
+    {
+        public int Days { get; set; } = 30;
     }
 }
