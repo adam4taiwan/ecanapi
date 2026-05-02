@@ -1651,11 +1651,13 @@ namespace Ecanapi.Controllers
             if (string.IsNullOrEmpty(starAbbr)) return ("", "");
             string targetPalace = KbFindPalaceByStarAbbr(palaces, starAbbr);
             if (string.IsNullOrEmpty(targetPalace)) return ("", "");
-            // 宮位四化.docx 格式：Title='{源宮}四化飛星－－{化type}'（如「命宮四化飛星－－化祿」）
-            // ResultText 以 "{源宮}{化type}入{目標宮}" 開頭
-            string targetShort = targetPalace.TrimEnd('宮');
-            string resultPrefix = $"{sourcePalaceName}{siHuaType}入{targetShort}";
+            // 宮位四化.docx 格式：Title='{源宮}四化飛星－－{化type}'
+            // 自化（落本宮）格式：ResultText 以 "{源宮}自{化type}：" 開頭
+            // 飛出（落他宮）格式：ResultText 以 "{源宮}{化type}入{目標短名}" 開頭
             string titleKey = $"{sourcePalaceName}四化飛星－－{siHuaType}";
+            string resultPrefix = KbPalaceSame(targetPalace, sourcePalaceName)
+                ? $"{sourcePalaceName}自{siHuaType}"
+                : $"{sourcePalaceName}{siHuaType}入{targetPalace.TrimEnd('宮')}";
             string content = await KbQuery($"SELECT COALESCE(\"ResultText\",'') AS \"Value\" FROM \"FortuneRules\" WHERE \"SourceFile\"='宮位四化.docx' AND \"Title\"='{titleKey}' AND \"ResultText\" LIKE '{resultPrefix}%' LIMIT 1");
             return (targetPalace, content);
         }
