@@ -3499,20 +3499,17 @@ namespace Ecanapi.Controllers
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
                 {
                     curTableFontSize = 10; // 非第二章的其他章節，恢復預設
-                    // 非玉洞子傳家寶典：第2章以後自動換頁（支援中文章號如四、五）
-                    if (bookTitle != "玉 洞 子 傳 家 寶 典")
+                    // 所有書第1章以後自動換頁（加了目錄後，第1章也需換頁）
+                    var chM = System.Text.RegularExpressions.Regex.Match(line, @"【第([一二三四五六七八九十\d]+)章");
+                    if (chM.Success)
                     {
-                        var chM = System.Text.RegularExpressions.Regex.Match(line, @"【第([一二三四五六七八九十\d]+)章");
-                        if (chM.Success)
-                        {
-                            string chStr = chM.Groups[1].Value;
-                            int chN = int.TryParse(chStr, out var cn) ? cn : LfChineseNumToInt(chStr);
-                            if (chN >= 2)
-                                AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
-                            else
-                                AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
-                            continue;
-                        }
+                        string chStr = chM.Groups[1].Value;
+                        int chN = int.TryParse(chStr, out var cn) ? cn : LfChineseNumToInt(chStr);
+                        if (chN >= 1)
+                            AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                        else
+                            AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                        continue;
                     }
                     AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
