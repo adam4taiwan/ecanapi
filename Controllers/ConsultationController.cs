@@ -6205,6 +6205,23 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine();
 
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  命盤基本資訊");
+            sb.AppendLine("  命局體性（寒暖濕燥）");
+            sb.AppendLine("  日主強弱判定");
+            sb.AppendLine("  格局與用神判定");
+            sb.AppendLine("  六親論斷");
+            sb.AppendLine("  性格志向");
+            sb.AppendLine("  事業財運");
+            sb.AppendLine("  婚姻感情");
+            sb.AppendLine("  健康壽元");
+            sb.AppendLine("  一生命運總評");
+            sb.AppendLine("  人生警示事項");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine();
+
             // === Ch.1 命盤基本資訊 ===
             sb.AppendLine("【第一章：命盤基本資訊】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
@@ -7533,6 +7550,29 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine("  時辰恐有錯  陰騭最難憑");
             sb.AppendLine("  萬般皆是命  半點不求人");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine();
+
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  審時聞切・四時定數");
+            sb.AppendLine("  先天八字依古制定");
+            sb.AppendLine("  命格判定");
+            sb.AppendLine("  用神喜忌");
+            sb.AppendLine("  紫微星格");
+            sb.AppendLine("  宮星化象（十二宮）");
+            sb.AppendLine("  命宮格局論");
+            sb.AppendLine("  四化飛星論");
+            sb.AppendLine("  事業格局鑑定");
+            sb.AppendLine("  六親緣分鑑定");
+            sb.AppendLine("  婚姻深度鑑定");
+            sb.AppendLine("  疾厄壽元鑑定");
+            sb.AppendLine("  大運逐運論斷");
+            sb.AppendLine("  開運指南");
+            sb.AppendLine("  出生環境・先天地理風水");
+            sb.AppendLine("  人生警示・趨吉避凶");
+            sb.AppendLine("  一生命運總評");
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
@@ -11737,6 +11777,19 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine();
 
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  命主資料與大運概況");
+            sb.AppendLine("  格局與用神判定");
+            sb.AppendLine("  分析期間大運干支論斷");
+            sb.AppendLine("  流年逐年分析");
+            sb.AppendLine("  重點宮位綜合評估");
+            sb.AppendLine("  趨吉避凶總建議");
+            sb.AppendLine("  人生警示事項（先天體質）");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine();
+
             // === Ch.1 命主資料 + 大運概況 ===
             sb.AppendLine("【第一章：命主資料與大運概況】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
@@ -12218,8 +12271,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"  3. 事業宜從事：{LfElemCareer(yongShenElem)}");
             sb.AppendLine($"  4. 八字與紫微雙吉年宜大膽把握，雙凶年宜蟄伏蓄積，一吉一凶年宜穩健行事");
             sb.AppendLine();
-            // === Ch.6 人生警示事項 ===
-            sb.AppendLine("【第六章：人生警示事項（先天體質）】");
+            // === Ch.7 人生警示事項 ===
+            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
@@ -12847,6 +12900,20 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine("                         流 年 命 書");
             sb.AppendLine("=================================================================");
+            sb.AppendLine();
+
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  命主資料與流年概況");
+            sb.AppendLine("  格局用神與流年八字分析");
+            sb.AppendLine("  流年小限空間與時間影響");
+            sb.AppendLine("  春夏秋冬四季論斷");
+            sb.AppendLine("  逐月分析（月建喜忌・紫微宮位）");
+            sb.AppendLine("  趨吉避凶全年建議");
+            sb.AppendLine("  九星氣學流年加成");
+            sb.AppendLine("  人生警示事項（先天體質）");
+            sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
             // Ch.1 命主資料 + 流年概況
