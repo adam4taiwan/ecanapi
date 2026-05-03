@@ -3974,6 +3974,20 @@ namespace Ecanapi.Controllers
         private static readonly Dictionary<string, string> LfElemOvercomeBy = new()
             { { "木", "金" }, { "火", "水" }, { "土", "木" }, { "金", "火" }, { "水", "土" } };
 
+        // 地支主氣五行
+        private static readonly Dictionary<string, string> LfBranchElem = new()
+            { {"子","水"},{"丑","土"},{"寅","木"},{"卯","木"},{"辰","土"},{"巳","火"},
+              {"午","火"},{"未","土"},{"申","金"},{"酉","金"},{"戌","土"},{"亥","水"} };
+        // 地支生肖
+        private static readonly Dictionary<string, string> LfBranchZodiac = new()
+            { {"子","鼠"},{"丑","牛"},{"寅","虎"},{"卯","兔"},{"辰","龍"},{"巳","蛇"},
+              {"午","馬"},{"未","羊"},{"申","猴"},{"酉","雞"},{"戌","狗"},{"亥","豬"} };
+        // 地支六沖對應
+        private static readonly Dictionary<string, string> LfBranchChongOf = new()
+            { {"子","午"},{"午","子"},{"丑","未"},{"未","丑"},
+              {"寅","申"},{"申","寅"},{"卯","酉"},{"酉","卯"},
+              {"辰","戌"},{"戌","辰"},{"巳","亥"},{"亥","巳"} };
+
         private static readonly HashSet<string> LfChong = new()
             { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
 
@@ -5938,6 +5952,235 @@ namespace Ecanapi.Controllers
 
         // === Lf Report Builder ===
 
+        // ─── 小人類型分析 ───────────────────────────────────────────────────
+        private static string LfXiaoRenAnalysis(
+            string yStem, string yBranch,
+            string mStem, string mBranch,
+            string dStem, string dBranch,
+            string hStem, string hBranch,
+            string jiShenElem, string dmElem)
+        {
+            var sb = new StringBuilder();
+            string jiSsName;
+            if (jiShenElem == LfElemOvercomeBy.GetValueOrDefault(dmElem, ""))
+                jiSsName = "官殺性質（上司、公權力、強勢競爭者）";
+            else if (jiShenElem == dmElem)
+                jiSsName = "比劫性質（同業競爭者、利益衝突同階層）";
+            else if (jiShenElem == LfElemOvercome.GetValueOrDefault(dmElem, ""))
+                jiSsName = "財星性質（財務往來關係人、利益衝突者）";
+            else if (jiShenElem == LfGenByElem.GetValueOrDefault(dmElem, ""))
+                jiSsName = "印梟性質（長輩顧問型、表面關心者）";
+            else if (jiShenElem == LfElemGen.GetValueOrDefault(dmElem, ""))
+                jiSsName = "食傷性質（部屬晚輩型、口舌是非者）";
+            else
+                jiSsName = "";
+
+            sb.Append($"忌神五行【{jiShenElem}】");
+            if (!string.IsNullOrEmpty(jiSsName)) sb.AppendLine($"（{jiSsName}）");
+            else sb.AppendLine();
+            sb.AppendLine("忌神在四柱出現位置（決定小人身份方向）：");
+
+            var pillars = new[]
+            {
+                (stem: yStem, branch: yBranch, label: "年柱", who: "長輩、父母、上一輩"),
+                (stem: mStem, branch: mBranch, label: "月柱", who: "同輩、同事、同學、兄弟姐妹"),
+                (stem: dStem, branch: dBranch, label: "日柱", who: "自身判斷易偏差，需防伴侶"),
+                (stem: hStem, branch: hBranch, label: "時柱", who: "晚輩、子女、部屬"),
+            };
+            bool anyFound = false;
+            var jiZodiacs = new List<string>();
+            foreach (var (stem, branch, label, who) in pillars)
+            {
+                string stemElem = KbStemToElement(stem);
+                string branchMainElem = LfBranchElem.GetValueOrDefault(branch, "");
+                bool stemIsJi = stemElem == jiShenElem;
+                bool branchIsJi = branchMainElem == jiShenElem;
+                if (stemIsJi || branchIsJi)
+                {
+                    anyFound = true;
+                    sb.AppendLine($"  {label}見忌神 → 防範來自【{who}】的小人");
+                    if (branchIsJi && LfBranchZodiac.TryGetValue(branch, out var z))
+                        jiZodiacs.Add(z);
+                }
+            }
+            if (!anyFound)
+                sb.AppendLine("  四柱中忌神分布較輕，小人傷害相對有限。");
+
+            if (jiZodiacs.Count > 0)
+                sb.AppendLine($"忌神生肖（深交需謹慎）：{string.Join("、", jiZodiacs.Distinct())}");
+
+            string chongBranch = LfBranchChongOf.GetValueOrDefault(yBranch, "");
+            if (!string.IsNullOrEmpty(chongBranch) && LfBranchZodiac.TryGetValue(chongBranch, out var chongZ))
+                sb.AppendLine($"事業朋友圈謹慎往來：{chongZ}生（與本命年支{yBranch}相沖，利益摩擦機率高）");
+
+            return sb.ToString().TrimEnd();
+        }
+
+        // ─── 官司文書風險分析 ─────────────────────────────────────────────
+        private static string LfGuanSiAnalysis(
+            string yStem, string yBranch,
+            string mStem, string mBranch,
+            string dStem, string dBranch,
+            string hStem, string hBranch,
+            string jiShenElem, string dmElem, double bodyPct)
+        {
+            var sb = new StringBuilder();
+            string guanShaElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            string yinXiaoElem = LfGenByElem.GetValueOrDefault(dmElem, "");
+            string shishangElem = LfElemGen.GetValueOrDefault(dmElem, "");
+            string caiElem = LfElemOvercome.GetValueOrDefault(dmElem, "");
+            bool isWeak = bodyPct < 50;
+            string[] allStems = { yStem, mStem, dStem, hStem };
+            string[] allBranches = { yBranch, mBranch, dBranch, hBranch };
+            bool hasShiShang = allStems.Any(s => KbStemToElement(s) == shishangElem)
+                || allBranches.Any(b => LfBranchElem.GetValueOrDefault(b, "") == shishangElem);
+            bool hasCai = allStems.Any(s => KbStemToElement(s) == caiElem)
+                || allBranches.Any(b => LfBranchElem.GetValueOrDefault(b, "") == caiElem);
+
+            if (isWeak)
+            {
+                sb.AppendLine($"日主身弱，官司風險來自忌神官殺（{guanShaElem}）。");
+                if (jiShenElem == guanShaElem)
+                {
+                    if (hasShiShang)
+                        sb.AppendLine($"  八字有食傷（{shishangElem}）制官殺 → 即使遇官司糾紛，有化解空間，問題不大。");
+                    else
+                        sb.AppendLine($"  八字無食傷制官殺 → 官司一旦發生，影響較為嚴重，需謹慎處理、及早和解。");
+                }
+                else
+                    sb.AppendLine($"  忌神並非官殺，先天官司風險相對較低，但仍需注意公權力衝突。");
+            }
+            else
+            {
+                sb.AppendLine($"日主身強，文書名譽風險來自忌神印梟（{yinXiaoElem}）。");
+                if (jiShenElem == yinXiaoElem)
+                {
+                    if (hasCai)
+                        sb.AppendLine($"  八字有財（{caiElem}）制印梟 → 文書糾紛雖可能發生，財力或人際可化解。");
+                    else
+                        sb.AppendLine($"  八字無財制印梟 → 文書名譽受損一旦發生，影響難以收拾，合約與名聲務必謹慎。");
+                }
+                else
+                    sb.AppendLine($"  忌神並非印梟，先天文書官司風險相對較低。");
+            }
+
+            var pillars = new[]
+            {
+                (stem: yStem, branch: yBranch, label: "年柱", who: "長輩或父母"),
+                (stem: mStem, branch: mBranch, label: "月柱", who: "同輩、同事或合夥人"),
+                (stem: dStem, branch: dBranch, label: "日柱", who: "自身或伴侶"),
+                (stem: hStem, branch: hBranch, label: "時柱", who: "晚輩或子女"),
+            };
+            string triggerElem = isWeak ? guanShaElem : yinXiaoElem;
+            bool foundPillar = false;
+            foreach (var (stem, branch, label, who) in pillars)
+            {
+                string stemElem = KbStemToElement(stem);
+                string branchMainElem = LfBranchElem.GetValueOrDefault(branch, "");
+                if (stemElem == triggerElem || branchMainElem == triggerElem)
+                {
+                    if (!foundPillar) { sb.AppendLine("涉事對象方向："); foundPillar = true; }
+                    sb.AppendLine($"  {label}見起因星 → 糾紛可能來自【{who}】");
+                }
+            }
+            return sb.ToString().TrimEnd();
+        }
+
+        // ─── 車關時機分析 ──────────────────────────────────────────────────
+        private static string LfCheGuanAnalysis(
+            string yBranch, string mBranch,
+            string dBranch, string hBranch,
+            string jiShenElem, string dmElem)
+        {
+            var sb = new StringBuilder();
+            string guanShaElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            var siYiMa = new HashSet<string> { "寅", "申", "巳", "亥" };
+            var riskBranches = new List<(string branch, string label)>();
+            foreach (var (branch, label) in new[] {(yBranch,"年支"),(mBranch,"月支"),(dBranch,"日支"),(hBranch,"時支")})
+            {
+                string branchElem = LfBranchElem.GetValueOrDefault(branch, "");
+                if (siYiMa.Contains(branch) && branchElem == guanShaElem)
+                    riskBranches.Add((branch, label));
+            }
+
+            if (riskBranches.Count == 0)
+            {
+                sb.AppendLine("四柱驛馬位（寅申巳亥）無官殺，先天車關風險相對較低。");
+            }
+            else
+            {
+                sb.AppendLine("先天八字驛馬含官殺，有車關傾向：");
+                foreach (var (branch, label) in riskBranches)
+                    sb.AppendLine($"  {label}（{branch}）為{guanShaElem}官殺驛馬 → 此地支被沖合之年需特別注意");
+                sb.AppendLine("引動時機：大運或流年地支與上述驛馬官殺形成六沖、三合、三會之年，車關風險提升。");
+                sb.AppendLine("建議：行凶運期間避免長途自駕，注意交通安全，盡量搭乘大眾運輸。");
+            }
+            return sb.ToString().TrimEnd();
+        }
+
+        // ─── 海外發展分析 ─────────────────────────────────────────────────
+        private static string LfHaiWaiAnalysis(
+            string yBranch, string mBranch,
+            string dBranch, string hBranch,
+            string yongShenElem, string jiShenElem, string dmElem,
+            bool hasZiwei, JsonElement palaces)
+        {
+            var sb = new StringBuilder();
+            var siYiMa = new HashSet<string> { "寅", "申", "巳", "亥" };
+            string guanShaElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            string yinXiaoElem = LfGenByElem.GetValueOrDefault(dmElem, "");
+            bool yearMaIsYong = siYiMa.Contains(yBranch)
+                && LfBranchElem.GetValueOrDefault(yBranch, "") == yongShenElem;
+            bool monthMaIsYong = siYiMa.Contains(mBranch)
+                && LfBranchElem.GetValueOrDefault(mBranch, "") == yongShenElem;
+            bool hasBaziSignal = yearMaIsYong || monthMaIsYong;
+
+            if (hasBaziSignal)
+            {
+                sb.AppendLine("八字先天出行信號：年月柱有喜用神驛馬（寅申巳亥），出國機會有利。");
+                if (yongShenElem == guanShaElem)
+                    sb.AppendLine("  → 官殺為喜用：適合赴海外工作、外派或接受官方職務。");
+                else if (yongShenElem == yinXiaoElem)
+                    sb.AppendLine("  → 印梟為喜用：適合海外長期定居、移居或求學。");
+                else
+                    sb.AppendLine("  → 出國有利，可把握海外發展機會。");
+            }
+            else
+                sb.AppendLine("八字年月柱驛馬不具喜用五行，先天出國發展優勢較不明顯。");
+
+            if (hasZiwei && palaces.ValueKind == JsonValueKind.Array)
+            {
+                try
+                {
+                    foreach (var p in palaces.EnumerateArray())
+                    {
+                        string palName = p.TryGetProperty("name", out var pn) ? pn.GetString() ?? "" : "";
+                        string palBranch = p.TryGetProperty("branch", out var pb) ? pb.GetString() ?? "" : "";
+                        if (!siYiMa.Contains(palBranch)) continue;
+                        bool hasSiHuaGood = false;
+                        if (p.TryGetProperty("stars", out var stars) && stars.ValueKind == JsonValueKind.Array)
+                            hasSiHuaGood = stars.EnumerateArray().Any(s =>
+                            {
+                                string sn = s.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                                return sn.Contains("化祿") || sn.Contains("化科");
+                            });
+                        if (!hasSiHuaGood) continue;
+                        string palLabel = palName.TrimEnd('宮');
+                        if (palLabel == "遷移")
+                            sb.AppendLine($"紫微遷移宮（{palBranch}）有化祿/化科，位於驛馬宮位 → 出國運勢強旺，宜把握海外機遇。");
+                        else if (palLabel == "田宅")
+                            sb.AppendLine($"紫微田宅宮（{palBranch}）有化祿/化科，位於驛馬宮位 → 有移居定居海外之象。");
+                    }
+                }
+                catch { /* 紫微解析異常時略過 */ }
+            }
+
+            if (!hasBaziSignal)
+                sb.AppendLine("建議：可把握大運/流年驛馬引動之年短期出行或探索海外機會。");
+
+            return sb.ToString().TrimEnd();
+        }
+
         private static string LfBuildReport(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
@@ -6118,8 +6361,24 @@ namespace Ecanapi.Controllers
             sb.AppendLine(LfBuildWuXingLeiXiang(yongShenElem, jiShenElem));
             sb.AppendLine();
 
+            // === 人生警示事項 ===
+            sb.AppendLine("【人生警示事項】");
+            sb.AppendLine();
+            sb.AppendLine("▍ 小人防範");
+            sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 官司文書風險");
+            sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            sb.AppendLine();
+            sb.AppendLine("▍ 車關時機");
+            sb.AppendLine(LfCheGuanAnalysis(yBranch, mBranch, dBranch, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 海外發展");
+            sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, false, default));
+            sb.AppendLine();
+
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.2");
+            sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.3");
             return sb.ToString();
         }
 
@@ -8187,8 +8446,24 @@ namespace Ecanapi.Controllers
             sb.AppendLine("以上先天地理風水，指受孕當時所在地周圍的環境。驗證時，請參照父母受孕之地實際地貌加以對照。");
             sb.AppendLine();
 
-            // === Ch.17 一生命運總評 ===
-            sb.AppendLine("【第十七章：一生命運總評】");
+            // === Ch.17 人生警示・趨吉避凶 ===
+            sb.AppendLine("【第十七章：人生警示・趨吉避凶】");
+            sb.AppendLine();
+            sb.AppendLine("▍ 小人防範");
+            sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 官司文書風險");
+            sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            sb.AppendLine();
+            sb.AppendLine("▍ 車關時機");
+            sb.AppendLine(LfCheGuanAnalysis(yBranch, mBranch, dBranch, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 海外發展");
+            sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palacesYdz));
+            sb.AppendLine();
+
+            // === Ch.18 一生命運總評 ===
+            sb.AppendLine("【第十八章：一生命運總評】");
             sb.AppendLine();
             if (scored.Count > 0)
             {
@@ -11943,8 +12218,42 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"  3. 事業宜從事：{LfElemCareer(yongShenElem)}");
             sb.AppendLine($"  4. 八字與紫微雙吉年宜大膽把握，雙凶年宜蟄伏蓄積，一吉一凶年宜穩健行事");
             sb.AppendLine();
+            // === Ch.6 人生警示事項 ===
+            sb.AppendLine("【第六章：人生警示事項（先天體質）】");
+            sb.AppendLine();
+            sb.AppendLine("▍ 小人防範");
+            sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 官司文書風險");
+            sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            sb.AppendLine();
+            sb.AppendLine("▍ 車關時機");
+            {
+                string cheGuanBase = LfCheGuanAnalysis(yBranch, mBranch, dBranch, hBranch, jiShenElem, dmElem);
+                sb.AppendLine(cheGuanBase);
+                // 掃描分析期內的引動年份
+                string guanShaElemCg = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                var siYiMaCg = new HashSet<string> { "寅", "申", "巳", "亥" };
+                var riskBranchesCg = new[] { yBranch, mBranch, dBranch, hBranch }
+                    .Where(b => siYiMaCg.Contains(b) && LfBranchElem.GetValueOrDefault(b, "") == guanShaElemCg)
+                    .ToList();
+                if (riskBranchesCg.Count > 0)
+                {
+                    var cheGuanYears = annualDetails
+                        .Where(a => riskBranchesCg.Any(rb =>
+                            LfChong.Contains(rb + a.flBranch) || LfChong.Contains(a.flBranch + rb)))
+                        .Select(a => a.year).ToList();
+                    if (cheGuanYears.Count > 0)
+                        sb.AppendLine($"分析期間車關警示年份：{string.Join("、", cheGuanYears.Select(y => $"{y}年"))}（流年沖動驛馬官殺）");
+                }
+            }
+            sb.AppendLine();
+            sb.AppendLine("▍ 海外發展");
+            sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
+            sb.AppendLine();
+
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("命理大師：玉洞子 | 大運命書 v1.1");
+            sb.AppendLine("命理大師：玉洞子 | 大運命書 v1.2");
             return sb.ToString();
         }
 
@@ -12754,8 +13063,40 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"  4. 太歲加持：{year} 年{taisuiRelation}，善用此年順勢而為，積極展開重要計劃。");
             sb.AppendLine($"  5. {DyCrossDesc(flCrossClass, flStemSS, flBranchSS, flBaziScore, flZiweiScore)}");
             sb.AppendLine();
+            // === 人生警示事項 ===
+            sb.AppendLine("【人生警示事項（先天體質）】");
+            sb.AppendLine();
+            sb.AppendLine("▍ 小人防範");
+            sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 官司文書風險");
+            sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            sb.AppendLine();
+            sb.AppendLine("▍ 車關時機");
+            {
+                string cheGuanBase = LfCheGuanAnalysis(yBranch, mBranch, dBranch, hBranch, jiShenElem, dmElem);
+                sb.AppendLine(cheGuanBase);
+                // 本年是否引動車關
+                string guanShaElemLn = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                var siYiMaLn = new HashSet<string> { "寅", "申", "巳", "亥" };
+                var riskBranchesLn = new[] { yBranch, mBranch, dBranch, hBranch }
+                    .Where(b => siYiMaLn.Contains(b) && LfBranchElem.GetValueOrDefault(b, "") == guanShaElemLn)
+                    .ToList();
+                if (riskBranchesLn.Count > 0)
+                {
+                    bool yearTriggered = riskBranchesLn.Any(rb =>
+                        LfChong.Contains(rb + flBranch) || LfChong.Contains(flBranch + rb));
+                    if (yearTriggered)
+                        sb.AppendLine($"【本年車關提醒】{year} 年流年地支{flBranch}沖動命盤驛馬官殺，本年車關風險提升，請加強交通安全意識。");
+                }
+            }
+            sb.AppendLine();
+            sb.AppendLine("▍ 海外發展");
+            sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
+            sb.AppendLine();
+
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine($"命理大師：玉洞子 | 流年命書 v1.0 | {year} 年");
+            sb.AppendLine($"命理大師：玉洞子 | 流年命書 v1.1 | {year} 年");
             return sb.ToString();
         }
 
