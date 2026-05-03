@@ -3376,6 +3376,45 @@ namespace Ecanapi.Controllers
                 r.SetText(text ?? "");
             }
 
+            // 章節標題（帶換頁 + 大綱層級 0，供 Word TOC \u 識別）
+            void AddParaWithPageBreakH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
+            {
+                var p = doc.CreateParagraph();
+                p.Alignment = align;
+                if (bold) p.SpacingBefore = 80;
+                p.IsPageBreak = true;
+                // 設定 outline level 0（= Heading 1）讓 Word TOC \u 識別
+                var pPr = p.GetCTP().pPr ?? p.GetCTP().AddNewPPr();
+                var ol = pPr.outlineLvl ?? pPr.AddNewOutlineLvl();
+                ol.val = 0;
+                var r = p.CreateRun();
+                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r.FontSize = fontSize;
+                r.IsBold = bold;
+                r.SetColor(colorHex);
+                r.SetText(text ?? "");
+            }
+
+            // 插入 Word TOC 欄位（\u=大綱層級, \h=超連結, \z=隱藏Web版頁碼）
+            void InsertWordTocField()
+            {
+                var para = doc.CreateParagraph();
+                para.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.LEFT;
+                var ctP = para.GetCTP();
+                var r1 = ctP.AddNewR();
+                r1.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.begin;
+                var r2 = ctP.AddNewR();
+                var instr = r2.AddNewInstrText();
+                instr.Value = " TOC \\u \\h \\z ";
+                instr.space = "preserve";
+                var r3 = ctP.AddNewR();
+                r3.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.separate;
+                var r4 = ctP.AddNewR();
+                r4.AddNewT().Value = "（請在 Word 中按 F9 更新目錄）";
+                var r5 = ctP.AddNewR();
+                r5.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.end;
+            }
+
             // === 封面 ===
             if (coverBytes.Length > 0)
                 AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
@@ -3447,6 +3486,7 @@ namespace Ecanapi.Controllers
             }
 
             int kbSectionCount = 0; // 計算 === === 章節數，用於換頁
+            bool inTocSection = false; // 目前在純文字目錄區間，略過這些行
 
             // 過濾：移除緊接在章節標題前的空白行，防止 DOCX 出現空白頁
             // 向前看時跳過所有最終會被 DOCX 忽略的行（空白行、=====、-----、頁尾簽名）
@@ -3478,6 +3518,22 @@ namespace Ecanapi.Controllers
 
                 if (ShouldSkipReportLine(line)) continue;
 
+                // 偵測「人  生  指  南」→ 插入 Word TOC 欄位，略過純文字目錄項目
+                if (line.TrimEnd().Contains("人  生  指  南"))
+                {
+                    AddPara("人  生  指  南", 18, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                    InsertWordTocField();
+                    inTocSection = true;
+                    continue;
+                }
+                if (inTocSection)
+                {
+                    if (line.StartsWith("【第") && line.EndsWith("】"))
+                        inTocSection = false; // 遇到第一章，結束目錄區間，繼續往下處理
+                    else
+                        continue; // 略過純文字目錄項目
+                }
+
                 // Buffer pipe-table lines
                 if (line.TrimStart().StartsWith("|"))
                 {
@@ -3494,7 +3550,7 @@ namespace Ecanapi.Controllers
                 {
                     // 第二章表格用18pt，其他章節恢復10pt
                     curTableFontSize = (line == "【第二章：先天八字依古制定】") ? 18 : 10;
-                    AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                    AddParaWithPageBreakH1(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
                 {
@@ -3506,7 +3562,7 @@ namespace Ecanapi.Controllers
                         string chStr = chM.Groups[1].Value;
                         int chN = int.TryParse(chStr, out var cn) ? cn : LfChineseNumToInt(chStr);
                         if (chN >= 1)
-                            AddParaWithPageBreak(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                            AddParaWithPageBreakH1(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                         else
                             AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                         continue;
