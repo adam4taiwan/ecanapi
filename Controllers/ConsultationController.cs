@@ -3471,7 +3471,7 @@ namespace Ecanapi.Controllers
                 var lp = lcell.Paragraphs.Count > 0 ? lcell.Paragraphs[0] : lcell.AddParagraph();
                 lp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 using var lstream = new MemoryStream(scrollLeftBytes);
-                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(2.4 * 360000), (int)(12.0 * 360000));
+                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(2.4 * 360000), (int)(9.0 * 360000));
 
                 // 中央文字（金字）
                 var ccell = coverRow.GetCell(1);
@@ -3499,7 +3499,7 @@ namespace Ecanapi.Controllers
                 var rp = rcell.Paragraphs.Count > 0 ? rcell.Paragraphs[0] : rcell.AddParagraph();
                 rp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 using var rstream = new MemoryStream(scrollRightBytes);
-                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(2.4 * 360000), (int)(12.0 * 360000));
+                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(2.4 * 360000), (int)(9.0 * 360000));
             }
             else
             {
