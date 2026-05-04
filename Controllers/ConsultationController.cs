@@ -3454,7 +3454,7 @@ namespace Ecanapi.Controllers
 
                 var coverRow = coverTbl.GetRow(0);
 
-                // 左聯（洞合乾坤凌道丹）
+                // 左聯（洞合乾坤養道丹）
                 var lcell = coverRow.GetCell(0);
                 SetCellWidth(lcell, 1985); // 3.5cm
                 var lp = lcell.Paragraphs.Count > 0 ? lcell.Paragraphs[0] : lcell.AddParagraph();
@@ -3469,6 +3469,8 @@ namespace Ecanapi.Controllers
                 cp0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 cp0.CreateRun().SetText(""); // 首行佔位
                 AddCellPara(ccell, "", 18, false, "000000");
+                AddCellPara(ccell, "玉 虛 洞 天", 16, true, "CC0000");
+                AddCellPara(ccell, "", 8, false, "000000");
                 AddCellPara(ccell, bookTitle, 28, true, "8B0000");
                 AddCellPara(ccell, "", 14, false, "000000");
                 AddCellPara(ccell, "命主", 13, false, "8B4513");
@@ -3479,7 +3481,7 @@ namespace Ecanapi.Controllers
                 AddCellPara(ccell, "玉 洞 子", 13, true, "CC0000");
                 AddCellPara(ccell, DateTime.Today.ToString("yyyy 年 MM 月"), 11, false, "888888");
 
-                // 右聯（玉候天代積德心）
+                // 右聯（玉懷天地積德心）
                 var rcell = coverRow.GetCell(2);
                 SetCellWidth(rcell, 1985); // 3.5cm
                 var rp = rcell.Paragraphs.Count > 0 ? rcell.Paragraphs[0] : rcell.AddParagraph();
