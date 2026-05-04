@@ -3416,7 +3416,91 @@ namespace Ecanapi.Controllers
                 r5.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.end;
             }
 
-            // === 封面 ===
+            // === 封面（三欄：左聯 | 中央 | 右聯）===
+            string coverImgDir = Path.Combine(AppContext.BaseDirectory, "wwwroot", "images");
+            byte[] scrollLeftBytes  = System.IO.File.Exists(Path.Combine(coverImgDir, "scroll_left.jpg"))  ? System.IO.File.ReadAllBytes(Path.Combine(coverImgDir, "scroll_left.jpg"))  : Array.Empty<byte>();
+            byte[] scrollRightBytes = System.IO.File.Exists(Path.Combine(coverImgDir, "scroll_right.jpg")) ? System.IO.File.ReadAllBytes(Path.Combine(coverImgDir, "scroll_right.jpg")) : Array.Empty<byte>();
+
+            if (scrollLeftBytes.Length > 0 && scrollRightBytes.Length > 0)
+            {
+                var coverTbl = doc.CreateTable(1, 3);
+                // 移除所有邊框
+                var ctTblPr = coverTbl.GetCTTbl().tblPr ?? coverTbl.GetCTTbl().AddNewTblPr();
+                var ctBrd = ctTblPr.tblBorders ?? ctTblPr.AddNewTblBorders();
+                void NoBorder(NPOI.OpenXmlFormats.Wordprocessing.CT_Border b)
+                { b.val = NPOI.OpenXmlFormats.Wordprocessing.ST_Border.none; b.sz = 0; b.space = 0; b.color = "auto"; }
+                NoBorder(ctBrd.AddNewTop()); NoBorder(ctBrd.AddNewBottom());
+                NoBorder(ctBrd.AddNewLeft()); NoBorder(ctBrd.AddNewRight());
+                NoBorder(ctBrd.AddNewInsideH()); NoBorder(ctBrd.AddNewInsideV());
+
+                void SetCellWidth(NPOI.XWPF.UserModel.XWPFTableCell cell, int dxa)
+                {
+                    var tcPr = cell.GetCTTc().tcPr ?? cell.GetCTTc().AddNewTcPr();
+                    var tcW  = tcPr.tcW ?? tcPr.AddNewTcW();
+                    tcW.type = NPOI.OpenXmlFormats.Wordprocessing.ST_TblWidth.dxa;
+                    tcW.w    = dxa.ToString();
+                    var va   = tcPr.vAlign ?? tcPr.AddNewVAlign();
+                    va.val   = NPOI.OpenXmlFormats.Wordprocessing.ST_VerticalJc.center;
+                }
+
+                void AddCellPara(NPOI.XWPF.UserModel.XWPFTableCell cell, string text, int fs, bool bold, string color)
+                {
+                    var p = cell.AddParagraph();
+                    p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                    var r = p.CreateRun();
+                    r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                    r.FontSize = fs; r.IsBold = bold; r.SetColor(color); r.SetText(text);
+                }
+
+                var coverRow = coverTbl.GetRow(0);
+
+                // 左聯（洞合乾坤凌道丹）
+                var lcell = coverRow.GetCell(0);
+                SetCellWidth(lcell, 1985); // 3.5cm
+                var lp = lcell.Paragraphs.Count > 0 ? lcell.Paragraphs[0] : lcell.AddParagraph();
+                lp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                using var lstream = new MemoryStream(scrollLeftBytes);
+                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(3.2 * 360000), (int)(12.0 * 360000));
+
+                // 中央文字
+                var ccell = coverRow.GetCell(1);
+                SetCellWidth(ccell, 6236); // 11cm
+                var cp0 = ccell.Paragraphs.Count > 0 ? ccell.Paragraphs[0] : ccell.AddParagraph();
+                cp0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                cp0.CreateRun().SetText(""); // 首行佔位
+                AddCellPara(ccell, "", 18, false, "000000");
+                AddCellPara(ccell, bookTitle, 28, true, "8B0000");
+                AddCellPara(ccell, "", 14, false, "000000");
+                AddCellPara(ccell, "命主", 13, false, "8B4513");
+                AddCellPara(ccell, personName, 26, true, "8B0000");
+                AddCellPara(ccell, "", 12, false, "000000");
+                AddCellPara(ccell, "親　鑑", 15, false, "8B4513");
+                AddCellPara(ccell, "", 10, false, "000000");
+                AddCellPara(ccell, "玉 洞 子", 13, true, "CC0000");
+                AddCellPara(ccell, DateTime.Today.ToString("yyyy 年 MM 月"), 11, false, "888888");
+
+                // 右聯（玉候天代積德心）
+                var rcell = coverRow.GetCell(2);
+                SetCellWidth(rcell, 1985); // 3.5cm
+                var rp = rcell.Paragraphs.Count > 0 ? rcell.Paragraphs[0] : rcell.AddParagraph();
+                rp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                using var rstream = new MemoryStream(scrollRightBytes);
+                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(3.2 * 360000), (int)(12.0 * 360000));
+            }
+            else
+            {
+                // 備用封面（無對聯圖片）
+                if (coverBytes.Length > 0)
+                    AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
+                AddPara(bookTitle, 36, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                AddPara("親鑑", 16, false, "8B4513", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                AddPara($"命主：{personName}", 20, true, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                AddPara("  時辰恐有錯  陰騭最難憑", 13, false, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+                AddPara("  萬般皆是命  半點不求人", 13, false, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
+            }
+            AddPageBreak();
+
+            // === 第二頁：原封面（保留）===
             if (coverBytes.Length > 0)
                 AddImage(coverBytes, (int)NPOI.XWPF.UserModel.PictureType.JPEG, 16, 8);
             AddPara(bookTitle, 36, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
@@ -3548,7 +3632,7 @@ namespace Ecanapi.Controllers
                 FlushPipeTable();
 
                 if (line == "【第二章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
-                    line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
+                    line == "【第四章：命格判定】" || line == "【第五章：用神喜忌】" ||
                     line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】")
                 {
                     // 第二章表格用18pt，其他章節恢復10pt
@@ -7783,7 +7867,7 @@ namespace Ecanapi.Controllers
             }
 
             // === Ch.4 命局格局判定 ===
-            sb.AppendLine("【第三章：命格判定】");
+            sb.AppendLine("【第四章：命格判定】");
             sb.AppendLine();
             sb.AppendLine("【命局體性（寒暖濕燥）】");
             sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
