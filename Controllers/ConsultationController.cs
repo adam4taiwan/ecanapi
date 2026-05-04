@@ -3483,6 +3483,8 @@ namespace Ecanapi.Controllers
                 if (line.TrimEnd() == "  時辰恐有錯  陰騭最難憑") return true;
                 if (line.TrimEnd() == "  萬般皆是命  半點不求人") return true;
                 if (line.Contains("命理大師：玉洞子")) return true;
+                if (line.StartsWith("性別：") && line.Contains("虛齡")) return true;
+                if (line.StartsWith("四柱：") && line.Contains(" ")) return true;
                 return false;
             }
 
