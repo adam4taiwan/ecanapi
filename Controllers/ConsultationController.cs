@@ -3385,8 +3385,9 @@ namespace Ecanapi.Controllers
                 p.IsPageBreak = true;
                 // 設定 outline level 0（= Heading 1）讓 Word TOC \u 識別
                 var pPr = p.GetCTP().pPr ?? p.GetCTP().AddNewPPr();
-                var ol = pPr.outlineLvl ?? pPr.AddNewOutlineLvl();
-                ol.val = 0;
+                var ol = new NPOI.OpenXmlFormats.Wordprocessing.CT_DecimalNumber();
+                ol.val = "0";
+                pPr.outlineLvl = ol;
                 var r = p.CreateRun();
                 r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
                 r.FontSize = fontSize;
@@ -3546,7 +3547,7 @@ namespace Ecanapi.Controllers
 
                 if (line == "【第二章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
                     line == "【第三章：命格判定】" || line == "【第五章：用神喜忌】" ||
-                    line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】" || line == "【第八章：命宮格局論】")
+                    line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】")
                 {
                     // 第二章表格用18pt，其他章節恢復10pt
                     curTableFontSize = (line == "【第二章：先天八字依古制定】") ? 18 : 10;
@@ -7615,8 +7616,6 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  用神喜忌");
             sb.AppendLine("  紫微星格");
             sb.AppendLine("  宮星化象（十二宮）");
-            sb.AppendLine("  命宮格局論");
-            sb.AppendLine("  四化飛星論");
             sb.AppendLine("  事業格局鑑定");
             sb.AppendLine("  六親緣分鑑定");
             sb.AppendLine("  婚姻深度鑑定");
@@ -7873,6 +7872,24 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"【先天化科·{siHuaKePalace}】{siHuaKe}");
                 if (!string.IsNullOrEmpty(siHuaJi))
                     sb.AppendLine($"【先天化忌·{siHuaJiPalace}】{siHuaJi}");
+                // 命宮格局論斷（從原第八章移入）
+                if (!string.IsNullOrEmpty(ziweiGeJuContent))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("【命宮格局論斷】");
+                    sb.AppendLine(ziweiGeJuContent.TrimEnd());
+                }
+                // 各宮宮干飛星四化（從原第八、九章移入）
+                bool anySiHuaPal = false;
+                foreach (var kv in siHua)
+                {
+                    if (!string.IsNullOrEmpty(kv.Value.txt))
+                    {
+                        sb.AppendLine(kv.Value.txt);
+                        anySiHuaPal = true;
+                    }
+                }
+                if (!anySiHuaPal) sb.AppendLine("（四化 KB 資料待補充）");
             }
             sb.AppendLine();
 
@@ -7936,99 +7953,8 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // === Ch.8 命宮格局論 ===
-            sb.AppendLine("【第八章：命宮格局論】");
-            sb.AppendLine();
-            if (!hasZiwei)
-            {
-                sb.AppendLine("（略去）");
-            }
-            else
-            {
-                // 命宮主星 + 命主星/身主星
-                if (!string.IsNullOrEmpty(mingGongStars))
-                    sb.AppendLine($"命宮主星：{mingGongStars}　命主：{mingZhu}　身主：{shenZhu}");
-                sb.AppendLine();
-                // 紫微格局（重點）
-                if (!string.IsNullOrEmpty(ziweiGeJuContent))
-                {
-                    sb.AppendLine("【命宮格局論斷】");
-                    sb.AppendLine(ziweiGeJuContent.TrimEnd());
-                    sb.AppendLine();
-                }
-                // 主星性格特質（star in palace KB）
-                if (!string.IsNullOrEmpty(starDescMing))
-                {
-                    sb.AppendLine("【命宮特質】");
-                    sb.AppendLine(starDescMing);
-                    sb.AppendLine();
-                }
-                // 命宮宮干四化飛出（化祿/化忌）
-                if (siHua.TryGetValue("命宮化祿", out var mLuKv) && !string.IsNullOrEmpty(mLuKv.txt))
-                {
-                    sb.AppendLine(mLuKv.txt);
-                    sb.AppendLine();
-                }
-                if (siHua.TryGetValue("命宮化忌", out var mJiKv) && !string.IsNullOrEmpty(mJiKv.txt))
-                {
-                    sb.AppendLine(mJiKv.txt);
-                    sb.AppendLine();
-                }
-                // 命宮化權/化科也一併輸出
-                if (siHua.TryGetValue("命宮化權", out var mQuanKv) && !string.IsNullOrEmpty(mQuanKv.txt))
-                {
-                    sb.AppendLine(mQuanKv.txt);
-                    sb.AppendLine();
-                }
-                if (siHua.TryGetValue("命宮化科", out var mKeKv) && !string.IsNullOrEmpty(mKeKv.txt))
-                {
-                    sb.AppendLine(mKeKv.txt);
-                    sb.AppendLine();
-                }
-            }
-            sb.AppendLine();
-
-            // === Ch.9 四化飛星論 ===
-            sb.AppendLine("【第九章：四化飛星論】");
-            sb.AppendLine();
-            if (!hasZiwei)
-            {
-                sb.AppendLine("（略去）");
-            }
-            else
-            {
-                // 先天四化（年干）
-                if (!string.IsNullOrEmpty(nianSiHuaXing))
-                {
-                    sb.AppendLine("【先天特性】");
-                    sb.AppendLine(StripNianShengRen(nianSiHuaXing));
-                    sb.AppendLine();
-                }
-                bool anyNian = false;
-                if (!string.IsNullOrEmpty(siHuaLu))   { sb.AppendLine(siHuaLu);   anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaQuan)) { sb.AppendLine(siHuaQuan); anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaKe))   { sb.AppendLine(siHuaKe);   anyNian = true; }
-                if (!string.IsNullOrEmpty(siHuaJi))   { sb.AppendLine(siHuaJi);   anyNian = true; }
-                if (anyNian) sb.AppendLine();
-
-                // 宮位四化（各宮宮干飛出）
-                bool anySiHua = false;
-                foreach (var kv in siHua)
-                {
-                    // 命宮四化已在 Ch.8 顯示，此處跳過
-                    if (kv.Key.StartsWith("命宮")) continue;
-                    if (!string.IsNullOrEmpty(kv.Value.txt))
-                    {
-                        sb.AppendLine(kv.Value.txt);
-                        anySiHua = true;
-                    }
-                }
-                if (!anyNian && !anySiHua) sb.AppendLine("（四化 KB 資料待補充）");
-            }
-            sb.AppendLine();
-
-            // === Ch.10 事業格局鑑定 ===
-            sb.AppendLine("【第十章：事業格局鑑定】");
+            // === Ch.8 事業格局鑑定 ===
+            sb.AppendLine("【第八章：事業格局鑑定】");
             sb.AppendLine();
 
             // 【事業特質】：古傳斷語 + 五行職業取象 + 官祿宮主星 合併為一節
@@ -8089,8 +8015,8 @@ namespace Ecanapi.Controllers
             AppZrList(sb, zRules.Where(r => r.RuleType == "CareerInfo" && ZrApplies(r)), "【職業從業補充論斷】");
             AppZrList(sb, zRules.Where(r => r.RuleType == "TenGodInfo" && ZrApplies(r)), "【十神性質補充論斷】");
 
-            // === Ch.11 六親緣分鑑定 ===
-            sb.AppendLine("【第十一章：六親緣分鑑定】");
+            // === Ch.9 六親緣分鑑定 ===
+            sb.AppendLine("【第九章：六親緣分鑑定】");
             sb.AppendLine();
             {
                 string ageHint = LfAgeTopicHint(currentAge);
@@ -8160,8 +8086,8 @@ namespace Ecanapi.Controllers
             AppZrList(sb, zRules.Where(r => r.RuleType == "SiblingInfo" && ZrApplies(r)), "【兄弟姐妹補充論斷】");
             AppZrList(sb, zRules.Where(r => r.RuleType == "ChildInfo"   && ZrApplies(r)), "【子女緣份補充論斷】");
 
-            // === Ch.12 婚姻深度鑑定 ===
-            sb.AppendLine("【第十二章：婚姻深度鑑定】");
+            // === Ch.10 婚姻深度鑑定 ===
+            sb.AppendLine("【第十章：婚姻深度鑑定】");
             sb.AppendLine();
             // KB Male/Female chart 優先
             string marriageKb = gender == 1 ? kb?.MaleChart : kb?.FemaleChart;
@@ -8200,8 +8126,8 @@ namespace Ecanapi.Controllers
             // 中原盲派 - 婚姻直斷參照
             AppZrList(sb, zRules.Where(r => r.RuleType == "MarriageInfo" && ZrApplies(r)), "【婚姻配偶補充論斷】");
 
-            // === Ch.13 疾厄壽元鑑定 ===
-            sb.AppendLine("【第十三章：疾厄壽元鑑定】");
+            // === Ch.11 疾厄壽元鑑定 ===
+            sb.AppendLine("【第十一章：疾厄壽元鑑定】");
             sb.AppendLine();
             // KB Weaknesses 優先
             if (!string.IsNullOrEmpty(kb?.Weaknesses))
@@ -8234,8 +8160,8 @@ namespace Ecanapi.Controllers
             AppZrList(sb, zRules.Where(r => r.RuleType == "InjuryInfo" && ZrApplies(r)), "【傷病牢獄補充論斷】");
             AppZrList(sb, zRules.Where(r => r.RuleType == "BodyTrait"  && ZrApplies(r)), "【身體特徵補充論斷】");
 
-            // === Ch.14 大運逐運論斷 ===
-            sb.AppendLine("【第十四章：大運逐運論斷（天干地支分期）】");
+            // === Ch.12 大運逐運論斷 ===
+            sb.AppendLine("【第十二章：大運逐運論斷（天干地支分期）】");
             sb.AppendLine();
             if (scored.Count == 0)
             {
@@ -8449,8 +8375,8 @@ namespace Ecanapi.Controllers
                 }
             }
 
-            // === Ch.15 開運指南 ===
-            sb.AppendLine("【第十五章：開運指南】");
+            // === Ch.13 開運指南 ===
+            sb.AppendLine("【第十三章：開運指南】");
             sb.AppendLine();
             // 八字開運
             var elemDirV2 = new Dictionary<string, string> { {"木","東方"},{"火","南方"},{"土","中央"},{"金","西方"},{"水","北方"} };
@@ -8509,8 +8435,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"紫微命宮 {mingGongStars}：建議依命宮星性質選擇職業方向");
             sb.AppendLine();
 
-            // === Ch.16 出生環境（八字方位風水）===
-            sb.AppendLine("【第十六章：出生環境・先天地理風水】");
+            // === Ch.14 出生環境（八字方位風水）===
+            sb.AppendLine("【第十四章：出生環境・先天地理風水】");
             sb.AppendLine();
             sb.AppendLine("八字方點陣圖揭示命主懷胎時，父母受孕之地周圍的先天地理環境。");
             sb.AppendLine("年柱代表北方、月柱代表東方、日柱代表南方、時柱代表西方。");
@@ -8539,8 +8465,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("以上先天地理風水，指受孕當時所在地周圍的環境。驗證時，請參照父母受孕之地實際地貌加以對照。");
             sb.AppendLine();
 
-            // === Ch.17 人生警示・趨吉避凶 ===
-            sb.AppendLine("【第十七章：人生警示・趨吉避凶】");
+            // === Ch.15 人生警示・趨吉避凶 ===
+            sb.AppendLine("【第十五章：人生警示・趨吉避凶】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
@@ -8555,8 +8481,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palacesYdz));
             sb.AppendLine();
 
-            // === Ch.18 一生命運總評 ===
-            sb.AppendLine("【第十八章：一生命運總評】");
+            // === Ch.16 一生命運總評 ===
+            sb.AppendLine("【第十六章：一生命運總評】");
             sb.AppendLine();
             if (scored.Count > 0)
             {
