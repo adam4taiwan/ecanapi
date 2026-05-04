@@ -3329,7 +3329,6 @@ namespace Ecanapi.Controllers
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
 
-
             void AddPara(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
             {
                 var p = doc.CreateParagraph();
@@ -3435,37 +3434,29 @@ namespace Ecanapi.Controllers
                 NoBorder(ctBrd.AddNewInsideH()); NoBorder(ctBrd.AddNewInsideV());
 
                 // 紅底色 helper
-                // 設定表格總寬（A4 - 1cm左右邊距 = 19cm = 10773 twips）
-                var ctTblW = ctTblPr.tblW ?? ctTblPr.AddNewTblW();
-                ctTblW.type = NPOI.OpenXmlFormats.Wordprocessing.ST_TblWidth.dxa;
-                ctTblW.w = "10773";
-
                 void SetCellRedBg(NPOI.XWPF.UserModel.XWPFTableCell cell)
                 {
                     var tcPr = cell.GetCTTc().tcPr ?? cell.GetCTTc().AddNewTcPr();
                     var shd  = tcPr.shd ?? tcPr.AddNewShd();
                     shd.val   = NPOI.OpenXmlFormats.Wordprocessing.ST_Shd.clear;
                     shd.color = "auto";
-                    shd.fill  = "8B0000";
+                    shd.fill  = "8B0000"; // 深紅底
                 }
 
-                void SetCellWidth(NPOI.XWPF.UserModel.XWPFTableCell cell, int dxa, bool topAlign = false)
+                void SetCellWidth(NPOI.XWPF.UserModel.XWPFTableCell cell, int dxa)
                 {
                     var tcPr = cell.GetCTTc().tcPr ?? cell.GetCTTc().AddNewTcPr();
                     var tcW  = tcPr.tcW ?? tcPr.AddNewTcW();
                     tcW.type = NPOI.OpenXmlFormats.Wordprocessing.ST_TblWidth.dxa;
                     tcW.w    = dxa.ToString();
                     var va   = tcPr.vAlign ?? tcPr.AddNewVAlign();
-                    va.val   = topAlign
-                        ? NPOI.OpenXmlFormats.Wordprocessing.ST_VerticalJc.top
-                        : NPOI.OpenXmlFormats.Wordprocessing.ST_VerticalJc.center;
+                    va.val   = NPOI.OpenXmlFormats.Wordprocessing.ST_VerticalJc.center;
                 }
 
-                void AddCellPara(NPOI.XWPF.UserModel.XWPFTableCell cell, string text, int fs, bool bold, string color, int spacingBefore = 0)
+                void AddCellPara(NPOI.XWPF.UserModel.XWPFTableCell cell, string text, int fs, bool bold, string color)
                 {
                     var p = cell.AddParagraph();
                     p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
-                    if (spacingBefore > 0) p.SpacingBefore = spacingBefore;
                     var r = p.CreateRun();
                     r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
                     r.FontSize = fs; r.IsBold = bold; r.SetColor(color); r.SetText(text);
@@ -3473,43 +3464,42 @@ namespace Ecanapi.Controllers
 
                 var coverRow = coverTbl.GetRow(0);
 
-                // 設定 row 最小高度 28cm（填滿頁面）
-
-                // 左聯（洞合乾坤養道丹）- 2.5cm
+                // 左聯（洞合乾坤養道丹）
                 var lcell = coverRow.GetCell(0);
-                SetCellWidth(lcell, 1418);
+                SetCellWidth(lcell, 1418); // 2.5cm
                 SetCellRedBg(lcell);
                 var lp = lcell.Paragraphs.Count > 0 ? lcell.Paragraphs[0] : lcell.AddParagraph();
                 lp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 using var lstream = new MemoryStream(scrollLeftBytes);
-                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(2.3 * 360000), (int)(14.0 * 360000));
+                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(2.4 * 360000), (int)(12.0 * 360000));
 
-                // 中央文字（金字，top-aligned，親鑑推到底部）
+                // 中央文字（金字）
                 var ccell = coverRow.GetCell(1);
-                SetCellWidth(ccell, 7937, topAlign: true); // 14cm
+                SetCellWidth(ccell, 6236); // 11cm
                 SetCellRedBg(ccell);
                 var cp0 = ccell.Paragraphs.Count > 0 ? ccell.Paragraphs[0] : ccell.AddParagraph();
                 cp0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
-                cp0.CreateRun().SetText("");
-                // 橫排：玉虛洞天
-                AddCellPara(ccell, "", 18, false, "D4AF37");
-                AddCellPara(ccell, "玉 虛 洞 天", 22, true, "D4AF37");
-                AddCellPara(ccell, "", 16, false, "D4AF37");
-                // 直排：命主名（逐字分行，字距加大）
+                cp0.CreateRun().SetText(""); // 首行佔位
+                // 橫排：玉虛洞天（金色）
+                AddCellPara(ccell, "", 14, false, "D4AF37");
+                AddCellPara(ccell, "玉 虛 洞 天", 20, true, "D4AF37");
+                AddCellPara(ccell, "", 10, false, "D4AF37");
+                // 直排：命主名（逐字分行 36pt 金字）
                 foreach (char c in personName)
-                    AddCellPara(ccell, c.ToString(), 36, true, "FFD700", spacingBefore: 300);
-                // 親鑑推到底部（大間距）
-                AddCellPara(ccell, "親", 36, false, "D4AF37", spacingBefore: 2800);
-                AddCellPara(ccell, "鑑", 36, false, "D4AF37", spacingBefore: 200);
+                    AddCellPara(ccell, c.ToString(), 36, true, "FFD700");
+                AddCellPara(ccell, "", 10, false, "D4AF37");
+                // 直排：親鑑（逐字分行 36pt 淡金）
+                AddCellPara(ccell, "親", 36, false, "D4AF37");
+                AddCellPara(ccell, "鑑", 36, false, "D4AF37");
 
-                // 右聯（玉懷天地積德心）- 2.5cm
+                // 右聯（玉懷天地積德心）
                 var rcell = coverRow.GetCell(2);
-                SetCellWidth(rcell, 1418);
+                SetCellWidth(rcell, 1418); // 2.5cm
                 SetCellRedBg(rcell);
                 var rp = rcell.Paragraphs.Count > 0 ? rcell.Paragraphs[0] : rcell.AddParagraph();
                 rp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 using var rstream = new MemoryStream(scrollRightBytes);
-                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(2.3 * 360000), (int)(14.0 * 360000));
+                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(2.4 * 360000), (int)(12.0 * 360000));
             }
             else
             {
