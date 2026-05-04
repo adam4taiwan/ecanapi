@@ -3468,18 +3468,17 @@ namespace Ecanapi.Controllers
                 var cp0 = ccell.Paragraphs.Count > 0 ? ccell.Paragraphs[0] : ccell.AddParagraph();
                 cp0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
                 cp0.CreateRun().SetText(""); // 首行佔位
-                AddCellPara(ccell, "", 18, false, "000000");
-                AddCellPara(ccell, "玉 虛 洞 天", 16, true, "CC0000");
-                AddCellPara(ccell, "", 8, false, "000000");
-                AddCellPara(ccell, bookTitle, 28, true, "8B0000");
+                // 橫排：玉虛洞天
                 AddCellPara(ccell, "", 14, false, "000000");
-                AddCellPara(ccell, "命主", 13, false, "8B4513");
-                AddCellPara(ccell, personName, 26, true, "8B0000");
-                AddCellPara(ccell, "", 12, false, "000000");
-                AddCellPara(ccell, "親　鑑", 15, false, "8B4513");
+                AddCellPara(ccell, "玉 虛 洞 天", 20, true, "CC0000");
                 AddCellPara(ccell, "", 10, false, "000000");
-                AddCellPara(ccell, "玉 洞 子", 13, true, "CC0000");
-                AddCellPara(ccell, DateTime.Today.ToString("yyyy 年 MM 月"), 11, false, "888888");
+                // 直排：命主名（逐字分行 36pt）
+                foreach (char c in personName)
+                    AddCellPara(ccell, c.ToString(), 36, true, "000000");
+                AddCellPara(ccell, "", 10, false, "000000");
+                // 直排：親鑑（逐字分行 36pt）
+                AddCellPara(ccell, "親", 36, false, "8B4513");
+                AddCellPara(ccell, "鑑", 36, false, "8B4513");
 
                 // 右聯（玉懷天地積德心）
                 var rcell = coverRow.GetCell(2);
