@@ -3466,12 +3466,13 @@ namespace Ecanapi.Controllers
 
                 // 左聯（洞合乾坤養道丹）
                 var lcell = coverRow.GetCell(0);
-                SetCellWidth(lcell, 1418); // 2.5cm
+                SetCellWidth(lcell, 1985); // 3.5cm
                 SetCellRedBg(lcell);
                 var lp = lcell.Paragraphs.Count > 0 ? lcell.Paragraphs[0] : lcell.AddParagraph();
-                lp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                lp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.LEFT;
+                lp.IndentationLeft = 567; // 1cm 向中靠攏
                 using var lstream = new MemoryStream(scrollLeftBytes);
-                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(2.4 * 360000), (int)(9.0 * 360000));
+                lp.CreateRun().AddPicture(lstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_left", (int)(3.2 * 360000), (int)(12.0 * 360000));
 
                 // 中央文字（金字）
                 var ccell = coverRow.GetCell(1);
@@ -3494,12 +3495,13 @@ namespace Ecanapi.Controllers
 
                 // 右聯（玉懷天地積德心）
                 var rcell = coverRow.GetCell(2);
-                SetCellWidth(rcell, 1418); // 2.5cm
+                SetCellWidth(rcell, 1985); // 3.5cm
                 SetCellRedBg(rcell);
                 var rp = rcell.Paragraphs.Count > 0 ? rcell.Paragraphs[0] : rcell.AddParagraph();
-                rp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                rp.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.RIGHT;
+                rp.IndentationRight = 567; // 1cm 向中靠攏
                 using var rstream = new MemoryStream(scrollRightBytes);
-                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(2.4 * 360000), (int)(9.0 * 360000));
+                rp.CreateRun().AddPicture(rstream, (int)NPOI.XWPF.UserModel.PictureType.JPEG, "scroll_right", (int)(3.2 * 360000), (int)(12.0 * 360000));
             }
             else
             {
