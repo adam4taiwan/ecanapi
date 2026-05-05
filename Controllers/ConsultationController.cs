@@ -8023,6 +8023,10 @@ namespace Ecanapi.Controllers
                 for (int i = 0; i < palaceNamesAll.Length; i++)
                 {
                     if (palaceNamesAll[i] == "命宮") continue; // 第六章已描述命宮，此處略去
+                    // 以下宮位有專屬章節深度論斷，此處略去避免重複
+                    if (palaceNamesAll[i] == "官祿宮" || palaceNamesAll[i] == "財帛宮" ||
+                        palaceNamesAll[i] == "父母宮" || palaceNamesAll[i] == "子女宮" ||
+                        palaceNamesAll[i] == "夫妻宮" || palaceNamesAll[i] == "疾厄宮") continue;
                     string pStars  = KbGetPalaceStars(palacesYdz, palaceLookups[i]);
                     string pBranch = KbGetPalaceBranch(palacesYdz, palaceLookups[i]);
                     string kbContent = KbFilterZiweiContent(KbExtractPalaceSection(ziweiFullContent, sectionKeys[i]), KbGetPalaceStarsSet(palacesYdz, palaceLookups[i]), chartStars).Trim();
@@ -8072,13 +8076,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第八章：事業格局鑑定】");
             sb.AppendLine();
 
-            // 【事業特質】：古傳斷語 + 五行職業取象 + 官祿宮主星 合併為一節
+            // 【事業特質】：五行職業取象 + 官祿宮主星（日柱事業傾向已於第三章論述）
             sb.AppendLine("【事業特質】");
-            if (!string.IsNullOrEmpty(kb?.Career))
-            {
-                sb.AppendLine(kb.Career);
-                sb.AppendLine();
-            }
             var (cfHuangliang, cfYangZhiYin) = KbCalcCareerFlags(
                 yStemSS, yBranchSS, mStemSS, mBranchSS,
                 dBranchSS, hStemSS, hBranchSS, dStem, pattern);
@@ -8204,15 +8203,7 @@ namespace Ecanapi.Controllers
             // === Ch.10 婚姻深度鑑定 ===
             sb.AppendLine("【第十章：婚姻深度鑑定】");
             sb.AppendLine();
-            // KB Male/Female chart 優先
-            string marriageKb = gender == 1 ? kb?.MaleChart : kb?.FemaleChart;
-            if (!string.IsNullOrEmpty(marriageKb))
-            {
-                sb.AppendLine("【日柱婚姻特質（古傳斷語）】");
-                sb.AppendLine(marriageKb);
-                sb.AppendLine();
-            }
-            // 紫微夫妻宮補充
+            // 紫微夫妻宮補充（日柱男/女命論斷已於第三章論述）
             if (hasZiwei)
             {
                 if (!string.IsNullOrEmpty(ziweiSps))
@@ -8244,13 +8235,7 @@ namespace Ecanapi.Controllers
             // === Ch.11 疾厄壽元鑑定 ===
             sb.AppendLine("【第十一章：疾厄壽元鑑定】");
             sb.AppendLine();
-            // KB Weaknesses 優先
-            if (!string.IsNullOrEmpty(kb?.Weaknesses))
-            {
-                sb.AppendLine("【日柱天生弱點（古傳斷語）】");
-                sb.AppendLine(kb.Weaknesses);
-                sb.AppendLine();
-            }
+            // 日柱天生弱點已於第三章論述
             sb.AppendLine(KbSanmenHealthLongevity(
                 yStem, mStem, hStem, yBranch, mBranch, dBranch, hBranch,
                 dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
@@ -8447,7 +8432,8 @@ namespace Ecanapi.Controllers
                       : stemPeriodScore14 >= 25 ? $"天干{lc.stem}（{stemSS}）忌神有力{(branchOverridesStem14 ? "，且受地支壓制，自身阻滯明顯" : "")}，宜低調守成，避免冒進決策。"
                       :                           $"天干{lc.stem}（{stemSS}）忌神旺盛{(hasStemRoot14 && stemIsBad14 ? "，更得通根強化，忌上加忌" : "")}，此五年壓力沉重，宜靜守蓄積，嚴防重大損失。";
                     sb.AppendLine($"  {stemPeriodDesc14}");
-                    sb.AppendLine($"  {DyCrossDesc(stemCrossClass14, stemSS, branchSS, stemPeriodScore14, ziweiDecadeScore14)}");
+                    string stemCrossDesc14 = DyCrossDesc(stemCrossClass14, stemSS, branchSS, stemPeriodScore14, ziweiDecadeScore14);
+                    sb.AppendLine($"  {stemCrossDesc14}");
                     sb.AppendLine();
 
                     // 地支期（後5年）
@@ -8462,7 +8448,9 @@ namespace Ecanapi.Controllers
                       : branchPeriodScore14 >= 25 ? $"地支{lc.branch}（{branchSS}）忌神有力{(branchOverridesStem14 && branchIsBad14 ? "，更克天干，干支雙忌" : "")}，宜低調守成，謹慎決策，減少風險暴露。"
                       :                             $"地支{lc.branch}（{branchSS}）忌神旺盛{(hasStemRoot14 && branchIsBad14 ? "，得天干同氣助長，忌上加忌" : "")}，此後五年持續承壓，宜極度守成，嚴控風險。";
                     sb.AppendLine($"  {branchPeriodDesc14}");
-                    sb.AppendLine($"  {DyCrossDesc(branchCrossClass14, stemSS, branchSS, branchPeriodScore14, ziweiDecadeScore14)}");
+                    string branchCrossDesc14 = DyCrossDesc(branchCrossClass14, stemSS, branchSS, branchPeriodScore14, ziweiDecadeScore14);
+                    if (branchCrossDesc14 != stemCrossDesc14)
+                        sb.AppendLine($"  {branchCrossDesc14}");
                     sb.AppendLine();
 
                     // 地支六親宮位事項
@@ -8623,13 +8611,6 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
                 sb.AppendLine($"命主喜走{yongShenElem}方位（{elemDirV2.GetValueOrDefault(yongShenElem, "")}），方能得天時地利。");
                 sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向，尤其在中凶/大凶運期間。");
-            }
-            // KB InnerTraits 收尾引用
-            if (!string.IsNullOrEmpty(kb?.InnerTraits))
-            {
-                sb.AppendLine();
-                sb.AppendLine("【命主先天特質總結】");
-                sb.AppendLine(kb.InnerTraits);
             }
             sb.AppendLine();
 
