@@ -2688,7 +2688,7 @@ namespace Ecanapi.Controllers
 
         [HttpGet("analyze-yudongzi")]
         [Authorize]
-        public async Task<IActionResult> GetYudongziAnalysis()
+        public async Task<IActionResult> GetYudongziAnalysis([FromQuery] string? personName = null)
         {
             var identity = User.FindFirstValue(ClaimTypes.Email)
                          ?? User.FindFirstValue(ClaimTypes.Name)
@@ -2741,7 +2741,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
-                string ydzUserName = user.Name ?? "";
+                string ydzUserName = !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
                 string dmElem  = KbStemToElement(dStem);
@@ -3112,7 +3112,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
-                string docxUserName = user.Name ?? "";
+                string docxUserName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
                 string dmElem  = KbStemToElement(dStem);
