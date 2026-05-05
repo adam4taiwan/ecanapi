@@ -2741,6 +2741,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
+                string ydzUserName = user.Name ?? "";
                 var luckCycles = LfExtractLuckCycles(root);
 
                 string dmElem  = KbStemToElement(dStem);
@@ -2967,6 +2968,7 @@ namespace Ecanapi.Controllers
                     doubleDescsYdz, minorDescsYdz, allPalaceStarDescsYdz,
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz,
+                    userName: ydzUserName,
                     calDb: _calendarDb);
 
                 var cycleData = scored.Select(c => new {
@@ -3110,6 +3112,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
+                string docxUserName = user.Name ?? "";
                 var luckCycles = LfExtractLuckCycles(root);
 
                 string dmElem  = KbStemToElement(dStem);
@@ -3288,6 +3291,7 @@ namespace Ecanapi.Controllers
                     doubleDescsYdz, minorDescsYdz, allPalaceStarDescsYdz,
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz,
+                    userName: docxUserName,
                     calDb: _calendarDb);
 
                 // === 建立 DOCX ===
@@ -7148,12 +7152,21 @@ namespace Ecanapi.Controllers
             string ziweiPar = "",
             string ziweiCldStar = "",
             string ziweiCld = "",
+            string userName = "",
             CalendarDbContext? calDb = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
             int currentAge = DateTime.Today.Year - birthYear;
+            // 個人化：命主稱謂（先生/小姐）
+            string genderSuffix = gender == 1 ? "先生" : "小姐";
+            string personRef = string.IsNullOrEmpty(userName) ? "命主" : (userName + genderSuffix);
+            // 當前大運
+            var curCycle = scored.FirstOrDefault(c => c.startAge <= currentAge && c.endAge >= currentAge);
+            string curCycleNote = curCycle != default
+                ? $"  目前行運：{curCycle.stem}{curCycle.branch} 大運（{curCycle.startAge}～{curCycle.endAge} 歲）"
+                : "";
 
             // 展開十神短稱為全稱，供 ZrApplies 使用
             yStemSS   = KbExpandLiuShen(yStemSS);
@@ -7701,7 +7714,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine("                   玉 洞 子 傳 家 寶 典");
             sb.AppendLine("=================================================================");
-            sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年  虛齡：{currentAge} 歲");
+            sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年  虛齡：{currentAge} 歲{curCycleNote}");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
             sb.AppendLine();
             sb.AppendLine("  時辰恐有錯  陰騭最難憑");
@@ -8623,7 +8636,12 @@ namespace Ecanapi.Controllers
             // === 表尾 ===
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 玉洞子傳家寶典 v2.0");
-            return sb.ToString();
+            // 個人化：將正文「命主」替換為「XXX 先生/小姐」（保留「命主星/宮/垣/盤/：」不換）
+            var reportResult = sb.ToString();
+            if (!string.IsNullOrEmpty(userName))
+                reportResult = System.Text.RegularExpressions.Regex.Replace(
+                    reportResult, "命主(?![星宮垣盤：])", personRef);
+            return reportResult;
         }
 
         // === 紫微格局偵測（依命宮主星+地支+四化） ===
