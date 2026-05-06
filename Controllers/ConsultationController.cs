@@ -6555,6 +6555,28 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
             sb.AppendLine();
 
+            // 月令影響 + 男女命論斷 + 十干象法（傳家寶典 Ch.3，置於第三章末）
+            if (kb != null)
+            {
+                void AppKbCh3(string label, string? val)
+                {
+                    if (!string.IsNullOrWhiteSpace(val)) { sb.AppendLine($"▍{label}"); sb.AppendLine(val); sb.AppendLine(); }
+                }
+                string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋" : "冬";
+                AppKbCh3("月令影響", LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar));
+                AppKbCh3(gender == 1 ? "男命論斷" : "女命論斷",
+                    LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar));
+            }
+            string ch3ShiGanXiang = LfShiGanXiangFa(dStem, mBranch);
+            if (!string.IsNullOrEmpty(ch3ShiGanXiang))
+            {
+                sb.AppendLine("【十干象法】");
+                sb.AppendLine(ch3ShiGanXiang);
+                sb.AppendLine();
+            }
+
             // === Ch.4 格局與用神 ===
             sb.AppendLine("【第四章：格局與用神判定】");
             sb.AppendLine($"格局：【{pattern}】");
