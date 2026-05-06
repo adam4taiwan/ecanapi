@@ -2591,8 +2591,8 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "交友宮");
                     bzSb.AppendLine();
 
-                    // 官祿宮
-                    bzSb.AppendLine($"--- 官祿宮（{bzOffStars}）---");
+                    // 事業宮
+                    bzSb.AppendLine($"--- 事業宮（{bzOffStars}）---");
                     if (!string.IsNullOrEmpty(bzDoubleDescOff))
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescOff}");
                     else if (!string.IsNullOrEmpty(bzDescOff))
@@ -5865,6 +5865,41 @@ namespace Ecanapi.Controllers
                 LfRelBranchStructNote(mBranch, branches, true, mStem),
                 yongShenElem, jiShenElem, "青壯", "月支", gender));
             sb.AppendLine();
+            // 父母宮補充
+            {
+                // 父親 = 偏財。母親 = 正印/偏印
+                var allSSPairs = new[] {
+                    (yStemSS, "年干"), (yBranchSS, "年支"), (mStemSS, "月干"), (mBranchSS, "月支"),
+                    (hStemSS, "時干"), (hBranchSS, "時支")
+                };
+                var fatherLocs  = allSSPairs.Where(x => x.Item1 == "偏財").Select(x => x.Item2).ToList();
+                var motherLocs  = allSSPairs.Where(x => x.Item1 is "正印" or "偏印").Select(x => x.Item2).ToList();
+                string fatherElem = gender == 1
+                    ? LfElemOvercome.GetValueOrDefault(dmElem, "")   // 男命偏財=財星元素
+                    : LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 女命同
+                bool fatherIsGood = fatherElem == yongShenElem;
+                bool fatherIsBad  = fatherElem == jiShenElem;
+                string fatherDesc = fatherLocs.Count > 0
+                    ? (fatherIsGood
+                        ? $"父親（偏財，見於{string.Join("、", fatherLocs)}）屬喜用，父親積極有能力，父緣較深，對您的成長有正面助力。"
+                        : fatherIsBad
+                        ? $"父親（偏財，見於{string.Join("、", fatherLocs)}）屬忌神，父緣略薄，父親個性較剛強或早年分離，相處需要更多耐心與理解。"
+                        : $"父親（偏財，見於{string.Join("、", fatherLocs)}）屬閒神，父緣平淡，父親對您影響有限，各自獨立發展。")
+                    : "命局偏財不顯，父緣較薄，父親對您的影響有限，宜自立自強。";
+                string motherElem = LfElemGen.GetValueOrDefault(dmElem, ""); // 印星=生身
+                bool motherIsGood = motherElem == yongShenElem;
+                bool motherIsBad  = motherElem == jiShenElem;
+                string motherDesc = motherLocs.Count > 0
+                    ? (motherIsGood
+                        ? $"母親（印星，見於{string.Join("、", motherLocs)}）屬喜用，母親慈愛護持，母緣深厚，一生得母親庇蔭，在關鍵時刻常有母親（或長輩）提供支持。"
+                        : motherIsBad
+                        ? $"母親（印星，見於{string.Join("、", motherLocs)}）屬忌神，母子互動偶有摩擦，或因母親過於強勢干涉，需學習適度保持空間與邊界。"
+                        : $"母親（印星，見於{string.Join("、", motherLocs)}）屬閒神，母緣平淡，母子關係溫和不深，各自獨立生活。")
+                    : "命局印星不顯，母緣較薄，成長過程中較多依賴自身力量。";
+                sb.AppendLine($"  【父親】{fatherDesc}");
+                sb.AppendLine($"  【母親】{motherDesc}");
+            }
+            sb.AppendLine();
 
             // --- 日柱 ---
             sb.AppendLine("【日柱·自身婚姻】");
@@ -5901,6 +5936,52 @@ namespace Ecanapi.Controllers
                 LfRelHasRoot(hStem, hBranch), LfRelBranchEffect(hBranch, hStem), hStemFav,
                 LfRelBranchStructNote(hBranch, branches, false, mStem),
                 yongShenElem, jiShenElem, "老運", "時支", gender));
+            sb.AppendLine();
+            // 子女宮補充
+            {
+                // 男命食傷為子女星，女命官殺為子女星
+                var allSSPairs2 = new[] {
+                    (yStemSS, "年干"), (yBranchSS, "年支"), (mStemSS, "月干"), (mBranchSS, "月支"),
+                    (hStemSS, "時干"), (hBranchSS, "時支")
+                };
+                List<string> childLocs;
+                string childStarLabel;
+                string childStarElem;
+                if (gender == 1)
+                {
+                    childLocs      = allSSPairs2.Where(x => x.Item1 is "食神" or "傷官").Select(x => x.Item2).ToList();
+                    childStarLabel = "食傷";
+                    childStarElem  = LfElemGen.GetValueOrDefault(dmElem, "");
+                }
+                else
+                {
+                    childLocs      = allSSPairs2.Where(x => x.Item1 is "正官" or "七殺").Select(x => x.Item2).ToList();
+                    childStarLabel = "官殺";
+                    childStarElem  = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                }
+                bool childIsGood = childStarElem == yongShenElem;
+                bool childIsBad  = childStarElem == jiShenElem;
+                // 時柱額外加入（時柱本就是子女宮，若不在上面 pairs 則補入）
+                string childDesc;
+                if (childLocs.Count > 0)
+                {
+                    string locStr = string.Join("、", childLocs);
+                    if (childIsGood)
+                        childDesc = $"{childStarLabel}（見於{locStr}）屬喜用，子女緣份較深，子女多半聰明有出息，晚年能得子女孝順照顧。";
+                    else if (childIsBad)
+                        childDesc = $"{childStarLabel}（見於{locStr}）屬忌神，子女緣份略薄，管教子女需多耐心，彼此間宜保持良好溝通，避免代溝摩擦。";
+                    else
+                        childDesc = $"{childStarLabel}（見於{locStr}）屬閒神，子女緣份平淡，各自獨立發展，相處融洽但聚少離多。";
+                }
+                else
+                {
+                    childDesc = gender == 1
+                        ? "命局食傷不顯，子女緣份較薄，與子女相處宜多給予陪伴與溝通，以維繫感情。"
+                        : "命局官殺不顯，子女緣份較薄，晚年宜重視與子女的情感連結。";
+                }
+                sb.AppendLine($"  【子女】{childDesc}");
+            }
+            sb.AppendLine();
 
             return sb.ToString();
         }
