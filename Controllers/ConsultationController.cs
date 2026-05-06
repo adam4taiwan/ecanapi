@@ -2347,13 +2347,22 @@ namespace Ecanapi.Controllers
                     return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
                 }).ToList();
 
+                // === 日柱深度論斷 KB + 納音（供 LfBuildReport 使用）===
+                var bzDayKb = await _context.BaziDayPillarReadings
+                    .FirstOrDefaultAsync(r => r.DayPillar == dStem + dBranch);
+                string bzYNaYin = LfPillarNaYin(yearP);
+                string bzMNaYin = LfPillarNaYin(monthP);
+                string bzDNaYin = LfPillarNaYin(dayP);
+                string bzHNaYin = LfPillarNaYin(timeP);
+
                 // === 八字主體 ===
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear);
+                    scored, gender, birthYear,
+                    bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -6431,7 +6440,9 @@ namespace Ecanapi.Controllers
             string season, string seaLabel, string pattern, string yongShenElem, string fuYiElem, string yongReason,
             string jiShenElem,
             List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
-            int gender, int birthYear)
+            int gender, int birthYear,
+            string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "",
+            BaziDayPillarReading? kb = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -6474,6 +6485,53 @@ namespace Ecanapi.Controllers
             if (scored.Count > 0)
                 sb.AppendLine($"大運起運：{scored[0].startAge} 歲，依虛歲生日後換運為主");
             sb.AppendLine();
+
+            // 根苗花果四柱表（若有納音資料）
+            if (!string.IsNullOrEmpty(yNaYin))
+            {
+                sb.AppendLine("【先天八字四柱排盤】");
+                sb.AppendLine("一、根苗花果");
+                sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
+                sb.AppendLine("|------|------|------|------|------|");
+                sb.AppendLine($"| 六神 | {hStemSS} | 元神 | {mStemSS} | {yStemSS} |");
+                sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
+                sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
+                sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
+                sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
+                var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
+                sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
+                sb.AppendLine();
+                sb.AppendLine("二、天干十神");
+                string[] bz12Stems = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                sb.AppendLine("| 天干 | " + string.Join(" | ", bz12Stems) + " |");
+                sb.AppendLine("|------|" + string.Join("|", bz12Stems.Select(_ => "----")) + "|");
+                sb.AppendLine("| 十神 | " + string.Join(" | ", bz12Stems.Select(s => LfShiShenAbbr(s, dStem).PadLeft(2))) + " |");
+                sb.AppendLine();
+                sb.AppendLine("三、地支藏神十神");
+                string[] bz12Brs = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                sb.AppendLine("| 項目 | " + string.Join(" | ", bz12Brs.Select(br => br + (branches.Contains(br) ? "★" : ""))) + " |");
+                sb.AppendLine("|------" + string.Join("|", bz12Brs.Select(_ => "----")) + "|");
+                sb.AppendLine("| 藏神 | " + string.Join(" | ", bz12Brs.Select(br => LfFmtHidden(br, dStem))) + " |");
+                double biJiPct1 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+                sb.AppendLine($"比印陣計分：{biJiPct1:F0}%");
+                sb.AppendLine();
+            }
+
+            // 日柱深度論斷（若有 kb 資料）
+            if (kb != null)
+            {
+                sb.AppendLine($"【日柱深度論斷 · {dStem}{dBranch}】");
+                sb.AppendLine();
+                void AppKbBz(string label, string? val)
+                {
+                    if (!string.IsNullOrWhiteSpace(val)) { sb.AppendLine($"▍{label}"); sb.AppendLine(val); sb.AppendLine(); }
+                }
+                AppKbBz("核心", kb.Overview);
+                AppKbBz("神殺特質", kb.ShenAnalysis);
+                AppKbBz("內在特質", kb.InnerTraits);
+                AppKbBz("事業傾向", kb.Career);
+                AppKbBz("天生弱點", kb.Weaknesses);
+            }
 
             // === Ch.2 命局體性 ===
             sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
