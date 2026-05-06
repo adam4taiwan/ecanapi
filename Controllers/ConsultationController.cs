@@ -6517,7 +6517,18 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
-            // 日柱深度論斷（若有 kb 資料）
+            // === Ch.2 命局體性 ===
+            sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
+            sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
+            if (seaLabel == "寒凍")
+                sb.AppendLine("最喜：丙丁巳午火暖局。最忌：壬癸亥子水助寒。調候急用：丙丁火。");
+            else if (seaLabel == "炎熱")
+                sb.AppendLine("最喜：壬癸亥子水消暑，庚辛申酉金。最忌：丙丁巳午火助熱。調候急用：壬癸水。");
+            else
+                sb.AppendLine("體性溫和，以日主強弱論用神，無需特別調候。");
+            sb.AppendLine();
+
+            // 日柱深度論斷（傳家寶典 Ch.3 精選，置於第二章末）
             if (kb != null)
             {
                 sb.AppendLine($"【日柱深度論斷 · {dStem}{dBranch}】");
@@ -6532,17 +6543,6 @@ namespace Ecanapi.Controllers
                 AppKbBz("事業傾向", kb.Career);
                 AppKbBz("天生弱點", kb.Weaknesses);
             }
-
-            // === Ch.2 命局體性 ===
-            sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
-            sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
-            if (seaLabel == "寒凍")
-                sb.AppendLine("最喜：丙丁巳午火暖局。最忌：壬癸亥子水助寒。調候急用：丙丁火。");
-            else if (seaLabel == "炎熱")
-                sb.AppendLine("最喜：壬癸亥子水消暑，庚辛申酉金。最忌：丙丁巳午火助熱。調候急用：壬癸水。");
-            else
-                sb.AppendLine("體性溫和，以日主強弱論用神，無需特別調候。");
-            sb.AppendLine();
 
             // === Ch.3 日主強弱 ===
             sb.AppendLine("【第三章：日主強弱判定】");
