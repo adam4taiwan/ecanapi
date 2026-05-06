@@ -8461,19 +8461,13 @@ namespace Ecanapi.Controllers
                         sb.AppendLine(branchRelStr);
                     }
 
-                    // 此運整體分析（評分分解＋關係＋空亡＋神煞＋論斷）
-                    string verifyStr = LfDyStepVerifyStr(
-                        lc.stem, lc.branch, stemSS, branchSS,
-                        pillarBranches14, pillarStems14,
-                        pillarBranchSS14, chartStemSS14,
-                        goodElems14, badElems14,
-                        dayEmpty14, dStem,
-                        lc.score, lc.level);
-                    if (!string.IsNullOrEmpty(verifyStr))
-                    {
-                        sb.AppendLine("  【此運分析】");
-                        sb.AppendLine(verifyStr);
-                    }
+                    // 五大模組論斷（天干/地支引動/三干三支/空亡）
+                    string stepAnalysis = LfDyStepAnalysis(
+                        lc.stem, lc.branch, lc.startAge, lc.endAge, currentAge,
+                        dStem, pillarStems14, pillarBranches14, pillarBranchSS14,
+                        yongShenElem, jiShenElem, dayEmpty14, skipHeader: true);
+                    if (!string.IsNullOrEmpty(stepAnalysis))
+                        sb.AppendLine(stepAnalysis);
                     sb.AppendLine();
                 }
             }
@@ -8532,10 +8526,9 @@ namespace Ecanapi.Controllers
             }
             // 行業建議
             sb.AppendLine("【適合行業綜合建議】");
-            sb.AppendLine($"八字格局取象：{LfPatternDesc(pattern).Split('，').FirstOrDefault() ?? ""}");
-            sb.AppendLine($"用神 {yongShenElem} 取象：{openColorV2.GetValueOrDefault(yongShenElem, "")} 相關行業");
+            sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, cfHuangliang, cfYangZhiYin));
             if (!string.IsNullOrEmpty(mingGongStars))
-                sb.AppendLine($"紫微命宮 {mingGongStars}：建議依命宮星性質選擇職業方向");
+                sb.AppendLine($"  紫微命宮{mingGongStars}：建議依命宮星性質選擇職業方向");
             sb.AppendLine();
 
             // === Ch.14 出生環境（八字方位風水）===
@@ -8612,6 +8605,14 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"命主喜走{yongShenElem}方位（{elemDirV2.GetValueOrDefault(yongShenElem, "")}），方能得天時地利。");
                 sb.AppendLine($"趨吉避凶：謹慎避免【{jiShenElem}】方向，尤其在中凶/大凶運期間。");
             }
+            sb.AppendLine();
+
+            // === Ch.17 居家風水開運佈置 ===
+            sb.AppendLine("【第十七章：居家風水開運佈置】");
+            sb.AppendLine();
+            sb.Append(KbSanmenFengShui(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, bodyPct, yongShenElem, jiShenElem, wuXing, scored));
             sb.AppendLine();
 
             // === 表尾 ===
@@ -9896,7 +9897,8 @@ namespace Ecanapi.Controllers
         string[] pillarStems, string[] pillarBranches,
         string[] pillarBranchSS,
         string yongShenElem, string jiShenElem,
-        string[] dayEmpty)
+        string[] dayEmpty,
+        bool skipHeader = false)
     {
         // 大運天干十神
         string dyStemSS  = LfStemShiShen(dyStem, dStem);
@@ -9913,9 +9915,12 @@ namespace Ecanapi.Controllers
         bool isCurrent = currentAge >= startAge && currentAge <= endAge;
         var sb = new System.Text.StringBuilder();
 
-        string currentMark = isCurrent ? $"  ← 目前行運（{currentAge}歲）" : "";
-        sb.AppendLine($"【{startAge}-{endAge}歲｜{dyStem}{dyBranch} 大運】{currentMark}");
-        sb.AppendLine();
+        if (!skipHeader)
+        {
+            string currentMark = isCurrent ? $"  ← 目前行運（{currentAge}歲）" : "";
+            sb.AppendLine($"【{startAge}-{endAge}歲｜{dyStem}{dyBranch} 大運】{currentMark}");
+            sb.AppendLine();
+        }
 
         // ▌一、天干論斷
         sb.AppendLine("▌一、天干論斷");
@@ -9959,6 +9964,94 @@ namespace Ecanapi.Controllers
                 : fav == "忌神"
                 ? "  → 忌神行空亡運，凶性虛而不實，十年禍事力道減半。"
                 : "  → 此步行空亡，整體謀事宜低調保守。");
+        }
+        else
+        {
+            sb.AppendLine("  （無空亡）");
+        }
+        sb.AppendLine();
+
+        return sb.ToString().TrimEnd();
+    }
+
+    // ─── 流年單年完整分析 ──────────────────────────────────────────────────
+    private static string LfLnYearAnalysis(
+        string lyStem, string lyBranch, int lyYear, string zodiac,
+        string dStem,
+        string[] pillarStems, string[] pillarBranches,
+        string[] pillarBranchSS,
+        string yongShenElem, string jiShenElem,
+        string[] dayEmpty,
+        string dayunBranch = "",   // 當前大運地支，傳入啟用情境四跨域三合
+        bool skipHeader = false)
+    {
+        string lyStemSS   = LfStemShiShen(lyStem, dStem);
+        string lyBranchMainStem = LfBranchHiddenRatio.TryGetValue(lyBranch, out var h)
+            ? h[0].stem : "";
+        string lyBranchSS = string.IsNullOrEmpty(lyBranchMainStem) ? ""
+            : LfStemShiShen(lyBranchMainStem, dStem);
+
+        // 流年天干事件類型
+        string stemEvent = lyStemSS switch {
+            "比肩" => "競爭加劇、防破財、兄弟朋友關係變動",
+            "劫財" => "破財損失、防合夥糾紛、朋友之患",
+            "食神" => "才藝發揮、飲食豐足、子女喜事",
+            "傷官" => "換工作、官非口舌、創業突破",
+            "偏財" => "偏財機遇、父緣事件、投資出現機會",
+            "正財" => "穩定財源、正職收入、婚配緣分（男）",
+            "七殺" => "壓力考驗、小人官非、挑戰突發",
+            "正官" => "升遷機會、名譽事件、婚配緣分（女）",
+            "偏印" => "學習進修、宗教靜思、易孤獨多慮",
+            "正印" => "貴人資助、文書資格、長輩護持",
+            _ => lyStemSS
+        };
+
+        var sb = new System.Text.StringBuilder();
+
+        if (!skipHeader)
+        {
+            sb.AppendLine($"【{lyYear} {lyStem}{lyBranch}（{zodiac}年）】");
+            sb.AppendLine();
+        }
+
+        // ▌一、流年天干
+        sb.AppendLine("▌一、流年天干");
+        sb.AppendLine($"  年干（{lyStem}）為{lyStemSS}，當年主要事件類型：{stemEvent}");
+        sb.AppendLine();
+
+        // ▌二、地支引動逐條分析
+        sb.AppendLine("▌二、地支引動逐條分析");
+        var impacts = LfRunBranchRelations(
+            lyBranch, pillarBranches, pillarBranchSS,
+            yongShenElem, jiShenElem, dayunBranch);
+        if (impacts.Count == 0)
+            sb.AppendLine("  （流年地支與四柱無刑沖害合，本年整體平穩）");
+        else
+            foreach (var imp in impacts)
+                sb.Append(LfRunFormatImpact(imp, dayEmpty, pillarBranches,
+                    $"年（{lyBranch}）", dayunBranch));
+        sb.AppendLine();
+
+        // ▌三、三干/三支成局
+        sb.AppendLine("▌三、三干/三支成局");
+        string sanCheck = LfRunSanGanZhiCheck(lyStem, lyBranch, pillarStems, pillarBranches);
+        sb.AppendLine(string.IsNullOrEmpty(sanCheck) ? "  （無三干三支成局）" : sanCheck);
+        sb.AppendLine();
+
+        // ▌四、空亡
+        sb.AppendLine("▌四、空亡");
+        if (dayEmpty.Contains(lyBranch))
+        {
+            string fav = LfBranchHiddenRatio.TryGetValue(lyBranch, out var hd)
+                ? KbStemToElement(hd[0].stem) == yongShenElem ? "喜神"
+                : KbStemToElement(hd[0].stem) == jiShenElem   ? "忌神" : "中性"
+                : "中性";
+            sb.AppendLine($"  年（{lyBranch}）落入空亡（旬空：{dayEmpty[0]}{dayEmpty[1]}）");
+            sb.AppendLine(fav == "喜神"
+                ? "  → 喜神行空亡年，謀事易名存實亡，成效打折，不宜大動。"
+                : fav == "忌神"
+                ? "  → 忌神行空亡年，凶性虛而不實，禍事力道減半。"
+                : "  → 今年行空亡，謀事宜低調保守，勿輕易大動。");
         }
         else
         {
