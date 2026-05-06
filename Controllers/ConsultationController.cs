@@ -6553,6 +6553,20 @@ namespace Ecanapi.Controllers
             sb.AppendLine("▍ 海外發展");
             sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, false, default));
             sb.AppendLine();
+            sb.AppendLine("▍ 天乙貴人方向");
+            {
+                var tianYiMapBz = new Dictionary<string, string>
+                {
+                    {"甲","丑未"},{"戊","丑未"},{"庚","丑未"},
+                    {"乙","子申"},{"己","子申"},
+                    {"丙","亥酉"},{"丁","亥酉"},
+                    {"壬","卯巳"},{"癸","卯巳"},
+                    {"辛","午寅"}
+                };
+                string tianYiBranchesBz = tianYiMapBz.GetValueOrDefault(dStem, "");
+                sb.AppendLine($"{dStem} 日主，天乙貴人在：{tianYiBranchesBz}（見此地支方位或行此地支大運，貴人助力最強）");
+            }
+            sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 八字命書 v2.3");
@@ -12005,6 +12019,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第三章：分析期間大運干支論斷】");
             string[] branchSSArr = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
             string[] dyChartStems = { yStem, mStem, dStemRef, hStem };
+            string[] dyPillarBranches = { yBranch, mBranch, dBranch, hBranch };
+            string[] dyDayEmpty = LfCalcDayEmpty(dStem, dBranch);
             string[] dyTiaoHouList = LfTiaoHou.TryGetValue(dStemRef, out var dyTh1) && dyTh1.TryGetValue(mBranch, out var dyTh2)
                 ? dyTh2 : Array.Empty<string>();
             string dyTiaoHouElem = dyTiaoHouList.Length > 0 ? KbStemToElement(dyTiaoHouList[0]) : "";
@@ -12054,6 +12070,12 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"  【地支事項】大運地支{lc.branch}（{lcBSS}）：");
                     sb.AppendLine($"  {palaceEvents}");
                 }
+                // 五大模組論斷（天干/地支引動/三干三支/空亡）
+                string lcStepAnalysis = LfDyStepAnalysis(
+                    lc.stem, lc.branch, lc.startAge, lc.endAge, nowAge,
+                    dStemRef, dyChartStems, dyPillarBranches, branchSSArr,
+                    yongShenElem, jiShenElem, dyDayEmpty, skipHeader: true);
+                if (!string.IsNullOrEmpty(lcStepAnalysis)) sb.AppendLine(lcStepAnalysis);
                 // 紫微大限宮干化忌入關鍵宮位警示
                 if (hasZiwei)
                 {
@@ -12382,6 +12404,13 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("  ▍ 綜合論斷");
                 sb.AppendLine($"  {DyCrossDesc(d.crossClass, d.flStemSS, d.flBranchSS, d.baziScore, d.ziweiScore)}");
                 sb.AppendLine();
+                // 五大模組論斷（流年版）
+                string lnStepAnalysis = LfLnYearAnalysis(
+                    d.flStem, d.flBranch, d.year, LfBranchZodiac.GetValueOrDefault(d.flBranch, ""),
+                    dStemRef, dyChartStems, dyPillarBranches, branchSSArr,
+                    yongShenElem, jiShenElem, dyDayEmpty,
+                    dayunBranch: d.daiyunBranch, skipHeader: true);
+                if (!string.IsNullOrEmpty(lnStepAnalysis)) sb.AppendLine(lnStepAnalysis);
                 sb.AppendLine("  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -");
                 sb.AppendLine();
             }
@@ -12476,6 +12505,20 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine("▍ 海外發展");
             sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
+            sb.AppendLine();
+            sb.AppendLine("▍ 天乙貴人方向");
+            {
+                var tianYiMapDy = new Dictionary<string, string>
+                {
+                    {"甲","丑未"},{"戊","丑未"},{"庚","丑未"},
+                    {"乙","子申"},{"己","子申"},
+                    {"丙","亥酉"},{"丁","亥酉"},
+                    {"壬","卯巳"},{"癸","卯巳"},
+                    {"辛","午寅"}
+                };
+                string tianYiBranchesDy = tianYiMapDy.GetValueOrDefault(dStem, "");
+                sb.AppendLine($"{dStem} 日主，天乙貴人在：{tianYiBranchesDy}（見此地支方位或行此地支大運年份，貴人助力最強）");
+            }
             sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
@@ -13333,6 +13376,20 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine("▍ 海外發展");
             sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
+            sb.AppendLine();
+            sb.AppendLine("▍ 天乙貴人方向");
+            {
+                var tianYiMapLn = new Dictionary<string, string>
+                {
+                    {"甲","丑未"},{"戊","丑未"},{"庚","丑未"},
+                    {"乙","子申"},{"己","子申"},
+                    {"丙","亥酉"},{"丁","亥酉"},
+                    {"壬","卯巳"},{"癸","卯巳"},
+                    {"辛","午寅"}
+                };
+                string tianYiBranchesLn = tianYiMapLn.GetValueOrDefault(dStem, "");
+                sb.AppendLine($"{dStem} 日主，天乙貴人在：{tianYiBranchesLn}（見此地支方位或流年行此地支，貴人助力最強）");
+            }
             sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
