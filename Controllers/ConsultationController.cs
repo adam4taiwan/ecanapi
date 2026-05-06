@@ -6379,6 +6379,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  健康壽元");
             sb.AppendLine("  一生命運總評");
             sb.AppendLine("  人生警示事項");
+            sb.AppendLine("  適合行業建議");
+            sb.AppendLine("  居家風水開運");
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
@@ -6566,6 +6568,22 @@ namespace Ecanapi.Controllers
                 string tianYiBranchesBz = tianYiMapBz.GetValueOrDefault(dStem, "");
                 sb.AppendLine($"{dStem} 日主，天乙貴人在：{tianYiBranchesBz}（見此地支方位或行此地支大運，貴人助力最強）");
             }
+            sb.AppendLine();
+            // 行業建議
+            sb.AppendLine("【適合行業綜合建議】");
+            {
+                var (cfHuangliang, cfYangZhiYin) = KbCalcCareerFlags(
+                    yStemSS, yBranchSS, mStemSS, mBranchSS,
+                    dBranchSS, hStemSS, hBranchSS, dStem, pattern);
+                sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, cfHuangliang, cfYangZhiYin));
+            }
+            sb.AppendLine();
+            // 居家風水
+            sb.AppendLine("【居家風水開運佈置】");
+            sb.AppendLine();
+            sb.Append(KbSanmenFengShui(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, bodyPct, yongShenElem, jiShenElem, wuXing, scored));
             sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
