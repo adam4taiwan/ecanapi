@@ -6455,10 +6455,27 @@ namespace Ecanapi.Controllers
 
             // === Ch.7 事業財運 ===
             sb.AppendLine("【第七章：事業財運】");
-            sb.AppendLine($"格局：{pattern}，天生適合{LfCareerDesc(pattern)}。");
             double caiPct = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0);
-            sb.AppendLine($"財星（{LfElemOvercome.GetValueOrDefault(dmElem,"")}）占命局 {caiPct:F0}%，日主強弱 {bodyPct:F0}%。");
+            // 職業天份
+            string careerGiftDesc = pattern switch
+            {
+                "正官格" => "正官格之人擁有天生的管理氣質，做事有條理、重規矩，在有制度的組織環境中最能出頭。適合公務機關、大型企業、法律、金融等需要信任與規範的行業。升遷往往靠口碑與資歷，穩扎穩打是您的致勝之道。",
+                "七殺格" => "七殺格之人有強烈的鬥志與執行力，不怕困難，敢於挑戰高目標。適合需要競爭、對抗、衝勁的行業，如軍警、業務、外科醫療、競技運動等。也適合自行創業，但宜有紀律有計劃，避免衝動行事。",
+                "食神格" => "食神格之人有創意與藝術氣質，工作上重視享受過程，適合餐飲、美食、設計、藝術、教育、休閒娛樂等行業。財運方面福星高照，不需過度強求，往往在喜歡的事情上自然得財。",
+                "傷官格" => "傷官格之人才華突出，思維跳脫框架，適合創意、技術、表演、寫作、科技研發等需要腦力與創新的工作。在自由度高的環境中發揮最佳，不適合死板的上下班制度，獨立接案或自行創業更能展現才華。",
+                "正財格" => "正財格之人腳踏實地，適合商業、財務、會計、零售、房地產等穩定收入的行業。財富靠努力積累，一分耕耘一分收穫，最忌投機取巧；以實力與信譽建立事業，是長遠之道。",
+                "偏財格" => "偏財格之人人緣廣、善交際，適合業務、貿易、投資理財、公關、娛樂等需要廣結人脈的行業。財富來源多元，偏財機遇多，但需注意守財，避免財來財去。",
+                "正印格" => "正印格之人學識淵博，思維嚴謹，適合學術研究、教育、文化出版、醫療護理、公共行政等重視專業素養的行業。貴人緣強，常能在關鍵時刻獲得提攜；靠學識與名聲立足，比靠金錢更能走得長遠。",
+                "偏印格" => "偏印格之人思維獨特，適合宗教、哲學、神秘學、藝術、特殊技能、研究等偏門但深入的領域。不適合流水線式的普通工作，需要有能讓自己深度鑽研的舞台，才能真正發光發熱。",
+                _ => $"格局為{pattern}，天生適合{LfCareerDesc(pattern)}的方向，用神五行所代表的行業是最佳選擇。"
+            };
+            sb.AppendLine(careerGiftDesc);
+            sb.AppendLine();
+            // 財富特質
             sb.AppendLine(LfWealthDesc(caiPct, bodyPct, wuXing.GetValueOrDefault(dmElem, 0)));
+            sb.AppendLine();
+            // 事業開運方向
+            sb.AppendLine($"開運行業：{LfElemCareer(yongShenElem)}");
             sb.AppendLine($"開運方位：{LfElemDir(yongShenElem)}  開運色彩：{LfElemColor(yongShenElem)}");
             sb.AppendLine();
 
@@ -6515,15 +6532,59 @@ namespace Ecanapi.Controllers
             // === Ch.10（原Ch.12）總評 ===
             sb.AppendLine("【第十章：一生命運總評】");
 
-            // 大運行運一覽（詳細論斷見大運命書）
-            sb.AppendLine("一生大運行運一覽（詳細吉凶論斷，請購買【大運命書】）：");
+            // 大運行運一覽（含吉凶等級）
+            sb.AppendLine("一生大運行運一覽：");
+            var curCycleBz = scored.FirstOrDefault(c => currentAge >= c.startAge && currentAge <= c.endAge);
             foreach (var cycle in scored)
             {
                 bool isCurrent = currentAge >= cycle.startAge && currentAge <= cycle.endAge;
-                string currentMark = isCurrent ? $"  ← 目前行運（今年 {currentAge} 歲）" : "";
-                sb.AppendLine($"  {cycle.startAge}-{cycle.endAge} 歲：{cycle.stem}{cycle.branch}{currentMark}");
+                string currentMark = isCurrent ? $"  ← 目前行運（{currentAge} 歲）" : "";
+                sb.AppendLine($"  {cycle.startAge}-{cycle.endAge} 歲：{cycle.stem}{cycle.branch}（{cycle.level}·{cycle.score}分）{currentMark}");
+                if (isCurrent)
+                    sb.AppendLine($"    {LfLuckDesc(cycle.score, cycle.level)}");
             }
             sb.AppendLine();
+
+            // 目前行運現況分析
+            if (!string.IsNullOrEmpty(curCycleBz.stem))
+            {
+                sb.AppendLine($"【目前行運現況分析（{curCycleBz.startAge}-{curCycleBz.endAge} 歲 {curCycleBz.stem}{curCycleBz.branch}）】");
+                string curStemSS = LfStemShiShen(curCycleBz.stem, dStem);
+                string curBrMs = LfBranchHiddenRatio.TryGetValue(curCycleBz.branch, out var curBH) && curBH.Count > 0 ? curBH[0].stem : "";
+                string curBrSS = !string.IsNullOrEmpty(curBrMs) ? LfStemShiShen(curBrMs, dStem) : "";
+                string curStemElem = KbStemToElement(curCycleBz.stem);
+                bool curStemGood = curStemElem == yongShenElem || curStemElem == fuYiElem;
+                bool curStemBad = curStemElem == jiShenElem;
+                string curStemTrend = curStemGood ? "屬喜用五行，天干助力" : curStemBad ? "屬忌神五行，天干帶阻" : "屬中性五行";
+                string curStemEventDesc = curStemSS switch
+                {
+                    "比肩" => curStemGood ? "自立奮發，同輩互助，合夥共事有利。" : "競爭耗力，同輩牽制，宜各自獨立、防糾紛。",
+                    "劫財" => curStemGood ? "積極進取，破舊立新，有偏財機遇。" : "財務競爭激烈，宜防破財耗損、合夥是非。",
+                    "食神" => curStemGood ? "才藝展現，口福豐盛，子女緣佳，事業創作機會多。" : "耗洩過度，精力分散，需節制。",
+                    "傷官" => curStemGood ? "才華外露，技術精進，適合創業突破舊局。" : "口舌是非多，易與上司對立，宜修身謙遜。",
+                    "偏財" => curStemGood ? "偏財運旺，父緣異性緣佳，廣結善緣有助財源。" : "財來財去，易衝動破財，宜謹慎理財。",
+                    "正財" => curStemGood ? "財運穩固，努力必有回報，婚姻穩定。" : "財庫受壓，勞而收穫有限，宜節流保守。",
+                    "七殺" => curStemGood ? "壓力化為動力，可建功立業，適合競爭激烈的環境。" : "官非壓力大，健康情緒易受損，宜守成防意外。",
+                    "正官" => curStemGood ? "名聲地位提升，升遷機會大，婚緣顯現。" : "規範束縛感強，職場壓力重，宜守紀律防小人。",
+                    "偏印" => curStemGood ? "偏門學習進修，貴人助力，靈感豐富。" : "思路偏執，食傷受制，宜廣納意見防孤立。",
+                    "正印" => curStemGood ? "印綬護身，學業晉升，長輩庇蔭，心靈沉穩。" : "依賴心重，行動力不足，宜主動出擊。",
+                    _ => ""
+                };
+                sb.AppendLine($"  天干 {curCycleBz.stem}（{curStemSS}）{curStemTrend}：{curStemEventDesc}");
+                if (!string.IsNullOrEmpty(curBrSS))
+                {
+                    string curBrElem = LfBranchHiddenRatio.TryGetValue(curCycleBz.branch, out var _) ? KbStemToElement(curBrMs) : "";
+                    bool curBrGood = curBrElem == yongShenElem || curBrElem == fuYiElem;
+                    bool curBrBad = curBrElem == jiShenElem;
+                    string curBrTrend = curBrGood ? "屬喜用五行，地支助力" : curBrBad ? "屬忌神五行，地支帶阻" : "屬中性五行";
+                    sb.AppendLine($"  地支 {curCycleBz.branch}（{curBrSS}）{curBrTrend}");
+                }
+                sb.AppendLine($"  綜合評估：{LfLuckDesc(curCycleBz.score, curCycleBz.level)}");
+                string curPalaceEvents = LfBranchEventsPalace(curCycleBz.branch, curBrSS, branches, branchSSArr, curCycleBz.startAge);
+                if (!string.IsNullOrEmpty(curPalaceEvents))
+                    sb.AppendLine($"  地支六親事項：{curPalaceEvents}");
+                sb.AppendLine();
+            }
 
             if (scored.Count > 0)
             {
@@ -11249,28 +11310,46 @@ namespace Ecanapi.Controllers
 
         private static string LfPersonalityDesc(string dmElem, string pattern, double bodyPct)
         {
-            string baseChar = dmElem switch
+            var sb = new System.Text.StringBuilder();
+
+            // 先天個性（日主五行）
+            string elemDesc = dmElem switch
             {
-                "木" => "仁慈上進，有理想有原則，固執但有方向感。",
-                "火" => "熱情開朗，重視禮儀，感情豐富，但性子急躁。",
-                "土" => "穩重誠信，待人厚道，保守踏實，但反應較慢。",
-                "金" => "果決義氣，剛強有原則，重然諾，但有時過於強硬。",
-                "水" => "聰明靈活，多謀善慮，思維廣博，但有時多慮患得患失。",
+                "木" => "木命之人如春木向陽，天生有理想有目標，重視道義，對朋友真誠，對自己有一定要求。思維清晰有條理，行事喜歡按計劃進行，一旦下定決心便難以更改。在人際方面偶因堅持原則而與人摩擦，但正因如此周遭的人都視您為可信賴的對象。有向上的拚勁，凡事不服輸，能在逆境中仍保持前進的意志。",
+                "火" => "火命之人熱情外向，待人真誠，感情豐沛，善於表達，在人群中容易成為焦點。您直率坦白，不喜歡藏話，對自己認定的事情會全力投入。重視禮儀與場面，給人陽光開朗的印象；唯性子較急，有時說話直接讓人難以接受，情緒起伏明顯，高興時熱情如火，不順心時情緒也顯而易見。",
+                "土" => "土命之人如厚土載物，穩重踏實，誠信待人，是旁人最信賴的朋友與夥伴。您處事沉穩不浮躁，能夠默默耕耘、長期堅持，凡事務實不好高騖遠。對於新環境、新事物的接受需要時間，但一旦熟悉了便能充分發揮實力。您對親近的人照顧有加，責任感強，是家人與朋友心中的靠山。",
+                "金" => "金命之人如磨礪寶劍，個性剛直果決，重義氣，說話算話，言出必行。您有明確的是非觀，對自己要求甚嚴，品味講究，凡事追求品質而非數量。在人際關係上較為選擇性，一旦認定的朋友便全力相助，但也因此朋友圈相對固定。遇到不平之事容易義憤填膺，敢於直言，是非常有原則感的人。",
+                "水" => "水命之人如流水靈活，天生聰明敏銳，思路廣博，善於學習，記憶力好。您能快速理解複雜事物，善於察言觀色，在人際往來中靈活圓融。唯思慮過多，容易想太多、擔心太多，有時反而錯失機會；情緒上偏向內斂，不輕易表達真實感受，外表看似平靜，內心波瀾起伏，需注意不要讓過多的憂慮影響行動力。",
                 _ => ""
             };
-            string strChar = bodyPct >= 60 ? "個性較強硬主觀，自信有領導慾，宜學習傾聽。" :
-                             bodyPct <= 40 ? "個性較保守依賴，情緒易受外界影響，宜培養自信。" :
-                             "個性均衡適應力強，能隨機應變，圓融處世。";
-            string patChar = pattern switch
+            sb.AppendLine(elemDesc);
+            sb.AppendLine();
+
+            // 強弱特質
+            string strDesc = bodyPct >= 65
+                ? "日主旺強，您有強烈的自我意識與主導欲，凡事有主見，不喜受人擺佈，行動力強、意志堅定是您最大的優勢。需注意的是有時過於自信，容易聽不進他人意見；在做重大決定前多聆聽、多思考，可避免因固執而錯失良機。"
+                : bodyPct <= 40
+                ? "日主偏弱，個性較謙遜，懂得借力使力，貴人緣相對較好。在有組織有靠山的環境中往往能發揮更大潛力。需注意的是容易受外界影響情緒，面對壓力時偶有退縮傾向——培養內心的定力與自信，是您一生最重要的人生課題，一旦建立起這份自信，命局的優勢將充分展現。"
+                : "日主強弱適中，個性均衡，既有主見又能聆聽，適應力強，能隨機應變，是處世比較從容的類型。在人際關係中圓融有彈性，少製造不必要的摩擦，能在各種環境中找到自己的位置。";
+            sb.AppendLine(strDesc);
+            sb.AppendLine();
+
+            // 格局個性
+            string patDesc = pattern switch
             {
-                "正官格" => "規矩守法，重視名譽，適合在制度環境中發揮。",
-                "七殺格" => "魄力十足，敢衝敢拚，但須注意控制衝動。",
-                "食神格" => "喜享受，有藝術氣質，待人隨和。",
-                "傷官格" => "聰明才俊，有叛逆性，不喜受約束。",
-                "正財格" => "務實重物質，勤勞踏實，穩健理財。",
-                _ => ""
+                "正官格" => "格局為正官格，您有天生的規矩守法意識，重視名譽與形象，在有制度的環境中如魚得水。您對自己有高標準，管理能力突出，適合在機關或企業中擔任有名有份的職位。一生在乎別人如何評價自己，名聲對您而言比金錢更重要，也因此一生行事謹慎，不輕易踰越紅線。",
+                "七殺格" => "格局為七殺格，您天生有魄力，敢衝敢拚，不畏壓力，壓力對您而言不是阻礙而是動力。在競爭激烈的環境中往往能脫穎而出，具備開創事業的基因。需注意情緒管理與人際溝通，避免行事太急或說話太衝，替自己製造不必要的阻力。",
+                "食神格" => "格局為食神格，您天生愛享受生活，對飲食、藝術、美學有獨特品味，個性隨和不計較，是朋友眼中的開心果。您有藝術天份與創作力，適合在有創意空間的環境中工作，財運方面往往在享受生活的過程中自然積累，不需刻意強求。",
+                "傷官格" => "格局為傷官格，您頭腦靈活，才華橫溢，思維不受常規束縛，有強烈的創新意識。對制度與權威天生有挑戰精神，適合從事需要創意或技術突破的工作。表達能力強，但有時說話過於直接犀利，容易得罪上司或長輩，建議在職場中適度收斂鋒芒，擇機而為。",
+                "正財格" => "格局為正財格，您腳踏實地，務實重信，凡事一步一腳印，靠努力換取回報，不求僥倖。在理財方面有天份，懂得量入為出，長期積累財富。誠信待人，在商業往來中信譽良好，感情方面以穩定可靠為首要考量。",
+                "偏財格" => "格局為偏財格，您人緣廣、交際廣，異性緣佳，善於與各種人打交道。財運偏向偏財，有機會透過業務、貿易、投資等方式獲取額外財富，但偏財來去無常，需注意守財。您慷慨大方、重情義，一生結交的人脈往往是最大的隱形資產。",
+                "正印格" => "格局為正印格，您天生愛學習，求知欲旺盛，思維深沉，善於研究分析，有書卷氣，重視文化與學識。在知識型、文化型的環境中最能發揮長才，得長輩緣、貴人緣，往往能在關鍵時刻獲得指引。感情上略顯保守，不善主動表達，但情感深厚，一旦認定便忠誠可靠。",
+                "偏印格" => "格局為偏印格，您有獨特的思維方式，往往與眾不同，對神秘學、哲學、藝術有天然的興趣，獨立性強。有超強的直覺力，在某些特殊領域往往有超出常人的洞察。建議找到一個能讓您深入鑽研的專業領域，在其中全情投入，方能發揮最大潛能。",
+                _ => $"格局為{pattern}，宜依用神方向調整行事風格，以符合命局最佳發展路徑。"
             };
-            return $"{baseChar} {strChar}{(string.IsNullOrEmpty(patChar) ? "" : " " + patChar)}";
+            sb.AppendLine(patDesc);
+
+            return sb.ToString().TrimEnd();
         }
 
         private static string LfCareerDesc(string pattern) => pattern switch
@@ -11288,26 +11367,71 @@ namespace Ecanapi.Controllers
 
         private static string LfWealthDesc(double caiPct, double bodyPct, double biPct)
         {
-            if (caiPct >= 25 && bodyPct >= 60) return "財多身強，財富豐厚，一生衣食無憂，能守住財富。";
-            if (caiPct >= 25 && bodyPct < 40)  return "財多身弱，雖有財路但難以守住，辛苦奔波，錢財易散，宜節流。";
-            if (biPct >= 30 && caiPct < 15)    return "比劫奪財，財路受阻，合夥易損，獨立經營較佳，防借財給人。";
-            if (caiPct < 15 && bodyPct >= 60)  return "財星偏弱，守成有餘進財不足，宜穩健理財，不宜冒進。";
-            return "財富中等，靠自身努力積累，運勢起伏時注意守財。";
+            string baseDesc;
+            if (caiPct >= 25 && bodyPct >= 60)
+                baseDesc = "財多身強，財富根基厚實，一生衣食無憂，有能力取財也有能力守財。適合積極理財投資，事業越做越大。";
+            else if (caiPct >= 25 && bodyPct < 40)
+                baseDesc = "財多身弱，財路雖廣但體力財力難以承載，容易辛苦奔波而財散難留。最忌貪大求全，宜量力而為，先求守財再求進財，節流比開源更重要。";
+            else if (biPct >= 30 && caiPct < 15)
+                baseDesc = "比劫奪財，命中財星偏弱而同儕競爭力強，合夥容易出現利益糾紛，財路上宜獨立自主，慎防他人借財不還或感情破財。";
+            else if (caiPct < 15 && bodyPct >= 60)
+                baseDesc = "財星偏弱，日主強旺但財源有限，守成有餘、開源不足，財富積累靠長期耕耘而非一夕暴富。不宜冒進投資，穩健理財才是正道。";
+            else
+                baseDesc = "財富屬於中等水平，靠自身努力逐步積累，財運與個人努力程度高度相關。在喜用大運期間積極進取，可有所突破；凶運期間守住已有的財富即是勝利。";
+            string advice = bodyPct < 50
+                ? "建議：避免單打獨鬥，藉助貴人或合夥之力放大財運，善用人脈資源。"
+                : "建議：財運好壞與行運密切相關，喜用運積極開展，忌神運低調保守。";
+            return baseDesc + "\n" + advice;
         }
 
         private static string LfMarriageDesc(double spousePct, string dBranch, string dStem, string dmElem, int gender, string[] branches)
         {
-            string star = gender == 1 ? "妻緣" : "夫緣";
+            var sb = new System.Text.StringBuilder();
             bool anyChong = branches.Where(b => b != dBranch).Any(b => LfChong.Contains(dBranch + b));
-            string result = spousePct >= 20
-                ? $"{star}不弱，感情豐富，異性緣佳，婚姻較有依靠。"
-                : $"{star}偏薄，感情波折較多，緣分需珍惜，婚姻宜謹慎選擇。";
-            if (anyChong) result += " 日支逢沖，婚姻有波折，夫妻易有摩擦或分離之象，需多包容。";
+            string spouseElem = gender == 1
+                ? LfElemOvercome.GetValueOrDefault(dmElem, "")
+                : LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+
+            // 配偶特質
+            string spouseChar = spouseElem switch
+            {
+                "木" => "配偶五行屬木，對方個性有上進心，重視道義，溫和但有原則，外表親和、內心堅定，是有理想的類型。",
+                "火" => "配偶五行屬火，對方個性熱情爽朗，表達能力強，重視感情互動，有活力有魄力，婚後生活較為多彩多姿。",
+                "土" => "配偶五行屬土，對方個性穩重踏實，顧家負責，是居家型的好伴侶，婚後生活穩定，重視家庭責任與實際承諾。",
+                "金" => "配偶五行屬金，對方個性剛直果決，重情義，品味不俗，有主見，感情上較為直接，不善拐彎抹角，是說到做到的類型。",
+                "水" => "配偶五行屬水，對方個性聰明靈活，善解人意，情感細膩，善於照顧另一半的情緒；但有時想法較多、情緒起伏也較難捉摸。",
+                _ => ""
+            };
+            if (!string.IsNullOrEmpty(spouseChar)) { sb.AppendLine(spouseChar); sb.AppendLine(); }
+
+            // 婚緣強弱
+            string strengthDesc = spousePct >= 20
+                ? $"命局婚緣不弱（婚星占 {spousePct:F0}%），感情路上異性緣較好，有機會遇到合適的對象，感情生活較有依靠。婚後只要雙方相互珍惜，婚姻關係有一定穩定性。"
+                : $"命局婚緣偏薄（婚星占 {spousePct:F0}%），感情路上波折略多，緣分到來需要好好珍惜，不宜輕易放棄或優柔寡斷。婚後需要雙方更多包容與耐心，才能維持感情長久穩定。";
+            sb.AppendLine(strengthDesc);
+            sb.AppendLine();
+
+            // 日支夫妻宮
+            if (anyChong)
+                sb.AppendLine("日支（夫妻宮）逢沖，婚姻感情容易出現分離、爭執或觀念不合的情形。這並非不能婚，而是需要雙方付出更多的理解與包容，尤其在大運或流年沖動日支的年份，婚姻關係容易出現波動，宜提前溝通化解。");
+            else
+                sb.AppendLine("日支（夫妻宮）較為平穩，婚姻宮位無大沖刑，夫妻感情有一定的穩定基礎，只要雙方用心維繫，感情可以細水長流。");
+            sb.AppendLine();
+
+            // 感情建議
+            string advice = gender == 1
+                ? "感情建議：行財星旺運（喜用年份）是感情婚姻機會最大的時機。婚後宜以體貼包容代替強勢主導，尊重另一半的意見，是婚姻長久的關鍵。"
+                : "感情建議：行官星旺運（喜用年份）是感情婚姻機會最大的時機。婚後在生活細節上用心，避免過於強勢或疑心過重，給雙方空間，婚姻才能穩固。";
+            sb.AppendLine(advice);
+
             string dBranchMainElem = LfBranchHiddenRatio.TryGetValue(dBranch, out var bhe) && bhe.Count > 0 ? KbStemToElement(bhe[0].stem) : "";
             string dStemElem = KbStemToElement(dStem);
             if (gender == 1 && LfElemOvercome.GetValueOrDefault(dStemElem, "") == dBranchMainElem)
-                result += " 日干克日支，婚後夫妻個性有差異，需多體諒包容。";
-            return result;
+            {
+                sb.AppendLine();
+                sb.AppendLine("日干克日支，命主個性較強，婚後兩人個性差異明顯，建議主動退讓，避免以己之長攻彼之短，才能維持夫妻和諧。");
+            }
+            return sb.ToString().TrimEnd();
         }
 
         private static string LfHealthDesc(Dictionary<string, double> wuXing, string seaLabel)
