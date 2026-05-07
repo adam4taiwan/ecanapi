@@ -6490,7 +6490,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  事業財運");
             sb.AppendLine("  婚姻感情");
             sb.AppendLine("  健康壽元");
-            sb.AppendLine("  一生命運總評");
+            sb.AppendLine("  目前行運");
             sb.AppendLine("  人生警示事項");
             sb.AppendLine("  適合行業建議");
             sb.AppendLine("  居家風水開運");
@@ -6729,21 +6729,10 @@ namespace Ecanapi.Controllers
             // sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
             // sb.AppendLine();
 
-            // === Ch.10（原Ch.12）總評 ===
-            sb.AppendLine("【第十章：一生命運總評】");
+            // === Ch.10（原Ch.12）目前行運 ===
+            sb.AppendLine("【第十章：目前行運】");
 
-            // 大運行運一覽（含吉凶等級）
-            sb.AppendLine("一生大運行運一覽：");
             var curCycleBz = scored.FirstOrDefault(c => currentAge >= c.startAge && currentAge <= c.endAge);
-            foreach (var cycle in scored)
-            {
-                bool isCurrent = currentAge >= cycle.startAge && currentAge <= cycle.endAge;
-                string currentMark = isCurrent ? $"  ← 目前行運（{currentAge} 歲）" : "";
-                sb.AppendLine($"  {cycle.startAge}-{cycle.endAge} 歲：{cycle.stem}{cycle.branch}（{cycle.level}·{cycle.score}分）{currentMark}");
-                if (isCurrent)
-                    sb.AppendLine($"    {LfLuckDesc(cycle.score, cycle.level)}");
-            }
-            sb.AppendLine();
 
             // 目前行運現況分析
             if (!string.IsNullOrEmpty(curCycleBz.stem))
