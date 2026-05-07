@@ -10236,6 +10236,14 @@ namespace Ecanapi.Controllers
                 : fav == "忌神"
                 ? "  → 忌神行空亡運，凶性虛而不實，十年禍事力道減半。"
                 : "  → 此步行空亡，整體謀事宜低調保守。");
+            string dyEmptyElemDesc = dyBranchElem switch {
+                "水" => "水空則流，此運居無定所、漂泊不定、財難積聚。",
+                "金" => "金空則鳴，此運名聲響亮，但實質收穫有限。",
+                "火" => "火空則明，此運光明磊落，但熱度難以持久。",
+                "木" => "木空則折，此運事業易折損，難以長久穩固。",
+                _   => "土空則陷，此運根基不穩，易有損失或空耗。"
+            };
+            sb.AppendLine($"  【五行意象】{dyEmptyElemDesc}");
         }
         else
         {
@@ -10324,6 +10332,18 @@ namespace Ecanapi.Controllers
                 : fav == "忌神"
                 ? "  → 忌神行空亡年，凶性虛而不實，禍事力道減半。"
                 : "  → 今年行空亡，謀事宜低調保守，勿輕易大動。");
+            string lyBranchElem = (lyBranch == "子" || lyBranch == "亥") ? "水"
+                : (lyBranch == "寅" || lyBranch == "卯") ? "木"
+                : (lyBranch == "巳" || lyBranch == "午") ? "火"
+                : (lyBranch == "申" || lyBranch == "酉") ? "金" : "土";
+            string lyEmptyElemDesc = lyBranchElem switch {
+                "水" => "水空則流，本年居無定所、漂泊不定、財難積聚。",
+                "金" => "金空則鳴，本年名聲響亮，但實質收穫有限。",
+                "火" => "火空則明，本年光明磊落，但熱度難以持久。",
+                "木" => "木空則折，本年事業易折損，難以長久穩固。",
+                _   => "土空則陷，本年根基不穩，易有損失或空耗。"
+            };
+            sb.AppendLine($"  【五行意象】{lyEmptyElemDesc}");
         }
         else
         {
