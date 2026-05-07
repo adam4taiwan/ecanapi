@@ -950,10 +950,8 @@ namespace Ecanapi.Services
             // ==========================================================
             // 旬空：紫微斗數以生年干支查旬空（年系星曜）
             var (xunKongPos1, xunKongPos2) = PlaceXunKong(yearGan, yearZhi);
-            if (xunKongPos1 != 0)
-            {
-                context.BadStars[xunKongPos1] += "旬 ";
-            }
+            if (xunKongPos1 != 0) context.BadStars[xunKongPos1] += "旬 ";
+            if (xunKongPos2 != 0) context.BadStars[xunKongPos2] += "旬 ";
             // 5. 破碎 (論年支)
             int poSuiPos = PlacePoSui(yearZhi);
             context.BadStars[poSuiPos] = (string.IsNullOrEmpty(context.BadStars[poSuiPos]) ? "" : context.BadStars[poSuiPos] + " ") + "碎";
