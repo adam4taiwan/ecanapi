@@ -2434,11 +2434,11 @@ namespace Ecanapi.Controllers
                     }
 
                     // 主星宮位內容（ziwei_patterns_144 過濾版）
-                    string bzMing = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "命宮"), KbGetPalaceStarsSet(bzPalaces, "命宮"), bzChartStars);
-                    string bzOff  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "事業宮"), KbGetPalaceStarsSet(bzPalaces, "官祿"), bzChartStars);
-                    string bzWlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "財帛宮"), KbGetPalaceStarsSet(bzPalaces, "財帛"), bzChartStars);
-                    string bzSps  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "夫妻宮"), KbGetPalaceStarsSet(bzPalaces, "夫妻"), bzChartStars);
-                    string bzHlt  = KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "疾厄宮"), KbGetPalaceStarsSet(bzPalaces, "疾厄"), bzChartStars);
+                    string bzMing = BzStripTrailingHeader(KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "命宮"), KbGetPalaceStarsSet(bzPalaces, "命宮"), bzChartStars));
+                    string bzOff  = BzStripTrailingHeader(KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "事業宮"), KbGetPalaceStarsSet(bzPalaces, "官祿"), bzChartStars));
+                    string bzWlt  = BzStripTrailingHeader(KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "財帛宮"), KbGetPalaceStarsSet(bzPalaces, "財帛"), bzChartStars));
+                    string bzSps  = BzStripTrailingHeader(KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "夫妻宮"), KbGetPalaceStarsSet(bzPalaces, "夫妻"), bzChartStars));
+                    string bzHlt  = BzStripTrailingHeader(KbFilterZiweiContent(KbExtractPalaceSection(bzFullContent, "疾厄宮"), KbGetPalaceStarsSet(bzPalaces, "疾厄"), bzChartStars));
 
                     // 4.2/4.3 雙星或單星入宮（6/7/8 docx）
                     string bzDescMing = await KbQueryStarInPalace(bzPalaces, "命宮");
@@ -2498,6 +2498,20 @@ namespace Ecanapi.Controllers
                         if (!string.IsNullOrEmpty(bzSiHuaJi) && KbPalaceSame(bzSiHuaJiPalace, palaceName))
                             s.AppendLine($"【化忌警示】{bzSiHuaJi}");
                     }
+                    bool BzHasSiHua(string palaceName) =>
+                        (!string.IsNullOrEmpty(bzSiHuaLu)   && KbPalaceSame(bzSiHuaLuPalace,   palaceName)) ||
+                        (!string.IsNullOrEmpty(bzSiHuaQuan) && KbPalaceSame(bzSiHuaQuanPalace, palaceName)) ||
+                        (!string.IsNullOrEmpty(bzSiHuaKe)   && KbPalaceSame(bzSiHuaKePalace,   palaceName)) ||
+                        (!string.IsNullOrEmpty(bzSiHuaJi)   && KbPalaceSame(bzSiHuaJiPalace,   palaceName));
+                    // 移除尾端段落標頭（過濾後只剩「在三方四正中：」之類的行）
+                    string BzStripTrailingHeader(string s)
+                    {
+                        if (string.IsNullOrEmpty(s)) return s;
+                        var lines = s.Split('\n').ToList();
+                        while (lines.Count > 0 && (string.IsNullOrWhiteSpace(lines[^1]) || lines[^1].TrimEnd().EndsWith("：")))
+                            lines.RemoveAt(lines.Count - 1);
+                        return string.Join("\n", lines);
+                    }
 
                     var bzSb = new System.Text.StringBuilder();
                     bzSb.AppendLine("=================================================================");
@@ -2543,11 +2557,14 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "命宮");
                     bzSb.AppendLine();
 
-                    // 兄弟宮
-                    bzSb.AppendLine($"--- 兄弟宮（{bzBrtStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescBrt)) bzSb.AppendLine($"【主星星情】{bzDescBrt}");
-                    BzAppendSiHua(bzSb, "兄弟宮");
-                    bzSb.AppendLine();
+                    // 兄弟宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescBrt) || BzHasSiHua("兄弟宮"))
+                    {
+                        bzSb.AppendLine($"--- 兄弟宮（{bzBrtStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescBrt)) bzSb.AppendLine($"【主星星情】{bzDescBrt}");
+                        BzAppendSiHua(bzSb, "兄弟宮");
+                        bzSb.AppendLine();
+                    }
 
                     // 夫妻宮
                     bzSb.AppendLine($"--- 夫妻宮（{bzSpsStars}）---");
@@ -2560,11 +2577,14 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "夫妻宮");
                     bzSb.AppendLine();
 
-                    // 子女宮
-                    bzSb.AppendLine($"--- 子女宮（{bzChdStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescChd)) bzSb.AppendLine($"【主星星情】{bzDescChd}");
-                    BzAppendSiHua(bzSb, "子女宮");
-                    bzSb.AppendLine();
+                    // 子女宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescChd) || BzHasSiHua("子女宮"))
+                    {
+                        bzSb.AppendLine($"--- 子女宮（{bzChdStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescChd)) bzSb.AppendLine($"【主星星情】{bzDescChd}");
+                        BzAppendSiHua(bzSb, "子女宮");
+                        bzSb.AppendLine();
+                    }
 
                     // 財帛宮
                     bzSb.AppendLine($"--- 財帛宮（{bzWltStars}）---");
@@ -2588,17 +2608,23 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "疾厄宮");
                     bzSb.AppendLine();
 
-                    // 遷移宮
-                    bzSb.AppendLine($"--- 遷移宮（{bzTrvStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescTrv)) bzSb.AppendLine($"【主星星情】{bzDescTrv}");
-                    BzAppendSiHua(bzSb, "遷移宮");
-                    bzSb.AppendLine();
+                    // 遷移宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescTrv) || BzHasSiHua("遷移宮"))
+                    {
+                        bzSb.AppendLine($"--- 遷移宮（{bzTrvStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescTrv)) bzSb.AppendLine($"【主星星情】{bzDescTrv}");
+                        BzAppendSiHua(bzSb, "遷移宮");
+                        bzSb.AppendLine();
+                    }
 
-                    // 交友宮（僕役宮）
-                    bzSb.AppendLine($"--- 交友宮（{bzFrdStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescFrd)) bzSb.AppendLine($"【主星星情】{bzDescFrd}");
-                    BzAppendSiHua(bzSb, "交友宮");
-                    bzSb.AppendLine();
+                    // 交友宮（空宮跳過；JSON 存為奴僕宮）
+                    if (!string.IsNullOrEmpty(bzDescFrd) || BzHasSiHua("奴僕宮"))
+                    {
+                        bzSb.AppendLine($"--- 交友宮（{bzFrdStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescFrd)) bzSb.AppendLine($"【主星星情】{bzDescFrd}");
+                        BzAppendSiHua(bzSb, "交友宮");
+                        bzSb.AppendLine();
+                    }
 
                     // 事業宮
                     bzSb.AppendLine($"--- 事業宮（{bzOffStars}）---");
@@ -2611,23 +2637,32 @@ namespace Ecanapi.Controllers
                     BzAppendSiHua(bzSb, "官祿宮");
                     bzSb.AppendLine();
 
-                    // 田宅宮
-                    bzSb.AppendLine($"--- 田宅宮（{bzHseStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescHse)) bzSb.AppendLine($"【主星星情】{bzDescHse}");
-                    BzAppendSiHua(bzSb, "田宅宮");
-                    bzSb.AppendLine();
+                    // 田宅宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescHse) || BzHasSiHua("田宅宮"))
+                    {
+                        bzSb.AppendLine($"--- 田宅宮（{bzHseStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescHse)) bzSb.AppendLine($"【主星星情】{bzDescHse}");
+                        BzAppendSiHua(bzSb, "田宅宮");
+                        bzSb.AppendLine();
+                    }
 
-                    // 福德宮
-                    bzSb.AppendLine($"--- 福德宮（{bzFrtStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescFrt)) bzSb.AppendLine($"【主星星情】{bzDescFrt}");
-                    BzAppendSiHua(bzSb, "福德宮");
-                    bzSb.AppendLine();
+                    // 福德宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescFrt) || BzHasSiHua("福德宮"))
+                    {
+                        bzSb.AppendLine($"--- 福德宮（{bzFrtStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescFrt)) bzSb.AppendLine($"【主星星情】{bzDescFrt}");
+                        BzAppendSiHua(bzSb, "福德宮");
+                        bzSb.AppendLine();
+                    }
 
-                    // 父母宮
-                    bzSb.AppendLine($"--- 父母宮（{bzPrtStars}）---");
-                    if (!string.IsNullOrEmpty(bzDescPrt)) bzSb.AppendLine($"【主星星情】{bzDescPrt}");
-                    BzAppendSiHua(bzSb, "父母宮");
-                    bzSb.AppendLine();
+                    // 父母宮（空宮跳過）
+                    if (!string.IsNullOrEmpty(bzDescPrt) || BzHasSiHua("父母宮"))
+                    {
+                        bzSb.AppendLine($"--- 父母宮（{bzPrtStars}）---");
+                        if (!string.IsNullOrEmpty(bzDescPrt)) bzSb.AppendLine($"【主星星情】{bzDescPrt}");
+                        BzAppendSiHua(bzSb, "父母宮");
+                        bzSb.AppendLine();
+                    }
 
                     report = report.TrimEnd() + Environment.NewLine + bzSb.ToString();
                 }
