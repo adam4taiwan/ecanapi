@@ -942,8 +942,8 @@ namespace Ecanapi.Services
             // ==========================================================
             // 【13. 旬空 (Xun Kong) -> 旬 (修正邏輯，放入 BadStars)】
             // ==========================================================
-            // 旬空：永遠取第一位置(xunKongPos1)
-            var (xunKongPos1, xunKongPos2) = PlaceXunKong(yearGan, yearZhi);
+            // 旬空：紫微斗數以日柱天干地支查旬空（後天空）
+            var (xunKongPos1, xunKongPos2) = PlaceXunKong(context.CUE3, context.CUF3);
             if (xunKongPos1 != 0)
             {
                 context.BadStars[xunKongPos1] += "旬 ";
