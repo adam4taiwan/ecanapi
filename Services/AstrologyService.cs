@@ -908,7 +908,13 @@ namespace Ecanapi.Services
 
             // 1. 天馬 (論年支)
             int tianMaPos = PlaceTienMa(yearZhi);
-            context.GoodStars[tianMaPos] = (string.IsNullOrEmpty(context.GoodStars[tianMaPos]) ? "" : context.GoodStars[tianMaPos] + " ") + "馬";
+            context.GoodStars[tianMaPos] = (string.IsNullOrEmpty(context.GoodStars[tianMaPos]) ? "" : context.GoodStars[tianMaPos] + " ") + "天";
+
+            // 月馬 (論農曆月份): 1,5,9月→申(9)；2,6,10月→寅(3)；3,7,11月→亥(12)；4,8,12月→巳(6)
+            int yueMarPos = (month == 1 || month == 5 || month == 9) ? 9 :
+                            (month == 2 || month == 6 || month == 10) ? 3 :
+                            (month == 3 || month == 7 || month == 11) ? 12 : 6;
+            context.GoodStars[yueMarPos] = (string.IsNullOrEmpty(context.GoodStars[yueMarPos]) ? "" : context.GoodStars[yueMarPos] + " ") + "馬";
 
             // 2. 天月 (論生月)
             int tianYuePos = PlaceTienYue(month);
