@@ -838,7 +838,8 @@ namespace Ecanapi.Services
             bool isForward = (context.Request.Gender == 1 && (yearGan % 2 != 0)) || (context.Request.Gender == 2 && (yearGan % 2 == 0));
             var doctorStarPositions = new Dictionary<int, string>(); for (int i = 0; i < 12; i++) { int pos = isForward ? PalaceWrap(context.LuCunPos + i) : PalaceWrap(context.LuCunPos - i); doctorStarPositions[pos] = doctorStars[i]; }
             var ageStarPositions = new Dictionary<int, string>(); for (int i = 0; i < 12; i++) { int pos = PalaceWrap(yearZhi + i); ageStarPositions[pos] = ageStars[i]; }
-            var generalStarPositions = new Dictionary<int, string>(); int generalStartPos = new int[] { 7, 8, 9, 4, 5, 6, 1, 2, 3, 10, 11, 12 }[yearZhi - 1]; for (int i = 0; i < 12; i++) { int pos = PalaceWrap(generalStartPos + i); generalStarPositions[pos] = generalStars[i]; }
+            // 將前十二神: 寅午戌→午(7), 申子辰→子(1), 巳酉丑→酉(10), 亥卯未→卯(4)，固定順行
+            var generalStarPositions = new Dictionary<int, string>(); int generalStartPos = new int[] { 1, 10, 7, 4, 1, 10, 7, 4, 1, 10, 7, 4 }[yearZhi - 1]; for (int i = 0; i < 12; i++) { int pos = PalaceWrap(generalStartPos + i); generalStarPositions[pos] = generalStars[i]; }
 
             for (int i = 1; i <= 12; i++)
             {
@@ -951,8 +952,8 @@ namespace Ecanapi.Services
             int poSuiPos = PlacePoSui(yearZhi);
             context.BadStars[poSuiPos] = (string.IsNullOrEmpty(context.BadStars[poSuiPos]) ? "" : context.BadStars[poSuiPos] + " ") + "碎";
 
-            // 蜚廉 (論年支): 寅宮起子年，逐年支順數
-            int feiLianPos = PalaceWrap(3 + yearZhi - 1);
+            // 蜚廉 (論年支): 子丑寅→申酉戌，卯辰巳→巳午未，午未申→寅卯辰，酉戌亥→亥子丑
+            int feiLianPos = new int[] { 9, 10, 11, 6, 7, 8, 3, 4, 5, 12, 1, 2 }[yearZhi - 1];
             context.BadStars[feiLianPos] = (string.IsNullOrEmpty(context.BadStars[feiLianPos]) ? "" : context.BadStars[feiLianPos] + " ") + "蜚";
 
             //// 6. 天壽 (論身宮，年支) (保留原邏輯並加入SmallStars)
