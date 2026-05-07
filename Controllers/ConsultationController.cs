@@ -6577,6 +6577,24 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
+            // === 納音論斷 ===
+            string ch3NaYin = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
+            if (!string.IsNullOrEmpty(ch3NaYin))
+            {
+                sb.AppendLine("【納音論斷】");
+                sb.AppendLine(ch3NaYin);
+                sb.AppendLine();
+            }
+
+            // === 空亡論斷 ===
+            string ch3KongWang = LfKongWang(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+            if (!string.IsNullOrEmpty(ch3KongWang))
+            {
+                sb.AppendLine("【空亡論斷】");
+                sb.AppendLine(ch3KongWang);
+                sb.AppendLine();
+            }
+
             // === Ch.4 格局與用神 ===
             sb.AppendLine("【第四章：格局與用神判定】");
             sb.AppendLine($"格局：【{pattern}】");
