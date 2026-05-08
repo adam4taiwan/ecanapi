@@ -7,27 +7,28 @@ namespace Ecanapi.Models
     public class BaziPillarFormula
     {
         [Key]
+        [Column("id")]
         public int Id { get; set; }
 
-        // e.g. "月干財", "年干才", "日干殺"
+        [Column("position")]
         public string? Position { get; set; }
 
-        // full ten god name, e.g. "正財", "偏財", "偏官"
+        [Column("star")]
         public string? Star { get; set; }
 
-        // short code: 財/才/官/殺/印/ㄗ/食/傷/比/劫
+        [Column("simple")]
         public string? Simple { get; set; }
 
-        // pillar: 年/月/日/時
+        [Column("pillar")]
         public string? Pillar { get; set; }
 
-        // main description text
+        [Column("gd")]
         public string? Gd { get; set; }
 
-        // newer/refined description (preferred)
         [Column("newdesc")]
         public string? NewDesc { get; set; }
 
+        [Column("uid")]
         public int Uid { get; set; }
     }
 }
