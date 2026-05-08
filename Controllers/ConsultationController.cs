@@ -5972,8 +5972,8 @@ namespace Ecanapi.Controllers
                 string yBrMs     = LfBranchHiddenRatio.TryGetValue(yBranch, out var ybh) && ybh.Count > 0 ? ybh[0].stem : "";
                 string yBranchTg = !string.IsNullOrEmpty(yBrMs) ? LfStemShiShen(yBrMs, dStem) : "";
                 string jiYStem   = LfJianghuSixRel("年干", yStemTg);
-                string jiYBranch = yStemTg == yBranchTg ? LfJianghuSixRel("年支", yStemTg) : "";
-                string jiYear = (jiYStem + (string.IsNullOrEmpty(jiYBranch) ? "" : "\n" + jiYBranch)).Trim();
+                string jiYBranch = LfJianghuSixRel("年支", yBranchTg);
+                string jiYear = (jiYStem + (string.IsNullOrEmpty(jiYBranch) ? "" : (string.IsNullOrEmpty(jiYStem) ? "" : "\n") + jiYBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiYear)) sb.AppendLine($"  {jiYear}");
             }
             string yStemElem = KbStemToElement(yStem);
@@ -5992,8 +5992,8 @@ namespace Ecanapi.Controllers
                 string mBrMs     = LfBranchHiddenRatio.TryGetValue(mBranch, out var mbh) && mbh.Count > 0 ? mbh[0].stem : "";
                 string mBranchTg = !string.IsNullOrEmpty(mBrMs) ? LfStemShiShen(mBrMs, dStem) : "";
                 string jiMStem   = LfJianghuSixRel("月干", mStemTg);
-                string jiMBranch = mStemTg == mBranchTg ? LfJianghuSixRel("月支", mStemTg) : "";
-                string jiMonth = (jiMStem + (string.IsNullOrEmpty(jiMBranch) ? "" : "\n" + jiMBranch)).Trim();
+                string jiMBranch = LfJianghuSixRel("月支", mBranchTg);
+                string jiMonth = (jiMStem + (string.IsNullOrEmpty(jiMBranch) ? "" : (string.IsNullOrEmpty(jiMStem) ? "" : "\n") + jiMBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiMonth)) sb.AppendLine($"  {jiMonth}");
             }
             string mStemElem = KbStemToElement(mStem);
@@ -6079,8 +6079,8 @@ namespace Ecanapi.Controllers
                 string hBrMs     = LfBranchHiddenRatio.TryGetValue(hBranch, out var hbh) && hbh.Count > 0 ? hbh[0].stem : "";
                 string hBranchTg = !string.IsNullOrEmpty(hBrMs) ? LfStemShiShen(hBrMs, dStem) : "";
                 string jiHStem   = LfJianghuSixRel("時干", hStemTg);
-                string jiHBranch = hStemTg == hBranchTg ? LfJianghuSixRel("時支", hStemTg) : "";
-                string jiHour = (jiHStem + (string.IsNullOrEmpty(jiHBranch) ? "" : "\n" + jiHBranch)).Trim();
+                string jiHBranch = LfJianghuSixRel("時支", hBranchTg);
+                string jiHour = (jiHStem + (string.IsNullOrEmpty(jiHBranch) ? "" : (string.IsNullOrEmpty(jiHStem) ? "" : "\n") + jiHBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiHour)) sb.AppendLine($"  {jiHour}");
             }
             string hStemElem = KbStemToElement(hStem);
