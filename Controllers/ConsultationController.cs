@@ -5669,6 +5669,60 @@ namespace Ecanapi.Controllers
             "十一" => 11, "十二" => 12, _ => 99
         };
 
+        // ─── 江湖鐵口斷命 六親論斷靜態資料（年/月/日/時柱 × 十神）────────────────
+        private static readonly Dictionary<string, string> JianghuSixRel = new()
+        {
+            {"年_正財", "年上正財祖業強，年下正財借祖光。日弱運行比劫運，父死異鄉有牽連，年支若逢占正財，祖上必然有家產。支為正官合中安，年支若要正財現，富貴榮華在少年。"},
+            {"年_偏財", "支為偏財支出大。年上偏財命中安，日弱克父定不偏，日主建旺財務好，父反高壽有財源，年月刑沖不算好，父東子西把家搬。年支若要逢偏財，財官相後前程寬。"},
+            {"年_正官", "支為正官多高尚，祖上能把權來當。年支若要逢正官，祖上有權好命看。年上正官要占先，祖上有過功名權。年支若要逢正官，祖上必然把兵當。"},
+            {"年_七殺", "年支若要逢七殺，祖上剛強有名望。年支若要逢七殺，恐怕少運有災難。年上七殺逢生旺，祖上威武又剛強，羊刃會殺方為好，祖上必把官來當。年支若要逢七殺，一生身體不算弱。"},
+            {"年_正印", "年支若要逢正印，一代一代勝從前。年支若要逢正印，官印相生好命看。年支若要逢正印，父母有權在命上。"},
+            {"年_偏印", "支為偏印不太好，先富後貧祖飄蕩。年支若要逢偏印，以小失大不堪言。年支若要逢偏印，自力更生創家園。"},
+            {"年_食神", "年支若要逢食神，衣食豐足妻子幫。年支若要逢食神，祖上富貴命里添。年支若要逢食神，祖業興旺本有錢。"},
+            {"年_傷官", "年支若要逢傷官，雖然富貴也不長。年支若要逢傷官，祖上受損，恐怕父母難保全。"},
+            {"年_比肩", "年支若要逢比肩，財祿廣進弟兄幫。年支若要逢比肩，兄弟多了分財源。"},
+            {"年_劫財", "年支若要逢劫財，祖上家產借不上。年支若要逢劫財，祖上興旺沒幾天。"},
+            {"年_羊刃", "年支若要逢羊刃，好事難成不好辦。年支若要逢羊刃，祖上要基不算強。"},
+            {"年_建祿", "年支若要逢建祿，祖上一代本有權。"},
+            {"月_正財", "月上正財不一般，日柱建旺有財源，支為正財逢生旺，一生富貴在命間。正財建祿最為好，全賴父母來周全。地支若要正財見，少年富貴本有財。"},
+            {"月_偏財", "支為偏財能巧得，買賣手藝能掙錢。月上偏財眾人財，意外之財命帶來。月支偏財逢身旺，妻妾情人有一排。"},
+            {"月_正官", "月支若逢正官格，財官相生能掌權。月支再把正官現，生官發財命里該。支為正財官星旺，財官相生顯赫名。"},
+            {"月_七殺", "月支若要地支逢七殺，身弱貧困命中安，宜逢正印化殺為佳。"},
+            {"月_正印", "月支若要逢正印，先財後印好命看。月支若要逢正印，一生保證有依賴。"},
+            {"月_偏印", "月支若要逢偏印，總想離家去求財。月支若要逢偏印，多學少成好逞能。"},
+            {"月_食神", "月支再把食神現，父母攢下田和宅。"},
+            {"月_傷官", "月支若要逢傷官，聰明伶俐會攢錢。月支再把傷官現，破腹手足有大災。"},
+            {"月_比肩", "月支若要逢比肩，兄弟姐妹爭家產。月支若要占比肩，獨立致富運難開。"},
+            {"月_劫財", "月支再把劫財見，婚姻恐怕人破壞。"},
+            {"月_建祿", "正財建祿最為好，全賴父母來周全。"},
+            {"日_正財", "日帶正財得妻財，美貌賢妻能帶來，發財至富得內助，夫唱妻隨多恩愛。女命若把正財見，丈夫對你最關懷。正財若要逢正官，財官雙美無有災。正財若要逢七殺，配偶精明又強幹。正財逢空不太好，夫妻中年要分開。"},
+            {"日_偏財", "日帶偏財運不周，夫妻難以到白頭。偏財若要逢刑沖，恐怕夫妻沒長壽。偏財若要逢正官，財旺官旺事無憂。偏財若要逢傷官，夫妻半路鬧分手。"},
+            {"日_正官", "日主正官性聰明，古稱天上文曲星，一舉成名框天下。正官若要逢正財，此人必然有權柄，一生榮華能富貴，威名遠震人尊敬。正官若要逢傷官，運行傷官有災星。正官若要逢食神，衣食豐足命里逢。"},
+            {"日_七殺", "日帶七殺配偶精明強幹，主婚姻有壓力感。"},
+            {"日_食神", "日帶食神，衣食豐足，偏財逢食神晚年財源最豐厚。"},
+            {"日_傷官", "日支傷官，婚姻易有口舌是非，夫妻需相互包容。偏財若要逢傷官，夫妻半路鬧分手。"},
+            {"日_比肩", "日支比肩，夫妻競爭意識強，財星易被分奪，婚姻需各自保持空間。"},
+            {"日_劫財", "日支劫財，財星受破，婚姻財務需謹慎，夫妻宜分開理財。"},
+            {"時_正財", "時上正財運氣通，子女富貴財祿逢。時支正財逢官印，後代發達有工名。"},
+            {"時_偏財", "時上偏財一位逢，不逢衝破發利名。時支若要逢偏財，晚年經營利不薄。"},
+            {"時_正官", "時支再把正官現，半凶半吉也享通。時上正官運氣高，身旺子女必然好。時逢正官一位貴，逢凶化吉死中逃。時干正官逢正財，晚年財生樂逍遙。"},
+            {"時_七殺", "時逢七殺，子女緣較薄，養育過程多操心，宜以印化殺。"},
+            {"時_正印", "時支若要逢正印，晚年子女最賢孝。"},
+            {"時_偏印", "時支若要逢偏印，中年克子，子女緣較薄。"},
+            {"時_食神", "時支再把食神現，晚年子女成富翁。時支若要逢食神，身旺者更佳。"},
+            {"時_傷官", "時支若要逢傷官，克子多把姑娘生，恐怕女多兒子少。"},
+            {"時_比肩", "時支若要逢比肩，子多女少把財爭。"},
+            {"時_劫財", "時支若要劫財見，子女是個財才星。時支若把劫財現，女子不孝敗財星。"},
+            {"時_羊刃", "時支羊刃不太好，子不殘疾也多病，子女緣薄需善加引導。"},
+        };
+
+        private static string LfJianghuSixRel(string pillar, string tenGod)
+        {
+            if (string.IsNullOrEmpty(tenGod)) return "";
+            string tg = tenGod == "偏官" ? "七殺" : tenGod;
+            return JianghuSixRel.TryGetValue($"{pillar}_{tg}", out var text) ? text : "";
+        }
+
         // ─── Ch.5 六親論斷輔助方法 ─────────────────────────────────────────────
 
         private static bool LfRelHasRoot(string pillarStem, string branch)
@@ -5899,6 +5953,12 @@ namespace Ecanapi.Controllers
 
             // --- 年柱 ---
             sb.AppendLine("【年柱·出身幼年】");
+            {
+                string jiY1 = LfJianghuSixRel("年", yStemSS);
+                string jiY2 = yStemSS != yBranchSS ? LfJianghuSixRel("年", yBranchSS) : "";
+                string jiYear = (jiY1 + (string.IsNullOrEmpty(jiY2) ? "" : jiY2)).Trim();
+                if (!string.IsNullOrEmpty(jiYear)) sb.AppendLine($"  {jiYear}");
+            }
             string yStemElem = KbStemToElement(yStem);
             string yStemFav  = yStemElem == yongShenElem ? "喜用" : yStemElem == jiShenElem ? "忌神" : "閒神";
             sb.AppendLine("  " + LfBuildRelStemLine(yStem, yStemSS, yStemElem, yongShenElem, jiShenElem, "幼年", "年"));
@@ -5910,6 +5970,12 @@ namespace Ecanapi.Controllers
 
             // --- 月柱 ---
             sb.AppendLine("【月柱·父母青年】");
+            {
+                string jiM1 = LfJianghuSixRel("月", mStemSS);
+                string jiM2 = mStemSS != mBranchSS ? LfJianghuSixRel("月", mBranchSS) : "";
+                string jiMonth = (jiM1 + (string.IsNullOrEmpty(jiM2) ? "" : jiM2)).Trim();
+                if (!string.IsNullOrEmpty(jiMonth)) sb.AppendLine($"  {jiMonth}");
+            }
             string mStemElem = KbStemToElement(mStem);
             string mStemFav  = mStemElem == yongShenElem ? "喜用" : mStemElem == jiShenElem ? "忌神" : "閒神";
             sb.AppendLine("  " + LfBuildRelStemLine(mStem, mStemSS, mStemElem, yongShenElem, jiShenElem, "青年", "月"));
@@ -5956,6 +6022,10 @@ namespace Ecanapi.Controllers
 
             // --- 日柱 ---
             sb.AppendLine("【日柱·自身婚姻】");
+            {
+                string jiD = LfJianghuSixRel("日", dBranchSS);
+                if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  {jiD}");
+            }
             string selfDesc = bodyPct >= 55
                 ? "自主能力足，事業主導力強，中年宜主動進取，可開創一番局面"
                 : "需靠印比助身，宜藉助貴人環境之力，中年宜守成穩健為主";
@@ -5982,6 +6052,12 @@ namespace Ecanapi.Controllers
 
             // --- 時柱 ---
             sb.AppendLine("【時柱·子女晚運】");
+            {
+                string jiH1 = LfJianghuSixRel("時", hStemSS);
+                string jiH2 = hStemSS != hBranchSS ? LfJianghuSixRel("時", hBranchSS) : "";
+                string jiHour = (jiH1 + (string.IsNullOrEmpty(jiH2) ? "" : jiH2)).Trim();
+                if (!string.IsNullOrEmpty(jiHour)) sb.AppendLine($"  {jiHour}");
+            }
             string hStemElem = KbStemToElement(hStem);
             string hStemFav  = hStemElem == yongShenElem ? "喜用" : hStemElem == jiShenElem ? "忌神" : "閒神";
             sb.AppendLine("  " + LfBuildRelStemLine(hStem, hStemSS, hStemElem, yongShenElem, jiShenElem, "晚年", "時"));
