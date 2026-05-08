@@ -5954,8 +5954,11 @@ namespace Ecanapi.Controllers
             // --- 年柱 ---
             sb.AppendLine("【年柱·出身幼年】");
             {
-                string jiY1 = LfJianghuSixRel("年", yStemSS);
-                string jiY2 = yStemSS != yBranchSS ? LfJianghuSixRel("年", yBranchSS) : "";
+                string yStemTg   = LfStemShiShen(yStem, dStem);
+                string yBrMs     = LfBranchHiddenRatio.TryGetValue(yBranch, out var ybh) && ybh.Count > 0 ? ybh[0].stem : "";
+                string yBranchTg = !string.IsNullOrEmpty(yBrMs) ? LfStemShiShen(yBrMs, dStem) : "";
+                string jiY1 = LfJianghuSixRel("年", yStemTg);
+                string jiY2 = yStemTg != yBranchTg ? LfJianghuSixRel("年", yBranchTg) : "";
                 string jiYear = (jiY1 + (string.IsNullOrEmpty(jiY2) ? "" : jiY2)).Trim();
                 if (!string.IsNullOrEmpty(jiYear)) sb.AppendLine($"  {jiYear}");
             }
@@ -5971,8 +5974,11 @@ namespace Ecanapi.Controllers
             // --- 月柱 ---
             sb.AppendLine("【月柱·父母青年】");
             {
-                string jiM1 = LfJianghuSixRel("月", mStemSS);
-                string jiM2 = mStemSS != mBranchSS ? LfJianghuSixRel("月", mBranchSS) : "";
+                string mStemTg   = LfStemShiShen(mStem, dStem);
+                string mBrMs     = LfBranchHiddenRatio.TryGetValue(mBranch, out var mbh) && mbh.Count > 0 ? mbh[0].stem : "";
+                string mBranchTg = !string.IsNullOrEmpty(mBrMs) ? LfStemShiShen(mBrMs, dStem) : "";
+                string jiM1 = LfJianghuSixRel("月", mStemTg);
+                string jiM2 = mStemTg != mBranchTg ? LfJianghuSixRel("月", mBranchTg) : "";
                 string jiMonth = (jiM1 + (string.IsNullOrEmpty(jiM2) ? "" : jiM2)).Trim();
                 if (!string.IsNullOrEmpty(jiMonth)) sb.AppendLine($"  {jiMonth}");
             }
@@ -6023,7 +6029,9 @@ namespace Ecanapi.Controllers
             // --- 日柱 ---
             sb.AppendLine("【日柱·自身婚姻】");
             {
-                string jiD = LfJianghuSixRel("日", dBranchSS);
+                string dBrMs  = LfBranchHiddenRatio.TryGetValue(dBranch, out var dbh2) && dbh2.Count > 0 ? dbh2[0].stem : "";
+                string dBrTg  = !string.IsNullOrEmpty(dBrMs) ? LfStemShiShen(dBrMs, dStem) : "";
+                string jiD = LfJianghuSixRel("日", dBrTg);
                 if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  {jiD}");
             }
             string selfDesc = bodyPct >= 55
@@ -6053,8 +6061,11 @@ namespace Ecanapi.Controllers
             // --- 時柱 ---
             sb.AppendLine("【時柱·子女晚運】");
             {
-                string jiH1 = LfJianghuSixRel("時", hStemSS);
-                string jiH2 = hStemSS != hBranchSS ? LfJianghuSixRel("時", hBranchSS) : "";
+                string hStemTg   = LfStemShiShen(hStem, dStem);
+                string hBrMs     = LfBranchHiddenRatio.TryGetValue(hBranch, out var hbh) && hbh.Count > 0 ? hbh[0].stem : "";
+                string hBranchTg = !string.IsNullOrEmpty(hBrMs) ? LfStemShiShen(hBrMs, dStem) : "";
+                string jiH1 = LfJianghuSixRel("時", hStemTg);
+                string jiH2 = hStemTg != hBranchTg ? LfJianghuSixRel("時", hBranchTg) : "";
                 string jiHour = (jiH1 + (string.IsNullOrEmpty(jiH2) ? "" : jiH2)).Trim();
                 if (!string.IsNullOrEmpty(jiHour)) sb.AppendLine($"  {jiHour}");
             }
