@@ -6033,8 +6033,8 @@ namespace Ecanapi.Controllers
                 string yBranchTg = !string.IsNullOrEmpty(yBrMs) ? LfStemShiShen(yBrMs, dStem) : "";
                 string jiYStem   = LfPillarStemFormula("年", yStemTg, pillarFormulas);
                 string jiYBranch = LfJianghuSixRel("年支", yBranchTg);
-                string jiYear = (jiYStem + (string.IsNullOrEmpty(jiYBranch) ? "" : (string.IsNullOrEmpty(jiYStem) ? "" : "\n") + jiYBranch)).Trim();
-                if (!string.IsNullOrEmpty(jiYear)) sb.AppendLine($"  {jiYear}");
+                if (!string.IsNullOrEmpty(jiYStem))   sb.AppendLine($"  ▍天干：{jiYStem}");
+                if (!string.IsNullOrEmpty(jiYBranch)) sb.AppendLine($"  ▍地支：{jiYBranch}");
             }
             string yStemElem = KbStemToElement(yStem);
             string yStemFav  = yStemElem == yongShenElem ? "喜用" : yStemElem == jiShenElem ? "忌神" : "閒神";
@@ -6053,8 +6053,8 @@ namespace Ecanapi.Controllers
                 string mBranchTg = !string.IsNullOrEmpty(mBrMs) ? LfStemShiShen(mBrMs, dStem) : "";
                 string jiMStem   = LfPillarStemFormula("月", mStemTg, pillarFormulas);
                 string jiMBranch = LfJianghuSixRel("月支", mBranchTg);
-                string jiMonth = (jiMStem + (string.IsNullOrEmpty(jiMBranch) ? "" : (string.IsNullOrEmpty(jiMStem) ? "" : "\n") + jiMBranch)).Trim();
-                if (!string.IsNullOrEmpty(jiMonth)) sb.AppendLine($"  {jiMonth}");
+                if (!string.IsNullOrEmpty(jiMStem))   sb.AppendLine($"  ▍天干：{jiMStem}");
+                if (!string.IsNullOrEmpty(jiMBranch)) sb.AppendLine($"  ▍地支：{jiMBranch}");
             }
             string mStemElem = KbStemToElement(mStem);
             string mStemFav  = mStemElem == yongShenElem ? "喜用" : mStemElem == jiShenElem ? "忌神" : "閒神";
@@ -6106,7 +6106,7 @@ namespace Ecanapi.Controllers
                 string dBrMs  = LfBranchHiddenRatio.TryGetValue(dBranch, out var dbh2) && dbh2.Count > 0 ? dbh2[0].stem : "";
                 string dBrTg  = !string.IsNullOrEmpty(dBrMs) ? LfStemShiShen(dBrMs, dStem) : "";
                 string jiD = LfPillarStemFormula("日", dBrTg, pillarFormulas);
-                if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  {jiD}");
+                if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  ▍地支：{jiD}");
             }
             string selfDesc = bodyPct >= 55
                 ? "自主能力足，事業主導力強，中年宜主動進取，可開創一番局面"
@@ -6140,8 +6140,8 @@ namespace Ecanapi.Controllers
                 string hBranchTg = !string.IsNullOrEmpty(hBrMs) ? LfStemShiShen(hBrMs, dStem) : "";
                 string jiHStem   = LfPillarStemFormula("時", hStemTg, pillarFormulas);
                 string jiHBranch = LfJianghuSixRel("時支", hBranchTg);
-                string jiHour = (jiHStem + (string.IsNullOrEmpty(jiHBranch) ? "" : (string.IsNullOrEmpty(jiHStem) ? "" : "\n") + jiHBranch)).Trim();
-                if (!string.IsNullOrEmpty(jiHour)) sb.AppendLine($"  {jiHour}");
+                if (!string.IsNullOrEmpty(jiHStem))   sb.AppendLine($"  ▍天干：{jiHStem}");
+                if (!string.IsNullOrEmpty(jiHBranch)) sb.AppendLine($"  ▍地支：{jiHBranch}");
             }
             string hStemElem = KbStemToElement(hStem);
             string hStemFav  = hStemElem == yongShenElem ? "喜用" : hStemElem == jiShenElem ? "忌神" : "閒神";
