@@ -2503,12 +2503,25 @@ namespace Ecanapi.Controllers
                         (!string.IsNullOrEmpty(bzSiHuaQuan) && KbPalaceSame(bzSiHuaQuanPalace, palaceName)) ||
                         (!string.IsNullOrEmpty(bzSiHuaKe)   && KbPalaceSame(bzSiHuaKePalace,   palaceName)) ||
                         (!string.IsNullOrEmpty(bzSiHuaJi)   && KbPalaceSame(bzSiHuaJiPalace,   palaceName));
-                    // 移除尾端段落標頭（過濾後只剩「在三方四正中：」之類的行）
+                    // 移除所有懸空段落標頭（過濾後無後續內容的「在三方四正中：」之類的行）
+                    // 同時處理尾端與中段的孤立標頭
                     string BzStripTrailingHeader(string s)
                     {
                         if (string.IsNullOrEmpty(s)) return s;
                         var lines = s.Split('\n').ToList();
-                        while (lines.Count > 0 && (string.IsNullOrWhiteSpace(lines[^1]) || lines[^1].TrimEnd().EndsWith("：")))
+                        for (int i = lines.Count - 1; i >= 0; i--)
+                        {
+                            if (!lines[i].TrimEnd().EndsWith("：")) continue;
+                            bool hasContent = false;
+                            for (int j = i + 1; j < lines.Count; j++)
+                            {
+                                var next = lines[j].Trim();
+                                if (!string.IsNullOrEmpty(next) && !next.EndsWith("：")) { hasContent = true; break; }
+                                if (!string.IsNullOrEmpty(next) && next.EndsWith("：")) break;
+                            }
+                            if (!hasContent) lines.RemoveAt(i);
+                        }
+                        while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[^1]))
                             lines.RemoveAt(lines.Count - 1);
                         return string.Join("\n", lines);
                     }
@@ -2552,6 +2565,8 @@ namespace Ecanapi.Controllers
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescMing}");
                     else if (!string.IsNullOrEmpty(bzDescMing))
                         bzSb.AppendLine($"【主星星情】{bzDescMing}");
+                    else
+                        bzSb.AppendLine("（空宮，借對宮主星論斷）");
                     if (!string.IsNullOrEmpty(bzMing)) bzSb.AppendLine(bzMing);
                     if (!string.IsNullOrEmpty(bzMinorDescMing)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescMing}");
                     BzAppendSiHua(bzSb, "命宮");
@@ -2570,6 +2585,8 @@ namespace Ecanapi.Controllers
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescSps}");
                     else if (!string.IsNullOrEmpty(bzDescSps))
                         bzSb.AppendLine($"【主星星情】{bzDescSps}");
+                    else
+                        bzSb.AppendLine("（空宮，借對宮主星論斷）");
                     if (!string.IsNullOrEmpty(bzSps)) bzSb.AppendLine(bzSps);
                     if (!string.IsNullOrEmpty(bzMinorDescSps)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescSps}");
                     BzAppendSiHua(bzSb, "夫妻宮");
@@ -2588,6 +2605,8 @@ namespace Ecanapi.Controllers
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescWlt}");
                     else if (!string.IsNullOrEmpty(bzDescWlt))
                         bzSb.AppendLine($"【主星星情】{bzDescWlt}");
+                    else
+                        bzSb.AppendLine("（空宮，借對宮主星論斷）");
                     if (!string.IsNullOrEmpty(bzWlt)) bzSb.AppendLine(bzWlt);
                     if (!string.IsNullOrEmpty(bzMinorDescWlt)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescWlt}");
                     BzAppendSiHua(bzSb, "財帛宮");
@@ -2599,6 +2618,8 @@ namespace Ecanapi.Controllers
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescHlt}");
                     else if (!string.IsNullOrEmpty(bzDescHlt))
                         bzSb.AppendLine($"【主星星情】{bzDescHlt}");
+                    else
+                        bzSb.AppendLine("（空宮，借對宮主星論斷）");
                     if (!string.IsNullOrEmpty(bzHlt)) bzSb.AppendLine(bzHlt);
                     if (!string.IsNullOrEmpty(bzMinorDescHlt)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescHlt}");
                     BzAppendSiHua(bzSb, "疾厄宮");
@@ -2624,6 +2645,8 @@ namespace Ecanapi.Controllers
                         bzSb.AppendLine($"【雙星論斷】{bzDoubleDescOff}");
                     else if (!string.IsNullOrEmpty(bzDescOff))
                         bzSb.AppendLine($"【主星星情】{bzDescOff}");
+                    else
+                        bzSb.AppendLine("（空宮，借對宮主星論斷）");
                     if (!string.IsNullOrEmpty(bzOff)) bzSb.AppendLine(bzOff);
                     if (!string.IsNullOrEmpty(bzMinorDescOff)) bzSb.AppendLine($"【輔星加臨】{bzMinorDescOff}");
                     BzAppendSiHua(bzSb, "官祿宮");
