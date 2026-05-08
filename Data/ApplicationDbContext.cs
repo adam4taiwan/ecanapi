@@ -66,6 +66,9 @@ namespace Ecanapi.Data
         public DbSet<BaziDirectRule> BaziDirectRules { get; set; }
         public DbSet<FortuneSourceText> FortuneSourceTexts { get; set; }
 
+        // 六神四柱口訣 KB
+        public DbSet<BaziPillarFormula> BaziPillarFormulas { get; set; }
+
         // 命書記錄
         public DbSet<UserReport> UserReports { get; set; }
 

@@ -2181,12 +2181,17 @@ namespace Ecanapi.Controllers
                     return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
                 }).ToList();
 
+                var lfPillarFormulas = (await _context.BaziPillarFormulas.ToListAsync())
+                    .Where(x => !string.IsNullOrEmpty(x.Position))
+                    .ToDictionary(x => x.Position!, x => x.NewDesc ?? x.Gd ?? "");
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear);
+                    scored, gender, birthYear,
+                    pillarFormulas: lfPillarFormulas);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2355,6 +2360,11 @@ namespace Ecanapi.Controllers
                 string bzDNaYin = LfPillarNaYin(dayP);
                 string bzHNaYin = LfPillarNaYin(timeP);
 
+                // === 六神四柱口訣 KB（Ch.5 六親論斷用）===
+                var bzPillarFormulas = (await _context.BaziPillarFormulas.ToListAsync())
+                    .Where(x => !string.IsNullOrEmpty(x.Position))
+                    .ToDictionary(x => x.Position!, x => x.NewDesc ?? x.Gd ?? "");
+
                 // === 八字主體 ===
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -2362,7 +2372,8 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     scored, gender, birthYear,
-                    bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb);
+                    bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb,
+                    bzPillarFormulas);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -5751,6 +5762,33 @@ namespace Ecanapi.Controllers
             {"時支_羊刃", "時支羊刃不太好，子不殘疾也多病，子女緣薄需善加引導。"},
         };
 
+        // 十神名稱 → 六神四柱口訣 position 簡碼（對應 DB simple 欄位）
+        private static readonly Dictionary<string, string> TenGodSimpleCode = new()
+        {
+            {"正財","財"},{"偏財","才"},{"正官","官"},{"偏官","殺"},{"七殺","殺"},
+            {"正印","印"},{"偏印","ㄗ"},{"食神","食"},{"傷官","傷"},
+            {"比肩","比"},{"劫財","劫"},{"建祿","祿"},{"羊刃","刃"}
+        };
+
+        // DB 干查詢：先查 DB dict，再 fallback 至硬編碼 JianghuSixRel 干條目
+        private static string LfPillarStemFormula(
+            string pillar, string tenGod,
+            IReadOnlyDictionary<string, string>? dbDict)
+        {
+            if (string.IsNullOrEmpty(tenGod)) return "";
+            string tg = tenGod == "偏官" ? "七殺" : tenGod;
+            // 嘗試 DB: key = "{pillar}干{simple}"，e.g. "月干財"
+            if (dbDict != null && TenGodSimpleCode.TryGetValue(tg, out var simple))
+            {
+                string dbKey = $"{pillar}干{simple}";
+                if (dbDict.TryGetValue(dbKey, out var dbText) && !string.IsNullOrEmpty(dbText))
+                    return dbText;
+            }
+            // fallback: 硬編碼干條目
+            return JianghuSixRel.TryGetValue($"{pillar}干_{tg}", out var fallback) ? fallback : "";
+        }
+
+        // 支查詢：僅查硬編碼 支 條目
         private static string LfJianghuSixRel(string pillar, string tenGod)
         {
             if (string.IsNullOrEmpty(tenGod)) return "";
@@ -5981,7 +6019,8 @@ namespace Ecanapi.Controllers
             string yStemSS, string mStemSS, string hStemSS,
             string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
             string yongShenElem, string jiShenElem, string dmElem,
-            string bodyLabel, double bodyPct, int gender, string[] branches)
+            string bodyLabel, double bodyPct, int gender, string[] branches,
+            IReadOnlyDictionary<string, string>? pillarFormulas = null)
         {
             var sb = new StringBuilder();
             sb.AppendLine("【第五章：六親論斷】");
@@ -5992,7 +6031,7 @@ namespace Ecanapi.Controllers
                 string yStemTg   = LfStemShiShen(yStem, dStem);
                 string yBrMs     = LfBranchHiddenRatio.TryGetValue(yBranch, out var ybh) && ybh.Count > 0 ? ybh[0].stem : "";
                 string yBranchTg = !string.IsNullOrEmpty(yBrMs) ? LfStemShiShen(yBrMs, dStem) : "";
-                string jiYStem   = LfJianghuSixRel("年干", yStemTg);
+                string jiYStem   = LfPillarStemFormula("年", yStemTg, pillarFormulas);
                 string jiYBranch = LfJianghuSixRel("年支", yBranchTg);
                 string jiYear = (jiYStem + (string.IsNullOrEmpty(jiYBranch) ? "" : (string.IsNullOrEmpty(jiYStem) ? "" : "\n") + jiYBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiYear)) sb.AppendLine($"  {jiYear}");
@@ -6012,7 +6051,7 @@ namespace Ecanapi.Controllers
                 string mStemTg   = LfStemShiShen(mStem, dStem);
                 string mBrMs     = LfBranchHiddenRatio.TryGetValue(mBranch, out var mbh) && mbh.Count > 0 ? mbh[0].stem : "";
                 string mBranchTg = !string.IsNullOrEmpty(mBrMs) ? LfStemShiShen(mBrMs, dStem) : "";
-                string jiMStem   = LfJianghuSixRel("月干", mStemTg);
+                string jiMStem   = LfPillarStemFormula("月", mStemTg, pillarFormulas);
                 string jiMBranch = LfJianghuSixRel("月支", mBranchTg);
                 string jiMonth = (jiMStem + (string.IsNullOrEmpty(jiMBranch) ? "" : (string.IsNullOrEmpty(jiMStem) ? "" : "\n") + jiMBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiMonth)) sb.AppendLine($"  {jiMonth}");
@@ -6066,7 +6105,7 @@ namespace Ecanapi.Controllers
             {
                 string dBrMs  = LfBranchHiddenRatio.TryGetValue(dBranch, out var dbh2) && dbh2.Count > 0 ? dbh2[0].stem : "";
                 string dBrTg  = !string.IsNullOrEmpty(dBrMs) ? LfStemShiShen(dBrMs, dStem) : "";
-                string jiD = LfJianghuSixRel("日支", dBrTg);
+                string jiD = LfPillarStemFormula("日", dBrTg, pillarFormulas);
                 if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  {jiD}");
             }
             string selfDesc = bodyPct >= 55
@@ -6099,7 +6138,7 @@ namespace Ecanapi.Controllers
                 string hStemTg   = LfStemShiShen(hStem, dStem);
                 string hBrMs     = LfBranchHiddenRatio.TryGetValue(hBranch, out var hbh) && hbh.Count > 0 ? hbh[0].stem : "";
                 string hBranchTg = !string.IsNullOrEmpty(hBrMs) ? LfStemShiShen(hBrMs, dStem) : "";
-                string jiHStem   = LfJianghuSixRel("時干", hStemTg);
+                string jiHStem   = LfPillarStemFormula("時", hStemTg, pillarFormulas);
                 string jiHBranch = LfJianghuSixRel("時支", hBranchTg);
                 string jiHour = (jiHStem + (string.IsNullOrEmpty(jiHBranch) ? "" : (string.IsNullOrEmpty(jiHStem) ? "" : "\n") + jiHBranch)).Trim();
                 if (!string.IsNullOrEmpty(jiHour)) sb.AppendLine($"  {jiHour}");
@@ -6608,7 +6647,8 @@ namespace Ecanapi.Controllers
             List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
             int gender, int birthYear,
             string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "",
-            BaziDayPillarReading? kb = null)
+            BaziDayPillarReading? kb = null,
+            IReadOnlyDictionary<string, string>? pillarFormulas = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -6783,7 +6823,8 @@ namespace Ecanapi.Controllers
             sb.Append(LfBuildCh5SixRelatives(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
-                yongShenElem, jiShenElem, dmElem, bodyLabel, bodyPct, gender, branches));
+                yongShenElem, jiShenElem, dmElem, bodyLabel, bodyPct, gender, branches,
+                pillarFormulas));
             string rules = LfApplyRules(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                 dmElem, wuXing, gender, pattern, bodyPct, branches);
