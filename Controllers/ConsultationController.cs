@@ -6771,9 +6771,9 @@ namespace Ecanapi.Controllers
                 string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
                     : "巳午未".Contains(mBranch) ? "夏"
                     : "申酉戌".Contains(mBranch) ? "秋" : "冬";
-                AppKbCh3("月令影響", LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar));
+                AppKbCh3("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
                 AppKbCh3(gender == 1 ? "男命論斷" : "女命論斷",
-                    LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar));
+                    LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
             }
             string ch3ShiGanXiang = LfShiGanXiangFa(dStem, mBranch);
             if (!string.IsNullOrEmpty(ch3ShiGanXiang))
@@ -7474,6 +7474,19 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             return sb.ToString().TrimEnd('\n', '\r') + "\n";
+        }
+
+        // === 過濾 MonthInfluence 中與實際身強/身弱矛盾的子句 ===
+        // 例：文字說「身旺傷官洩秀」但命主實為身弱 → 移除含「身旺」的子句，反之亦然
+        private static string LfFixBodyStrengthConflict(string text, double bodyPct)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            bool isWeak = bodyPct < 50;
+            if (isWeak && text.Contains("身旺"))
+                text = System.Text.RegularExpressions.Regex.Replace(text, @"[^，。；]*身旺[^，。；]*[，。]?", "").Trim().TrimStart('，', '。', '；');
+            else if (!isWeak && text.Contains("身弱"))
+                text = System.Text.RegularExpressions.Regex.Replace(text, @"[^，。；]*身弱[^，。；]*[，。]?", "").Trim().TrimStart('，', '。', '；');
+            return text;
         }
 
         // === ShiWenSection (審時聞切) ===
@@ -8292,8 +8305,8 @@ namespace Ecanapi.Controllers
                 string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
                     : "巳午未".Contains(mBranch) ? "夏"
                     : "申酉戌".Contains(mBranch) ? "秋" : "冬";
-                AppKb("月令影響", LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar));
-                AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar));
+                AppKb("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
+                AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
                 AppKb("最佳時辰", kb.SpecialHours);
             }
             // === 十干象法 ===
