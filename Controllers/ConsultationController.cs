@@ -2185,13 +2185,29 @@ namespace Ecanapi.Controllers
                     .Where(x => !string.IsNullOrEmpty(x.Position))
                     .ToDictionary(x => x.Position!, x => x.NewDesc ?? x.Gd ?? "");
 
+                // 預取生肖命理知識庫（本命特性 + 精批榮祿）
+                string zodiacSign = yBranch switch
+                {
+                    "子"=>"鼠","丑"=>"牛","寅"=>"虎","卯"=>"兔",
+                    "辰"=>"龍","巳"=>"蛇","午"=>"馬","未"=>"羊",
+                    "申"=>"猴","酉"=>"雞","戌"=>"狗","亥"=>"豬",
+                    _ => ""
+                };
+                List<ZodiacKnowledge> zodiacKbList = string.IsNullOrEmpty(zodiacSign)
+                    ? new()
+                    : await _context.ZodiacKnowledges
+                        .Where(z => z.BirthZodiac == zodiacSign &&
+                               (z.Category == "本命特性" || z.Category == "精批榮祿"))
+                        .ToListAsync();
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     scored, gender, birthYear,
-                    pillarFormulas: lfPillarFormulas);
+                    pillarFormulas: lfPillarFormulas,
+                    zodiacKb: zodiacKbList);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -6648,7 +6664,8 @@ namespace Ecanapi.Controllers
             int gender, int birthYear,
             string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "",
             BaziDayPillarReading? kb = null,
-            IReadOnlyDictionary<string, string>? pillarFormulas = null)
+            IReadOnlyDictionary<string, string>? pillarFormulas = null,
+            IList<ZodiacKnowledge>? zodiacKb = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -6675,6 +6692,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  事業財運");
             sb.AppendLine("  婚姻感情");
             sb.AppendLine("  健康壽元");
+            sb.AppendLine("  生肖本命特性");
             sb.AppendLine("  目前行運");
             sb.AppendLine("  人生警示事項");
             sb.AppendLine("  適合行業建議");
@@ -6887,6 +6905,51 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(healthWarnings)) sb.AppendLine(healthWarnings);
             sb.AppendLine();
 
+            // === Ch.10 生肖本命特性 ===
+            if (zodiacKb != null && zodiacKb.Count > 0)
+            {
+                string zodiacName = yBranch switch
+                {
+                    "子"=>"鼠","丑"=>"牛","寅"=>"虎","卯"=>"兔",
+                    "辰"=>"龍","巳"=>"蛇","午"=>"馬","未"=>"羊",
+                    "申"=>"猴","酉"=>"雞","戌"=>"狗","亥"=>"豬",
+                    _ => ""
+                };
+                if (!string.IsNullOrEmpty(zodiacName))
+                {
+                    sb.AppendLine("【第十章：生肖本命特性】");
+                    sb.AppendLine($"命主出生年地支【{yBranch}】，生肖屬【{zodiacName}】，以下為生肖命理本命特性論斷：");
+                    sb.AppendLine();
+
+                    // 本命特性子分類輸出順序
+                    var subcatOrder = new[] {"守護神","事業","職業","財運","工作拍檔","合作夥伴","愛情","婚姻","健康"};
+                    var traits = zodiacKb.Where(z => z.Category == "本命特性").ToList();
+                    foreach (var subcat in subcatOrder)
+                    {
+                        var item = traits.FirstOrDefault(z => z.Subcategory == subcat);
+                        if (item == null || string.IsNullOrWhiteSpace(item.Content)) continue;
+                        string displayLabel = subcat switch
+                        {
+                            "工作拍檔" => "交友・工作最佳拍檔",
+                            "合作夥伴" => "交友・最佳合作夥伴",
+                            _ => subcat
+                        };
+                        sb.AppendLine($"▌{displayLabel}");
+                        sb.AppendLine(item.Content.Trim());
+                        sb.AppendLine();
+                    }
+
+                    // 精批榮祿：生年精批（1筆全塊文字）
+                    var nianItem = zodiacKb.FirstOrDefault(z => z.Category == "精批榮祿" && z.Subcategory == "生年");
+                    if (nianItem != null && !string.IsNullOrWhiteSpace(nianItem.Content))
+                    {
+                        sb.AppendLine("▌生年精批");
+                        sb.AppendLine(nianItem.Content.Trim());
+                        sb.AppendLine();
+                    }
+                }
+            }
+
             // === Ch.10 大運逐運（暫停輸出，另有大運命書）===
             // sb.AppendLine("【第十章：大運逐運論斷（百分制評分）】");
             // {
@@ -6915,8 +6978,8 @@ namespace Ecanapi.Controllers
             // sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
             // sb.AppendLine();
 
-            // === Ch.10（原Ch.12）目前行運 ===
-            sb.AppendLine("【第十章：目前行運】");
+            // === Ch.11 目前行運 ===
+            sb.AppendLine("【第十一章：目前行運】");
 
             var curCycleBz = scored.FirstOrDefault(c => currentAge >= c.startAge && currentAge <= c.endAge);
 
