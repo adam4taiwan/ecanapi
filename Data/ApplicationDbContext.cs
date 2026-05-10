@@ -69,6 +69,9 @@ namespace Ecanapi.Data
         // 六神四柱口訣 KB
         public DbSet<BaziPillarFormula> BaziPillarFormulas { get; set; }
 
+        // 生肖命理知識庫
+        public DbSet<ZodiacKnowledge> ZodiacKnowledges { get; set; }
+
         // 命書記錄
         public DbSet<UserReport> UserReports { get; set; }
 
