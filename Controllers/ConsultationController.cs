@@ -11446,7 +11446,7 @@ namespace Ecanapi.Controllers
             ["卯_辰"] = "卯人生於辰時，陰霧不晴，一時不得出頭天。",
             ["卯_酉"] = "卯人生於酉時，時有破碎之難，空虛之苦。",
             ["子_丑"] = "鼠人生於丑時，多招美貌佳人，常代女子掃財，宜女不宜男。",
-            ["子_亥"] = "鼠人生於亥時，謹防身體。牛",
+            ["子_亥"] = "鼠人生於亥時，謹防身體。",
             ["子_午"] = "鼠人生於午時，多遭口舌。",
             ["子_卯"] = "鼠人生於卯時，習天膽大，有張飛之勇，雖不能登臺拜將亦成人間真人。",
             ["子_子"] = "鼠人生於子時，宜早完婚，免致後嗣空虛，事業一帆風順。",
@@ -11561,41 +11561,57 @@ namespace Ecanapi.Controllers
             sb2.AppendLine();
         }
 
-        // === 月柱：年生肖×月支 ===
+        // === 日柱納音（與年柱同為納音理論，與生肖四柱論分開）===
+        string dNayin = nayin60.GetValueOrDefault(dStem + dBranch, "");
+        if (!string.IsNullOrEmpty(dNayin))
+        {
+            sb2.AppendLine($"【日柱納音：{dNayin}】");
+            // Ch.2: 日柱納音細注（只含納音論斷，生肖×日支移至生肖四柱論區塊）
+            if (nayinCh2.TryGetValue(dStem + dBranch, out var dDesc2) && !string.IsNullOrEmpty(dDesc2))
+                sb2.AppendLine(dDesc2);
+            sb2.AppendLine();
+        }
+
+        // === 生肖四柱論（獨立區塊，與納音理論分開）===
+        // 月柱、日柱、時柱各以「年生肖×該柱地支」查表，屬生肖理論，不混入納音
+        var sbZodiac = new System.Text.StringBuilder();
+
+        // 月柱生肖論（年生肖×月支）
         // ch5 dictionary uses 子=正月 system (子丑寅...), but standard month branch uses 寅=正月
-        // Standard 巳(index 5) corresponds to dict key 卯(index 3), offset = -2
+        // Standard 巳(index 5 in 子丑...) → dict key 卯(index 3), universal offset = -2
         string[] ch5BranchOrder = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
         int mBranchIdx = Array.IndexOf(ch5BranchOrder, mBranch);
         string mBranchForDict = mBranchIdx >= 0 ? ch5BranchOrder[(mBranchIdx - 2 + 12) % 12] : mBranch;
         string ch5Key = yBranch + "_" + mBranchForDict;
         if (nayinCh5.TryGetValue(ch5Key, out var mDesc) && !string.IsNullOrEmpty(mDesc))
         {
-            sb2.AppendLine("【月柱生肖論】");
-            sb2.AppendLine(mDesc);
-            sb2.AppendLine();
+            sbZodiac.AppendLine($"【月柱生肖論】（{mBranch}）");
+            sbZodiac.AppendLine(mDesc);
+            sbZodiac.AppendLine();
         }
 
-        // === 日柱納音 ===
-        string dNayin = nayin60.GetValueOrDefault(dStem + dBranch, "");
-        if (!string.IsNullOrEmpty(dNayin))
+        // 日柱生肖論（年生肖×日支）
+        string ch6Key = yBranch + "_" + dBranch;
+        if (nayinCh6.TryGetValue(ch6Key, out var dDesc6) && !string.IsNullOrEmpty(dDesc6))
         {
-            sb2.AppendLine($"【日柱納音：{dNayin}】");
-            // Ch.2: 日柱納音細注
-            if (nayinCh2.TryGetValue(dStem + dBranch, out var dDesc2) && !string.IsNullOrEmpty(dDesc2))
-                sb2.AppendLine(dDesc2);
-            // Ch.6: 年生肖×日支
-            string ch6Key = yBranch + "_" + dBranch;
-            if (nayinCh6.TryGetValue(ch6Key, out var dDesc6) && !string.IsNullOrEmpty(dDesc6))
-                sb2.AppendLine(dDesc6);
-            sb2.AppendLine();
+            sbZodiac.AppendLine($"【日柱生肖論】（{dStem}{dBranch}）");
+            sbZodiac.AppendLine(dDesc6);
+            sbZodiac.AppendLine();
         }
 
-        // === 時柱：年生肖×時支 ===
+        // 時柱生肖論（年生肖×時支）
         string ch7Key = yBranch + "_" + hBranch;
         if (nayinCh7.TryGetValue(ch7Key, out var hDesc) && !string.IsNullOrEmpty(hDesc))
         {
-            sb2.AppendLine("【時柱生肖論】");
-            sb2.AppendLine(hDesc);
+            sbZodiac.AppendLine($"【時柱生肖論】（{hBranch}）");
+            sbZodiac.AppendLine(hDesc);
+        }
+
+        string zodiacBlock = sbZodiac.ToString().Trim();
+        if (!string.IsNullOrEmpty(zodiacBlock))
+        {
+            sb2.AppendLine("【生肖四柱論】");
+            sb2.AppendLine(zodiacBlock);
         }
 
         return sb2.ToString().Trim();
