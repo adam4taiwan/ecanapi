@@ -13797,20 +13797,22 @@ namespace Ecanapi.Controllers
             return mgNum >= 1 && mgNum <= 12 ? mgOrder[mgNum - 1] : "";
         }
 
-        // 身宮地支：以子=1序（子丑寅...亥），sum<14→14-sum，sum>=14→26-sum
-        // 基準：寅月（mNum=3）子時（hNum=1）→ sum=4 → 14-4=10 → 酉
+        // 身宮地支：月支用寅=1序（mgOrder），時支用子=1序（stdOrder），做逆推（SUBTRACT）
+        // 公式：sgPos = (mNum - hNum + 12) % 12，0→12，結果取 stdOrder[sgPos-1]
+        // 驗算：巳月（mNum=4）戌時（hNum=11）→ (4-11+12)%12=5 → 辰
         private static string LfCalcShenGongBranch(string mBranch, string hBranch, bool guoQi)
         {
+            string[] mgOrder  = { "寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑" };
             string[] stdOrder = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-            int mIdx = Array.IndexOf(stdOrder, mBranch);
+            int mIdx = Array.IndexOf(mgOrder, mBranch);
             if (mIdx < 0) return "";
             if (guoQi) mIdx = (mIdx + 1) % 12;
             int mNum = mIdx + 1;
             int hNum = Array.IndexOf(stdOrder, hBranch) + 1;
             if (hNum <= 0) return "";
-            int sum   = mNum + hNum;
-            int shNum = sum < 14 ? 14 - sum : 26 - sum;
-            return shNum >= 1 && shNum <= 12 ? stdOrder[shNum - 1] : "";
+            int sgPos = (mNum - hNum + 12) % 12;
+            if (sgPos == 0) sgPos = 12;
+            return stdOrder[sgPos - 1];
         }
 
         // 命身胎元文字區塊（供各命書 Ch.1 末尾使用）
