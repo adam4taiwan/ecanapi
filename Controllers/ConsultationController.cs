@@ -2203,6 +2203,8 @@ namespace Ecanapi.Controllers
                 bool lfGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
                     && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
 
+                var lfMingGongStars = await _context.BaziMingGongStars.ToListAsync();
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2211,6 +2213,7 @@ namespace Ecanapi.Controllers
                     scored, gender, birthYear,
                     pillarFormulas: lfPillarFormulas,
                     zodiacKb: zodiacKbList,
+                    mingGongStars: lfMingGongStars,
                     guoQi: lfGuoQi);
 
                 var cycleData = scored.Select(c => new {
@@ -2389,6 +2392,8 @@ namespace Ecanapi.Controllers
                 bool bzGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
                     && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
 
+                var bzBaziMingGongStars = await _context.BaziMingGongStars.ToListAsync();
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2397,6 +2402,7 @@ namespace Ecanapi.Controllers
                     scored, gender, birthYear,
                     bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb,
                     bzPillarFormulas,
+                    mingGongStars: bzBaziMingGongStars,
                     guoQi: bzGuoQi);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
@@ -3058,6 +3064,7 @@ namespace Ecanapi.Controllers
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz,
                     userName: ydzUserName,
                     calDb: _calendarDb,
+                    mingGongStarList: await _context.BaziMingGongStars.ToListAsync(),
                     guoQi: user.BirthMonth.HasValue && user.BirthDay.HasValue
                         && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb));
 
@@ -6676,6 +6683,7 @@ namespace Ecanapi.Controllers
             BaziDayPillarReading? kb = null,
             IReadOnlyDictionary<string, string>? pillarFormulas = null,
             IList<ZodiacKnowledge>? zodiacKb = null,
+            IList<BaziMingGongStar>? mingGongStars = null,
             bool guoQi = false)
         {
             var sb = new StringBuilder();
@@ -6753,7 +6761,7 @@ namespace Ecanapi.Controllers
             }
 
             // === 命宮 · 身宮 · 胎元 ===
-            string mingShenTaiYuan = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi);
+            string mingShenTaiYuan = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStars);
             if (!string.IsNullOrEmpty(mingShenTaiYuan))
             {
                 sb.AppendLine(mingShenTaiYuan);
@@ -7725,6 +7733,7 @@ namespace Ecanapi.Controllers
             string ziweiCld = "",
             string userName = "",
             CalendarDbContext? calDb = null,
+            IList<BaziMingGongStar>? mingGongStarList = null,
             bool guoQi = false)
         {
             var sb = new StringBuilder();
@@ -8376,7 +8385,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === 命宮 · 身宮 · 胎元 ===
-            string mingShenTaiYuanYdz = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi);
+            string mingShenTaiYuanYdz = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStarList);
             if (!string.IsNullOrEmpty(mingShenTaiYuanYdz))
             {
                 sb.AppendLine(mingShenTaiYuanYdz);
@@ -13392,6 +13401,8 @@ namespace Ecanapi.Controllers
                     bestMonths, cautionMonths
                 };
 
+                var lnShenSha12 = await _context.BaziShenSha12s.ToListAsync();
+
                 string report = LnBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -13405,7 +13416,8 @@ namespace Ecanapi.Controllers
                     taisuiGen, taisuiBranchEvent,
                     taisuiGuard, xiaoXianGuard, blindSect,
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
-                    branches, dStem);
+                    branches, dStem,
+                    shenSha12: lnShenSha12);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -13802,7 +13814,8 @@ namespace Ecanapi.Controllers
         }
 
         // 命身胎元文字區塊（供各命書 Ch.1 末尾使用）
-        private static string LfBuildMingShenTaiYuan(string yStem, string mStem, string mBranch, string hBranch, bool guoQi)
+        private static string LfBuildMingShenTaiYuan(string yStem, string mStem, string mBranch, string hBranch, bool guoQi,
+            IList<BaziMingGongStar>? mingGongStars = null)
         {
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("【命宮 · 身宮 · 胎元】");
@@ -13817,6 +13830,13 @@ namespace Ecanapi.Controllers
                 string mgStem = LfWuHuDunStem(yStem, mgBranch);
                 string guoQiNote = guoQi ? "（過氣，月支順進一位後計算）" : "";
                 sb.AppendLine($"  命宮：{mgStem}{mgBranch}{guoQiNote}");
+                // 命宮星名論斷
+                var star = mingGongStars?.FirstOrDefault(s => s.Branch == mgBranch);
+                if (star != null)
+                {
+                    sb.AppendLine($"  命宮星：{star.StarName}（{star.LuckLevel}）");
+                    sb.AppendLine($"  {star.Description}");
+                }
             }
             // 身宮
             string sgBranch = LfCalcShenGongBranch(mBranch, hBranch, guoQi);
@@ -13890,7 +13910,8 @@ namespace Ecanapi.Controllers
             Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
             List<(int idx, string mStemM, string mBranchM, string mSeason, int bazi, int ziwei, string cross, string flowStar, string tip)> monthlyDetails,
             List<int> bestMonths, List<int> cautionMonths,
-            string[] branches, string dStemRef)
+            string[] branches, string dStemRef,
+            IList<BaziShenSha12>? shenSha12 = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -14031,6 +14052,31 @@ namespace Ecanapi.Controllers
             }
             else sb.AppendLine("（無紫微命盤資料，流年四化僅列星名參考）");
             sb.AppendLine();
+
+            // 3.5 命宮流年神煞
+            if (shenSha12 != null && shenSha12.Count > 0)
+            {
+                string lnMingBranch = LnCalcMingBranchFromBazi(mBranch, hBranch);
+                if (!string.IsNullOrEmpty(lnMingBranch))
+                {
+                    string[] branchOrd12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                    int mgIdx = Array.IndexOf(branchOrd12, lnMingBranch);
+                    int flIdx = Array.IndexOf(branchOrd12, flBranch);
+                    if (mgIdx >= 0 && flIdx >= 0)
+                    {
+                        int ssSeq = (flIdx - mgIdx + 12) % 12 + 1; // 1-based Sequence
+                        var shenSha = shenSha12.FirstOrDefault(s => s.Sequence == ssSeq);
+                        if (shenSha != null)
+                        {
+                            sb.AppendLine("【3.5 命宮流年神煞】");
+                            sb.AppendLine($"命宮地支：{lnMingBranch}  流年地支：{flBranch}  神煞：【{shenSha.ShenShaName}（{shenSha.LuckLevel}）】");
+                            sb.AppendLine($"  {shenSha.ShortDesc}");
+                            sb.AppendLine($"  {shenSha.FullDesc}");
+                            sb.AppendLine();
+                        }
+                    }
+                }
+            }
 
             // Ch.4 春夏秋冬四季
             sb.AppendLine("【第四章：春夏秋冬四季論斷】");
