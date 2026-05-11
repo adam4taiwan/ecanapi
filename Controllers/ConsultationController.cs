@@ -6802,7 +6802,7 @@ namespace Ecanapi.Controllers
             }
 
             // === 納音論斷 ===
-            string ch3NaYin = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
+            var (ch3NaYin, ch5ZodiacDesc) = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
             if (!string.IsNullOrEmpty(ch3NaYin))
             {
                 sb.AppendLine("【納音論斷】");
@@ -6850,6 +6850,14 @@ namespace Ecanapi.Controllers
             rules = System.Text.RegularExpressions.Regex.Replace(rules, @"【[A-Z]\d+[^】\s]*\s+", "【");
             if (!string.IsNullOrEmpty(rules)) sb.AppendLine(rules);
             sb.AppendLine();
+
+            // === 生肖分析（Ch4/5/6/7 劉威吾生肖四柱論）===
+            if (!string.IsNullOrEmpty(ch5ZodiacDesc))
+            {
+                sb.AppendLine("【生肖分析】");
+                sb.AppendLine(ch5ZodiacDesc);
+                sb.AppendLine();
+            }
 
             // === Ch.6 性格志向 ===
             sb.AppendLine("【第六章：性格志向】");
@@ -8382,7 +8390,7 @@ namespace Ecanapi.Controllers
             }
 
             // === 納音論斷 ===
-            string nayinDesc = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
+            var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
             if (!string.IsNullOrEmpty(nayinDesc))
             {
                 sb.AppendLine("【納音論斷】");
@@ -8501,6 +8509,14 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemV2, dStem, branches));
             sb.AppendLine();
+
+            // === 生肖分析（Ch4/5/6/7 劉威吾生肖四柱論）===
+            if (!string.IsNullOrEmpty(zodiacDesc))
+            {
+                sb.AppendLine("【生肖分析】");
+                sb.AppendLine(zodiacDesc);
+                sb.AppendLine();
+            }
 
             // === Ch.6 紫微格局論 ===
             sb.AppendLine("【第六章：紫微星格】");
@@ -10878,7 +10894,7 @@ namespace Ecanapi.Controllers
 
     // 納音論斷（師傳.doc 七章）
     // yBranch_mBranch => 年生肖x月支; yBranch_dBranch => 年生肖x日支; yBranch_hBranch => 年生肖x時支
-    private static string LfNaYin(string yStem, string yBranch, string mBranch,
+    private static (string nayin, string zodiac) LfNaYin(string yStem, string yBranch, string mBranch,
                                    string dStem, string dBranch, string hBranch)
     {
         // 60甲子納音名稱
@@ -11555,29 +11571,33 @@ namespace Ecanapi.Controllers
             // Ch.1: 五行命名原理
             if (nayinCh1.TryGetValue(yNayin, out var yDesc1) && !string.IsNullOrEmpty(yDesc1))
                 sb2.AppendLine(yDesc1);
-            // Ch.4: 生肖+納音特質（不重疊）
-            if (nayinCh4.TryGetValue(yStem + yBranch, out var yDesc4) && !string.IsNullOrEmpty(yDesc4))
-                sb2.AppendLine(yDesc4);
-            // Ch.3: 年命推算走向（取不重複段落）
+            // Ch.3: 年命推算走向
             if (nayinCh3.TryGetValue(yNayin, out var yDesc3) && !string.IsNullOrEmpty(yDesc3))
                 sb2.AppendLine(yDesc3);
             sb2.AppendLine();
         }
 
-        // === 日柱納音（與年柱同為納音理論，與生肖四柱論分開）===
+        // === 日柱納音（與年柱同為納音理論）===
         string dNayin = nayin60.GetValueOrDefault(dStem + dBranch, "");
         if (!string.IsNullOrEmpty(dNayin))
         {
             sb2.AppendLine($"【日柱納音：{dNayin}】");
-            // Ch.2: 日柱納音細注（只含納音論斷，生肖×日支移至生肖四柱論區塊）
+            // Ch.2: 日柱納音細注
             if (nayinCh2.TryGetValue(dStem + dBranch, out var dDesc2) && !string.IsNullOrEmpty(dDesc2))
                 sb2.AppendLine(dDesc2);
             sb2.AppendLine();
         }
 
-        // === 生肖四柱論（獨立區塊，與納音理論分開）===
-        // 月柱、日柱、時柱各以「年生肖×該柱地支」查表，屬生肖理論，不混入納音
+        // === 生肖四柱論（獨立區塊，回傳至 zodiac，由呼叫端放入【生肖分析】）===
         var sbZodiac = new System.Text.StringBuilder();
+
+        // 年柱生肖論（Ch.4：年生肖×年干支）
+        if (nayinCh4.TryGetValue(yStem + yBranch, out var yDesc4) && !string.IsNullOrEmpty(yDesc4))
+        {
+            sbZodiac.AppendLine("【年柱生肖論】");
+            sbZodiac.AppendLine(yDesc4);
+            sbZodiac.AppendLine();
+        }
 
         // 月柱生肖論（年生肖×月支）
         // ch5 dictionary uses 子=正月 system (子丑寅...), but standard month branch uses 寅=正月
@@ -11610,14 +11630,7 @@ namespace Ecanapi.Controllers
             sbZodiac.AppendLine(hDesc);
         }
 
-        string zodiacBlock = sbZodiac.ToString().Trim();
-        if (!string.IsNullOrEmpty(zodiacBlock))
-        {
-            sb2.AppendLine("【生肖四柱論】");
-            sb2.AppendLine(zodiacBlock);
-        }
-
-        return sb2.ToString().Trim();
+        return (sb2.ToString().Trim(), sbZodiac.ToString().Trim());
     }
 
 
