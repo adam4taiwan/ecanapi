@@ -2200,6 +2200,9 @@ namespace Ecanapi.Controllers
                                (z.Category == "本命特性" || z.Category == "精批榮祿"))
                         .ToListAsync();
 
+                bool lfGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2207,7 +2210,8 @@ namespace Ecanapi.Controllers
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     scored, gender, birthYear,
                     pillarFormulas: lfPillarFormulas,
-                    zodiacKb: zodiacKbList);
+                    zodiacKb: zodiacKbList,
+                    guoQi: lfGuoQi);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2382,6 +2386,9 @@ namespace Ecanapi.Controllers
                     .ToDictionary(x => x.Position!, x => x.NewDesc ?? x.Gd ?? "");
 
                 // === 八字主體 ===
+                bool bzGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2389,7 +2396,8 @@ namespace Ecanapi.Controllers
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                     scored, gender, birthYear,
                     bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb,
-                    bzPillarFormulas);
+                    bzPillarFormulas,
+                    guoQi: bzGuoQi);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -3049,7 +3057,9 @@ namespace Ecanapi.Controllers
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz,
                     userName: ydzUserName,
-                    calDb: _calendarDb);
+                    calDb: _calendarDb,
+                    guoQi: user.BirthMonth.HasValue && user.BirthDay.HasValue
+                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb));
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -6665,7 +6675,8 @@ namespace Ecanapi.Controllers
             string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "",
             BaziDayPillarReading? kb = null,
             IReadOnlyDictionary<string, string>? pillarFormulas = null,
-            IList<ZodiacKnowledge>? zodiacKb = null)
+            IList<ZodiacKnowledge>? zodiacKb = null,
+            bool guoQi = false)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -6738,6 +6749,14 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("| 藏神 | " + string.Join(" | ", bz12Brs.Select(br => LfFmtHidden(br, dStem))) + " |");
                 double biJiPct1 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
                 sb.AppendLine($"比印陣計分：{biJiPct1:F0}%");
+                sb.AppendLine();
+            }
+
+            // === 命宮 · 身宮 · 胎元 ===
+            string mingShenTaiYuan = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi);
+            if (!string.IsNullOrEmpty(mingShenTaiYuan))
+            {
+                sb.AppendLine(mingShenTaiYuan);
                 sb.AppendLine();
             }
 
@@ -7705,7 +7724,8 @@ namespace Ecanapi.Controllers
             string ziweiCldStar = "",
             string ziweiCld = "",
             string userName = "",
-            CalendarDbContext? calDb = null)
+            CalendarDbContext? calDb = null,
+            bool guoQi = false)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -8354,6 +8374,14 @@ namespace Ecanapi.Controllers
             double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
             sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
             sb.AppendLine();
+
+            // === 命宮 · 身宮 · 胎元 ===
+            string mingShenTaiYuanYdz = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi);
+            if (!string.IsNullOrEmpty(mingShenTaiYuanYdz))
+            {
+                sb.AppendLine(mingShenTaiYuanYdz);
+                sb.AppendLine();
+            }
 
             // === Ch.3 深度論斷 ===
             sb.AppendLine($"【第三章：日柱深度論斷 · {dStem}{dBranch}】");
@@ -13692,6 +13720,114 @@ namespace Ecanapi.Controllers
         // 命宮地支序（寅=1,卯=2...丑=12），用於命宮公式
         private static readonly string[] LnMgBranchOrder = { "寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑" };
         private const string LnZhongQiList = "'雨水','春分','穀雨','小滿','夏至','大暑','處暑','秋分','霜降','小雪','冬至','大寒'";
+
+        // ── 命宮 / 身宮 / 胎元 輔助函式 ──
+
+        // 五虎遁月：年干 × 目標地支 → 天干
+        // 起始規則：甲/己年寅月=丙，乙/庚=戊，丙/辛=庚，丁/壬=壬，戊/癸=甲
+        private static string LfWuHuDunStem(string yStem, string targetBranch)
+        {
+            string[] stems    = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+            string[] branches = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            int yIdx = Array.IndexOf(stems, yStem);
+            int bIdx = Array.IndexOf(branches, targetBranch);
+            if (yIdx < 0 || bIdx < 0) return "";
+            int startStemIdx = ((yIdx % 5) * 2 + 2) % 10; // 寅月起始天干
+            int offset = (bIdx - 2 + 12) % 12;             // 距寅的偏移量
+            return stems[(startStemIdx + offset) % 10];
+        }
+
+        // 過氣判斷：出生日是否已過當月「氣」（雨水/春分等12氣）
+        private static bool LfCheckGuoQi(int birthYear, int birthMonth, int birthDay, string mBranch, CalendarDbContext? calDb)
+        {
+            if (calDb == null || birthYear <= 0 || birthMonth <= 0 || birthDay <= 0) return false;
+            if (!LfBranchSolarTerms.TryGetValue(mBranch, out var jq)) return false;
+            string qiName = jq.qi;
+            try
+            {
+                var birthDate = new DateTime(birthYear, birthMonth, birthDay);
+                // 查當年或前一年是否有此氣（寅月雨水可能跨年，但通常同年）
+                var qiEntry = calDb.CalendarEntries
+                    .Where(c => c.SolarTerm == qiName &&
+                                new DateTime(c.Year, c.SolarMonth, c.SolarDay) <= birthDate &&
+                                new DateTime(c.Year, c.SolarMonth, c.SolarDay) >= birthDate.AddDays(-45))
+                    .FirstOrDefault();
+                if (qiEntry == null) return false;
+                return birthDate >= new DateTime(qiEntry.Year, qiEntry.SolarMonth, qiEntry.SolarDay);
+            }
+            catch { return false; }
+        }
+
+        // 胎元：月干+1，月支+3（無過氣判斷，直接用原八字月柱）
+        private static (string stem, string branch) LfCalcTaiYuan(string mStem, string mBranch)
+        {
+            string[] stems    = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+            string[] branches = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            int sIdx = Array.IndexOf(stems, mStem);
+            int bIdx = Array.IndexOf(branches, mBranch);
+            if (sIdx < 0 || bIdx < 0) return ("", "");
+            return (stems[(sIdx + 1) % 10], branches[(bIdx + 3) % 12]);
+        }
+
+        // 命宮地支：以寅=1序（寅卯辰...丑），sum<14→14-sum，sum>=14→26-sum
+        // 基準：寅月（mNum=1）子時（hNum=11）→ sum=12 → 14-12=2 → 卯
+        private static string LfCalcMingGongBranch(string mBranch, string hBranch, bool guoQi)
+        {
+            string[] mgOrder = { "寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑" };
+            int mIdx = Array.IndexOf(mgOrder, mBranch);
+            if (mIdx < 0) return "";
+            if (guoQi) mIdx = (mIdx + 1) % 12;
+            int mNum = mIdx + 1;
+            int hNum = Array.IndexOf(mgOrder, hBranch) + 1;
+            if (hNum <= 0) return "";
+            int sum   = mNum + hNum;
+            int mgNum = sum < 14 ? 14 - sum : 26 - sum;
+            return mgNum >= 1 && mgNum <= 12 ? mgOrder[mgNum - 1] : "";
+        }
+
+        // 身宮地支：以子=1序（子丑寅...亥），sum<14→14-sum，sum>=14→26-sum
+        // 基準：寅月（mNum=3）子時（hNum=1）→ sum=4 → 14-4=10 → 酉
+        private static string LfCalcShenGongBranch(string mBranch, string hBranch, bool guoQi)
+        {
+            string[] stdOrder = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            int mIdx = Array.IndexOf(stdOrder, mBranch);
+            if (mIdx < 0) return "";
+            if (guoQi) mIdx = (mIdx + 1) % 12;
+            int mNum = mIdx + 1;
+            int hNum = Array.IndexOf(stdOrder, hBranch) + 1;
+            if (hNum <= 0) return "";
+            int sum   = mNum + hNum;
+            int shNum = sum < 14 ? 14 - sum : 26 - sum;
+            return shNum >= 1 && shNum <= 12 ? stdOrder[shNum - 1] : "";
+        }
+
+        // 命身胎元文字區塊（供各命書 Ch.1 末尾使用）
+        private static string LfBuildMingShenTaiYuan(string yStem, string mStem, string mBranch, string hBranch, bool guoQi)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("【命宮 · 身宮 · 胎元】");
+            // 胎元
+            var (tyStem, tyBranch) = LfCalcTaiYuan(mStem, mBranch);
+            if (!string.IsNullOrEmpty(tyStem))
+                sb.AppendLine($"  胎元：{tyStem}{tyBranch}");
+            // 命宮
+            string mgBranch = LfCalcMingGongBranch(mBranch, hBranch, guoQi);
+            if (!string.IsNullOrEmpty(mgBranch))
+            {
+                string mgStem = LfWuHuDunStem(yStem, mgBranch);
+                string guoQiNote = guoQi ? "（過氣，月支順進一位後計算）" : "";
+                sb.AppendLine($"  命宮：{mgStem}{mgBranch}{guoQiNote}");
+            }
+            // 身宮
+            string sgBranch = LfCalcShenGongBranch(mBranch, hBranch, guoQi);
+            if (!string.IsNullOrEmpty(sgBranch))
+            {
+                string sgStem = LfWuHuDunStem(yStem, sgBranch);
+                string guoQiNote = guoQi ? "（過氣，月支順進一位後計算）" : "";
+                sb.AppendLine($"  身宮：{sgStem}{sgBranch}{guoQiNote}");
+            }
+            return sb.ToString().TrimEnd();
+        }
 
         private static string LnCalcMingBranchFromBazi(string mBranch, string hBranch)
         {
