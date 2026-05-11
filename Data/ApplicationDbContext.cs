@@ -72,6 +72,10 @@ namespace Ecanapi.Data
         // 生肖命理知識庫
         public DbSet<ZodiacKnowledge> ZodiacKnowledges { get; set; }
 
+        // 八字命宮星名 + 十二宮神煞
+        public DbSet<BaziMingGongStar> BaziMingGongStars { get; set; }
+        public DbSet<BaziShenSha12> BaziShenSha12s { get; set; }
+
         // 命書記錄
         public DbSet<UserReport> UserReports { get; set; }
 
