@@ -6986,8 +6986,8 @@ namespace Ecanapi.Controllers
             // sb.AppendLine(LfKeyYears(scored, birthYear, yongShenElem, jiShenElem));
             // sb.AppendLine();
 
-            // === Ch.11 目前行運 ===
-            sb.AppendLine("【第十一章：目前行運】");
+            // === Ch.10 目前行運 ===
+            sb.AppendLine("【第十章：目前行運】");
 
             var curCycleBz = scored.FirstOrDefault(c => currentAge >= c.startAge && currentAge <= c.endAge);
 
