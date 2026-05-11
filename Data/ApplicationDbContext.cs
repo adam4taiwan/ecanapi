@@ -76,6 +76,10 @@ namespace Ecanapi.Data
         public DbSet<BaziMingGongStar> BaziMingGongStars { get; set; }
         public DbSet<BaziShenSha12> BaziShenSha12s { get; set; }
 
+        // 歲星臨命圖：年神神煞 + 年神論斷
+        public DbSet<YearStarMap> YearStarMaps { get; set; }
+        public DbSet<YearFlowStar> YearFlowStars { get; set; }
+
         // 命書記錄
         public DbSet<UserReport> UserReports { get; set; }
 

@@ -14641,6 +14641,243 @@ namespace Ecanapi.Controllers
                 return string.Empty;
             }
         }
+
+        // =====================================================================
+        // 歲星臨命圖端點
+        // GET /api/Consultation/ming-gong-chart?year={year}
+        // =====================================================================
+
+        [HttpGet("ming-gong-chart")]
+        [Authorize]
+        public async Task<IActionResult> GetMingGongChart([FromQuery] int year = 0)
+        {
+            if (year == 0) year = DateTime.Today.Year;
+            var identity = User.Identity?.Name;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized();
+
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == identity || u.UserName == identity);
+                if (user == null) return NotFound(new { error = "找不到使用者" });
+
+                // 讀取命盤 JSON
+                var userChart = await _context.UserCharts
+                    .Where(c => c.UserId == user.Id)
+                    .OrderByDescending(c => c.UpdatedAt)
+                    .FirstOrDefaultAsync();
+                if (userChart == null)
+                    return BadRequest(new { error = "尚未建立命盤，請先進行命盤分析" });
+
+                var root = System.Text.Json.JsonDocument.Parse(userChart.ChartJson ?? "{}").RootElement;
+                var bazi = root.TryGetProperty("bazi", out var baziProp) ? baziProp : root;
+
+                string yearP  = bazi.TryGetProperty("year",  out var yp) ? (yp.GetString() ?? "") : "";
+                string monthP = bazi.TryGetProperty("month", out var mp) ? (mp.GetString() ?? "") : "";
+                string hourP  = bazi.TryGetProperty("hour",  out var hp) ? (hp.GetString() ?? "") : "";
+
+                if (yearP.Length < 2 || monthP.Length < 2 || hourP.Length < 2)
+                    return BadRequest(new { error = "命盤資料不完整" });
+
+                string yBranch = yearP[1].ToString();
+                string mBranch = monthP[1].ToString();
+                string hBranch = hourP[1].ToString();
+                string yStem   = yearP[0].ToString();
+
+                // 過氣判斷
+                bool guoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(user.BirthYear ?? 0, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+
+                // 計算命宮地支
+                string mgBranch = LfCalcMingGongBranch(mBranch, hBranch, guoQi);
+                if (string.IsNullOrEmpty(mgBranch))
+                    return BadRequest(new { error = "無法計算命宮" });
+
+                // 流年地支序號（子=1...亥=12）
+                string[] branchStd = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                string[] stems60   = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                int yearIdx = (year - 4) % 10;
+                if (yearIdx < 0) yearIdx += 10;
+                int yearBrIdx = (year - 4) % 12;
+                if (yearBrIdx < 0) yearBrIdx += 12;
+                string flStem   = stems60[yearIdx % 10];
+                string flBranch = branchStd[yearBrIdx % 12];
+                int yearId = Array.IndexOf(branchStd, flBranch) + 1; // 1-12
+
+                // 命宮地支序號 → 12宮名稱（逆時針）
+                string[] palaceNames = { "命宮","財帛","兄弟","田宅","男女","奴僕","夫妻","疾厄","遷移","官祿","福德","相貌" };
+                string[] directions  = { "東北","北東北","北","西北","西北西","西","西南","南西南","南","東南","東南東","東" };
+                int mgIdx = Array.IndexOf(branchStd, mgBranch);
+
+                // 建立 12 宮對應：宮名[i] → 地支 branch / FlowId
+                var palaces12 = new (string palName, string branch, int flowId, string dir)[12];
+                for (int i = 0; i < 12; i++)
+                {
+                    int brIdx = (mgIdx - i + 12) % 12;   // 命宮起，逆時針
+                    palaces12[i] = (
+                        palaceNames[i],
+                        branchStd[brIdx],
+                        brIdx + 1,          // FlowId = 1-12
+                        directions[(mgIdx - i + 12) % 12]
+                    );
+                }
+
+                // 查神煞資料
+                var starMap  = await _context.YearStarMaps.Where(s => s.YearId == yearId).ToListAsync();
+                var flowStar = await _context.YearFlowStars.Where(s => s.YearId == yearId).ToListAsync();
+                var mingGongStars = await _context.BaziMingGongStars.ToListAsync();
+
+                // 命宮星名（各宮地支對應）
+                string mgStarName = mingGongStars.FirstOrDefault(s => s.Branch == mgBranch)?.StarName ?? "";
+
+                // 建立各宮資料
+                var palaceData = palaces12.Select(p =>
+                {
+                    var sm  = starMap.FirstOrDefault(s => s.FlowId == p.flowId);
+                    var fs  = flowStar.FirstOrDefault(s => s.FlowId == p.flowId);
+                    var mgs = mingGongStars.FirstOrDefault(s => s.Branch == p.branch);
+                    return new
+                    {
+                        palName   = p.palName,
+                        branch    = p.branch,
+                        dir       = p.dir,
+                        starChar  = mgs?.StarName?.Length >= 2 ? mgs.StarName[1].ToString() : "",
+                        goodStar  = sm?.GoodStar ?? "",
+                        badStar   = sm?.BadStar  ?? "",
+                        yearGod   = fs?.StarName ?? "",
+                        yearDesc  = fs?.Desc     ?? "",
+                        yearType  = fs?.StarType ?? ""
+                    };
+                }).ToList();
+
+                // 生成文字格子圖
+                string chart = MingGongBuildChart(
+                    palaceData.Select(p => (p.palName, p.branch, p.dir, p.starChar, p.goodStar, p.badStar, p.yearGod)).ToList(),
+                    mgBranch, mgStarName, flStem + flBranch, year,
+                    user.UserName ?? "", user.BirthYear ?? 0);
+
+                return Ok(new
+                {
+                    chart,
+                    year,
+                    flowYear   = flStem + flBranch,
+                    mingGong   = mgBranch,
+                    mingGongStar = mgStarName,
+                    palaces    = palaceData
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "歲星臨命圖失敗 User={User}", identity);
+                return StatusCode(500, new { error = "歲星臨命圖生成失敗", details = ex.Message });
+            }
+        }
+
+        private static string MingGongBuildChart(
+            List<(string palName, string branch, string dir, string starChar, string goodStar, string badStar, string yearGod)> palaces,
+            string mgBranch, string mgStarName, string flowYear, int year, string userName, int birthYear)
+        {
+            // palaces[0]=命宮, [1]=財帛, ...[11]=相貌（逆時針）
+            // 格子圖 4列×4欄：上排[9官祿,10福德→不對，重新排]
+            // 排列：上排 [9官祿][8遷移][7疾厄][6夫妻]（巳午未申 依命宮逆時針）
+            //       右欄 [5奴僕][4男女]
+            //       左欄 [10福德][11相貌]
+            //       下排 [0命宮][1財帛][2兄弟][3田宅]
+
+            // 12宮在 4×4 方格位置（行,列）0-indexed，去掉中心4格
+            // 上排: palaces[9],palaces[10],palaces[7],palaces[6]  → 官祿/福德/遷移/夫妻... 不對
+            // 依照傳統圖：上排=官祿遷移疾厄夫妻，右欄=奴僕男女，下排=相貌命宮財帛兄弟田宅，左欄=福德
+
+            // 正確排法（命宮=寅時）：
+            // 上排（逆時針第9,8,7,6宮）= 官祿/福德/相貌... 不，要固定
+            // 實際對應看 palace index：
+            // 上排: p[9]官祿  p[10]福德  p[11]相貌  --> 不，4格
+            // 讓我用固定順序：上排=idx 9,10,11... 不對
+
+            // 標準傳統圖排法（從右上角起，逆時針）：
+            // 上排(左→右): 官祿[9] 遷移[8] 疾厄[7] 夫妻[6]  (巳午未申→依命宮)
+            // 右欄(上→下): 奴僕[5] 男女[4] (額外兩格)
+            // 下排(右→左): 田宅[3] 兄弟[2] 財帛[1] 命宮[0]
+            // 左欄(下→上): 相貌[11] 福德[10]
+
+            // 格子寬度
+            const int W = 18;
+            string Line() => new string('-', W);
+            string Pad(string s) => s.Length >= W ? s[..(W-1)] : s.PadRight(W - s.Length < 0 ? 0 : W - s.Length);
+
+            string Cell(int idx)
+            {
+                var p = palaces[idx];
+                string stars = string.IsNullOrEmpty(p.goodStar) ? "" : p.goodStar;
+                string bad   = string.IsNullOrEmpty(p.badStar)  ? "" : p.badStar;
+                string god   = string.IsNullOrEmpty(p.yearGod)  ? "" : $"[{p.yearGod}]";
+                return $"[{p.palName}]{p.branch}{p.starChar} {god}\n  {stars}\n  {bad}";
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"===== 歲星臨命圖  {year}年（{flowYear}） =====");
+            sb.AppendLine($"命主：{userName}  生年：{birthYear}  命宮：{mgBranch}（{mgStarName}）");
+            sb.AppendLine();
+
+            // 上排：官祿[9] / 遷移[8] / 疾厄[7] / 夫妻[6]
+            int[] topRow    = { 9, 10, 11, 8 };  // 依逆時針重排
+            int[] rightCol  = { 7, 6 };
+            int[] botRow    = { 0, 1, 2, 3 };
+            int[] leftCol   = { 5, 4 };           // 由下往上
+
+            // 重新對應傳統排列：
+            // 上排4格: [9官祿][10福德][11相貌][8遷移]? 不對
+            // 正確：上排是從 idx 9 往後逆時針 → 9,10,11 再繞回 → 不，最多12宮
+
+            // 最簡單方法：固定上排[9,10,7,6]（反時針轉）
+            // 實際上由 palace index 排列：
+            // 上排(左到右)：宮格 9(官祿), 8(遷移), 7(疾厄), 6(夫妻)
+            // 右欄(上到下)：5(奴僕), 4(男女)
+            // 下排(右到左)：3(田宅), 2(兄弟), 1(財帛), 0(命宮)
+            // 左欄(下到上)：11(相貌), 10(福德)
+
+            void AppRow(int[] idxs)
+            {
+                // Line 1: 宮名+地支+星字+年神
+                sb.Append("| ");
+                foreach (var i in idxs)
+                {
+                    var p = palaces[i];
+                    string god = string.IsNullOrEmpty(p.yearGod) ? "" : $"[{p.yearGod}]";
+                    string hdr = $"{p.palName}({p.branch}){p.starChar} {god}";
+                    sb.Append(hdr.PadRight(W)); sb.Append(" | ");
+                }
+                sb.AppendLine();
+                // Line 2: 吉星
+                sb.Append("| ");
+                foreach (var i in idxs) { sb.Append((palaces[i].goodStar ?? "").PadRight(W)); sb.Append(" | "); }
+                sb.AppendLine();
+                // Line 3: 凶星
+                sb.Append("| ");
+                foreach (var i in idxs) { sb.Append((palaces[i].badStar ?? "").PadRight(W)); sb.Append(" | "); }
+                sb.AppendLine();
+                sb.AppendLine(new string('-', (W + 3) * idxs.Length + 1));
+            }
+
+            // 上排
+            AppRow(new[] { 9, 8, 7, 6 });
+            // 中間左欄+空格+右欄
+            foreach (var (li, ri) in new[] { (10, 5), (11, 4) })
+            {
+                string lGod = string.IsNullOrEmpty(palaces[li].yearGod) ? "" : $"[{palaces[li].yearGod}]";
+                string rGod = string.IsNullOrEmpty(palaces[ri].yearGod) ? "" : $"[{palaces[ri].yearGod}]";
+                string lHdr = $"{palaces[li].palName}({palaces[li].branch}){palaces[li].starChar} {lGod}";
+                string rHdr = $"{palaces[ri].palName}({palaces[ri].branch}){palaces[ri].starChar} {rGod}";
+                sb.AppendLine($"| {lHdr.PadRight(W)} | {"".PadRight(W)} | {"".PadRight(W)} | {rHdr.PadRight(W)} |");
+                sb.AppendLine($"| {(palaces[li].goodStar??"").PadRight(W)} | {"".PadRight(W)} | {"".PadRight(W)} | {(palaces[ri].goodStar??"").PadRight(W)} |");
+                sb.AppendLine($"| {(palaces[li].badStar??"").PadRight(W)} | {"".PadRight(W)} | {"".PadRight(W)} | {(palaces[ri].badStar??"").PadRight(W)} |");
+                sb.AppendLine(new string('-', (W + 3) * 4 + 1));
+            }
+            // 下排
+            AppRow(new[] { 0, 1, 2, 3 });
+
+            return sb.ToString();
+        }
     }
 
     public class AiRequest

@@ -1,0 +1,325 @@
+-- 歲星臨命圖：年神神煞表 + 年神論斷表
+-- YearId: 流年地支序號（子=1,丑=2,...,亥=12）
+-- FlowId: 宮位地支序號（子=1,丑=2,...,亥=12）
+-- 資料來源：舊系統 yearstar + yearflow 兩張表
+-- 生產環境手動執行（Fly.io 不自動 migrate）
+
+-- ===== 建表 =====
+
+CREATE TABLE IF NOT EXISTS "YearStarMap" (
+    "Id"       SERIAL PRIMARY KEY,
+    "YearId"   INTEGER      NOT NULL,
+    "FlowId"   INTEGER      NOT NULL,
+    "GoodStar" VARCHAR(100) NOT NULL DEFAULT '',
+    "BadStar"  VARCHAR(200) NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS "YearFlowStar" (
+    "Id"       SERIAL PRIMARY KEY,
+    "YearId"   INTEGER      NOT NULL,
+    "FlowId"   INTEGER      NOT NULL,
+    "StarName" VARCHAR(20)  NOT NULL DEFAULT '',
+    "Desc"     VARCHAR(500) NOT NULL DEFAULT '',
+    "StarType" VARCHAR(100) NOT NULL DEFAULT ''
+);
+
+-- ===== YearStarMap 資料（144筆）=====
+
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,1,'將星金匱','太歲劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,2,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,3,'驛馬','喪門孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,4,'紅鸞太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,5,'三台華蓋','官符披頭黃藩五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,6,'月德','死符劫煞的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,7,'','歲破天哭災殺欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,8,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,9,'','白虎飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,10,'天喜天德','卷舌');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,11,'解神天解八座','寡宿吊客天狗血刃豹尾浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (1,12,'','病符亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,1,'','病符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,2,'華蓋','的煞太歲黃藩劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,3,'紅鸞太陽','天空六害劫煞孤神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,4,'','喪門披頭災煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,5,'太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,6,'三台','官符天哭五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,7,'月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,8,'','歲破豹尾欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,9,'紫微天喜地解','暴敗天厄亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,10,'解神天解八座將星金匱','白虎血刃飛廉浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,11,'天德','卷舌寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (2,12,'驛馬','天狗吊客');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,1,'','天狗吊客災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,2,'紅鸞','病符寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,3,'','太歲披頭劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,4,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,5,'','喪門天空豹尾');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,6,'太陰','貫索亡神勾絞孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,7,'三台將星金匱','官符五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,8,'天喜月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,9,'解神天解八座驛馬','歲破血刃欄杆浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,10,'地解紫微','暴敗天厄的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,11,'華蓋','白虎黃藩飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (3,12,'天德','卷舌劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,1,'紅鸞天德','卷舌');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,2,'','天狗吊客天空豹尾寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,3,'','病符亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,4,'將星金匱','太歲天哭劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,5,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,6,'驛馬','喪門飛廉孤辰的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,7,'天喜太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,8,'解神天解三台八座華蓋','官符五鬼血刃黃藩浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,9,'月德','死符劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,10,'','歲破災殺欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,11,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (4,12,'','白虎');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,1,'將星金匱','白虎披頭');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,2,'天德','卷舌的煞寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,3,'驛馬','吊客天狗天哭');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,4,'','病符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,5,'華蓋','太歲黃藩劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,6,'天喜太陽','天空六害劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,7,'解神天解八座','喪門血刃飛廉浮沈災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,8,'太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,9,'三台','官符五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,10,'月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,11,'','歲破豹尾欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (5,12,'紅鸞地解紫微','暴敗天厄亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,1,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,2,'華蓋','白虎天哭黃藩');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,3,'天德','卷舌劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,4,'','吊客天狗災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,5,'天喜','病符天殺寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,6,'解神天解八座','太歲血刃劍鋒伏屍浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,7,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,8,'','喪門豹尾飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,9,'太陰','貫索亡神勾絞孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,10,'三台將星金匱','官符五鬼的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,11,'紅鸞月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (6,12,'驛馬','歲破披頭欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,1,'','歲破天哭災殺欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,2,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,3,'','白虎飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,4,'天喜天德','卷舌');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,5,'解神天解八座','寡宿吊害天狗血刃豹尾浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,6,'','病符亡神的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,7,'將星金匱','太歲劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,8,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,9,'驛馬','喪門孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,10,'紅鸞太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,11,'三台華蓋','官符披頭黃藩五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (7,12,'月德','死符劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,1,'月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,2,'','歲破豹尾欄杆的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,3,'天喜地解紫微','暴敗天厄亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,4,'解神天解八座將星金匱','白虎血刃飛廉浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,5,'天德','卷舌披德寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,6,'驛馬','吊客天狗');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,7,'','病符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,8,'華蓋','太歲黃藩劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,9,'紅鸞太陽','天空六害劫煞孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,10,'','喪門披頭災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,11,'太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (8,12,'三台','官符天哭五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,1,'三台將星金匱','官符五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,2,'天喜月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,3,'解神天解八座驛馬','歲破血刃欄杆浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,4,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,5,'華蓋','白虎黃藩飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,6,'天德','卷舌劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,7,'','吊客天狗災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,8,'紅鸞','病符寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,9,'','太歲披頭劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,10,'太陽','天空六害的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,11,'','喪門天哭豹尾');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (9,12,'太陰','貫索亡神勾絞孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,1,'天喜太陰','貫索勾絞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,2,'解神天解三台八座華蓋','官符血刃黃藩五鬼浮沈');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,3,'月德','死符劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,4,'','歲破災殺欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,5,'地解紫微','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,6,'','白虎飛廉的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,7,'紅鸞天德','卷舌');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,8,'','吊客天狗披頭豹尾寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,9,'','病符亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,10,'將星金匱','太歲天哭劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,11,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (10,12,'驛馬','喪門飛廉孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,1,'解神天解八座','喪門血刃飛廉浮沈災殺');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,2,'太陰','貫索勾絞的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,3,'三台','官符五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,4,'月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,5,'','歲破豹尾欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,6,'紅鸞地解紫微','暴敗天厄亡神');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,7,'將星金匱','白虎披頭');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,8,'天德','卷舌寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,9,'驛馬','吊害天狗天哭');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,10,'','病符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,11,'華蓋','太歲黃藩劍鋒伏屍');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (11,12,'太陽/天喜','天空六害孤辰劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,1,'太陽','天空六害');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,2,'','喪門豹尾飛廉');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,3,'太陰','貫索亡神勾絞孤辰');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,4,'三台將星金匱','官符五鬼');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,5,'紅鸞月德','死符');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,6,'驛馬','歲破披頭欄杆');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,7,'紫微地解','暴敗天厄');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,8,'華蓋','白虎天哭黃藩');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,9,'天德','卷舌劫煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,10,'','吊客天狗災煞的煞');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,11,'天喜','病符寡宿');
+INSERT INTO "YearStarMap" ("YearId","FlowId","GoodStar","BadStar") VALUES (12,12,'解神天解八座','太歲血刃劍鋒伏屍浮沈');
+
+
+-- ===== YearFlowStar 資料（144筆）=====
+
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,1,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,2,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,3,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,4,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,5,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,6,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,7,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,8,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,9,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,10,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,11,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (1,12,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,1,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,2,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,3,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,4,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,5,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,6,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,7,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,8,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,9,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,10,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,11,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (2,12,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,1,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,2,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,3,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,4,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,5,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,6,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,7,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,8,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,9,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,10,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,11,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (3,12,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,1,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,2,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,3,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,4,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,5,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,6,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,7,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,8,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,9,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,10,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,11,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (4,12,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,1,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,2,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,3,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,4,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,5,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,6,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,7,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,8,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,9,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,10,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,11,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (5,12,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,1,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,2,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,3,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,4,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,5,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,6,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,7,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,8,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,9,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,10,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,11,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (6,12,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,1,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,2,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,3,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,4,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,5,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,6,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,7,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,8,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,9,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,10,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,11,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (7,12,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,1,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,2,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,3,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,4,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,5,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,6,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,7,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,8,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,9,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,10,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,11,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (8,12,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,1,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,2,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,3,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,4,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,5,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,6,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,7,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,8,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,9,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,10,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,11,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (9,12,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,1,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,2,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,3,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,4,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,5,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,6,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,7,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,8,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,9,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,10,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,11,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (10,12,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,1,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,2,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,3,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,4,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,5,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,6,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,7,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,8,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,9,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,10,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,11,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (11,12,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,1,'青龍','青龍是喜神，大喜有幾重，荷花生貴子，門前應掛紅','貴人,事業,婚姻,文憑');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,2,'喪門','喪門是哭星，落淚有幾行','破財,小人,病');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,3,'六合','六合見六合，必定喜事逢。有妻生貴子，無妻娶嬌娥','貴人,事業,財運,婚姻,文憑,子女,壽元');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,4,'官符','官符為紅鸞，有喜在當年。少惹是非事，免禍在身邊','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,5,'小耗','時運多顛倒，做事不牢靠。金銀多耗散，家財遭鬼盜','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,6,'大耗','大耗定不祥，父母有丁傷。今年財要損，朋友來反目。揹運有人傷，落井會下石','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,7,'朱雀','朱雀壓運凶，口舌是非多。內外來磨磋，小人當前橫。事事犯囉唆，有理無人理。有冤無處訴，還要背黑鍋','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,8,'白虎','白虎當頭坐，無災也有禍。鐵羅漢落井，有力難施展。白虎下山來，又遭口舌運，又遭凶災氣','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,9,'貴神','貴神壓運事吉祥，財源廣進喜又和。春不見喜秋也見，財喜雙全不用說。男遇貴神天賜祥，女見貴神喜事多','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,10,'吊客','吊客壓運事有凶，定有是非鬧災行。男犯吊客主不順，女犯吊客有災星','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,11,'病符','病符壓運很難強，事要三思免禍殃。病魔纏身使人憂，三災八難難得躲','');
+INSERT INTO "YearFlowStar" ("YearId","FlowId","StarName","Desc","StarType") VALUES (12,12,'太歲','太歲壓運起禍端，傷財惹氣心不甘。驚天動地禍來臨，是是非非把人纏','官災');
+
+
+-- ===== 記錄 Migration =====
+INSERT INTO "__EFMigrationsHistory" ("MigrationId","ProductVersion")
+VALUES ('20260511000001_AddYearStarChart','8.0.0')
+ON CONFLICT DO NOTHING;
