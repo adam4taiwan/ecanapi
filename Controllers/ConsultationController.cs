@@ -2760,9 +2760,9 @@ namespace Ecanapi.Controllers
                         var mgSb = new System.Text.StringBuilder();
                         mgSb.AppendLine();
                         mgSb.AppendLine("=================================================================");
-                        mgSb.AppendLine($"【第十二章：流年歲星臨命圖】（{mgYear}年 {flYearStem}{flYearBranch}）");
+                        mgSb.AppendLine("【第十二章：流年歲星臨命圖】");
                         mgSb.AppendLine("=================================================================");
-                        mgSb.AppendLine($"命宮在{mgBranchBz}（{mgStarNameBz}），小限臨命宮");
+                        mgSb.AppendLine($"（{mgYear}年 {flYearStem}{flYearBranch}）命宮在{mgBranchBz}（{mgStarNameBz}），小限臨命宮");
                         mgSb.AppendLine();
 
                         // 命宮（小限）
