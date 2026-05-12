@@ -14674,17 +14674,23 @@ namespace Ecanapi.Controllers
                 var root = System.Text.Json.JsonDocument.Parse(userChart.ChartJson ?? "{}").RootElement;
                 var bazi = root.TryGetProperty("bazi", out var baziProp) ? baziProp : root;
 
-                string yearP  = bazi.TryGetProperty("year",  out var yp) ? (yp.GetString() ?? "") : "";
-                string monthP = bazi.TryGetProperty("month", out var mp) ? (mp.GetString() ?? "") : "";
-                string hourP  = bazi.TryGetProperty("hour",  out var hp) ? (hp.GetString() ?? "") : "";
+                // ChartJson 格式：bazi.yearPillar.heavenlyStem / earthlyBranch
+                string yStem   = "";
+                string yBranch = "";
+                string mBranch = "";
+                string hBranch = "";
 
-                if (yearP.Length < 2 || monthP.Length < 2 || hourP.Length < 2)
+                if (bazi.TryGetProperty("yearPillar",  out var yp)) {
+                    yStem   = yp.TryGetProperty("heavenlyStem",  out var ys) ? (ys.GetString() ?? "") : "";
+                    yBranch = yp.TryGetProperty("earthlyBranch", out var yb) ? (yb.GetString() ?? "") : "";
+                }
+                if (bazi.TryGetProperty("monthPillar", out var mp))
+                    mBranch = mp.TryGetProperty("earthlyBranch", out var mb) ? (mb.GetString() ?? "") : "";
+                if (bazi.TryGetProperty("timePillar",  out var hp))
+                    hBranch = hp.TryGetProperty("earthlyBranch", out var hb) ? (hb.GetString() ?? "") : "";
+
+                if (string.IsNullOrEmpty(yBranch) || string.IsNullOrEmpty(mBranch) || string.IsNullOrEmpty(hBranch))
                     return BadRequest(new { error = "命盤資料不完整" });
-
-                string yBranch = yearP[1].ToString();
-                string mBranch = monthP[1].ToString();
-                string hBranch = hourP[1].ToString();
-                string yStem   = yearP[0].ToString();
 
                 // 過氣判斷
                 bool guoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
