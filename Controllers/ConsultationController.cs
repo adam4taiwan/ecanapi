@@ -14652,7 +14652,9 @@ namespace Ecanapi.Controllers
         public async Task<IActionResult> GetMingGongChart([FromQuery] int year = 0)
         {
             if (year == 0) year = DateTime.Today.Year;
-            var identity = User.Identity?.Name;
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                        ?? User.FindFirstValue(ClaimTypes.Name)
+                        ?? User.FindFirst("unique_name")?.Value;
             if (string.IsNullOrEmpty(identity))
                 return Unauthorized();
 
