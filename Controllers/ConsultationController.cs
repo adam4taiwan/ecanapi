@@ -13466,6 +13466,88 @@ namespace Ecanapi.Controllers
                 string xiaoXianBranch = LnCalcXiaoXianBranch(fallbackMingBranch, suiAge, gender);
                 string xiaoXianGuard  = LnCalcXiaoXianGuard(xiaoXianBranch, fallbackMingBranch, suiAge, gender);
 
+                // 小限命宮技法（歲星臨命圖）預計算，傳入 LnBuildReport 做 3.1c 輸出
+                string lnMingGongChartText = "";
+                try
+                {
+                    bool lnGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+                    string lnMgBranch = LfCalcMingGongBranch(mBranch, hBranch, lnGuoQi);
+                    if (!string.IsNullOrEmpty(lnMgBranch))
+                    {
+                        string[] brStdLn = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                        int lnYearBrIdx = (year - 4) % 12;
+                        if (lnYearBrIdx < 0) lnYearBrIdx += 12;
+                        int lnYearIdx = (year - 4) % 10;
+                        if (lnYearIdx < 0) lnYearIdx += 10;
+                        string[] stems60Ln = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                        string lnFlBranchMg = brStdLn[lnYearBrIdx % 12];
+                        string lnFlStemMg   = stems60Ln[lnYearIdx % 10];
+                        int lnYearId = Array.IndexOf(brStdLn, lnFlBranchMg) + 1;
+
+                        var smLn = await _context.YearStarMaps.Where(s => s.YearId == lnYearId).ToListAsync();
+                        var fsLn = await _context.YearFlowStars.Where(s => s.YearId == lnYearId).ToListAsync();
+                        var mgStarsLn = await _context.BaziMingGongStars.ToListAsync();
+
+                        int lnMgIdx    = Array.IndexOf(brStdLn, lnMgBranch);
+                        int lnMgFlowId = lnMgIdx + 1;
+                        int lnChFlow   = ((lnMgIdx + 6) % 12) + 1;
+                        int[][] sanheGrpsLn = { new[]{1,5,9}, new[]{2,6,10}, new[]{3,7,11}, new[]{4,8,12} };
+                        int[] sanheGrpLn  = sanheGrpsLn.FirstOrDefault(g => g.Contains(lnMgFlowId)) ?? Array.Empty<int>();
+                        int[] sanheFlowsLn = sanheGrpLn.Where(id => id != lnMgFlowId).ToArray();
+
+                        string LnGetYearGod(int fid) => fsLn.FirstOrDefault(f => f.FlowId == fid)?.StarName ?? "";
+                        string LnGetYearDesc(int fid) => fsLn.FirstOrDefault(f => f.FlowId == fid)?.Desc ?? "";
+                        string LnGetGoodStar(int fid) => smLn.FirstOrDefault(f => f.FlowId == fid)?.GoodStar ?? "";
+                        string LnGetBadStar(int fid)  => smLn.FirstOrDefault(f => f.FlowId == fid)?.BadStar  ?? "";
+                        string LnGetBranch(int fid)   => brStdLn[(fid - 1) % 12];
+
+                        string lnMgStarName = mgStarsLn.FirstOrDefault(s => s.Branch == lnMgBranch)?.StarName ?? "";
+
+                        var lnMgSb = new System.Text.StringBuilder();
+                        lnMgSb.AppendLine($"（{year}年 {lnFlStemMg}{lnFlBranchMg}）命宮在{lnMgBranch}（{lnMgStarName}），小限臨命宮");
+                        lnMgSb.AppendLine();
+
+                        // 命宮（小限）
+                        lnMgSb.AppendLine($"【小限宮（{lnMgBranch}）—— {LnGetYearGod(lnMgFlowId)}】");
+                        string lnDesc = LnGetYearDesc(lnMgFlowId);
+                        if (!string.IsNullOrEmpty(lnDesc)) lnMgSb.AppendLine(lnDesc);
+                        string lnGood = LnGetGoodStar(lnMgFlowId);
+                        string lnBad  = LnGetBadStar(lnMgFlowId);
+                        if (!string.IsNullOrEmpty(lnGood)) lnMgSb.AppendLine($"吉星：{lnGood}");
+                        if (!string.IsNullOrEmpty(lnBad))  lnMgSb.AppendLine($"凶星：{lnBad}");
+                        lnMgSb.AppendLine();
+
+                        // 沖宮
+                        string lnChBranch = LnGetBranch(lnChFlow);
+                        lnMgSb.AppendLine($"【沖宮（{lnChBranch}）—— {LnGetYearGod(lnChFlow)}】");
+                        string lnChDesc = LnGetYearDesc(lnChFlow);
+                        if (!string.IsNullOrEmpty(lnChDesc)) lnMgSb.AppendLine(lnChDesc);
+                        string lnChGood = LnGetGoodStar(lnChFlow);
+                        string lnChBad  = LnGetBadStar(lnChFlow);
+                        if (!string.IsNullOrEmpty(lnChGood)) lnMgSb.AppendLine($"吉星：{lnChGood}");
+                        if (!string.IsNullOrEmpty(lnChBad))  lnMgSb.AppendLine($"凶星：{lnChBad}");
+                        lnMgSb.AppendLine();
+
+                        // 三合宮
+                        foreach (int sf in sanheFlowsLn)
+                        {
+                            string shBr = LnGetBranch(sf);
+                            lnMgSb.AppendLine($"【三合宮（{shBr}）—— {LnGetYearGod(sf)}】");
+                            string shDesc = LnGetYearDesc(sf);
+                            if (!string.IsNullOrEmpty(shDesc)) lnMgSb.AppendLine(shDesc);
+                            string shGood = LnGetGoodStar(sf);
+                            string shBad  = LnGetBadStar(sf);
+                            if (!string.IsNullOrEmpty(shGood)) lnMgSb.AppendLine($"吉星：{shGood}");
+                            if (!string.IsNullOrEmpty(shBad))  lnMgSb.AppendLine($"凶星：{shBad}");
+                            lnMgSb.AppendLine();
+                        }
+
+                        lnMingGongChartText = lnMgSb.ToString().Trim();
+                    }
+                }
+                catch (Exception exLnMg) { _logger.LogWarning(exLnMg, "流年歲星臨命圖文字版生成失敗，略過"); }
+
                 var bestMonths    = monthlyDetails.Where(m => m.cross is "大吉" or "吉").OrderByDescending(m => m.bazi + m.ziwei).Take(3).Select(m => m.idx).ToList();
                 var cautionMonths = monthlyDetails.Where(m => m.cross is "大凶" or "小凶").OrderBy(m => m.bazi + m.ziwei).Take(2).Select(m => m.idx).ToList();
 
@@ -13508,7 +13590,8 @@ namespace Ecanapi.Controllers
                     taisuiGuard, xiaoXianGuard, blindSect,
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
                     branches, dStem,
-                    shenSha12: lnShenSha12);
+                    shenSha12: lnShenSha12,
+                    mingGongChartText: lnMingGongChartText);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -13520,90 +13603,6 @@ namespace Ecanapi.Controllers
                     year);
                 if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
 
-                // === 流年歲星臨命圖（文字版）===
-                try
-                {
-                    bool lnGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
-                    string lnMgBranch = LfCalcMingGongBranch(mBranch, hBranch, lnGuoQi);
-                    if (!string.IsNullOrEmpty(lnMgBranch))
-                    {
-                        string[] brStdLn = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-                        int lnYearBrIdx = (year - 4) % 12;
-                        if (lnYearBrIdx < 0) lnYearBrIdx += 12;
-                        int lnYearIdx = (year - 4) % 10;
-                        if (lnYearIdx < 0) lnYearIdx += 10;
-                        string[] stems60Ln = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-                        string lnFlBranch = brStdLn[lnYearBrIdx % 12];
-                        string lnFlStem   = stems60Ln[lnYearIdx % 10];
-                        int lnYearId = Array.IndexOf(brStdLn, lnFlBranch) + 1;
-
-                        var smLn = await _context.YearStarMaps.Where(s => s.YearId == lnYearId).ToListAsync();
-                        var fsLn = await _context.YearFlowStars.Where(s => s.YearId == lnYearId).ToListAsync();
-                        var mgStarsLn = await _context.BaziMingGongStars.ToListAsync();
-
-                        int lnMgIdx    = Array.IndexOf(brStdLn, lnMgBranch);
-                        int lnMgFlowId = lnMgIdx + 1;
-                        int lnChFlow   = ((lnMgIdx + 6) % 12) + 1;
-                        int[][] sanheGrpsLn = { new[]{1,5,9}, new[]{2,6,10}, new[]{3,7,11}, new[]{4,8,12} };
-                        int[] sanheGrpLn  = sanheGrpsLn.FirstOrDefault(g => g.Contains(lnMgFlowId)) ?? Array.Empty<int>();
-                        int[] sanheFlowsLn = sanheGrpLn.Where(id => id != lnMgFlowId).ToArray();
-
-                        string LnGetYearGod(int fid) => fsLn.FirstOrDefault(f => f.FlowId == fid)?.StarName ?? "";
-                        string LnGetYearDesc(int fid) => fsLn.FirstOrDefault(f => f.FlowId == fid)?.Desc ?? "";
-                        string LnGetGoodStar(int fid) => smLn.FirstOrDefault(f => f.FlowId == fid)?.GoodStar ?? "";
-                        string LnGetBadStar(int fid)  => smLn.FirstOrDefault(f => f.FlowId == fid)?.BadStar  ?? "";
-                        string LnGetBranch(int fid)   => brStdLn[(fid - 1) % 12];
-
-                        string lnMgStarName = mgStarsLn.FirstOrDefault(s => s.Branch == lnMgBranch)?.StarName ?? "";
-
-                        var lnMgSb = new System.Text.StringBuilder();
-                        lnMgSb.AppendLine();
-                        lnMgSb.AppendLine("=================================================================");
-                        lnMgSb.AppendLine("【流年歲星臨命圖】");
-                        lnMgSb.AppendLine("=================================================================");
-                        lnMgSb.AppendLine($"（{year}年 {lnFlStem}{lnFlBranch}）命宮在{lnMgBranch}（{lnMgStarName}），小限臨命宮");
-                        lnMgSb.AppendLine();
-
-                        // 命宮（小限）
-                        lnMgSb.AppendLine($"【小限宮（{lnMgBranch}）—— {LnGetYearGod(lnMgFlowId)}】");
-                        string lnDesc = LnGetYearDesc(lnMgFlowId);
-                        if (!string.IsNullOrEmpty(lnDesc)) lnMgSb.AppendLine(lnDesc);
-                        string lnGood = LnGetGoodStar(lnMgFlowId);
-                        string lnBad  = LnGetBadStar(lnMgFlowId);
-                        if (!string.IsNullOrEmpty(lnGood)) lnMgSb.AppendLine($"吉星：{lnGood}");
-                        if (!string.IsNullOrEmpty(lnBad))  lnMgSb.AppendLine($"凶星：{lnBad}");
-                        lnMgSb.AppendLine();
-
-                        // 沖宮
-                        string lnChBranch = LnGetBranch(lnChFlow);
-                        lnMgSb.AppendLine($"【沖宮（{lnChBranch}）—— {LnGetYearGod(lnChFlow)}】");
-                        string lnChDesc = LnGetYearDesc(lnChFlow);
-                        if (!string.IsNullOrEmpty(lnChDesc)) lnMgSb.AppendLine(lnChDesc);
-                        string lnChGood = LnGetGoodStar(lnChFlow);
-                        string lnChBad  = LnGetBadStar(lnChFlow);
-                        if (!string.IsNullOrEmpty(lnChGood)) lnMgSb.AppendLine($"吉星：{lnChGood}");
-                        if (!string.IsNullOrEmpty(lnChBad))  lnMgSb.AppendLine($"凶星：{lnChBad}");
-                        lnMgSb.AppendLine();
-
-                        // 三合宮
-                        foreach (int sf in sanheFlowsLn)
-                        {
-                            string shBr = LnGetBranch(sf);
-                            lnMgSb.AppendLine($"【三合宮（{shBr}）—— {LnGetYearGod(sf)}】");
-                            string shDesc = LnGetYearDesc(sf);
-                            if (!string.IsNullOrEmpty(shDesc)) lnMgSb.AppendLine(shDesc);
-                            string shGood = LnGetGoodStar(sf);
-                            string shBad  = LnGetBadStar(sf);
-                            if (!string.IsNullOrEmpty(shGood)) lnMgSb.AppendLine($"吉星：{shGood}");
-                            if (!string.IsNullOrEmpty(shBad))  lnMgSb.AppendLine($"凶星：{shBad}");
-                            lnMgSb.AppendLine();
-                        }
-
-                        report = report.TrimEnd() + Environment.NewLine + lnMgSb.ToString();
-                    }
-                }
-                catch (Exception exLnMg) { _logger.LogWarning(exLnMg, "流年歲星臨命圖文字版生成失敗，略過"); }
 
                 if (!lnIsAdmin) await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
                 await SaveUserReportAsync(user.Id, "liunian", $"{year} 流年命書", report,
@@ -14089,7 +14088,8 @@ namespace Ecanapi.Controllers
             List<(int idx, string mStemM, string mBranchM, string mSeason, int bazi, int ziwei, string cross, string flowStar, string tip)> monthlyDetails,
             List<int> bestMonths, List<int> cautionMonths,
             string[] branches, string dStemRef,
-            IList<BaziShenSha12>? shenSha12 = null)
+            IList<BaziShenSha12>? shenSha12 = null,
+            string mingGongChartText = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -14187,6 +14187,12 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("（命宮資料不足，無法計算小限歲君）");
             else
                 sb.AppendLine(xiaoXianGuard);
+            sb.AppendLine();
+            sb.AppendLine("【3.1c 歲星臨命圖】");
+            if (string.IsNullOrEmpty(mingGongChartText))
+                sb.AppendLine("（命宮資料不足，無法計算歲星臨命圖）");
+            else
+                sb.AppendLine(mingGongChartText);
             sb.AppendLine();
             sb.AppendLine("【3.2 生肖十二歲君】");
             string genLabel = string.IsNullOrEmpty(taisuiGen) ? "" : $"值年太歲星君：{taisuiGen}大將軍";
