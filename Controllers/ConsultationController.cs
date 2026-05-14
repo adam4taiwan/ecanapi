@@ -14132,6 +14132,44 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"生肖太歲：{shengXiaoBranch} 生肖，{year} 年太歲{flBranch}，關係【{taisuiRelation}】（{taisuiLevel}）");
             sb.AppendLine();
 
+            // 年度總論（給客人的通俗定調，不用術語）
+            {
+                string yearTheme = flCrossClass switch {
+                    "大吉" => taisuiLevel is "凶" or "小凶" ? "蓄積謹進年" : "衝刺出擊年",
+                    "吉"   => "積累蓄勢年",
+                    "平"   => "平穩觀望年",
+                    "小凶" => "謹守守成年",
+                    "大凶" => "轉型調整年",
+                    _      => "平穩觀望年"
+                };
+                bool isMoney  = flStemSS is "正財" or "偏財" || flBranchSS is "正財" or "偏財";
+                bool isCareer = flStemSS is "正官" or "七殺" || flBranchSS is "正官" or "七殺";
+                bool isRelate = (flStemSS is "食神" or "傷官") || taisuiRelation is "合太歲";
+                bool isChange = taisuiRelation is "沖太歲" or "刑太歲";
+                string mainInfluence = isChange  ? "重大變動（工作、居所、人際關係）"
+                                     : isCareer  ? "事業發展與社會地位"
+                                     : isMoney   ? "財富累積與財務規劃"
+                                     : isRelate  ? "感情與人際拓展"
+                                     : "整體運勢的均衡調整";
+                string bestStr = bestMonths.Count > 0
+                    ? string.Join("、", bestMonths.Take(3).Select(m => monthNames[m - 1]))
+                    : "各月平穩";
+                string cautStr = cautionMonths.Count > 0
+                    ? string.Join("、", cautionMonths.Take(2).Select(m => monthNames[m - 1]))
+                    : "暫無特別需防之月";
+                string taisuiTip = taisuiLevel is "凶" or "小凶"
+                    ? $"本年{taisuiRelation}，順勢調整勝於強行突破，保持靈活應變為宜。"
+                    : taisuiLevel is "吉" or "大吉" or "變動"
+                    ? $"本年{taisuiRelation}，天時相助，宜把握機遇主動出擊。"
+                    : "";
+                sb.AppendLine("【年度總論】");
+                sb.AppendLine($"{year} {flStem}{flBranch}年，這一年對你而言是「{yearTheme}」。");
+                sb.AppendLine($"主要影響集中在{mainInfluence}面向，");
+                sb.AppendLine($"最需把握的月份：{bestStr}；最需留意的月份：{cautStr}。");
+                if (!string.IsNullOrEmpty(taisuiTip)) sb.AppendLine(taisuiTip);
+                sb.AppendLine();
+            }
+
             // Ch.2 格局用神 + 流年八字分析
             sb.AppendLine("【第二章：格局用神與流年八字分析】");
             sb.AppendLine($"格局：【{pattern}】  用神：【{yongShenElem}】（{yongReason}）");
@@ -14301,7 +14339,14 @@ namespace Ecanapi.Controllers
                 string mBrElemM   = !string.IsNullOrEmpty(mBrMs2) ? KbStemToElement(mBrMs2) : "";
                 string mStemCls   = (mStemElemM == yongShenElem || mStemElemM == fuYiElem) ? "○喜用" : mStemElemM == jiShenElem ? "X忌" : "△中性";
                 string mBrCls     = string.IsNullOrEmpty(mBrElemM) ? "" : (mBrElemM == yongShenElem || mBrElemM == fuYiElem) ? "○喜用" : mBrElemM == jiShenElem ? "X忌" : "△中性";
-                sb.AppendLine($"【{monthNames[m.idx-1]}】{m.mStemM}{m.mBranchM}（{m.mSeason}季）  綜合：【{m.cross}】  八字{m.bazi}·紫微{m.ziwei}");
+                string crossLabel = m.cross switch {
+                    "大吉" => "天時大順，全力出擊",
+                    "吉"   => "整體向好，積極行動",
+                    "小凶" => "謹慎為上，低調保守",
+                    "大凶" => "深耕蓄勢，靜待轉機",
+                    _      => "平穩推進，按部就班"
+                };
+                sb.AppendLine($"【{monthNames[m.idx-1]}】{m.mStemM}{m.mBranchM}（{m.mSeason}季）  本月運勢：{crossLabel}");
                 sb.AppendLine($"  月建喜忌：天干{m.mStemM}（{mStemElemM}·{mStemSS2}）{mStemCls}{(!string.IsNullOrEmpty(mBrCls) ? $"  地支{m.mBranchM}（{mBrElemM}·{mBrSSM}）{mBrCls}" : "")}");
                 if (hasZiwei && YearStemSiHuaMap.TryGetValue(m.mStemM, out var mSiHua))
                 {
@@ -14362,14 +14407,69 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"  4. 太歲加持：{year} 年{taisuiRelation}，善用此年順勢而為，積極展開重要計劃。");
             sb.AppendLine($"  5. {DyCrossDesc(flCrossClass, flStemSS, flBranchSS, flBaziScore, flZiweiScore)}");
             sb.AppendLine();
+            sb.AppendLine("【本年三大行動目標】");
+            {
+                // 目標 1：事業財運
+                string careerType = LfElemCareer(yongShenElem);
+                string goal1 = flCrossClass is "大吉" or "吉"
+                    ? $"運勢向好，宜積極拓展{careerType}方向，把握升遷合作契機。"
+                    : flCrossClass is "大凶" or "小凶"
+                    ? $"宜守不宜攻，鞏固既有{careerType}基礎，避免重大跳槽或高風險投資。"
+                    : $"平穩推進{careerType}規劃，吉月主動出擊，凶月低調蓄力。";
+                sb.AppendLine($"  1. 事業財運：{goal1}");
+
+                // 目標 2：感情家庭
+                bool hasJiInMarriagePal = hasZiwei && KbGetSiHuaPalace(flStem, "化忌", palaces) == "夫妻宮";
+                string goal2 = hasJiInMarriagePal
+                    ? "流年化忌入夫妻宮，感情易生誤會，需多溝通少強硬，婚事宜緩，維護現有關係為先。"
+                    : taisuiRelation is "沖太歲" or "刑太歲"
+                    ? "太歲沖刑之年，家庭關係易有波動，宜耐心化解，避免衝動決定。"
+                    : taisuiRelation is "合太歲"
+                    ? "合太歲之年桃花旺，單身者可主動拓展交友，有伴者宜深化感情基礎。"
+                    : "感情運平穩，維繫現有關係品質，適時表達關心與陪伴即可。";
+                sb.AppendLine($"  2. 感情家庭：{goal2}");
+
+                // 目標 3：身心健康（忌神五行對應臟腑）
+                string goal3 = jiShenElem switch {
+                    "火" => "忌神屬火，注意心血管、眼睛與情緒過激，夏季特別留心。",
+                    "水" => "忌神屬水，注意腎臟、膀胱與寒濕體質，冬季特別留心。",
+                    "木" => "忌神屬木，注意肝膽功能與筋骨壓力，春季特別留心。",
+                    "金" => "忌神屬金，注意肺部、呼吸道與皮膚狀況，秋季特別留心。",
+                    "土" => "忌神屬土，注意脾胃腸道消化，換季時特別留心。",
+                    _    => "維持規律作息，定期健康檢查，注意情緒管理。"
+                };
+                sb.AppendLine($"  3. 身心健康：{goal3}");
+            }
+            sb.AppendLine();
             // === Ch.7 人生警示事項 ===
             sb.AppendLine("【第七章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            {
+                bool xiaoRenYear = flStemSS is "比肩" or "劫財" || flBranchSS is "比肩" or "劫財";
+                if (xiaoRenYear)
+                {
+                    string xiaoRenTG = flStemSS is "比肩" or "劫財" ? flStemSS : flBranchSS;
+                    sb.AppendLine($"【本年引動】{year} 年流年逢{xiaoRenTG}，外部競爭與人際摩擦風險上升，本年須特別提高警覺，謹慎合夥財務往來。");
+                }
+                else
+                    sb.AppendLine("（本年流年未特別引動，維持先天體質注意即可）");
+            }
             sb.AppendLine();
             sb.AppendLine("▍ 官司文書風險");
             sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            {
+                bool guanSiYear = (flStemSS is "正官" or "七殺" || flBranchSS is "正官" or "七殺")
+                                  && KbStemToElement(flStem) == jiShenElem;
+                if (guanSiYear)
+                {
+                    string guanSiTG = flStemSS is "正官" or "七殺" ? flStemSS : flBranchSS;
+                    sb.AppendLine($"【本年引動】{year} 年流年逢{guanSiTG}且屬忌神，官非文書風險本年有所提升，重要合約請謹慎確認，避免訴訟糾紛。");
+                }
+                else
+                    sb.AppendLine("（本年流年未特別引動，謹慎為先）");
+            }
             sb.AppendLine();
             sb.AppendLine("▍ 車關時機");
             {
