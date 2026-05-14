@@ -86,6 +86,9 @@ namespace Ecanapi.Data
         // 學生白名單
         public DbSet<StudentWhiteList> StudentWhiteLists { get; set; }
 
+        // 八字技法知識庫
+        public DbSet<BaziTechnique> BaziTechniques { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
