@@ -3603,7 +3603,7 @@ namespace Ecanapi.Controllers
                 var r3 = ctP.AddNewR();
                 r3.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.separate;
                 var r4 = ctP.AddNewR();
-                r4.AddNewT().Value = "（請在 Word 中按 F9 更新目錄）";
+                r4.AddNewT().Value = "（請在 Word 中按 F9 更新目錄；點擊目錄項目時請按住 Ctrl 再點擊以跳轉至對應頁面）";
                 var r5 = ctP.AddNewR();
                 r5.AddNewFldChar().fldCharType = NPOI.OpenXmlFormats.Wordprocessing.ST_FldCharType.end;
             }
@@ -14107,14 +14107,13 @@ namespace Ecanapi.Controllers
             // 人生指南目錄
             sb.AppendLine("                       人  生  指  南");
             sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("  命主資料與流年概況");
-            sb.AppendLine("  格局用神與流年八字分析");
-            sb.AppendLine("  流年小限空間與時間影響");
-            sb.AppendLine("  春夏秋冬四季論斷");
-            sb.AppendLine("  逐月分析（月建喜忌・紫微宮位）");
-            sb.AppendLine("  趨吉避凶全年建議");
-            sb.AppendLine("  九星氣學流年加成");
-            sb.AppendLine("  人生警示事項（先天體質）");
+            sb.AppendLine("  第一章：命主資料與流年概況");
+            sb.AppendLine("  第二章：格局用神與流年八字分析");
+            sb.AppendLine("  第三章：流年小限空間與時間影響");
+            sb.AppendLine("  第四章：春夏秋冬四季論斷");
+            sb.AppendLine("  第五章：逐月分析（月建喜忌・紫微宮位）");
+            sb.AppendLine("  第六章：趨吉避凶全年建議");
+            sb.AppendLine("  第七章：人生警示事項（先天體質）");
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
@@ -14363,8 +14362,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"  4. 太歲加持：{year} 年{taisuiRelation}，善用此年順勢而為，積極展開重要計劃。");
             sb.AppendLine($"  5. {DyCrossDesc(flCrossClass, flStemSS, flBranchSS, flBaziScore, flZiweiScore)}");
             sb.AppendLine();
-            // === 人生警示事項 ===
-            sb.AppendLine("【人生警示事項（先天體質）】");
+            // === Ch.7 人生警示事項 ===
+            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
