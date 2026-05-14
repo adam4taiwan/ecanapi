@@ -13253,7 +13253,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"  4. 八字與紫微雙吉年宜大膽把握，雙凶年宜蟄伏蓄積，一吉一凶年宜穩健行事");
             sb.AppendLine();
             // === Ch.7 人生警示事項 ===
-            sb.AppendLine("【第七章：人生警示事項】");
+            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
@@ -14113,7 +14113,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  第四章：春夏秋冬四季論斷");
             sb.AppendLine("  第五章：逐月分析（月建喜忌・紫微宮位）");
             sb.AppendLine("  第六章：趨吉避凶全年建議");
-            sb.AppendLine("  第七章：人生警示事項");
+            sb.AppendLine("  第七章：人生警示事項（先天體質）");
             sb.AppendLine("  第八章：九星氣學流年加成");
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
@@ -14443,7 +14443,7 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
             // === Ch.7 人生警示事項 ===
-            sb.AppendLine("【第七章：人生警示事項】");
+            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
