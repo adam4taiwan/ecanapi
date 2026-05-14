@@ -14104,18 +14104,6 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine();
 
-            // 人生指南目錄
-            sb.AppendLine("                       人  生  指  南");
-            sb.AppendLine("-----------------------------------------------------------------");
-            sb.AppendLine("  第一章：命主資料與流年概況");
-            sb.AppendLine("  第二章：格局用神與流年八字分析");
-            sb.AppendLine("  第三章：流年小限空間與時間影響");
-            sb.AppendLine("  第四章：春夏秋冬四季論斷");
-            sb.AppendLine("  第五章：逐月分析（月建喜忌・紫微宮位）");
-            sb.AppendLine("  第六章：趨吉避凶全年建議");
-            sb.AppendLine("  第七章：人生警示事項（先天體質）");
-            sb.AppendLine("  第八章：九星氣學流年加成");
-            sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
             // Ch.1 命主資料 + 流年概況
