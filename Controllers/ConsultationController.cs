@@ -3510,6 +3510,15 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? gender);
                 if (!string.IsNullOrEmpty(docxNsSection)) reportText += docxNsSection;
 
+                // 古法提要
+                var baziTechsDocx = await _context.BaziTechniques.ToListAsync();
+                string ancientLawDocx = LfBuildAncientLawSection(
+                    baziTechsDocx, gender,
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    wuXing);
+                if (!string.IsNullOrEmpty(ancientLawDocx)) reportText += ancientLawDocx;
+
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
                 byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
 
