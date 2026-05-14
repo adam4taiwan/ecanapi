@@ -14114,6 +14114,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  第五章：逐月分析（月建喜忌・紫微宮位）");
             sb.AppendLine("  第六章：趨吉避凶全年建議");
             sb.AppendLine("  第七章：人生警示事項（先天體質）");
+            sb.AppendLine("  第八章：九星氣學流年加成");
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
@@ -14779,7 +14780,7 @@ namespace Ecanapi.Controllers
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine();
                 sb.AppendLine("---");
-                sb.AppendLine($"【第七章：九星氣學流年加成】");
+                sb.AppendLine($"【第八章：九星氣學流年加成】");
                 sb.AppendLine();
                 sb.AppendLine($"本命星：{natalStar} {natalName}（{Ecanapi.Services.NineStarCalcHelper.StarAliases[natalStar]}）");
                 sb.AppendLine($"當前元運：{currentYun}運（{yunName}），本命星為「{yunLabel}」");
