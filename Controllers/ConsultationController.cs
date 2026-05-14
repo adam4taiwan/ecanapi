@@ -3224,6 +3224,15 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? 1);
                 if (!string.IsNullOrEmpty(kbNsSection)) report += kbNsSection;
 
+                // 古法提要：比對八字技法知識庫
+                var baziTechs = await _context.BaziTechniques.ToListAsync();
+                string ancientLaw = LfBuildAncientLawSection(
+                    baziTechs, gender,
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    wuXing);
+                if (!string.IsNullOrEmpty(ancientLaw)) report += ancientLaw;
+
                 if (!ydIsAdmin) await RecordSubscriptionClaim(user.Id, ydSubId, "BOOK_VIP");
                 await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子傳家寶典", report,
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
@@ -10958,6 +10967,164 @@ namespace Ecanapi.Controllers
         if (si < 0 || bi < 0) return Array.Empty<string>();
         int start = (bi - si + 12) % 12;
         return new[] { branches[(start + 10) % 12], branches[(start + 11) % 12] };
+    }
+
+    // 古法提要：依命盤條件比對八字技法知識庫，輸出符合的論斷
+    private static string LfBuildAncientLawSection(
+        IList<BaziTechnique> allTechs, int gender,
+        string yStem, string yBranch, string mStem, string mBranch,
+        string dStem, string dBranch, string hStem, string hBranch,
+        string yStemSS, string mStemSS, string hStemSS,
+        string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+        Dictionary<string, double> wuXing)
+    {
+        if (allTechs == null || allTechs.Count == 0) return "";
+
+        // 建立命盤特徵集
+        var allSS = new HashSet<string>(new[] { yStemSS, mStemSS, "比肩", hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS }
+            .Where(s => !string.IsNullOrEmpty(s)));
+        var yearSS  = new HashSet<string>(new[] { yStemSS, yBranchSS }.Where(s => !string.IsNullOrEmpty(s)));
+        var monthSS = new HashSet<string>(new[] { mStemSS, mBranchSS }.Where(s => !string.IsNullOrEmpty(s)));
+        var hourSS  = new HashSet<string>(new[] { hStemSS, hBranchSS }.Where(s => !string.IsNullOrEmpty(s)));
+        var allBranches = new HashSet<string>{ yBranch, mBranch, dBranch, hBranch };
+
+        // 空亡計算（年/月/時以日柱查）
+        var brsArr = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+        var stsArr = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+        int dSi = Array.IndexOf(stsArr, dStem), dBi = Array.IndexOf(brsArr, dBranch);
+        var kongWangBranches = new HashSet<string>();
+        if (dSi >= 0 && dBi >= 0)
+        {
+            int st = (dBi - dSi + 12) % 12;
+            kongWangBranches.Add(brsArr[(st + 10) % 12]);
+            kongWangBranches.Add(brsArr[(st + 11) % 12]);
+        }
+        var kongWangSS = new HashSet<string>();
+        foreach (var (br, s1, s2) in new[] {
+            (yBranch, yStemSS, yBranchSS), (mBranch, mStemSS, mBranchSS),
+            (dBranch, "比肩", dBranchSS),  (hBranch, hStemSS, hBranchSS) })
+        {
+            if (kongWangBranches.Contains(br)) { kongWangSS.Add(s1); kongWangSS.Add(s2); }
+        }
+        kongWangSS.RemoveWhere(string.IsNullOrEmpty);
+
+        // 比劫佔比
+        string biElem = KbStemToElement(dStem);
+        double biJiPct = wuXing.GetValueOrDefault(biElem, 0);
+        bool biJiWang = biJiPct >= 28;
+
+        // 十神分組 helper
+        bool HasYin()  => allSS.Contains("正印") || allSS.Contains("偏印");
+        bool HasCai()  => allSS.Contains("正財") || allSS.Contains("偏財");
+        bool HasGuan() => allSS.Contains("正官") || allSS.Contains("七殺");
+        bool HasShi()  => allSS.Contains("食神") || allSS.Contains("傷官");
+
+        // 單條比對函式
+        bool Match(string condition, string keywords)
+        {
+            string full = condition + " " + keywords;
+
+            // 性別過濾
+            if (full.Contains("男命") && gender != 1) return false;
+            if (full.Contains("女命") && gender != 0) return false;
+
+            // 排除條件：無X（命盤中不應有）
+            if ((full.Contains("無印") || full.Contains("八字無印")) && HasYin()) return false;
+            if ((full.Contains("無財") || full.Contains("八字無財")) && HasCai()) return false;
+            if ((full.Contains("無官星") || full.Contains("原局無官")) && HasGuan()) return false;
+            if (full.Contains("無官") && !full.Contains("無官星") && HasGuan()) return false;
+
+            // 地支組合：兩支都要在命局
+            var pairChecks = new (string pat, string[] need)[]
+            {
+                ("子卯", new[]{"子","卯"}), ("卯午", new[]{"卯","午"}),
+                ("申亥", new[]{"申","亥"}), ("巳亥", new[]{"巳","亥"}),
+                ("申子辰", new[]{"申","子","辰"}), ("巳酉丑", new[]{"巳","酉","丑"}),
+                ("寅巳申", new[]{"寅","巳","申"}), ("丑未戌", new[]{"丑","未","戌"}),
+                ("寅卯辰", new[]{"寅","卯","辰"}),
+            };
+            bool hasBranchReq = false;
+            foreach (var (pat, need) in pairChecks)
+            {
+                if (full.Contains(pat))
+                {
+                    hasBranchReq = true;
+                    if (!need.All(b => allBranches.Contains(b))) return false;
+                }
+            }
+            if (hasBranchReq) return true;
+
+            // 空亡比對
+            bool yinInKong = kongWangSS.Contains("正印") || kongWangSS.Contains("偏印");
+            bool shiInKong = kongWangSS.Contains("食神") || kongWangSS.Contains("傷官");
+            bool caiInKong = kongWangSS.Contains("正財") || kongWangSS.Contains("偏財");
+            if ((full.Contains("印星落空亡") || full.Contains("印空亡")) && !yinInKong) return false;
+            if (full.Contains("子星空亡") && !shiInKong) return false;
+            if (full.Contains("財星落空亡") && !caiInKong) return false;
+
+            // 比劫旺
+            if (full.Contains("比劫旺") && !biJiWang) return false;
+
+            // 年月需有特定十神
+            if (full.Contains("年月") && full.Contains("印"))
+            {
+                bool yinInYm = yearSS.Any(s => s.Contains("印")) || monthSS.Any(s => s.Contains("印"));
+                if (!yinInYm) return false;
+            }
+            if (full.Contains("年月") && full.Contains("財"))
+            {
+                bool caiInYm = yearSS.Any(s => s.Contains("財")) || monthSS.Any(s => s.Contains("財"));
+                if (!caiInYm) return false;
+            }
+
+            // 月令七殺
+            if (full.Contains("月令") && full.Contains("七殺") && !monthSS.Contains("七殺")) return false;
+
+            // 日支坐四庫
+            if (full.Contains("日支坐四庫") && !"辰戌丑未".Contains(dBranch)) return false;
+
+            // 正面指標：至少符合一個十神條件
+            int mc = 0;
+            if (full.Contains("印") && HasYin()) mc++;
+            if (full.Contains("財") && HasCai()) mc++;
+            if (full.Contains("官") && HasGuan()) mc++;
+            if (full.Contains("食神") && allSS.Contains("食神")) mc++;
+            if (full.Contains("傷官") && allSS.Contains("傷官")) mc++;
+            if (full.Contains("七殺") && allSS.Contains("七殺")) mc++;
+            if (full.Contains("比劫") && biJiWang) mc++;
+            // 特定空亡已命中
+            if (yinInKong || shiInKong || caiInKong) mc++;
+
+            return mc >= 1;
+        }
+
+        // 比對全部技法並分類
+        var matched = allTechs
+            .Where(t => Match(t.Condition, t.Keywords))
+            .GroupBy(t => t.Category)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        if (!matched.Any()) return "";
+
+        int total = matched.Sum(g => g.Count());
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("=================================================================");
+        sb.AppendLine($"【古法提要】（符合條件共 {total} 條，供專家審閱）");
+        sb.AppendLine("=================================================================");
+        sb.AppendLine();
+        foreach (var grp in matched)
+        {
+            sb.AppendLine($"■ {grp.Key}");
+            foreach (var t in grp)
+            {
+                sb.AppendLine($"  {t.Condition}");
+                sb.AppendLine($"  → {t.Result}");
+                sb.AppendLine();
+            }
+        }
+        return sb.ToString();
     }
 
     // 年月時以日柱天干查旬空；日支以年柱天干查旬空
