@@ -3521,7 +3521,26 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? gender);
                 if (!string.IsNullOrEmpty(docxNsSection)) reportText += docxNsSection;
 
-                // 古法提要、星平大限：待玉洞子命書驗證完整後再加入傳家寶典
+                // 古法提要
+                var baziTechsDocx = await _context.BaziTechniques.ToListAsync();
+                string ancientLawDocx = LfBuildAncientLawSection(
+                    baziTechsDocx, gender,
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                    wuXing);
+                if (!string.IsNullOrEmpty(ancientLawDocx)) reportText += ancientLawDocx;
+
+                // 星平大限秘訣
+                bool docxGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+                int docxStartAge = luckCycles.Count > 0 ? luckCycles[0].startAge : 3;
+                int docxCurrentAge = DateTime.Today.Year - birthYear + 1;
+                string starPingDxDocx = LfBuildStarPingDaXian(
+                    mBranch, hBranch, docxGuoQi,
+                    docxStartAge, docxCurrentAge,
+                    yNaYin, dStem, dBranch);
+                if (!string.IsNullOrEmpty(starPingDxDocx)) reportText += starPingDxDocx;
+
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
                 byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
 
