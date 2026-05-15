@@ -11153,6 +11153,89 @@ namespace Ecanapi.Controllers
         sb.AppendLine($"  大限危機指數：{score}分  {riskLevel}");
         sb.AppendLine();
         sb.AppendLine("  古訣：「先看大限落何宮，再查度主受何克；交度過宮看流年，三垣齊動大限臨。」");
+        sb.AppendLine();
+
+        // ---- 五、十干化曜恩難仇用論斷 ----
+        // 十干化曜靜態資料（職能名、化曜五行、吉凶定性、危險權重：刑=3/暗=3/耗=1）
+        var stemRoleMap = new (string stem, string role, string starElem, string auspicious, int danger)[]
+        {
+            ("甲", "福星", "火", "大吉", 0),
+            ("乙", "祿星", "金", "大吉", 0),
+            ("丙", "首星", "水", "吉",   0),
+            ("丁", "權星", "金", "吉",   0),
+            ("戊", "財星", "木", "次吉", 0),
+            ("己", "文星", "火", "吉",   0),
+            ("庚", "刑星", "火", "極凶", 3),
+            ("辛", "暗星", "水", "極凶", 3),
+            ("壬", "廕星", "木", "大吉", 0),
+            ("癸", "耗星", "水", "凶",   1),
+        };
+
+        // 五行生克：判斷恩難仇用（以大限宮位五行為主體）
+        var fiveGenMap = new Dictionary<string, string> {{"木","火"},{"火","土"},{"土","金"},{"金","水"},{"水","木"}};
+        var fiveKeMap  = new Dictionary<string, string> {{"金","木"},{"木","土"},{"土","水"},{"水","火"},{"火","金"}};
+        string GetRelation(string limitEl, string starEl)
+        {
+            if (fiveGenMap.TryGetValue(starEl, out var g) && g == limitEl) return "恩星"; // 星曜生大限
+            if (fiveKeMap.TryGetValue(starEl,  out var k) && k == limitEl) return "難星"; // 星曜克大限
+            if (fiveKeMap.TryGetValue(limitEl, out var lk) && lk == starEl) return "仇星"; // 大限克星曜
+            return "用星"; // 同我或我生
+        }
+
+        sb.AppendLine("五、十干化曜恩難仇用論斷：");
+        sb.AppendLine($"  當前大限五行：{cur.elem}（{cur.branch}・{cur.name}）");
+        sb.AppendLine("  流年天干  化曜職能  曜五行  恩難仇用  吉凶定性  綜合論斷");
+        sb.AppendLine("  ────────────────────────────────────────────────────────────────");
+
+        var warnStems = new List<string>();
+        foreach (var (stem, role, starElem, ausp, dng) in stemRoleMap)
+        {
+            string rel = GetRelation(cur.elem, starElem);
+            string verdict;
+            if (rel == "難星" && dng >= 3)
+            {
+                string dangerTag = role == "刑星" ? "刑" : "暗";
+                verdict = $"【極危】難星疊{dangerTag}，血光惡疾大凶";
+                warnStems.Add($"{stem}年（{role}+難星）");
+            }
+            else if (rel == "難星" && dng == 1)
+            {
+                verdict = "【高危】耗精傷元，大限氣數消耗";
+                warnStems.Add($"{stem}年（{role}+難星）");
+            }
+            else if (rel == "難星")
+            {
+                verdict = "中危，難星克大限，宜防意外疾病";
+            }
+            else if (rel == "恩星" && dng >= 3)
+            {
+                verdict = $"注意，恩護{cur.elem}但{role}自帶凶性，防暗中惡疾";
+            }
+            else if (rel == "恩星")
+            {
+                verdict = "平安護摩，逢難呈祥，遇難化吉";
+            }
+            else if (rel == "仇星" && dng >= 1)
+            {
+                verdict = "注意，仇耗疊加，油盡燈枯需防";
+            }
+            else if (rel == "仇星")
+            {
+                verdict = "體力消耗，宜量力而為，防財傷身";
+            }
+            else // 用星
+            {
+                verdict = "氣場穩固，運勢順遂，才華發揮";
+            }
+            sb.AppendLine($"  {stem}         {role,-4}      {starElem}       {rel,-4}      {ausp,-4}      {verdict}");
+        }
+        sb.AppendLine();
+        if (warnStems.Count > 0)
+        {
+            sb.AppendLine($"  【最危險流年天干】：{string.Join("、", warnStems)}");
+            sb.AppendLine("  須配合地支飛起吊沖，四條件同時成立方為最高壽元警報。");
+            sb.AppendLine("  古訣：「刑暗臨難地，交度太歲沖，大限氣數盡。」");
+        }
         sb.AppendLine("=================================================================");
 
         return sb.ToString();
