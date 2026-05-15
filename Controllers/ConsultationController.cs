@@ -3233,6 +3233,17 @@ namespace Ecanapi.Controllers
                     wuXing);
                 if (!string.IsNullOrEmpty(ancientLaw)) report += ancientLaw;
 
+                // 星平大限秘訣
+                bool ydzGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+                int ydzStartAge = scored.Count > 0 ? scored[0].startAge : 3;
+                int ydzCurrentAge = DateTime.Today.Year - birthYear + 1;
+                string starPingDx = LfBuildStarPingDaXian(
+                    mBranch, hBranch, ydzGuoQi,
+                    ydzStartAge, ydzCurrentAge,
+                    yNaYin, dStem, dBranch);
+                if (!string.IsNullOrEmpty(starPingDx)) report += starPingDx;
+
                 if (!ydIsAdmin) await RecordSubscriptionClaim(user.Id, ydSubId, "BOOK_VIP");
                 await SaveUserReportAsync(user.Id, "yudongzi", "玉洞子傳家寶典", report,
                     new { birthYear = user.BirthYear, birthMonth = user.BirthMonth, birthDay = user.BirthDay, gender = user.BirthGender });
@@ -3518,6 +3529,17 @@ namespace Ecanapi.Controllers
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
                     wuXing);
                 if (!string.IsNullOrEmpty(ancientLawDocx)) reportText += ancientLawDocx;
+
+                // 星平大限秘訣
+                bool docxGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+                int docxStartAge = luckCycles.Count > 0 ? luckCycles[0].startAge : 3;
+                int docxCurrentAge = DateTime.Today.Year - birthYear + 1;
+                string starPingDxDocx = LfBuildStarPingDaXian(
+                    mBranch, hBranch, docxGuoQi,
+                    docxStartAge, docxCurrentAge,
+                    yNaYin, dStem, dBranch);
+                if (!string.IsNullOrEmpty(starPingDxDocx)) reportText += starPingDxDocx;
 
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
                 byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
@@ -10976,6 +10998,164 @@ namespace Ecanapi.Controllers
         if (si < 0 || bi < 0) return Array.Empty<string>();
         int start = (bi - si + 12) % 12;
         return new[] { branches[(start + 10) % 12], branches[(start + 11) % 12] };
+    }
+
+    // 星平大限秘訣：命宮定大限法（果老星宗）
+    private static string LfBuildStarPingDaXian(
+        string mBranch, string hBranch, bool guoQi,
+        int daYunStartAge, int currentAge,
+        string yNaYin, string dStem, string dBranch)
+    {
+        // 十二地支順序
+        var branches12 = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+
+        // 大限宮位名稱（命宮下一宮起，共 11 宮）
+        var dxNames = new[] {
+            "相貌宮","福德宮","官祿宮","遷移宮","疾厄宮",
+            "夫妻宮","奴儆宮","男女宮","田宅宮","兄弟宮","財帛宮"
+        };
+        var dxYears = new[] { 10.0, 11.0, 15.0, 6.0, 9.0, 9.0, 4.0, 4.0, 5.0, 2.5, 10.0 };
+
+        // 地支→(宮主星, 五行)
+        var palaceElem = new Dictionary<string,(string star, string elem)>
+        {
+            {"子",("土星","土")},{"丑",("土星","土")},
+            {"寅",("木星","木")},{"亥",("木星","木")},
+            {"卯",("火星","火")},{"戌",("火星","火")},
+            {"辰",("金星","金")},{"酉",("金星","金")},
+            {"巳",("水星","水")},{"申",("水星","水")},
+            {"午",("太陽","火")},
+            {"未",("太陰","土")}
+        };
+
+        // 命宮地支
+        string mgBranch = LfCalcMingGongBranch(mBranch, hBranch, guoQi);
+        if (string.IsNullOrEmpty(mgBranch)) return "";
+
+        int mgIdx = Array.IndexOf(branches12, mgBranch);
+        if (mgIdx < 0) return "";
+
+        // 各大限地支（命宮下一宮起，順時針）
+        double firstDxAge = daYunStartAge + 15.0;
+        var dxList = new List<(int no, string name, string branch, string elem, string star, double startAge, double endAge)>();
+        double cumAge = firstDxAge;
+        for (int i = 0; i < 11; i++)
+        {
+            int brIdx = (mgIdx + 1 + i) % 12;
+            string br = branches12[brIdx];
+            var (star, elem) = palaceElem.TryGetValue(br, out var pe) ? pe : ("未知", "未知");
+            dxList.Add((i + 1, dxNames[i], br, elem, star, cumAge, cumAge + dxYears[i]));
+            cumAge += dxYears[i];
+        }
+
+        // 当前大限
+        int curIdx = dxList.FindIndex(d => currentAge >= d.startAge && currentAge < d.endAge);
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("=================================================================");
+        sb.AppendLine("【星平大限秘訣】（命宮定大限法・果老星宗）");
+        sb.AppendLine("=================================================================");
+        sb.AppendLine();
+
+        // 命宮資訊
+        palaceElem.TryGetValue(mgBranch, out var mgPe);
+        sb.AppendLine($"命宮地支：{mgBranch}  宮主星：{mgPe.star}  命宮五行：{mgPe.elem}");
+        sb.AppendLine($"大運起運：{daYunStartAge}歲  命宮期：{daYunStartAge}～{(int)firstDxAge}歲（非大限）");
+        sb.AppendLine();
+
+        // 大限軌跡表
+        sb.AppendLine("大限軌跡：");
+        sb.AppendLine("  序   宮位       地支  五行   年齡區間");
+        sb.AppendLine("  ──────────────────────────────────────────");
+        foreach (var d in dxList)
+        {
+            bool isCur = d.no - 1 == curIdx;
+            string marker = isCur ? "★" : " ";
+            string endStr = d.endAge % 1 == 0 ? $"{(int)d.endAge}" : $"{d.endAge:F1}";
+            string curMark = isCur ? $"  ← 目前（虛歲{currentAge}歲）" : "";
+            sb.AppendLine($"  {marker}{d.no,2}  {d.name,-6}  {d.branch}  {d.elem,-2}  {(int)d.startAge}～{endStr}歲{curMark}");
+        }
+        sb.AppendLine();
+
+        if (currentAge < firstDxAge)
+        {
+            sb.AppendLine($"  虛歲{currentAge}歲，目前尚在命宮期（{daYunStartAge}～{(int)firstDxAge}歲），尚未進入大限。");
+            sb.AppendLine("=================================================================");
+            return sb.ToString();
+        }
+        if (curIdx < 0)
+        {
+            sb.AppendLine($"  虛歲{currentAge}歲，已超出大限週期（100.5歲）。");
+            sb.AppendLine("=================================================================");
+            return sb.ToString();
+        }
+
+        var cur = dxList[curIdx];
+
+        // ---- 四大關卡評估 ----
+        int score = 0;
+
+        // 一、交度過宮
+        bool isCrossing = false;
+        string crossDesc = "";
+        foreach (var d in dxList)
+        {
+            if (Math.Abs(currentAge - d.endAge) <= 1.0)
+            {
+                isCrossing = true;
+                int nextNo = d.no < 11 ? d.no + 1 : -1;
+                string nextName = nextNo > 0 ? dxList[nextNo - 1].name : "週期終";
+                crossDesc = $"虛歲{currentAge}歲接近{d.name}與{nextName}交界（{d.endAge:F1}歲）";
+                break;
+            }
+        }
+        if (isCrossing) score += 30;
+
+        // 二、宮度克納音
+        string nayinElem = yNaYin.Length > 0 ? yNaYin[^1].ToString() : "";
+        bool isKe = (cur.elem == "金" && nayinElem == "木") ||
+                    (cur.elem == "木" && nayinElem == "土") ||
+                    (cur.elem == "土" && nayinElem == "水") ||
+                    (cur.elem == "水" && nayinElem == "火") ||
+                    (cur.elem == "火" && nayinElem == "金");
+        if (isKe) score += 30;
+
+        // 三、行限落空亡
+        var kongWang = LfCalcDayEmpty(dStem, dBranch);
+        bool isKongWang = kongWang.Contains(cur.branch);
+        if (isKongWang) score += 30;
+
+        // 四、飛起吊沖（說明性）
+        int brIdx2 = Array.IndexOf(branches12, cur.branch);
+        string chongBr  = branches12[(brIdx2 + 6) % 12];
+        string diao1Br  = branches12[(brIdx2 + 4) % 12];
+        string diao2Br  = branches12[(brIdx2 + 8) % 12];
+
+        // 風險等級
+        string riskLevel = score >= 60 ? "【高風險】需特別關注此大限" :
+                           score >= 30 ? "【中風險】宜謹慎" :
+                                        "【低風險】平順";
+
+        sb.AppendLine($"當前大限：第{cur.no} {cur.name}（{cur.branch}・{cur.elem}）  {(int)cur.startAge}～{(int)cur.endAge}歲");
+        sb.AppendLine($"  宮主星：{cur.star}  五行：{cur.elem}");
+        string kwStr = kongWang.Length >= 2 ? $"{kongWang[0]}、{kongWang[1]}" : "(無)";
+        sb.AppendLine($"  旬空（日柱{dStem}{dBranch}查）：{kwStr}");
+        sb.AppendLine();
+        sb.AppendLine("大限四大關卡評估：");
+        sb.AppendLine($"  一、交度過宮：{(isCrossing ? "【是】" + crossDesc : "否，距下一交界尚遠")}");
+        sb.AppendLine($"  二、宮度克納音（年柱{yNaYin}={nayinElem}）：{(isKe ? $"【是】大限{cur.elem}克納音{nayinElem}，宮度傷納音" : $"否，{cur.elem}不克{nayinElem}")}");
+        sb.AppendLine($"  三、行限落空亡：{(isKongWang ? $"【是】{cur.branch}在旬空（{kwStr}），大限地支落旬空，氣數易斷" : "否")}");
+        sb.AppendLine("  四、飛起吊沖提示：");
+        sb.AppendLine($"      對宮（沖）：{chongBr}  三方（吊）：{diao1Br}、{diao2Br}");
+        sb.AppendLine($"      流年逢{chongBr}年、{diao1Br}年、{diao2Br}年，最易引動此大限宮氣");
+        sb.AppendLine();
+        sb.AppendLine($"  大限危機指數：{score}分  {riskLevel}");
+        sb.AppendLine();
+        sb.AppendLine("  古訣：「先看大限落何宮，再查度主受何克；交度過宮看流年，三垣齊動大限臨。」");
+        sb.AppendLine("=================================================================");
+
+        return sb.ToString();
     }
 
     // 古法提要：依命盤條件比對八字技法知識庫，輸出符合的論斷
