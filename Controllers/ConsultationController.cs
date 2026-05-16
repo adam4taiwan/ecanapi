@@ -14533,6 +14533,8 @@ namespace Ecanapi.Controllers
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
+            bool isSeniorAge = flAge >= 55; // 55歲以上：夫妻/感情描述改以家庭和諧為主，不提婚事/桃花
+            bool isYoungAge  = flAge < 35;  // 35歲以下：感情/婚事描述可較明確
             string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
             string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
             string[] monthNames = { "寅月(2月)","卯月(3月)","辰月(4月)","巳月(5月)","午月(6月)","未月(7月)","申月(8月)","酉月(9月)","戌月(10月)","亥月(11月)","子月(12月)","丑月(1月)" };
@@ -14607,7 +14609,7 @@ namespace Ecanapi.Controllers
                     string luDesc0 = luPal0 switch {
                         "官祿宮" => "紫微化祿飛入官祿宮，事業機會豐沛，有利升遷或開展新合作。",
                         "財帛宮" => "紫微化祿飛入財帛宮，正財運旺，適合穩健投資與財務規劃。",
-                        "夫妻宮" => "紫微化祿飛入夫妻宮，感情緣分順暢，單身者桃花機會多，有伴者關係和諧。",
+                        "夫妻宮" => isSeniorAge ? "紫微化祿飛入夫妻宮，夫妻關係和諧，家庭情感融洽，適合增進與家人的溝通與陪伴。" : "紫微化祿飛入夫妻宮，感情緣分順暢，單身者桃花機會多，有伴者關係和諧。",
                         "遷移宮" => "紫微化祿飛入遷移宮，外出與異地發展有貴人相助，旅行與社交順利。",
                         "田宅宮" => "紫微化祿飛入田宅宮，家宅吉祥，有置產或房產增值的機會。",
                         "福德宮" => "紫微化祿飛入福德宮，心情愉快，精神充實，享受生活品質的一年。",
@@ -14616,7 +14618,7 @@ namespace Ecanapi.Controllers
                     string jiDesc0 = jiPal0 switch {
                         "官祿宮" => "紫微化忌飛入官祿宮，職場壓力偏大，競爭激烈，需防人際摩擦或職位異動。",
                         "財帛宮" => "紫微化忌飛入財帛宮，財務面宜保守，避免高風險投資或大額借貸。",
-                        "夫妻宮" => "紫微化忌飛入夫妻宮，感情易生誤會，婚事宜緩，溝通需加倍耐心。",
+                        "夫妻宮" => isSeniorAge ? "紫微化忌飛入夫妻宮，夫妻相處易生摩擦，多體諒包容，避免爭吵，家庭和諧為先。" : "紫微化忌飛入夫妻宮，感情易生誤會，婚事宜緩，溝通需加倍耐心。",
                         "疾厄宮" => "紫微化忌飛入疾厄宮，身體能量較弱，注意作息與舊疾，建議定期健檢。",
                         "遷移宮" => "紫微化忌飛入遷移宮，外出或異地發展容易遇阻，減少不必要的長途出行。",
                         "田宅宮" => "紫微化忌飛入田宅宮，家宅易有紛擾，不宜大裝修或購置房產，家人關係多溝通。",
@@ -14703,14 +14705,14 @@ namespace Ecanapi.Controllers
                 // 化祿加持
                 if      (luPalEv == "官祿宮") eventLines.Add("事業：今年有升遷、接案或拓展合作的機會，宜主動表現。");
                 else if (luPalEv == "財帛宮") eventLines.Add("財運：正財運順暢，有進帳機會，適合穩健投資規劃。");
-                else if (luPalEv == "夫妻宮") eventLines.Add("感情：感情緣分順暢，單身者桃花機會多，有伴者關係升溫。");
+                else if (luPalEv == "夫妻宮") eventLines.Add(isSeniorAge ? "感情：夫妻感情和諧，家庭溫馨，適合增進與家人的互動與陪伴。" : "感情：感情緣分順暢，單身者桃花機會多，有伴者關係升溫。");
                 else if (luPalEv == "遷移宮") eventLines.Add("外緣：今年外出或異地發展有貴人相助，人脈拓展順利。");
                 // 化權加持
                 if      (quanPalEv == "官祿宮") eventLines.Add("事業：化權入官祿，有掌權或獨當一面的機會，可爭取主導地位。");
                 else if (quanPalEv == "財帛宮") eventLines.Add("財運：財務決策力強，適合主動規劃投資，可掌控財務方向。");
                 // 化忌警示
                 if      (jiPalEv == "財帛宮") eventLines.Add("財務：化忌入財帛，今年需謹慎支出，避免高風險投資或借貸擔保。");
-                else if (jiPalEv == "夫妻宮") eventLines.Add("感情：化忌入夫妻，感情易生誤會或波動，婚事宜緩，多溝通少強硬。");
+                else if (jiPalEv == "夫妻宮") eventLines.Add(isSeniorAge ? "感情：化忌入夫妻，夫妻相處易生摩擦，多包容少計較，家庭和諧為先，避免因小事起爭執。" : "感情：化忌入夫妻，感情易生誤會或波動，婚事宜緩，多溝通少強硬。");
                 else if (jiPalEv == "疾厄宮") eventLines.Add("健康：化忌入疾厄，今年需特別注意健康，建議定期健檢，勿積勞成疾。");
                 else if (jiPalEv == "官祿宮") eventLines.Add("職場：化忌入官祿，工作壓力偏大，防職場摩擦，不宜貿然跳槽。");
                 else if (jiPalEv == "遷移宮") eventLines.Add("外出：化忌入遷移，出行或異地事務容易遇阻，注意交通安全。");
@@ -14720,7 +14722,7 @@ namespace Ecanapi.Controllers
                 else if (taisuiRelation is "刑太歲")
                     eventLines.Add("法律：刑太歲之年，契約、官司或人際糾紛需謹慎，凡事白紙黑字，減少口頭承諾。");
                 else if (taisuiRelation is "合太歲" && (flStemSS is "食神" or "傷官" || flBranchSS is "食神" or "傷官"))
-                    eventLines.Add("桃花：合太歲加食傷，今年桃花旺，單身者人緣大開，適合主動拓展感情機緣。");
+                    eventLines.Add(isSeniorAge ? "人緣：合太歲加食傷，今年人際緣分佳，子女或晚輩關係順暢，社交愉快，晚年生活充實。" : "桃花：合太歲加食傷，今年桃花旺，單身者人緣大開，適合主動拓展感情機緣。");
                 if (eventLines.Count > 0)
                 {
                     sb.AppendLine("【今年值得關注的重點方向】");
@@ -14948,7 +14950,7 @@ namespace Ecanapi.Controllers
                     string luTip = monthLuPal switch {
                         "官祿宮" => "事業有貴人機緣，宜主動表現與拓展。",
                         "財帛宮" => "財運進帳機會佳，適合規劃收益。",
-                        "夫妻宮" => "感情互動順暢，有伴者關係升溫，單身者人緣旺。",
+                        "夫妻宮" => isSeniorAge ? "夫妻關係融洽，家人相處和諧，適合增進感情。" : "感情互動順暢，有伴者關係升溫，單身者人緣旺。",
                         "遷移宮" => "外出社交有收穫，人脈拓展順利。",
                         "福德宮" => "心情愉快，適合享受休閒與充電。",
                         "田宅宮" => "家宅事務吉祥，適合佈置整理或家人聚會。",
@@ -15070,11 +15072,11 @@ namespace Ecanapi.Controllers
                 // 目標 2：感情家庭
                 bool hasJiInMarriagePal = hasZiwei && KbGetSiHuaPalace(flStem, "化忌", palaces) == "夫妻宮";
                 string goal2 = hasJiInMarriagePal
-                    ? "流年化忌入夫妻宮，感情易生誤會，需多溝通少強硬，婚事宜緩，維護現有關係為先。"
+                    ? (isSeniorAge ? "流年化忌入夫妻宮，夫妻相處易有摩擦，多體諒包容，避免爭吵，家庭和諧為先。" : "流年化忌入夫妻宮，感情易生誤會，需多溝通少強硬，婚事宜緩，維護現有關係為先。")
                     : taisuiRelation is "沖太歲" or "刑太歲"
                     ? "太歲沖刑之年，家庭關係易有波動，宜耐心化解，避免衝動決定。"
                     : taisuiRelation is "合太歲"
-                    ? "合太歲之年桃花旺，單身者可主動拓展交友，有伴者宜深化感情基礎。"
+                    ? (isSeniorAge ? "合太歲之年，人際緣分順暢，家庭和諧，子女或晚輩關係融洽，晚年天倫可期。" : "合太歲之年桃花旺，單身者可主動拓展交友，有伴者宜深化感情基礎。")
                     : "感情運平穩，維繫現有關係品質，適時表達關心與陪伴即可。";
                 sb.AppendLine($"  2. 感情家庭：{goal2}");
 
