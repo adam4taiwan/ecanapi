@@ -14561,41 +14561,96 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"生肖太歲：{shengXiaoBranch} 生肖，{year} 年太歲{flBranch}，關係【{taisuiRelation}】（{taisuiLevel}）");
             sb.AppendLine();
 
-            // 年度總論（給客人的通俗定調，不用術語）
+            // 年度總論（深度敘事：八字+太歲+紫微三維交叉驗證）
             {
                 string yearTheme = flCrossClass switch {
-                    "大吉" => taisuiLevel is "凶" or "小凶" ? "蓄積謹進年" : "衝刺出擊年",
-                    "吉"   => "積累蓄勢年",
-                    "平"   => "平穩觀望年",
-                    "小凶" => "謹守守成年",
-                    "大凶" => "轉型調整年",
-                    _      => "平穩觀望年"
+                    "大吉" => taisuiLevel is "凶" or "小凶" ? "謹進中的衝刺之年" : "全力出擊的豐收之年",
+                    "吉"   => "積累奠基的蓄勢之年",
+                    "平"   => "平穩推進的調整之年",
+                    "小凶" => "守成待機的韜晦之年",
+                    "大凶" => "深蹲蓄力的轉型之年",
+                    _      => "平穩推進的調整之年"
                 };
-                bool isMoney  = flStemSS is "正財" or "偏財" || flBranchSS is "正財" or "偏財";
-                bool isCareer = flStemSS is "正官" or "七殺" || flBranchSS is "正官" or "七殺";
-                bool isRelate = (flStemSS is "食神" or "傷官") || taisuiRelation is "合太歲";
-                bool isChange = taisuiRelation is "沖太歲" or "刑太歲";
-                string mainInfluence = isChange  ? "重大變動（工作、居所、人際關係）"
-                                     : isCareer  ? "事業發展與社會地位"
-                                     : isMoney   ? "財富累積與財務規劃"
-                                     : isRelate  ? "感情與人際拓展"
-                                     : "整體運勢的均衡調整";
+                // 八字維度：流年天干地支對用忌神的影響
+                string flStemElem0 = KbStemToElement(flStem);
+                bool flStemGood0 = flStemElem0 == yongShenElem || flStemElem0 == fuYiElem;
+                bool flStemBad0  = flStemElem0 == jiShenElem;
+                string flBrMs0   = LfBranchHiddenRatio.TryGetValue(flBranch, out var flBrH0) && flBrH0.Count > 0 ? flBrH0[0].stem : "";
+                string flBrElem0 = !string.IsNullOrEmpty(flBrMs0) ? KbStemToElement(flBrMs0) : "";
+                bool flBrGood0   = flBrElem0 == yongShenElem || flBrElem0 == fuYiElem;
+                bool flBrBad0    = flBrElem0 == jiShenElem;
+                string baziDim = (flStemGood0 && flBrGood0)
+                    ? $"從八字來看，流年天干{flStem}、地支{flBranch}均屬喜用五行，八字面運勢順暢，有實質助力。"
+                    : (flStemBad0 && flBrBad0)
+                    ? $"從八字來看，流年天干{flStem}、地支{flBranch}均屬忌神五行，八字面壓力較重，行事需加倍謹慎。"
+                    : flStemGood0
+                    ? $"從八字來看，流年天干{flStem}屬喜用，有正面推動力；地支{flBranch}相對稍弱，下半年節奏需留意。"
+                    : flStemBad0
+                    ? $"從八字來看，流年天干{flStem}屬忌神，開年宜低調穩守；地支{flBranch}若屬喜用則下半年有機會回穩。"
+                    : $"從八字來看，流年天干地支對用神{yongShenElem}影響中性，主要看大運與月份配合。";
+                // 太歲維度：生肖與流年的具體意涵
+                string taisuiDim = taisuiRelation switch {
+                    "沖太歲" => $"生肖屬{shengXiaoBranch}，與{flBranch}年形成沖太歲，工作、居所、人際容易有重大異動，宜順勢調整而非強行抵抗。",
+                    "刑太歲" => $"生肖屬{shengXiaoBranch}，與{flBranch}年形成刑太歲，契約、法律、人際摩擦需格外留意，凡事宜留餘地。",
+                    "合太歲" => $"生肖屬{shengXiaoBranch}，與{flBranch}年合太歲，整體天時相助，適合展開新計劃、拓展人際與感情。",
+                    "守太歲" => $"生肖屬{shengXiaoBranch}，太歲坐命（守太歲），外在壓力偏大，宜穩守不宜躁進，保持現狀即是勝利。",
+                    "害太歲" => $"生肖屬{shengXiaoBranch}，與{flBranch}年形成害太歲，人際關係易有小人或口舌是非，謹慎交友合作。",
+                    "破太歲" => $"生肖屬{shengXiaoBranch}，與{flBranch}年形成破太歲，計劃容易有變動，做了又重來，宜備好備案。",
+                    _ => $"生肖屬{shengXiaoBranch}，太歲關係平和，外在環境對你的影響相對溫和。"
+                };
+                // 紫微維度：化祿與化忌宮位的具體影響
+                string ziweiDim0 = "";
+                if (hasZiwei)
+                {
+                    string jiPal0 = KbGetSiHuaPalace(flStem, "化忌", palaces);
+                    string luPal0 = KbGetSiHuaPalace(flStem, "化祿", palaces);
+                    string luDesc0 = luPal0 switch {
+                        "官祿宮" => "紫微化祿飛入官祿宮，事業機會豐沛，有利升遷或開展新合作。",
+                        "財帛宮" => "紫微化祿飛入財帛宮，正財運旺，適合穩健投資與財務規劃。",
+                        "夫妻宮" => "紫微化祿飛入夫妻宮，感情緣分順暢，單身者桃花機會多，有伴者關係和諧。",
+                        "遷移宮" => "紫微化祿飛入遷移宮，外出與異地發展有貴人相助，旅行與社交順利。",
+                        "田宅宮" => "紫微化祿飛入田宅宮，家宅吉祥，有置產或房產增值的機會。",
+                        "福德宮" => "紫微化祿飛入福德宮，心情愉快，精神充實，享受生活品質的一年。",
+                        _ => !string.IsNullOrEmpty(luPal0) ? $"紫微化祿飛入{luPal0}，此宮位今年有明顯的好運加持。" : ""
+                    };
+                    string jiDesc0 = jiPal0 switch {
+                        "官祿宮" => "紫微化忌飛入官祿宮，職場壓力偏大，競爭激烈，需防人際摩擦或職位異動。",
+                        "財帛宮" => "紫微化忌飛入財帛宮，財務面宜保守，避免高風險投資或大額借貸。",
+                        "夫妻宮" => "紫微化忌飛入夫妻宮，感情易生誤會，婚事宜緩，溝通需加倍耐心。",
+                        "疾厄宮" => "紫微化忌飛入疾厄宮，身體能量較弱，注意作息與舊疾，建議定期健檢。",
+                        "遷移宮" => "紫微化忌飛入遷移宮，外出或異地發展容易遇阻，減少不必要的長途出行。",
+                        "田宅宮" => "紫微化忌飛入田宅宮，家宅易有紛擾，不宜大裝修或購置房產，家人關係多溝通。",
+                        "父母宮" => "紫微化忌飛入父母宮，長輩或上司關係較緊張，需耐心應對，並留意長輩健康。",
+                        "福德宮" => "紫微化忌飛入福德宮，心情容易起伏，精神壓力偏大，注意情緒管理與睡眠品質。",
+                        "命宮"   => "紫微化忌飛入命宮，本人承受壓力較大，健康與決策上需格外謹慎。",
+                        _ => !string.IsNullOrEmpty(jiPal0) ? $"紫微化忌飛入{jiPal0}，此宮位相關事務今年需特別留意。" : ""
+                    };
+                    if (!string.IsNullOrEmpty(luDesc0)) ziweiDim0 += luDesc0;
+                    if (!string.IsNullOrEmpty(jiDesc0)) ziweiDim0 += (string.IsNullOrEmpty(ziweiDim0) ? "" : " ") + jiDesc0;
+                }
+                // 雙系統共鳴論斷
+                string dualDesc = (flBaziScore >= 65 && flZiweiScore >= 60)
+                    ? "八字與紫微兩套系統同時看好這一年，論斷明確成立，此為真正值得全力把握的年份。"
+                    : (flBaziScore < 50 && flZiweiScore < 45)
+                    ? "八字與紫微均顯示壓力，此為真正的考驗期，宜守不宜攻，深蹲蓄力方是上策。"
+                    : flBaziScore >= 65
+                    ? "八字面看好，紫微面有某宮位需留意，整體向好但不宜大意。"
+                    : flZiweiScore >= 60
+                    ? "紫微面有吉星加持，八字運勢稍弱，需借助貴人之力，主動拓展人脈。"
+                    : "八字與紫微均呈中性，本年運勢平穩，守成之年勝過冒進。";
                 string bestStr = bestMonths.Count > 0
                     ? string.Join("、", bestMonths.Take(3).Select(m => monthNames[m - 1]))
                     : "各月平穩";
                 string cautStr = cautionMonths.Count > 0
                     ? string.Join("、", cautionMonths.Take(2).Select(m => monthNames[m - 1]))
                     : "暫無特別需防之月";
-                string taisuiTip = taisuiLevel is "凶" or "小凶"
-                    ? $"本年{taisuiRelation}，順勢調整勝於強行突破，保持靈活應變為宜。"
-                    : taisuiLevel is "吉" or "大吉" or "變動"
-                    ? $"本年{taisuiRelation}，天時相助，宜把握機遇主動出擊。"
-                    : "";
                 sb.AppendLine("【年度總論】");
                 sb.AppendLine($"{year} {flStem}{flBranch}年，這一年對你而言是「{yearTheme}」。");
-                sb.AppendLine($"主要影響集中在{mainInfluence}面向，");
+                sb.AppendLine(baziDim);
+                sb.AppendLine(taisuiDim);
+                if (!string.IsNullOrEmpty(ziweiDim0)) sb.AppendLine(ziweiDim0);
+                sb.AppendLine(dualDesc);
                 sb.AppendLine($"最需把握的月份：{bestStr}；最需留意的月份：{cautStr}。");
-                if (!string.IsNullOrEmpty(taisuiTip)) sb.AppendLine(taisuiTip);
                 sb.AppendLine();
             }
 
@@ -14638,6 +14693,41 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine($"【流年綜合論斷】{DyCrossDesc(flCrossClass, flStemSS, flBranchSS, flBaziScore, flZiweiScore)}");
             sb.AppendLine();
+            // 事件型預測（基於流年四化宮位 + 太歲關係）
+            if (hasZiwei)
+            {
+                var eventLines = new List<string>();
+                string jiPalEv  = KbGetSiHuaPalace(flStem, "化忌",  palaces);
+                string luPalEv  = KbGetSiHuaPalace(flStem, "化祿",  palaces);
+                string quanPalEv = KbGetSiHuaPalace(flStem, "化權", palaces);
+                // 化祿加持
+                if      (luPalEv == "官祿宮") eventLines.Add("事業：今年有升遷、接案或拓展合作的機會，宜主動表現。");
+                else if (luPalEv == "財帛宮") eventLines.Add("財運：正財運順暢，有進帳機會，適合穩健投資規劃。");
+                else if (luPalEv == "夫妻宮") eventLines.Add("感情：感情緣分順暢，單身者桃花機會多，有伴者關係升溫。");
+                else if (luPalEv == "遷移宮") eventLines.Add("外緣：今年外出或異地發展有貴人相助，人脈拓展順利。");
+                // 化權加持
+                if      (quanPalEv == "官祿宮") eventLines.Add("事業：化權入官祿，有掌權或獨當一面的機會，可爭取主導地位。");
+                else if (quanPalEv == "財帛宮") eventLines.Add("財運：財務決策力強，適合主動規劃投資，可掌控財務方向。");
+                // 化忌警示
+                if      (jiPalEv == "財帛宮") eventLines.Add("財務：化忌入財帛，今年需謹慎支出，避免高風險投資或借貸擔保。");
+                else if (jiPalEv == "夫妻宮") eventLines.Add("感情：化忌入夫妻，感情易生誤會或波動，婚事宜緩，多溝通少強硬。");
+                else if (jiPalEv == "疾厄宮") eventLines.Add("健康：化忌入疾厄，今年需特別注意健康，建議定期健檢，勿積勞成疾。");
+                else if (jiPalEv == "官祿宮") eventLines.Add("職場：化忌入官祿，工作壓力偏大，防職場摩擦，不宜貿然跳槽。");
+                else if (jiPalEv == "遷移宮") eventLines.Add("外出：化忌入遷移，出行或異地事務容易遇阻，注意交通安全。");
+                // 太歲事件型
+                if (taisuiRelation is "沖太歲")
+                    eventLines.Add("變動：沖太歲之年，工作、居所或重要人際關係有重大異動跡象，宜主動應對而非被動等待。");
+                else if (taisuiRelation is "刑太歲")
+                    eventLines.Add("法律：刑太歲之年，契約、官司或人際糾紛需謹慎，凡事白紙黑字，減少口頭承諾。");
+                else if (taisuiRelation is "合太歲" && (flStemSS is "食神" or "傷官" || flBranchSS is "食神" or "傷官"))
+                    eventLines.Add("桃花：合太歲加食傷，今年桃花旺，單身者人緣大開，適合主動拓展感情機緣。");
+                if (eventLines.Count > 0)
+                {
+                    sb.AppendLine("【今年值得關注的重點方向】");
+                    foreach (var ev in eventLines) sb.AppendLine($"  · {ev}");
+                    sb.AppendLine();
+                }
+            }
 
             // Ch.3 民間五術加成
             sb.AppendLine("【第三章：流年小限空間與時間影響】");
@@ -14728,6 +14818,49 @@ namespace Ecanapi.Controllers
                 }
             }
 
+            // 五術共鳴統整（Ch.3 末段）
+            {
+                var resonance = new Dictionary<string, int>();
+                void AddRes(string area) { resonance[area] = resonance.GetValueOrDefault(area, 0) + 1; }
+                // 太歲吉凶
+                if (taisuiLevel is "凶" or "小凶")         AddRes("整體運勢承壓");
+                else if (taisuiLevel is "吉" or "大吉" or "變動") AddRes("外在環境順暢");
+                // 八字評分
+                if (flBaziScore < 50)       AddRes("整體運勢承壓");
+                else if (flBaziScore >= 70) AddRes("外在環境順暢");
+                // 紫微化忌/化祿
+                if (hasZiwei)
+                {
+                    string jiPalRes = KbGetSiHuaPalace(flStem, "化忌", palaces);
+                    string luPalRes = KbGetSiHuaPalace(flStem, "化祿", palaces);
+                    if      (jiPalRes is "官祿宮" or "財帛宮") AddRes("事業財運需謹慎");
+                    else if (jiPalRes == "夫妻宮")             AddRes("感情關係需留意");
+                    else if (jiPalRes == "疾厄宮")             AddRes("健康需多保養");
+                    if      (luPalRes is "官祿宮" or "財帛宮") AddRes("事業財運有機會");
+                    else if (luPalRes == "夫妻宮")             AddRes("感情關係有機會");
+                }
+                // 盲派凶神
+                if (blindSect.Contains("喪門") || blindSect.Contains("吊客") || blindSect.Contains("病符"))
+                    AddRes("健康需多保養");
+                if (blindSect.Contains("官符") || blindSect.Contains("朱雀"))
+                    AddRes("事業財運需謹慎");
+                var topRes = resonance.OrderByDescending(kv => kv.Value).ToList();
+                var strongRes = topRes.Where(kv => kv.Value >= 2).ToList();
+                var singleRes = topRes.Where(kv => kv.Value == 1).ToList();
+                sb.AppendLine("【本年五術綜合共鳴】");
+                sb.AppendLine("（統整流年八字、太歲、小限、流星壓運、紫微四化五項驗證）");
+                if (strongRes.Count > 0)
+                {
+                    sb.AppendLine($"多術共鳴重點：{string.Join("、", strongRes.Select(a => a.Key))}");
+                    sb.AppendLine("  上述領域有兩項以上術數同時指向，論斷可信度高，宜特別重視。");
+                }
+                else
+                    sb.AppendLine("本年各術數面向分歧，尚無集中共鳴領域，整體運勢較為平均分散。");
+                if (singleRes.Count > 0)
+                    sb.AppendLine($"觀察（單術指向，供參考）：{string.Join("、", singleRes.Select(a => a.Key))}");
+                sb.AppendLine();
+            }
+
             // Ch.4 春夏秋冬四季
             sb.AppendLine("【第四章：春夏秋冬四季論斷】");
             sb.AppendLine();
@@ -14777,6 +14910,7 @@ namespace Ecanapi.Controllers
                 };
                 sb.AppendLine($"【{monthNames[m.idx-1]}】{m.mStemM}{m.mBranchM}（{m.mSeason}季）  本月運勢：{crossLabel}");
                 sb.AppendLine($"  月建喜忌：天干{m.mStemM}（{mStemElemM}·{mStemSS2}）{mStemCls}{(!string.IsNullOrEmpty(mBrCls) ? $"  地支{m.mBranchM}（{mBrElemM}·{mBrSSM}）{mBrCls}" : "")}");
+                string monthJiPal = "", monthLuPal = "", monthQuanPal = "";
                 if (hasZiwei && YearStemSiHuaMap.TryGetValue(m.mStemM, out var mSiHua))
                 {
                     string[] branchOrd = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
@@ -14802,10 +14936,56 @@ namespace Ecanapi.Controllers
                             int offset = (mingIdxM - starBranchIdx + 12) % 12;
                             string monthPalace = palaceOrd[offset];
                             sb.AppendLine($"  {siHuaLabel}（{starFullName}）入{monthPalace}");
+                            if (siHuaLabel == "月化忌")  monthJiPal   = monthPalace;
+                            if (siHuaLabel == "月化祿")  monthLuPal   = monthPalace;
+                            if (siHuaLabel == "月化權")  monthQuanPal = monthPalace;
                         }
                     }
                 }
-                sb.AppendLine($"  本月提示：{m.tip}");
+                // 本月提示（根據月四化宮位生成，比單純吉凶評語更具體）
+                {
+                    var tipParts = new List<string>();
+                    string luTip = monthLuPal switch {
+                        "官祿宮" => "事業有貴人機緣，宜主動表現與拓展。",
+                        "財帛宮" => "財運進帳機會佳，適合規劃收益。",
+                        "夫妻宮" => "感情互動順暢，有伴者關係升溫，單身者人緣旺。",
+                        "遷移宮" => "外出社交有收穫，人脈拓展順利。",
+                        "福德宮" => "心情愉快，適合享受休閒與充電。",
+                        "田宅宮" => "家宅事務吉祥，適合佈置整理或家人聚會。",
+                        _ => ""
+                    };
+                    string quanTip = (string.IsNullOrEmpty(luTip) && !string.IsNullOrEmpty(monthQuanPal))
+                        ? monthQuanPal switch {
+                            "官祿宮" => "適合爭取主導地位，展現決策力。",
+                            "財帛宮" => "財務規劃力強，主動掌控收支。",
+                            _ => ""
+                        } : "";
+                    string jiTip = monthJiPal switch {
+                        "財帛宮" => "謹慎支出，避免衝動消費或高風險投資。",
+                        "夫妻宮" => "感情易生誤會，溝通需耐心，少爭論。",
+                        "疾厄宮" => "注意身體，作息規律，勿過勞。",
+                        "官祿宮" => "職場壓力偏大，低調行事，避免正面衝突。",
+                        "遷移宮" => "外出注意安全，長途出行宜謹慎。",
+                        "田宅宮" => "家宅事務易有小紛擾，家人互動需多耐心。",
+                        _ => ""
+                    };
+                    if (!string.IsNullOrEmpty(luTip))   tipParts.Add(luTip);
+                    if (!string.IsNullOrEmpty(quanTip)) tipParts.Add(quanTip);
+                    if (!string.IsNullOrEmpty(jiTip))   tipParts.Add(jiTip);
+                    // 若四化無明顯宮位提示，以月份吉凶補充
+                    if (tipParts.Count == 0)
+                    {
+                        string fallback = m.cross switch {
+                            "大吉" => "天時大順，宜積極展開事業、感情、財務規劃。",
+                            "吉"   => "整體向好，把握機會主動行動。",
+                            "小凶" => "宜低調保守，重要決策暫緩。",
+                            "大凶" => "深蹲蓄力，靜待轉機，勿強行突破。",
+                            _      => "平穩推進，按部就班，保持穩定節奏。"
+                        };
+                        tipParts.Add(fallback);
+                    }
+                    sb.AppendLine($"  本月提示：{string.Join(" ", tipParts)}");
+                }
                 sb.AppendLine();
             }
 
@@ -14826,6 +15006,46 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("  此類月份宜低調保守，避免重大決策，注意健康與財務風險。");
             }
             sb.AppendLine();
+            // 年度三大關卡時間節點
+            {
+                var worstMonths = monthlyDetails
+                    .OrderBy(m => m.bazi + m.ziwei)
+                    .Take(3)
+                    .OrderBy(m => m.idx)
+                    .ToList();
+                if (worstMonths.Count > 0)
+                {
+                    sb.AppendLine("【本年值得特別注意的時間節點】");
+                    int gateNo = 1;
+                    string jiPalGate = hasZiwei ? KbGetSiHuaPalace(flStem, "化忌", palaces) : "";
+                    string areaWarn = jiPalGate switch {
+                        "財帛宮" => "財務支出最需謹慎，避免借貸或大額投資",
+                        "夫妻宮" => "感情關係容易激化，保持耐心冷靜為宜",
+                        "疾厄宮" => "身體狀況最需留意，注意舊疾或過勞",
+                        "官祿宮" => "職場人際壓力最大，低調行事避免衝突",
+                        "遷移宮" => "外出與旅行需留意安全，減少不必要出行",
+                        _ => "整體事務宜低調保守，減少重大決策"
+                    };
+                    foreach (var wm in worstMonths.Take(2))
+                    {
+                        string wmStemElem = KbStemToElement(wm.mStemM);
+                        string wmBrMs = LfBranchHiddenRatio.TryGetValue(wm.mBranchM, out var wmBrH) && wmBrH.Count > 0 ? wmBrH[0].stem : "";
+                        string wmBrElem = !string.IsNullOrEmpty(wmBrMs) ? KbStemToElement(wmBrMs) : "";
+                        bool wmStemBad = wmStemElem == jiShenElem;
+                        bool wmBrBad   = wmBrElem   == jiShenElem;
+                        string pressureReason = (wmStemBad && wmBrBad)
+                            ? $"月干月支均屬忌神{jiShenElem}，壓力集中"
+                            : wmStemBad ? $"月干屬忌神{jiShenElem}"
+                            : wmBrBad   ? $"月支屬忌神{jiShenElem}"
+                            : $"整體評分偏低（八字{wm.bazi}·紫微{wm.ziwei}）";
+                        sb.AppendLine($"  第{gateNo}關（{monthNames[wm.idx-1]}）：{pressureReason}，{areaWarn}。");
+                        gateNo++;
+                    }
+                    if (taisuiRelation is "沖太歲" or "刑太歲")
+                        sb.AppendLine($"  全年警示：{taisuiRelation}之年，全年均需留意重大決策，尤其在考驗月份前後要謹慎應對。");
+                    sb.AppendLine();
+                }
+            }
             sb.AppendLine("具體行動建議：");
             sb.AppendLine($"  1. 喜用方位：{LfElemDir(yongShenElem)}  喜用色彩：{LfElemColor(yongShenElem)}");
             sb.AppendLine($"  2. 忌諱方向：{LfElemDir(jiShenElem)}，減少{jiShenElem}屬性人事物接觸");
