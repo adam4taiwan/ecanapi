@@ -11383,8 +11383,9 @@ namespace Ecanapi.Controllers
         var sb = new System.Text.StringBuilder();
         sb.AppendLine();
         sb.AppendLine("=================================================================");
-        sb.AppendLine($"【古法提要】（符合條件共 {total} 條，供專家審閱）");
+        sb.AppendLine("【第十八章：古法提要】");
         sb.AppendLine("=================================================================");
+        sb.AppendLine($"（符合條件共 {total} 條，供專家審閱）");
         sb.AppendLine();
         foreach (var grp in matched)
         {
