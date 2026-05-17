@@ -15179,12 +15179,41 @@ namespace Ecanapi.Controllers
                 }
             }
             sb.AppendLine();
-            sb.AppendLine("▍ 海外發展");
-            sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
-            sb.AppendLine();
-            sb.AppendLine("▍ 天乙貴人方向");
+            // 海外發展：流年逢驛馬 OR 紫微遷移宮化祿/化科，才顯示；否則整節隱藏
             {
-                var tianYiMapLn = new Dictionary<string, string>
+                // 條件1：流年地支是否命中本命驛馬（以年支為基準）
+                string ymaBranch = yBranch switch {
+                    "申" or "子" or "辰" => "寅",
+                    "寅" or "午" or "戌" => "申",
+                    "亥" or "卯" or "未" => "巳",
+                    "巳" or "酉" or "丑" => "亥",
+                    _ => ""
+                };
+                bool flHitYima = !string.IsNullOrEmpty(ymaBranch) && flBranch == ymaBranch;
+                string yimaReason = flHitYima ? $"流年{flBranch}逢本命驛馬，出行外地機緣活躍" : "";
+
+                // 條件2：紫微遷移宮有流年化祿或化科飛入
+                string luPalHW  = hasZiwei ? KbGetSiHuaPalace(flStem, "化祿", palaces) : "";
+                string kePalHW  = hasZiwei ? KbGetSiHuaPalace(flStem, "化科", palaces) : "";
+                bool ziweiFavorTravel = luPalHW == "遷移宮" || kePalHW == "遷移宮";
+                string ziweiReason = ziweiFavorTravel
+                    ? (luPalHW == "遷移宮" ? "流年化祿飛入遷移宮，外出發展有貴人相助" : "流年化科飛入遷移宮，外出發展順利")
+                    : "";
+
+                if (flHitYima || ziweiFavorTravel)
+                {
+                    sb.AppendLine("▍ 海外發展");
+                    var reasons = new[] { yimaReason, ziweiReason }.Where(r => !string.IsNullOrEmpty(r));
+                    sb.AppendLine($"本年外地/出行機緣：{string.Join("；", reasons)}。");
+                    sb.AppendLine(LfHaiWaiAnalysis(yBranch, mBranch, dBranch, hBranch, yongShenElem, jiShenElem, dmElem, hasZiwei, palaces));
+                    sb.AppendLine();
+                }
+                // 兩個條件均不成立 → 本節不顯示
+            }
+
+            // 天乙貴人：以流年天干定天乙，只有天乙地支五行屬喜用才顯示
+            {
+                var tianYiMapFl = new Dictionary<string, string>
                 {
                     {"甲","丑未"},{"戊","丑未"},{"庚","丑未"},
                     {"乙","子申"},{"己","子申"},
@@ -15192,10 +15221,31 @@ namespace Ecanapi.Controllers
                     {"壬","卯巳"},{"癸","卯巳"},
                     {"辛","午寅"}
                 };
-                string tianYiBranchesLn = tianYiMapLn.GetValueOrDefault(dStem, "");
-                sb.AppendLine($"{dStem} 日主，天乙貴人在：{tianYiBranchesLn}（見此地支方位或流年行此地支，貴人助力最強）");
+                string flTianYiBranches = tianYiMapFl.GetValueOrDefault(flStem, "");
+                if (!string.IsNullOrEmpty(flTianYiBranches))
+                {
+                    // 篩選屬喜用五行的天乙地支
+                    var goodTianYi = flTianYiBranches
+                        .Select(c => c.ToString())
+                        .Where(br => {
+                            string brElem = LfBranchElem.GetValueOrDefault(br, "");
+                            return brElem == yongShenElem || brElem == fuYiElem;
+                        })
+                        .ToList();
+
+                    if (goodTianYi.Count > 0)
+                    {
+                        string goodBrStr  = string.Join("、", goodTianYi);
+                        string goodElems  = string.Join("/", goodTianYi.Select(b => LfBranchElem.GetValueOrDefault(b, "")).Distinct());
+                        sb.AppendLine("▍ 本年天乙貴人");
+                        sb.AppendLine($"流年{flStem}年，天乙貴人方位在：{flTianYiBranches}。");
+                        sb.AppendLine($"其中 {goodBrStr} 屬{goodElems}（喜用五行），本年此方位的貴人對你有實質助力。");
+                        sb.AppendLine($"建議主動結交 {goodBrStr} 方向之人脈，或從事與{LfElemCareer(goodElems.Split('/')[0])}相關行業者，可帶來具體機緣。");
+                        sb.AppendLine();
+                    }
+                    // 天乙地支均非喜用 → 本節不顯示
+                }
             }
-            sb.AppendLine();
 
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine($"命理大師：玉洞子 | 流年命書 v1.1 | {year} 年");
