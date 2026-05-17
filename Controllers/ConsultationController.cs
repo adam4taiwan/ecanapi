@@ -14780,7 +14780,7 @@ namespace Ecanapi.Controllers
                         var (pal, desc) = flMap.GetValueOrDefault(shTypes[si], ("", ""));
                         string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : $"入{pal}";
                         string descText = string.IsNullOrEmpty(desc) ? "" : $"：{desc}";
-                        sb.AppendLine($"  {shTypes[si]}（{shStars[si]}星）{palLabel}{descText}");
+                        sb.AppendLine($"  {shTypes[si]}{palLabel}{descText}");
                     }
                 }
                 else
@@ -14788,7 +14788,7 @@ namespace Ecanapi.Controllers
                     for (int si = 0; si < shTypes.Length; si++)
                     {
                         string pal = KbGetSiHuaPalace(flStem, shTypes[si], palaces);
-                        sb.AppendLine($"  {shTypes[si]}（{shStars[si]}星）{(string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : "入" + pal)}");
+                        sb.AppendLine($"  {shTypes[si]}{(string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : "入" + pal)}");
                     }
                 }
             }
@@ -14881,11 +14881,27 @@ namespace Ecanapi.Controllers
                 var sBest = sMths.Where(m => m.cross is "大吉" or "吉").Select(m => monthNames[m.idx-1]).ToList();
                 var sCaut = sMths.Where(m => m.cross is "大凶" or "小凶").Select(m => monthNames[m.idx-1]).ToList();
                 string sYongMatch = (sWang == yongShenElem || sWang == fuYiElem)
-                    ? $"季節{sWang}旺，與用神{yongShenElem}相輔，整體得力。"
-                    : sWang == jiShenElem ? $"季節{sWang}旺，忌神得勢，壓力偏大，需謹慎。"
-                    : $"季節{sWang}旺，對用神{yongShenElem}影響中性。";
+                    ? $"五行格局：{sWang}旺與用神{yongShenElem}相輔，此季整體得力。"
+                    : sWang == jiShenElem ? $"五行格局：{sWang}旺為忌神當令，此季壓力偏大，需謹慎應對。"
+                    : $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，此季平穩行事。";
+                // 各季對應人生面向（年柱=春/父母長輩，月柱=夏/事業財富，日柱=秋/自身配偶，時柱=冬/子女晚輩）
+                string seasonDomain = sName switch {
+                    "春" => "父母長輩與祖業",
+                    "夏" => "事業財運與同儕",
+                    "秋" => "自身健康與配偶",
+                    "冬" => "子女晚輩與財庫",
+                    _    => "人生各面"
+                };
+                string seasonDomainAdvice = sCross switch {
+                    "大吉" => $"本季【{seasonDomain}】有明顯助力，宜積極把握機會。",
+                    "吉"   => $"本季【{seasonDomain}】整體向好，可有所作為。",
+                    "小凶" => $"本季【{seasonDomain}】承壓，宜低調守成，避免重大決策。",
+                    "大凶" => $"本季【{seasonDomain}】壓力較大，以靜制動，深蹲蓄力。",
+                    _      => $"本季【{seasonDomain}】平穩，按部就班維持穩定。"
+                };
                 sb.AppendLine($"【{sName}季】{sRange}（{sWang}旺）  評分：八字{sAvgBazi:F0}·紫微{sAvgZiwei:F0}·綜合【{sCross}】");
-                sb.AppendLine($"  八字面向：{sYongMatch}");
+                sb.AppendLine($"  {seasonDomainAdvice}");
+                sb.AppendLine($"  {sYongMatch}");
                 if (sBest.Count > 0) sb.AppendLine($"  本季佳月：{string.Join("、", sBest)}");
                 if (sCaut.Count > 0) sb.AppendLine($"  本季謹慎：{string.Join("、", sCaut)}");
                 sb.AppendLine();
@@ -14929,7 +14945,6 @@ namespace Ecanapi.Controllers
                         foreach (var (siHuaLabel, starAbbr) in siHuaEntries)
                         {
                             if (string.IsNullOrEmpty(starAbbr)) continue;
-                            string starFullName = LnStarAbbrFull(starAbbr);
                             string palaceNameZiwei = KbFindPalaceByStarAbbr(palaces, starAbbr);
                             if (string.IsNullOrEmpty(palaceNameZiwei)) continue;
                             string starBranch = KbGetPalaceBranch(palaces, palaceNameZiwei);
@@ -14937,56 +14952,57 @@ namespace Ecanapi.Controllers
                             if (starBranchIdx < 0) continue;
                             int offset = (mingIdxM - starBranchIdx + 12) % 12;
                             string monthPalace = palaceOrd[offset];
-                            sb.AppendLine($"  {siHuaLabel}（{starFullName}）入{monthPalace}");
+                            // 不直接輸出星名與宮位術語，僅記錄供本月機緣/注意生成使用
                             if (siHuaLabel == "月化忌")  monthJiPal   = monthPalace;
                             if (siHuaLabel == "月化祿")  monthLuPal   = monthPalace;
                             if (siHuaLabel == "月化權")  monthQuanPal = monthPalace;
                         }
                     }
                 }
-                // 本月提示（根據月四化宮位生成，比單純吉凶評語更具體）
+                // 本月機緣/注意/概況（分開顯示，凶月不顯示正面機緣避免矛盾）
                 {
-                    var tipParts = new List<string>();
-                    string luTip = monthLuPal switch {
+                    bool monthIsBad = m.cross is "小凶" or "大凶";
+                    // 化祿機緣（凶月不顯示，避免與本月運勢矛盾）
+                    string luTip = (!monthIsBad) ? monthLuPal switch {
                         "官祿宮" => "事業有貴人機緣，宜主動表現與拓展。",
-                        "財帛宮" => "財運進帳機會佳，適合規劃收益。",
+                        "財帛宮" => "財運有進帳機會，適合規劃收益。",
                         "夫妻宮" => isSeniorAge ? "夫妻關係融洽，家人相處和諧，適合增進感情。" : "感情互動順暢，有伴者關係升溫，單身者人緣旺。",
                         "遷移宮" => "外出社交有收穫，人脈拓展順利。",
                         "福德宮" => "心情愉快，適合享受休閒與充電。",
                         "田宅宮" => "家宅事務吉祥，適合佈置整理或家人聚會。",
                         _ => ""
-                    };
-                    string quanTip = (string.IsNullOrEmpty(luTip) && !string.IsNullOrEmpty(monthQuanPal))
+                    } : "";
+                    // 化權機緣（只在吉月顯示，避免凶月出現「爭取主導」等矛盾建議）
+                    string quanTip = (!monthIsBad && string.IsNullOrEmpty(luTip) && !string.IsNullOrEmpty(monthQuanPal))
                         ? monthQuanPal switch {
                             "官祿宮" => "適合爭取主導地位，展現決策力。",
                             "財帛宮" => "財務規劃力強，主動掌控收支。",
                             _ => ""
                         } : "";
+                    // 化忌警示（始終顯示，這是最重要的本月提醒）
                     string jiTip = monthJiPal switch {
                         "財帛宮" => "謹慎支出，避免衝動消費或高風險投資。",
-                        "夫妻宮" => "感情易生誤會，溝通需耐心，少爭論。",
+                        "夫妻宮" => isSeniorAge ? "夫妻相處需多耐心，避免因小事起爭執。" : "感情易生誤會，溝通需耐心，少爭論。",
                         "疾厄宮" => "注意身體，作息規律，勿過勞。",
                         "官祿宮" => "職場壓力偏大，低調行事，避免正面衝突。",
                         "遷移宮" => "外出注意安全，長途出行宜謹慎。",
                         "田宅宮" => "家宅事務易有小紛擾，家人互動需多耐心。",
                         _ => ""
                     };
-                    if (!string.IsNullOrEmpty(luTip))   tipParts.Add(luTip);
-                    if (!string.IsNullOrEmpty(quanTip)) tipParts.Add(quanTip);
-                    if (!string.IsNullOrEmpty(jiTip))   tipParts.Add(jiTip);
-                    // 若四化無明顯宮位提示，以月份吉凶補充
-                    if (tipParts.Count == 0)
-                    {
-                        string fallback = m.cross switch {
-                            "大吉" => "天時大順，宜積極展開事業、感情、財務規劃。",
-                            "吉"   => "整體向好，把握機會主動行動。",
-                            "小凶" => "宜低調保守，重要決策暫緩。",
-                            "大凶" => "深蹲蓄力，靜待轉機，勿強行突破。",
-                            _      => "平穩推進，按部就班，保持穩定節奏。"
-                        };
-                        tipParts.Add(fallback);
-                    }
-                    sb.AppendLine($"  本月提示：{string.Join(" ", tipParts)}");
+                    // 月份吉凶概況（凶月必顯示，或四化無命中時顯示）
+                    string fallback = m.cross switch {
+                        "大吉" => "天時大順，宜積極展開事業、感情、財務規劃。",
+                        "吉"   => "整體向好，把握機會主動行動。",
+                        "小凶" => "宜低調保守，重要決策暫緩。",
+                        "大凶" => "深蹲蓄力，靜待轉機，勿強行突破。",
+                        _      => "平穩推進，按部就班，保持穩定節奏。"
+                    };
+                    string goodStr = string.Join(" ", new[] { luTip, quanTip }.Where(s => !string.IsNullOrEmpty(s)));
+                    if (!string.IsNullOrEmpty(goodStr))   sb.AppendLine($"  本月機緣：{goodStr}");
+                    if (!string.IsNullOrEmpty(jiTip))     sb.AppendLine($"  本月注意：{jiTip}");
+                    // 凶月必顯示概況；吉月無四化命中時也顯示概況
+                    if (monthIsBad || string.IsNullOrEmpty(goodStr))
+                        sb.AppendLine($"  本月概況：{fallback}");
                 }
                 sb.AppendLine();
             }
@@ -15056,7 +15072,27 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"  4. 太歲化解：{year} 年{taisuiRelation}，建議安太歲、多行善事、順應變動而非強行抵抗。");
             else if (taisuiLevel is "吉" or "變動")
                 sb.AppendLine($"  4. 太歲加持：{year} 年{taisuiRelation}，善用此年順勢而為，積極展開重要計劃。");
-            sb.AppendLine($"  5. {DyCrossDesc(flCrossClass, flStemSS, flBranchSS, flBaziScore, flZiweiScore)}");
+            // 第5點改為全年關鍵守則（依化忌宮位給出最具體的一條行動準則，不重複前面的論斷文字）
+            {
+                string jiPalRule = hasZiwei ? KbGetSiHuaPalace(flStem, "化忌", palaces) : "";
+                string keyRule = jiPalRule switch {
+                    "財帛宮" => "全年財務守則：謹慎支出為先，避免大額借貸與高風險投資，存錢比賺錢更重要。",
+                    "夫妻宮" => isSeniorAge
+                        ? "全年感情守則：多包容少計較，以家庭和諧為最高優先，避免因小事起爭執影響晚年生活品質。"
+                        : "全年感情守則：多溝通少強硬，誤會未釐清前勿做重大決定，感情急不得。",
+                    "疾厄宮" => "全年健康守則：規律作息，定期健檢，注意舊疾復發，勿積勞成疾，身體是一切的根本。",
+                    "官祿宮" => "全年職場守則：低調行事，避免正面衝突，與上司同事保持良性溝通，是非少開口。",
+                    "遷移宮" => "全年出行守則：減少不必要長途出行，外出活動多留餘裕，注意交通安全及陌生環境。",
+                    "命宮"   => "全年個人守則：凡事留餘地，勿強行突破，保持身心平衡，量力而為。",
+                    "田宅宮" => "全年家宅守則：避免大裝修或房產糾紛，家人關係多溝通，以和為貴，不輕易動搖現有根基。",
+                    "父母宮" => "全年長輩守則：多關心父母或長上健康，文書合約謹慎簽署，職場與長輩相處保持彈性。",
+                    "福德宮" => "全年心態守則：注意情緒管理與睡眠品質，避免鑽牛角尖，適時放鬆充電為先。",
+                    _        => flCrossClass is "大凶" or "小凶"
+                        ? $"全年守則：{flCrossClass}之年，穩中求進，把握佳月主動行動，凶月守成靜待，量力而為。"
+                        : $"全年守則：把握{(bestMonths.Count > 0 ? monthNames[bestMonths[0]-1] : "佳月")}前後的時機，推進年度重要規劃，此為全年最值得行動的窗口期。"
+                };
+                sb.AppendLine($"  5. {keyRule}");
+            }
             sb.AppendLine();
             sb.AppendLine("【本年三大行動目標】");
             {
@@ -15094,6 +15130,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             // === Ch.7 人生警示事項 ===
             sb.AppendLine("【第七章：人生警示事項（先天體質）】");
+            sb.AppendLine("以下為本命先天體質評估，屬終身通用資訊，非本年度專屬論斷。");
+            sb.AppendLine("各子項末段「本年引動」說明，才是本年度需特別留意的具體提示。");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
