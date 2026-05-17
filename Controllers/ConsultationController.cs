@@ -13865,7 +13865,7 @@ namespace Ecanapi.Controllers
                 }
 
                 // 逐月分析
-                string[] monthBranchLabels = { "寅月(約2月)","卯月(約3月)","辰月(約4月)","巳月(約5月)","午月(約6月)","未月(約7月)","申月(約8月)","酉月(約9月)","戌月(約10月)","亥月(約11月)","子月(約12月)","丑月(約1月)" };
+                string[] monthBranchLabels = { "寅月(農曆正月)","卯月(農曆二月)","辰月(農曆三月)","巳月(農曆四月)","午月(農曆五月)","未月(農曆六月)","申月(農曆七月)","酉月(農曆八月)","戌月(農曆九月)","亥月(農曆十月)","子月(農曆十一月)","丑月(農曆十二月)" };
                 var monthlyDetails   = new List<(int idx, string mStemM, string mBranchM, string mSeason, int bazi, int ziwei, string cross, string flowStar, string tip)>();
                 var monthlyForecasts = new List<object>();
                 for (int m = 1; m <= 12; m++)
@@ -14537,7 +14537,7 @@ namespace Ecanapi.Controllers
             bool isYoungAge  = flAge < 35;  // 35歲以下：感情/婚事描述可較明確
             string SS(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
             string wx = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
-            string[] monthNames = { "寅月(2月)","卯月(3月)","辰月(4月)","巳月(5月)","午月(6月)","未月(7月)","申月(8月)","酉月(9月)","戌月(10月)","亥月(11月)","子月(12月)","丑月(1月)" };
+            string[] monthNames = { "寅月(農曆正月)","卯月(農曆二月)","辰月(農曆三月)","巳月(農曆四月)","午月(農曆五月)","未月(農曆六月)","申月(農曆七月)","酉月(農曆八月)","戌月(農曆九月)","亥月(農曆十月)","子月(農曆十一月)","丑月(農曆十二月)" };
             string tuneElem   = season == "冬" ? "火" : season == "夏" ? "水" : "";
             string jiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
 
@@ -14867,10 +14867,10 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第四章：春夏秋冬四季論斷】");
             sb.AppendLine();
             var seasonGroups = new[] {
-                ("春", new[] {1,2,3}, "寅月(2月)~辰月(4月)", "木"),
-                ("夏", new[] {4,5,6}, "巳月(5月)~未月(7月)", "火"),
-                ("秋", new[] {7,8,9}, "申月(8月)~戌月(10月)", "金"),
-                ("冬", new[] {10,11,12}, "亥月(11月)~丑月(1月)", "水"),
+                ("春", new[] {1,2,3}, "寅月(農曆正月)~辰月(農曆三月)", "木"),
+                ("夏", new[] {4,5,6}, "巳月(農曆四月)~未月(農曆六月)", "火"),
+                ("秋", new[] {7,8,9}, "申月(農曆七月)~戌月(農曆九月)", "金"),
+                ("冬", new[] {10,11,12}, "亥月(農曆十月)~丑月(農曆十二月)", "水"),
             };
             foreach (var (sName, mIdxes, sRange, sWang) in seasonGroups)
             {
