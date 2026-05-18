@@ -6187,6 +6187,7 @@ namespace Ecanapi.Controllers
             IReadOnlyDictionary<string, string>? pillarFormulas = null)
         {
             var sb = new StringBuilder();
+            var seenPoetry = new HashSet<string>(); // 詩句去重，避免不同柱出現相同文字
             sb.AppendLine("【第五章：六親論斷】");
 
             // --- 年柱 ---
@@ -6197,8 +6198,8 @@ namespace Ecanapi.Controllers
                 string yBranchTg = !string.IsNullOrEmpty(yBrMs) ? LfStemShiShen(yBrMs, dStem) : "";
                 string jiYStem   = LfPillarStemFormula("年", yStemTg, pillarFormulas);
                 string jiYBranch = LfJianghuSixRel("年支", yBranchTg);
-                if (!string.IsNullOrEmpty(jiYStem))   sb.AppendLine($"  ▍天干：{jiYStem}");
-                if (!string.IsNullOrEmpty(jiYBranch)) sb.AppendLine($"  ▍地支：{jiYBranch}");
+                if (!string.IsNullOrEmpty(jiYStem)   && seenPoetry.Add(jiYStem))   sb.AppendLine($"  ▍天干：{jiYStem}");
+                if (!string.IsNullOrEmpty(jiYBranch) && seenPoetry.Add(jiYBranch)) sb.AppendLine($"  ▍地支：{jiYBranch}");
             }
             string yStemElem = KbStemToElement(yStem);
             string yStemFav  = yStemElem == yongShenElem ? "喜用" : yStemElem == jiShenElem ? "忌神" : "閒神";
@@ -6217,8 +6218,8 @@ namespace Ecanapi.Controllers
                 string mBranchTg = !string.IsNullOrEmpty(mBrMs) ? LfStemShiShen(mBrMs, dStem) : "";
                 string jiMStem   = LfPillarStemFormula("月", mStemTg, pillarFormulas);
                 string jiMBranch = LfJianghuSixRel("月支", mBranchTg);
-                if (!string.IsNullOrEmpty(jiMStem))   sb.AppendLine($"  ▍天干：{jiMStem}");
-                if (!string.IsNullOrEmpty(jiMBranch)) sb.AppendLine($"  ▍地支：{jiMBranch}");
+                if (!string.IsNullOrEmpty(jiMStem)   && seenPoetry.Add(jiMStem))   sb.AppendLine($"  ▍天干：{jiMStem}");
+                if (!string.IsNullOrEmpty(jiMBranch) && seenPoetry.Add(jiMBranch)) sb.AppendLine($"  ▍地支：{jiMBranch}");
             }
             string mStemElem = KbStemToElement(mStem);
             string mStemFav  = mStemElem == yongShenElem ? "喜用" : mStemElem == jiShenElem ? "忌神" : "閒神";
@@ -6270,7 +6271,7 @@ namespace Ecanapi.Controllers
                 string dBrMs  = LfBranchHiddenRatio.TryGetValue(dBranch, out var dbh2) && dbh2.Count > 0 ? dbh2[0].stem : "";
                 string dBrTg  = !string.IsNullOrEmpty(dBrMs) ? LfStemShiShen(dBrMs, dStem) : "";
                 string jiD = LfPillarStemFormula("日", dBrTg, pillarFormulas);
-                if (!string.IsNullOrEmpty(jiD)) sb.AppendLine($"  ▍地支：{jiD}");
+                if (!string.IsNullOrEmpty(jiD) && seenPoetry.Add(jiD)) sb.AppendLine($"  ▍地支：{jiD}");
             }
             string selfDesc = bodyPct >= 55
                 ? "自主能力足，事業主導力強，中年宜主動進取，可開創一番局面"
@@ -6304,8 +6305,8 @@ namespace Ecanapi.Controllers
                 string hBranchTg = !string.IsNullOrEmpty(hBrMs) ? LfStemShiShen(hBrMs, dStem) : "";
                 string jiHStem   = LfPillarStemFormula("時", hStemTg, pillarFormulas);
                 string jiHBranch = LfJianghuSixRel("時支", hBranchTg);
-                if (!string.IsNullOrEmpty(jiHStem))   sb.AppendLine($"  ▍天干：{jiHStem}");
-                if (!string.IsNullOrEmpty(jiHBranch)) sb.AppendLine($"  ▍地支：{jiHBranch}");
+                if (!string.IsNullOrEmpty(jiHStem)   && seenPoetry.Add(jiHStem))   sb.AppendLine($"  ▍天干：{jiHStem}");
+                if (!string.IsNullOrEmpty(jiHBranch) && seenPoetry.Add(jiHBranch)) sb.AppendLine($"  ▍地支：{jiHBranch}");
             }
             string hStemElem = KbStemToElement(hStem);
             string hStemFav  = hStemElem == yongShenElem ? "喜用" : hStemElem == jiShenElem ? "忌神" : "閒神";
@@ -8775,7 +8776,11 @@ namespace Ecanapi.Controllers
                             filteredStarDesc = string.Join("\n", filteredLines).Trim();
                         }
                         if (!string.IsNullOrEmpty(filteredStarDesc))
-                            sb.AppendLine($"▶ 星情特質：{filteredStarDesc}");
+                        {
+                            int dotIdx2 = filteredStarDesc.IndexOf('。');
+                            string firstSentence = dotIdx2 >= 0 ? filteredStarDesc.Substring(0, dotIdx2 + 1) : filteredStarDesc.Split('\n')[0].Trim();
+                            sb.AppendLine($"▶ 星情特質：{firstSentence}");
+                        }
                     }
                     if (!string.IsNullOrEmpty(kbContent))
                         sb.AppendLine($"▶ 特性診斷：{kbContent}");
@@ -10103,22 +10108,6 @@ namespace Ecanapi.Controllers
                 { "金", ("西方、西北", "整潔現代感的住宅，金屬裝潢，客廳簡約利落；白色或銀灰色調，擺放金屬或石材飾品", "東方木質感過重、雜亂零散的環境") },
                 { "水", ("北方", "北方採光或水景設計；藍色或黑色系點綴，可在北方位置擺放水族箱或流水擺件", "南方正對烈日、過度乾燥炎熱的環境") },
             };
-
-            // === 先天住宅原型分析（天干地支類象還原）===
-            sb.AppendLine("【先天住宅原型（四柱天干地支類象）】");
-            sb.AppendLine($"  年柱 {yStem}{yBranch}（出身/祖宅環境）：");
-            sb.AppendLine($"    天干 {yStem}：{stemImage.GetValueOrDefault(yStem, "")}");
-            sb.AppendLine($"    地支 {yBranch}：{branchImage.GetValueOrDefault(yBranch, "")}");
-            sb.AppendLine($"  月柱 {mStem}{mBranch}（成長/父母宅環境）：");
-            sb.AppendLine($"    天干 {mStem}：{stemImage.GetValueOrDefault(mStem, "")}");
-            sb.AppendLine($"    地支 {mBranch}：{branchImage.GetValueOrDefault(mBranch, "")}");
-            sb.AppendLine($"  日柱 {dStem}{dBranch}（本命/配偶宅環境）：");
-            sb.AppendLine($"    天干 {dStem}：{stemImage.GetValueOrDefault(dStem, "")}");
-            sb.AppendLine($"    地支 {dBranch}：{branchImage.GetValueOrDefault(dBranch, "")}");
-            sb.AppendLine($"  時柱 {hStem}{hBranch}（晚年/子女宅環境）：");
-            sb.AppendLine($"    天干 {hStem}：{stemImage.GetValueOrDefault(hStem, "")}");
-            sb.AppendLine($"    地支 {hBranch}：{branchImage.GetValueOrDefault(hBranch, "")}");
-            sb.AppendLine();
 
             // === 用神吉方（最適合居住的方位與環境）===
             sb.AppendLine("【用神吉方（最適合居住的方位與環境）】");
