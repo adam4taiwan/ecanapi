@@ -6960,7 +6960,7 @@ namespace Ecanapi.Controllers
             }
 
             // === 納音論斷 ===
-            var (ch3NaYin, ch5ZodiacDesc) = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
+            var (ch3NaYin, ch5ZodiacDesc) = LfNaYin(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             if (!string.IsNullOrEmpty(ch3NaYin))
             {
                 sb.AppendLine("【納音論斷】");
@@ -8558,7 +8558,7 @@ namespace Ecanapi.Controllers
             }
 
             // === 納音論斷 ===
-            var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mBranch, dStem, dBranch, hBranch);
+            var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             if (!string.IsNullOrEmpty(nayinDesc))
             {
                 sb.AppendLine("【納音論斷】");
@@ -11462,8 +11462,8 @@ namespace Ecanapi.Controllers
 
     // 納音論斷（師傳.doc 七章）
     // yBranch_mBranch => 年生肖x月支; yBranch_dBranch => 年生肖x日支; yBranch_hBranch => 年生肖x時支
-    private static (string nayin, string zodiac) LfNaYin(string yStem, string yBranch, string mBranch,
-                                   string dStem, string dBranch, string hBranch)
+    private static (string nayin, string zodiac) LfNaYin(string yStem, string yBranch, string mStem, string mBranch,
+                                   string dStem, string dBranch, string hStem, string hBranch)
     {
         // 60甲子納音名稱
         var nayin60 = new Dictionary<string, string> {
@@ -12145,14 +12145,33 @@ namespace Ecanapi.Controllers
             sb2.AppendLine();
         }
 
-        // === 日柱納音（與年柱同為納音理論）===
+        // === 月柱納音 ===
+        string mNayin = nayin60.GetValueOrDefault(mStem + mBranch, "");
+        if (!string.IsNullOrEmpty(mNayin))
+        {
+            sb2.AppendLine($"【月柱納音：{mNayin}】");
+            if (nayinCh2.TryGetValue(mStem + mBranch, out var mDesc2) && !string.IsNullOrEmpty(mDesc2))
+                sb2.AppendLine(mDesc2);
+            sb2.AppendLine();
+        }
+
+        // === 日柱納音 ===
         string dNayin = nayin60.GetValueOrDefault(dStem + dBranch, "");
         if (!string.IsNullOrEmpty(dNayin))
         {
             sb2.AppendLine($"【日柱納音：{dNayin}】");
-            // Ch.2: 日柱納音細注
             if (nayinCh2.TryGetValue(dStem + dBranch, out var dDesc2) && !string.IsNullOrEmpty(dDesc2))
                 sb2.AppendLine(dDesc2);
+            sb2.AppendLine();
+        }
+
+        // === 時柱納音 ===
+        string hNayin = nayin60.GetValueOrDefault(hStem + hBranch, "");
+        if (!string.IsNullOrEmpty(hNayin))
+        {
+            sb2.AppendLine($"【時柱納音：{hNayin}】");
+            if (nayinCh2.TryGetValue(hStem + hBranch, out var hDesc2) && !string.IsNullOrEmpty(hDesc2))
+                sb2.AppendLine(hDesc2);
             sb2.AppendLine();
         }
 
