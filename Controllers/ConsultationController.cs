@@ -1146,10 +1146,6 @@ namespace Ecanapi.Controllers
             };
             if (string.IsNullOrEmpty(baseNote)) return "";
 
-            // 加入星曜特性點綴（化祿/化忌 才加，化權/化科 已有方向性）
-            if ((siHuaType == "化祿" || siHuaType == "化忌") && starTrait.TryGetValue(starAbbr, out var trait))
-                baseNote += $"，{(siHuaType == "化祿" ? "帶" : "化")}入{(siHuaType == "化祿" ? "口福" : "壓力")}以{trait.Split('、')[0]}為主";
-
             return baseNote;
         }
 
@@ -14016,8 +14012,18 @@ namespace Ecanapi.Controllers
                     .Where(p => p.Length > 4
                         && !p.StartsWith("倘")
                         && !p.StartsWith("最好")
+                        && !p.StartsWith("如格局")
+                        && !p.StartsWith("如")
                         && !p.Contains("逢沖破")
-                        && !p.Contains("最好該宮"))
+                        && !p.Contains("最好該宮")
+                        && !p.Contains("不主財")
+                        && !p.Contains("不主貴")
+                        && !p.Contains("在財宮不能說")
+                        && !p.Contains("很可惜")
+                        && !p.Contains("喜與命身相合")
+                        && !p.Contains("影響一個人的相貌")
+                        && !p.Contains("奉子命結婚")
+                        && !p.Contains("代溝之象"))
                     .Take(2)
                     .ToList();
                 return kept.Count == 0 ? "" : string.Join("。", kept) + "。";
@@ -14053,7 +14059,7 @@ namespace Ecanapi.Controllers
                 {
                     string eventsNote3 = brEvents3
                         .Replace("六沖", "對沖命局，變動動盪較大")
-                        .Replace("六合", "與命局合化，")
+                        .Replace("六合", "六合，合化")
                         .Replace("三會", "三會局，五行集中，")
                         .Replace("三合", "三合局，")
                         .Replace("三刑", "三刑沖局，是非爭訟健康需注意")
@@ -15039,7 +15045,7 @@ namespace Ecanapi.Controllers
                     // 把技術術語轉成白話
                     string eventsNote = brEvents
                         .Replace("六沖", "對沖命局，變動動盪較大")
-                        .Replace("六合", "與命局合化，")
+                        .Replace("六合", "六合，合化")
                         .Replace("三會", "三會局，五行集中，")
                         .Replace("三合", "三合局，")
                         .Replace("三刑", "三刑沖局，是非爭訟健康需注意")
