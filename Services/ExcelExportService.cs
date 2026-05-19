@@ -173,12 +173,25 @@ namespace Ecanapi.Services
                     var bad = palace.BadStars ?? new List<string>();
                     //var smalls  = palace.SmallStars ?? new List<string>();
 
-                    // 收集所有副星（去重、去空）
+                    // 收集所有副星（去重、去空），同時提取非主星四化標注（如 "曲(忌)" -> "曲" + "忌"）
                     List<string> allAuxStars = new List<string>();
+                    var auxTransChars = new List<string>();
                     foreach (var src in new[] { secondary, good, bad })
                         foreach (var s in src)
-                            if (!string.IsNullOrWhiteSpace(s) && !allAuxStars.Contains(s))
-                                allAuxStars.Add(s);
+                        {
+                            if (string.IsNullOrWhiteSpace(s)) continue;
+                            var m = System.Text.RegularExpressions.Regex.Match(s, @"^(.+)\((.+)\)$");
+                            if (m.Success)
+                            {
+                                var cleanName = m.Groups[1].Value;
+                                if (!allAuxStars.Contains(cleanName)) allAuxStars.Add(cleanName);
+                                auxTransChars.Add(m.Groups[2].Value);
+                            }
+                            else
+                            {
+                                if (!allAuxStars.Contains(s)) allAuxStars.Add(s);
+                            }
+                        }
 
                     // 依重要性排序：P1六吉星 > P2四煞 > P3空亡 > P4雜星
                     var p1 = new HashSet<string> { "左", "右", "昌", "曲", "魁", "鉞" };
@@ -202,8 +215,9 @@ namespace Ecanapi.Services
                     var overflowDisplay = p4Stars.Skip(p4Slots).ToList();
 
                     SetCellValue(sheet, coords.CombinedStars.Row, coords.CombinedStars.Col, string.Join(" ", mainDisplay).Trim());
-
-
+                    // 非主星四化（如 昌/曲 化忌）顯示在 CombinedStars 下方同欄
+                    if (auxTransChars.Count > 0)
+                        SetCellValue(sheet, coords.CombinedStars.Row + 1, coords.CombinedStars.Col, string.Join(" ", auxTransChars));
 
                     for (int i = 0; i < palace.AnnualStarTransformations.Count; i++)
                     {
