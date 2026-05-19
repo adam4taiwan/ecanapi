@@ -22,6 +22,7 @@ namespace Ecanapi.Services
             public List<(int Row, int Col)> AnnualTrans { get; set; } = new List<(int, int)>();
             // public (int Row, int Col) AnnualTrans { get; set; }
             public (int Row, int Col) DoctorStar { get; set; }
+            public (int Row, int Col) OverflowStars { get; set; } // stars 6+ overflow here (DoctorStar col+1)
             public (int Row, int Col) CombinedInfo { get; set; }
             public (int Row, int Col) EarthlyBranch { get; set; }
         }
@@ -129,18 +130,18 @@ namespace Ecanapi.Services
             // 3. 建立十二宮座標地圖 (根據您 `正確.xlsx` 檔案完全重製)
             var coordsMap = new Dictionary<int, PalaceCoords>
             {
-                { 1, new PalaceCoords { PalaceName = (36, 12), DecadeAge = (36, 10), MainStars = new List<(int,int)>{(36, 13), (36, 14)}, Brightness = new List<(int,int)>{(38,13), (37,14)}, CombinedStars = (37, 10), AnnualTrans = new List<(int,int)>{(39,13), (39,14)}, DoctorStar = (39,10), CombinedInfo = (44, 10),EarthlyBranch = (45, 10) } }, // 子
-                { 2, new PalaceCoords { PalaceName = (36, 7), DecadeAge = (36, 5), MainStars = new List<(int,int)>{(36, 8), (36, 9)}, Brightness = new List<(int,int)>{(38,8), (38,9)}, CombinedStars = (37, 5), AnnualTrans = new List<(int,int)>{(39,8), (39,9)}, DoctorStar = (39,5), CombinedInfo = (44, 5),EarthlyBranch = (45, 5) } }, // 丑
-                { 3, new PalaceCoords { PalaceName = (36, 2), DecadeAge = (36, 0), MainStars = new List<(int,int)>{(36, 3), (36, 4)}, Brightness = new List<(int,int)>{(38,3), (38,4)}, CombinedStars = (37, 0), AnnualTrans = new List<(int,int)>{(39,3), (39,4)}, DoctorStar = (39,0), CombinedInfo = (44, 0),EarthlyBranch = (45, 0) } }, // 寅
-                { 4, new PalaceCoords { PalaceName = (26, 2), DecadeAge = (26, 0), MainStars = new List<(int,int)>{(26, 3), (26, 4)}, Brightness = new List<(int,int)>{(28,3), (28,4)}, CombinedStars = (27, 0), AnnualTrans = new List<(int,int)>{(29,3), (29,4)}, DoctorStar = (29,0), CombinedInfo = (34, 0),EarthlyBranch = (35, 0) } }, // 卯
-                { 5, new PalaceCoords { PalaceName = (16, 2), DecadeAge = (16, 0), MainStars = new List<(int,int)>{(16, 3), (16, 4)}, Brightness = new List<(int,int)>{(18,3), (18,4)}, CombinedStars = (17, 0), AnnualTrans = new List<(int,int)>{(19,3), (19,4)}, DoctorStar = (19,0), CombinedInfo = (24, 0),EarthlyBranch = (25, 0) } }, // 辰
-                { 6, new PalaceCoords { PalaceName = (6, 2), DecadeAge = (6, 0), MainStars = new List<(int,int)>{(6, 3), (6, 4)}, Brightness = new List<(int,int)>{(8,3), (8,4)}, CombinedStars = (7, 0), AnnualTrans = new List<(int,int)>{(9,3), (9,4)}, DoctorStar = (9,0), CombinedInfo = (14, 0),EarthlyBranch = (15, 0) } }, // 巳
-                { 7, new PalaceCoords { PalaceName = (6, 7), DecadeAge = (6, 5), MainStars = new List<(int,int)>{(6, 8), (6, 9)}, Brightness = new List<(int,int)>{(8,8), (8,9)}, CombinedStars = (7, 5), AnnualTrans = new List<(int,int)>{(9,8), (9,9)}, DoctorStar = (9,5), CombinedInfo = (14, 5),EarthlyBranch = (15, 5) } }, // 午
-                { 8, new PalaceCoords { PalaceName = (6, 12), DecadeAge = (6, 10), MainStars = new List<(int,int)>{(6, 13), (6, 14)}, Brightness = new List<(int,int)>{(8,13),(8,14)}, CombinedStars = (7, 10), AnnualTrans = new List<(int,int)>{(9,13), (9,14)}, DoctorStar = (9,10), CombinedInfo = (14, 10),EarthlyBranch = (15, 10) } }, // 未
-                { 9, new PalaceCoords { PalaceName = (6, 17), DecadeAge = (6, 15), MainStars = new List<(int,int)>{(6, 18), (6, 19)}, Brightness = new List<(int,int)>{(8,18),(8,19)}, CombinedStars = (7, 15), AnnualTrans = new List<(int,int)>{(9,18), (9,19)}, DoctorStar = (9,15), CombinedInfo = (14, 15),EarthlyBranch = (15, 15) } }, // 申
-                { 10, new PalaceCoords { PalaceName = (16, 17), DecadeAge = (16, 15), MainStars = new List<(int,int)>{(16, 18), (16, 19)}, Brightness = new List<(int,int)>{(18,18),(18,19)}, CombinedStars = (17, 15), AnnualTrans = new List<(int,int)>{(19,18), (19,19)}, DoctorStar = (19,15), CombinedInfo = (24, 15),EarthlyBranch = (25, 15) } }, // 酉
-                { 11, new PalaceCoords { PalaceName = (26, 17), DecadeAge = (26, 15), MainStars = new List<(int,int)>{(26, 18), (26, 19)}, Brightness = new List<(int,int)>{(28,18),(28,19)}, CombinedStars = (27, 15), AnnualTrans = new List<(int,int)>{(29,18), (29,19)}, DoctorStar = (29,15), CombinedInfo = (34, 15),EarthlyBranch = (35, 15) } }, // 戌
-                { 12, new PalaceCoords { PalaceName = (36, 17), DecadeAge = (36, 15), MainStars = new List<(int,int)>{(36, 18), (36, 19)}, Brightness = new List<(int,int)>{(38,18),(38,19)}, CombinedStars = (37, 15), AnnualTrans = new List<(int,int)>{(39,18), (39,19)}, DoctorStar = (39,15), CombinedInfo = (44, 15),EarthlyBranch = (45, 15) } } // 亥
+                { 1, new PalaceCoords { PalaceName = (36, 12), DecadeAge = (36, 10), MainStars = new List<(int,int)>{(36, 13), (36, 14)}, Brightness = new List<(int,int)>{(38,13), (37,14)}, CombinedStars = (37, 10), AnnualTrans = new List<(int,int)>{(39,13), (39,14)}, DoctorStar = (39,10), OverflowStars = (39,11), CombinedInfo = (44, 10),EarthlyBranch = (45, 10) } }, // 子
+                { 2, new PalaceCoords { PalaceName = (36, 7), DecadeAge = (36, 5), MainStars = new List<(int,int)>{(36, 8), (36, 9)}, Brightness = new List<(int,int)>{(38,8), (38,9)}, CombinedStars = (37, 5), AnnualTrans = new List<(int,int)>{(39,8), (39,9)}, DoctorStar = (39,5), OverflowStars = (39,6), CombinedInfo = (44, 5),EarthlyBranch = (45, 5) } }, // 丑
+                { 3, new PalaceCoords { PalaceName = (36, 2), DecadeAge = (36, 0), MainStars = new List<(int,int)>{(36, 3), (36, 4)}, Brightness = new List<(int,int)>{(38,3), (38,4)}, CombinedStars = (37, 0), AnnualTrans = new List<(int,int)>{(39,3), (39,4)}, DoctorStar = (39,0), OverflowStars = (39,1), CombinedInfo = (44, 0),EarthlyBranch = (45, 0) } }, // 寅
+                { 4, new PalaceCoords { PalaceName = (26, 2), DecadeAge = (26, 0), MainStars = new List<(int,int)>{(26, 3), (26, 4)}, Brightness = new List<(int,int)>{(28,3), (28,4)}, CombinedStars = (27, 0), AnnualTrans = new List<(int,int)>{(29,3), (29,4)}, DoctorStar = (29,0), OverflowStars = (29,1), CombinedInfo = (34, 0),EarthlyBranch = (35, 0) } }, // 卯
+                { 5, new PalaceCoords { PalaceName = (16, 2), DecadeAge = (16, 0), MainStars = new List<(int,int)>{(16, 3), (16, 4)}, Brightness = new List<(int,int)>{(18,3), (18,4)}, CombinedStars = (17, 0), AnnualTrans = new List<(int,int)>{(19,3), (19,4)}, DoctorStar = (19,0), OverflowStars = (19,1), CombinedInfo = (24, 0),EarthlyBranch = (25, 0) } }, // 辰
+                { 6, new PalaceCoords { PalaceName = (6, 2), DecadeAge = (6, 0), MainStars = new List<(int,int)>{(6, 3), (6, 4)}, Brightness = new List<(int,int)>{(8,3), (8,4)}, CombinedStars = (7, 0), AnnualTrans = new List<(int,int)>{(9,3), (9,4)}, DoctorStar = (9,0), OverflowStars = (9,1), CombinedInfo = (14, 0),EarthlyBranch = (15, 0) } }, // 巳
+                { 7, new PalaceCoords { PalaceName = (6, 7), DecadeAge = (6, 5), MainStars = new List<(int,int)>{(6, 8), (6, 9)}, Brightness = new List<(int,int)>{(8,8), (8,9)}, CombinedStars = (7, 5), AnnualTrans = new List<(int,int)>{(9,8), (9,9)}, DoctorStar = (9,5), OverflowStars = (9,6), CombinedInfo = (14, 5),EarthlyBranch = (15, 5) } }, // 午
+                { 8, new PalaceCoords { PalaceName = (6, 12), DecadeAge = (6, 10), MainStars = new List<(int,int)>{(6, 13), (6, 14)}, Brightness = new List<(int,int)>{(8,13),(8,14)}, CombinedStars = (7, 10), AnnualTrans = new List<(int,int)>{(9,13), (9,14)}, DoctorStar = (9,10), OverflowStars = (9,11), CombinedInfo = (14, 10),EarthlyBranch = (15, 10) } }, // 未
+                { 9, new PalaceCoords { PalaceName = (6, 17), DecadeAge = (6, 15), MainStars = new List<(int,int)>{(6, 18), (6, 19)}, Brightness = new List<(int,int)>{(8,18),(8,19)}, CombinedStars = (7, 15), AnnualTrans = new List<(int,int)>{(9,18), (9,19)}, DoctorStar = (9,15), OverflowStars = (9,16), CombinedInfo = (14, 15),EarthlyBranch = (15, 15) } }, // 申
+                { 10, new PalaceCoords { PalaceName = (16, 17), DecadeAge = (16, 15), MainStars = new List<(int,int)>{(16, 18), (16, 19)}, Brightness = new List<(int,int)>{(18,18),(18,19)}, CombinedStars = (17, 15), AnnualTrans = new List<(int,int)>{(19,18), (19,19)}, DoctorStar = (19,15), OverflowStars = (19,16), CombinedInfo = (24, 15),EarthlyBranch = (25, 15) } }, // 酉
+                { 11, new PalaceCoords { PalaceName = (26, 17), DecadeAge = (26, 15), MainStars = new List<(int,int)>{(26, 18), (26, 19)}, Brightness = new List<(int,int)>{(28,18),(28,19)}, CombinedStars = (27, 15), AnnualTrans = new List<(int,int)>{(29,18), (29,19)}, DoctorStar = (29,15), OverflowStars = (29,16), CombinedInfo = (34, 15),EarthlyBranch = (35, 15) } }, // 戌
+                { 12, new PalaceCoords { PalaceName = (36, 17), DecadeAge = (36, 15), MainStars = new List<(int,int)>{(36, 18), (36, 19)}, Brightness = new List<(int,int)>{(38,18),(38,19)}, CombinedStars = (37, 15), AnnualTrans = new List<(int,int)>{(39,18), (39,19)}, DoctorStar = (39,15), OverflowStars = (39,16), CombinedInfo = (44, 15),EarthlyBranch = (45, 15) } } // 亥
             };
 
             foreach (var palace in chartData.palaces)
@@ -172,26 +173,34 @@ namespace Ecanapi.Services
                     var bad = palace.BadStars ?? new List<string>();
                     //var smalls  = palace.SmallStars ?? new List<string>();
 
-                    // 過濾空與重複（維持原來順序）
+                    // 收集所有副星（去重、去空）
                     List<string> allAuxStars = new List<string>();
-                    void AddIfValid(IEnumerable<string> items)
-                    {
-                        foreach (var s in items)
-                        {
-                            if (string.IsNullOrWhiteSpace(s)) continue;
-                            if (!allAuxStars.Contains(s)) allAuxStars.Add(s);
-                        }
+                    foreach (var src in new[] { secondary, good, bad })
+                        foreach (var s in src)
+                            if (!string.IsNullOrWhiteSpace(s) && !allAuxStars.Contains(s))
+                                allAuxStars.Add(s);
+
+                    // 依重要性排序：P1六吉星 > P2四煞 > P3空亡 > P4雜星
+                    var p1 = new HashSet<string> { "左", "右", "昌", "曲", "魁", "鉞" };
+                    var p2 = new HashSet<string> { "陀", "羊", "火", "鈴" };
+                    var p3 = new HashSet<string> { "旬", "截", "空", "劫" };
+                    int StarPriority(string s) {
+                        var c = s.Length > 0 ? s[..1] : "";
+                        if (p1.Contains(c)) return 1;
+                        if (p2.Contains(c)) return 2;
+                        if (p3.Contains(c)) return 3;
+                        return 4;
                     }
+                    var sorted = allAuxStars.OrderBy(StarPriority).ToList();
 
-                    // 凶星(bad)排首位確保旬空等重要凶星不被格寬截斷；再放副星、吉星
-                    AddIfValid(bad);
-                    AddIfValid(secondary);
-                    AddIfValid(good);
-                    //AddIfValid(smalls);
+                    // 前5顆寫入 CombinedStars，第6顆起寫入 OverflowStars（博士星旁空格）
+                    const int MaxMainStars = 5;
+                    var mainDisplay = sorted.Take(MaxMainStars).ToList();
+                    var overflowDisplay = sorted.Skip(MaxMainStars).ToList();
 
-                    // 最終文字
-                    string auxText = string.Join(" ", allAuxStars).Trim();
-                    SetCellValue(sheet, coords.CombinedStars.Row, coords.CombinedStars.Col, auxText);
+                    SetCellValue(sheet, coords.CombinedStars.Row, coords.CombinedStars.Col, string.Join(" ", mainDisplay).Trim());
+                    if (overflowDisplay.Count > 0)
+                        SetCellValue(sheet, coords.OverflowStars.Row, coords.OverflowStars.Col, string.Join(" ", overflowDisplay).Trim());
 
 
 
