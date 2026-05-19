@@ -13331,7 +13331,8 @@ namespace Ecanapi.Controllers
                 string daiyunStem, string daiyunBranch,
                 int baziScore, int ziweiScore, string crossClass,
                 string flStemSS, string flBranchSS)> annualDetails,
-            string yongShenElem, string jiShenElem, string stage)
+            string yongShenElem, string jiShenElem, string stage,
+            string pattern, string dmElem, int gender)
         {
             var sb = new StringBuilder();
             sb.AppendLine("【第六章：流年重點年份】");
@@ -13340,25 +13341,92 @@ namespace Ecanapi.Controllers
             var bestYears   = annualDetails.Where(a => a.crossClass is "大吉" or "吉").OrderByDescending(a => a.baziScore + a.ziweiScore).Take(3).ToList();
             var badYears    = annualDetails.Where(a => a.crossClass is "大凶" or "小凶").OrderBy(a => a.baziScore + a.ziweiScore).Take(3).ToList();
             var normalYears = annualDetails.Where(a => a.crossClass == "平").ToList();
+            bool isMaleKY   = gender == 1;
+            var kyElemOrgan = new Dictionary<string, string>
+            {
+                {"木","肝膽、筋骨"}, {"火","心臟、血壓"}, {"土","脾胃、腸道"},
+                {"金","肺部、氣管"}, {"水","腎臟、泌尿"}
+            };
+            string kyOrgan = kyElemOrgan.GetValueOrDefault(jiShenElem, "定期健檢");
 
             if (bestYears.Count > 0)
             {
                 sb.AppendLine("▍ 黃金年份（積極把握）");
                 foreach (var y in bestYears)
                 {
-                    string actionHint = stage switch
-                    {
-                        "teen"   => "學業突破、貴人提攜的黃金機會",
-                        "young"  => "事業升遷、感情推進、置產投資的最佳時機",
-                        "adult"  => "事業鞏固、財富積累、子女成就顯現的好年",
-                        "middle" => "財庫穩固、子女承歡、安享成果的吉年",
-                        _        => "健康平安、子孫和睦的吉年"
-                    };
                     sb.AppendLine($"  {y.year} 年（{y.flStem}{y.flBranch}，{y.age}歲）【{y.crossClass}】");
-                    string bDesc = y.baziScore >= 70 ? $"流年{y.flStemSS}為喜用，八字有力助運" : $"流年{y.flStemSS}與命局配合順暢";
-                    string zDesc = y.ziweiScore >= 68 ? "紫微吉曜臨宮，外部機遇良好" : "紫微宮位穩定有利";
-                    sb.AppendLine($"  {bDesc}；{zDesc}。");
-                    sb.AppendLine($"  此年是{actionHint}，宜主動出擊、大膽佈局。");
+
+                    // 事業
+                    string careerKY = y.flStemSS switch
+                    {
+                        "正官" => "官職晉升、考試通關、職位強化的最佳年，公職或大企業管理職可積極爭取",
+                        "七殺" => "衝勁最強的一年，挑戰性任務或競爭型職位可大膽出擊，突破阻礙",
+                        "食神" => "才藝與技術發光，作品展示、技術突破或業績亮眼，創作型工作大有發揮",
+                        "傷官" => "突破舊框架、換舞台的最佳時機，創業或轉入需要特殊才能的領域更亮眼",
+                        "偏財" => "業務衝刺、廣結人脈、拓展新市場的最佳年份，異地或跨行合作機會多",
+                        "正財" => "穩健薪資成長明顯，評估加薪或升遷，實質財富積累最有力的一年",
+                        "正印" => "獲得貴人推薦、師長助力最強，進修或取得認證大有收穫，升遷有望",
+                        "偏印" => "研究鑽研、偏門專業有突破，貴人引薦與推薦機會出現，偏門路線開花",
+                        "比肩" => "合夥共事、人脈整合有利，同儕互助擴大影響力，合作項目有成",
+                        "劫財" => "積極開拓新機會，偏財型收入與意外機遇明顯，勇於嘗試",
+                        _      => "事業整體推進順利，是主動出擊的最佳年份"
+                    };
+                    string stageCareerKY = stage switch
+                    {
+                        "teen"   => "（學業方向：積極備考、爭取競賽名次、奠定未來基礎）",
+                        "young"  => "（職業方向：全力衝刺升遷或創業，此年是人生重要節點）",
+                        "adult"  => "（事業方向：擴大版圖或確立管理地位，留下代表性成就）",
+                        "middle" => "（職涯方向：完成重要里程碑，鞏固資歷與傳承）",
+                        _        => "（安享成果，保持輕鬆節奏）"
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerKY}{stageCareerKY}");
+
+                    // 感情（非 elder）
+                    if (stage != "elder")
+                    {
+                        bool loveStarKY = isMaleKY
+                            ? (y.flStemSS is "正財" or "偏財")
+                            : (y.flStemSS is "正官" or "七殺");
+                        string loveKY;
+                        if (loveStarKY)
+                            loveKY = isMaleKY
+                                ? $"財星（妻星）流年，感情婚緣訊號最強，此年遇到心儀對象宜主動出擊，單身者有明顯的脫單機會，已婚者夫妻感情升溫"
+                                : $"官星（夫星）流年，正緣機率高，婚緣訊號明顯，此年是推進婚事或確立關係的黃金時機";
+                        else
+                            loveKY = stage switch
+                            {
+                                "young" => "感情可順勢推進，非婚緣主旋律年，但遇到對的人勿錯過",
+                                "adult" => "婚姻關係穩定，宜多安排夫妻共同時光，增進感情深度",
+                                _       => "感情平順有利，緣分到時自然成熟"
+                            };
+                        sb.AppendLine($"    ▸ 感情：{loveKY}");
+                    }
+
+                    // 財務
+                    string wealthKY;
+                    if (y.flStemSS is "正財" or "偏財")
+                        wealthKY = "財星流年，進財最旺，評估置產、穩健投資或擴大財庫的首選年份，可啟動重大財務計畫";
+                    else
+                        wealthKY = stage switch
+                        {
+                            "teen"   => "獎學金或兼職收入機會增加，建立理財觀念的好時機",
+                            "young"  => "薪資增長明顯，可開始系統理財或評估首次置產時機",
+                            "adult"  => "財庫穩固，可進行中長期投資規劃或提前還貸",
+                            "middle" => "整頓資產、規劃傳承安排的好年，可進行財富重新配置",
+                            _        => "財運平穩有餘，維持現有配置即可"
+                        };
+                    sb.AppendLine($"    ▸ 財務：{wealthKY}");
+
+                    // 子女（young/adult）
+                    if (stage is "young" or "adult")
+                    {
+                        bool shishangKY = y.flStemSS is "食神" or "傷官";
+                        string childKY = shishangKY
+                            ? (isMaleKY ? "食傷流年，子女緣動，有利生育計畫或孩子有亮眼表現，家庭添丁吉年"
+                                        : "食傷流年（女命食傷為子女星），子女緣最旺，生育或子女成就的吉年")
+                            : (stage == "young" ? "子女方面按計畫推進，若有生育意願此年時機平順" : "子女成長順利，給予支持空間，可見到子女好成績");
+                        sb.AppendLine($"    ▸ 子女：{childKY}");
+                    }
                     sb.AppendLine();
                 }
             }
@@ -13368,19 +13436,53 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("▍ 需謹慎年份（守成防範）");
                 foreach (var y in badYears)
                 {
-                    string riskHint = stage switch
-                    {
-                        "teen"   => "學業受阻、情緒起伏，宜調整心態",
-                        "young"  => "防財務損耗、感情波折、職場是非",
-                        "adult"  => "防投資失利、健康問題、婚姻摩擦",
-                        "middle" => "防詐騙破財、身體關卡、家庭紛爭",
-                        _        => "防健康突發、財產糾紛，多休養少勞累"
-                    };
                     sb.AppendLine($"  {y.year} 年（{y.flStem}{y.flBranch}，{y.age}歲）【{y.crossClass}】");
-                    string bDesc2 = y.baziScore < 50 ? $"流年{y.flStemSS}觸動忌神，行事易有阻滯" : $"流年{y.flStemSS}帶來一定壓力";
-                    string zDesc2 = y.ziweiScore < 45 ? "紫微凶曜干擾，外部壓力偏大" : "紫微宮位有雜，需留意外部變數";
-                    sb.AppendLine($"  {bDesc2}；{zDesc2}。");
-                    sb.AppendLine($"  此年{riskHint}，宜低調守成、避免重大決策。");
+
+                    // 事業
+                    string careerBadKY = y.flStemSS switch
+                    {
+                        "正官" or "七殺" => "職場壓力大，上司管控或是非多，宜守紀律低調，防官非或被動離職",
+                        "傷官" => "口舌是非增多，易與上司起衝突，謹言慎行，暫緩轉職或公開對立",
+                        "劫財" or "比肩" => "同業競爭激烈，合夥是非多，宜獨立作業，謹慎選擇合作對象",
+                        _ => "事業有阻，守成為主，暫緩重大職業決策，低調蓄勢"
+                    };
+                    string stageCareerBadKY = stage switch
+                    {
+                        "teen"   => "（學業需格外專注，心態調整比努力更重要）",
+                        "young"  => "（職場暫緩冒進，鞏固現有位置為優先）",
+                        "adult"  => "（守住現有事業基盤，不擴張、不冒進）",
+                        "middle" => "（低調行事，防晚年職場風險）",
+                        _        => ""
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerBadKY}{stageCareerBadKY}");
+
+                    // 感情（非 elder）
+                    if (stage != "elder")
+                    {
+                        bool loveBadStarKY = isMaleKY
+                            ? (y.flStemSS is "正財" or "偏財")
+                            : (y.flStemSS is "正官" or "七殺");
+                        string loveBadKY = loveBadStarKY
+                            ? (isMaleKY
+                                ? "財星引動但屬忌神，感情最易有波折，已婚者防口角冷戰，未婚者不宜衝動論及婚嫁"
+                                : "官星引動但屬忌神，感情壓力偏大，防感情生變或與伴侶摩擦加劇，已婚者多包容")
+                            : stage switch
+                            {
+                                "young" => "感情宜平穩維繫，不宜此年強求大進展，保持良好溝通最重要",
+                                "adult" => "夫妻相處宜多包容，防中年壓力波及感情，宜多陪伴",
+                                _       => "感情以平穩為主，不必強求"
+                            };
+                        sb.AppendLine($"    ▸ 感情：{loveBadKY}");
+                    }
+
+                    // 財務
+                    string wealthBadKY = (y.flStemSS is "正財" or "偏財")
+                        ? "財星引動但屬忌神，財務是最大壓力點，嚴禁投機、大額借貸或擴張，嚴防詐騙破財"
+                        : "財務宜全面收緊開銷，大型投資計畫暫緩，防財務陷阱與意外支出";
+                    sb.AppendLine($"    ▸ 財務：{wealthBadKY}");
+
+                    // 健康（凶年必列）
+                    sb.AppendLine($"    ▸ 健康：此年壓力偏大，{kyOrgan}更需定期檢查，維持規律作息，避免積勞成疾");
                     sb.AppendLine();
                 }
             }
@@ -13389,7 +13491,7 @@ namespace Ecanapi.Controllers
             {
                 sb.AppendLine("▍ 平穩年份（穩健推進）");
                 sb.AppendLine($"  {string.Join("、", normalYears.Select(y => $"{y.year}年（{y.flStem}{y.flBranch}）"))}");
-                sb.AppendLine("  以上年份八字與紫微均屬中性平穩，適合按部就班、穩健推進既有計畫，勿躁進，厚積薄發。");
+                sb.AppendLine("  以上年份八字與紫微均屬中性平穩，適合按部就班、厚積薄發，勿躁進，靜待黃金年份再大舉展開。");
             }
 
             return sb.ToString();
@@ -13607,19 +13709,145 @@ namespace Ecanapi.Controllers
                         }
                     }
                 }
-                // 交叉結論
+                // 交叉結論（分項論斷）
                 var lcAnnuals = annualDetails.Where(a => a.age >= lc.startAge && a.age < lc.endAge).ToList();
                 if (lcAnnuals.Count > 0)
                 {
                     int baziGoodCnt  = lcAnnuals.Count(a => a.baziScore >= 70);
                     int ziweiGoodCnt = lcAnnuals.Count(a => a.ziweiScore >= 68);
                     int total        = lcAnnuals.Count;
-                    string crossConclusion = (baziGoodCnt >= total / 2 && ziweiGoodCnt >= total / 2)
-                        ? $"整體而言，此段大運八字喜用與紫微星盤均傾向有利，是難得的雙向加持階段，建議主動把握機遇、積極部署。"
-                        : (baziGoodCnt < total / 3 && ziweiGoodCnt < total / 3)
-                        ? $"整體而言，此段大運八字忌神與紫微均有壓力，宜全面守成，靜待下一個好運週期，切勿強行衝刺。"
-                        : $"整體而言，此段大運八字與紫微有一強一弱，需視個別流年判斷進退，不宜一概而論，黃金年份積極、壓力年份收守。";
-                    sb.AppendLine($"  【交叉結論】{crossConclusion}");
+                    bool dyGood = baziGoodCnt >= total / 2 && ziweiGoodCnt >= total / 2;
+                    bool dyBad  = baziGoodCnt < total / 3  && ziweiGoodCnt < total / 3;
+                    string crossTone = dyGood ? "八字與紫微雙向有利，此段屬難得的順境，宜主動積極布局。"
+                        : dyBad ? "八字忌神與紫微均有壓力，此段屬逆境，宜全面守成，待機而動。"
+                        : "八字與紫微一強一弱，需視流年精準選時，吉年積極，凶年收守。";
+                    sb.AppendLine($"  【交叉結論】{crossTone}");
+
+                    // 事業
+                    bool dmIsGuan = pattern.Contains("官");
+                    bool dmIsShiShang = pattern.Contains("食") || pattern.Contains("傷");
+                    string careerType = dmIsGuan ? "管理或公職" : dmIsShiShang ? "技術或創作" : "業務或財務";
+                    string careerLine;
+                    if (dyGood)
+                    {
+                        careerLine = lcSS switch
+                        {
+                            "正官" => $"官職晉升機會明顯，{careerType}方向可積極爭取升遷或管理職",
+                            "七殺" => $"衝勁最強，競爭型職務大放異彩，{careerType}方向有突破機會",
+                            "食神" => $"才藝技術發光，技術或創作型工作機會多，{careerType}最有利",
+                            "傷官" => $"突破舊框架時機到，轉職或創業可認真評估，{careerType}有亮眼機會",
+                            "偏財" => $"業務拓展、廣結人脈有利，新市場新客戶可主動開發，{careerType}回報豐厚",
+                            "正財" => $"穩健努力必有收穫，薪資穩步增長，深耕現職或爭取加薪升遷最穩妥",
+                            "正印" => $"貴人助力強，推薦與進修機會大增，長輩師長緣好，{careerType}深耕有利",
+                            "偏印" => $"偏門專業有突破，貴人引薦機會增加，{careerType}研究鑽研有成",
+                            "比肩" => $"人脈合作助力大，同業整合有利，{careerType}合夥共事可創造加乘效果",
+                            "劫財" => $"積極開拓新機遇，破舊立新，{careerType}偏財型機會可大膽把握",
+                            _      => $"事業整體推進順利，{careerType}方向是最佳發力點"
+                        };
+                    }
+                    else if (dyBad)
+                    {
+                        careerLine = lcSS switch
+                        {
+                            "正官" or "七殺" => "職場壓力與管控明顯，宜守紀律低調行事，防職場是非與官司",
+                            "傷官" => "口舌是非增多，易與上司衝突，暫緩轉職，宜謹言慎行",
+                            "劫財" or "比肩" => "同業競爭激烈，合夥易生是非，宜獨立作業，謹慎選擇合作對象",
+                            _ => "事業推進阻力偏大，守成為主，避免重大職業異動"
+                        };
+                    }
+                    else
+                    {
+                        careerLine = $"事業穩步推進，{careerType}按部就班即可，靜待明確機會再大舉展開";
+                    }
+                    string stageCareerHint = stage switch
+                    {
+                        "teen"   => dyGood ? "（學業考試有貴人助力，積極備考）" : "（學業需加倍用功，勿分心）",
+                        "young"  => dyGood ? "（確立職業方向的黃金期，全力衝刺）" : "（暫勿衝動跳槽或貿然創業）",
+                        "adult"  => dyGood ? "（可進一步擴大版圖或衝刺管理層）" : "（守住基盤比擴張更重要）",
+                        "middle" => dyGood ? "（完成職涯最後重要布局）" : "（以穩定交棒守成為主）",
+                        _        => ""
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerLine}{stageCareerHint}");
+
+                    // 感情婚姻（非 elder 顯示）
+                    if (stage != "elder")
+                    {
+                        bool isMaleCC = gender == 1;
+                        bool loveStarActive = isMaleCC ? (lcSS is "正財" or "偏財") : (lcSS is "正官" or "七殺");
+                        string loveLine;
+                        if (loveStarActive && lcStemGood)
+                            loveLine = isMaleCC
+                                ? "此段財星（妻星）大運引動且喜用，感情婚緣訊號強烈，遇心儀對象宜主動表態，已婚者夫妻感情升溫"
+                                : "此段官星（夫星）大運引動且喜用，正緣機率高，婚緣訊號明顯，有利推進婚事或確立關係";
+                        else if (loveStarActive && lcStemBad)
+                            loveLine = isMaleCC
+                                ? "此段財星（妻星）大運引動但屬忌神，感情易有波折，已婚者宜多溝通防摩擦，未婚者不宜勉強推進"
+                                : "此段官星（夫星）大運引動但屬忌神，感情婚姻壓力偏大，防感情生變，婚事宜緩";
+                        else if (dyGood)
+                            loveLine = stage switch
+                            {
+                                "young" => "整體順境有利感情發展，遇到對的人可順勢推進，緣分到時水到渠成",
+                                "adult" => "婚姻關係整體穩定，宜多陪伴與溝通，增進夫妻感情品質",
+                                _       => "感情平穩有利，隨緣自然推進"
+                            };
+                        else
+                            loveLine = dyBad
+                                ? "此段整體壓力大，感情宜平穩維繫，防因外部壓力波及感情關係"
+                                : "感情平穩，緣分到時水到渠成";
+                        sb.AppendLine($"    ▸ 感情：{loveLine}");
+                    }
+
+                    // 財運
+                    bool caiStarActiveCC = lcSS is "正財" or "偏財";
+                    string wealthLine;
+                    if (caiStarActiveCC && lcStemGood)
+                        wealthLine = "此段財星大運直接引動且喜用，進財最旺，是置產或穩健投資的最佳時機";
+                    else if (caiStarActiveCC && lcStemBad)
+                        wealthLine = "此段財星大運引動但屬忌神，財務是最大壓力點，嚴禁投機或大額借貸，嚴防破財";
+                    else if (dyGood)
+                        wealthLine = stage switch
+                        {
+                            "teen"   => "財運整體有利，獎學金或額外收入機會增加",
+                            "young"  => "薪資穩步增長，可評估置產時機或開始系統理財計畫",
+                            "adult"  => "財庫穩固，中長期財務規劃是重點，防守並進",
+                            "middle" => "財庫守護良好，宜整頓資產並規劃傳承安排",
+                            _        => "財運平穩，夠用有餘，量入為出"
+                        };
+                    else
+                        wealthLine = dyBad
+                            ? "此段財務壓力偏大，宜收緊開銷、保守理財，大型投資計畫暫緩，防財務陷阱"
+                            : "財運平穩，按部就班累積，不必躁進，靜待財運高峰期";
+                    sb.AppendLine($"    ▸ 財運：{wealthLine}");
+
+                    // 健康
+                    var ccElemOrgan = new Dictionary<string, string>
+                    {
+                        {"木","肝膽、筋骨、視力"}, {"火","心臟、血管、血壓"},
+                        {"土","脾胃、腸道、消化"}, {"金","肺、氣管、皮膚、呼吸系統"},
+                        {"水","腎臟、膀胱、泌尿系統"}
+                    };
+                    string ccOrgan = ccElemOrgan.GetValueOrDefault(jiShenElem, "定期健檢各器官");
+                    string healthSuffixCC = dyBad ? "，此段壓力偏大，更需嚴格執行定期健康檢查" : "，平時養成良好保健習慣最重要";
+                    sb.AppendLine($"    ▸ 健康：命局忌神為{jiShenElem}，先天弱點在{ccOrgan}{healthSuffixCC}");
+
+                    // 子女（young/adult）
+                    if (stage is "young" or "adult")
+                    {
+                        bool shishangGood = (lcSS is "食神" or "傷官") && lcStemGood;
+                        bool shishangBad  = (lcSS is "食神" or "傷官") && lcStemBad;
+                        string childLine;
+                        if (shishangGood)
+                            childLine = gender == 1
+                                ? "食傷大運引動且喜用，子女緣深，此段是生育的好時機，孩子資質佳"
+                                : "食傷大運引動且喜用（女命食傷為子女星），子女緣深，有利生育或子女有亮眼表現";
+                        else if (shishangBad)
+                            childLine = "此段食傷受制，子女緣份或親子溝通需多費心，宜耐心陪伴，多關心子女動態";
+                        else
+                            childLine = stage == "young"
+                                ? "子女緣視個人選擇，若有生育計畫，先確認財務與感情穩定後再安排"
+                                : "子女步入獨立成長階段，宜給予充分空間，支持而非過度管控";
+                        sb.AppendLine($"    ▸ 子女：{childLine}");
+                    }
                 }
                 sb.AppendLine();
             }
@@ -13671,7 +13899,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // === Ch.6 流年重點年份（新模式）===
-            sb.Append(DyBuildKeyYearsSection(annualDetails, yongShenElem, jiShenElem, stage));
+            sb.Append(DyBuildKeyYearsSection(annualDetails, yongShenElem, jiShenElem, stage, pattern, dmElem, gender));
             sb.AppendLine();
 
             // === Ch.7 趨吉避凶行動建議 ===
