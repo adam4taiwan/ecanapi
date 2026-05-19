@@ -193,10 +193,13 @@ namespace Ecanapi.Services
                     }
                     var sorted = allAuxStars.OrderBy(StarPriority).ToList();
 
-                    // 前5顆寫入 CombinedStars，第6顆起寫入 OverflowStars（博士星旁空格）
-                    const int MaxMainStars = 5;
-                    var mainDisplay = sorted.Take(MaxMainStars).ToList();
-                    var overflowDisplay = sorted.Skip(MaxMainStars).ToList();
+                    // P1+P2+P3 全部進 CombinedStars，P4 雜星補到 5 格，其餘溢出
+                    const int MaxP4InMain = 5;
+                    var mainDisplay = sorted.Where(s => StarPriority(s) < 4).ToList();
+                    var p4Stars = sorted.Where(s => StarPriority(s) == 4).ToList();
+                    int p4Slots = Math.Max(0, MaxP4InMain - mainDisplay.Count);
+                    mainDisplay.AddRange(p4Stars.Take(p4Slots));
+                    var overflowDisplay = p4Stars.Skip(p4Slots).ToList();
 
                     SetCellValue(sheet, coords.CombinedStars.Row, coords.CombinedStars.Col, string.Join(" ", mainDisplay).Trim());
                     if (overflowDisplay.Count > 0)
