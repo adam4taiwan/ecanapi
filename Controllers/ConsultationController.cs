@@ -14007,6 +14007,22 @@ namespace Ecanapi.Controllers
                 _ => ""
             };
 
+            // 清理紫微 KB 原始文字：移除條件式備註、不完整句、內部術語
+            string CleanZiweiDesc(string raw)
+            {
+                if (string.IsNullOrEmpty(raw)) return raw;
+                var kept = raw.Split('。')
+                    .Select(p => p.Trim().TrimEnd('，').Trim())
+                    .Where(p => p.Length > 4
+                        && !p.StartsWith("倘")
+                        && !p.StartsWith("最好")
+                        && !p.Contains("逢沖破")
+                        && !p.Contains("最好該宮"))
+                    .Take(2)
+                    .ToList();
+                return kept.Count == 0 ? "" : string.Join("。", kept) + "。";
+            }
+
             foreach (var d in annualDetails)
             {
                 bool isGoodYear = d.crossClass is "大吉" or "吉";
@@ -14082,7 +14098,8 @@ namespace Ecanapi.Controllers
                         string palLabel3 = string.IsNullOrEmpty(pal3) ? "（命盤未含此星）"
                             : string.IsNullOrEmpty(decadePal3) ? $"入{pal3}"
                             : $"入{pal3}（大限{decadePal3}）";
-                        string descText3 = string.IsNullOrEmpty(desc3) ? "" : $"：{desc3}";
+                        string cleanDesc3 = CleanZiweiDesc(desc3);
+                        string descText3 = string.IsNullOrEmpty(cleanDesc3) ? "" : $"：{cleanDesc3}";
                         string decadeNote3 = string.IsNullOrEmpty(decadePal3) ? ""
                             : DyGetDecadeSiHuaNote(flStars3[si], flShTypes3[si], decadePal3);
                         string decadeNoteText3 = string.IsNullOrEmpty(decadeNote3) ? ""
@@ -14333,12 +14350,12 @@ namespace Ecanapi.Controllers
                 bool lcStemGood3 = lcStemElem3 == yongShenElem || lcStemElem3 == fuYiElem;
                 bool lcStemBad3  = lcStemElem3 == jiShenElem;
                 string stemTrend3 = lcStemGood3 ? "屬喜用" : lcStemBad3 ? "屬忌神" : "屬中性";
-                string lcBaseTone3 = lcLevel3 switch
-                {
-                    "大吉" or "吉" => "整體屬順境，適合積極推進人生大計。",
-                    "平"           => "整體屬平穩期，宜鞏固基礎，蓄勢待發。",
-                    _              => "整體壓力偏大，以守成低調為主旋律。"
-                };
+                // lcBaseTone3 與 dyGood3/dyBad3 使用相同條件，確保不矛盾
+                string lcBaseTone3 = lcLevel3 is "大吉" or "吉" or "中吉"
+                    ? "整體屬順境，適合積極推進人生大計。"
+                    : lcLevel3 is "大凶" or "凶" or "小凶"
+                    ? "整體壓力偏大，以守成低調為主旋律。"
+                    : "整體吉凶各半，需精準選年，吉年積極出手，凶年低調蓄勢。";
                 sb.AppendLine($"▍ {lc.startAge}-{lc.endAge} 歲  大運：{lc.stem}{lc.branch}（{lcSS3}·{lcBSS3}）");
                 sb.AppendLine($"  {lcBaseTone3}");
                 sb.AppendLine();
