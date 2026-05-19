@@ -4201,7 +4201,16 @@ namespace Ecanapi.Controllers
                         decadeKbMap[br] = await KbZiweiQueryByBranch(ziweiPos, br);
                 }
 
-                string report = v == 2
+                string report = v == 3
+                    ? DyBuildReport_V3(
+                        yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                        yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
+                        dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
+                        pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
+                        luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
+                        ziweiFullContent, chartStars, decadeKbMap,
+                        gender, birthYear, years, branches, dStem)
+                    : v == 2
                     ? DyBuildReport_V2(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                         yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -13952,6 +13961,621 @@ namespace Ecanapi.Controllers
 
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 大運命書 v2.0");
+            return sb.ToString();
+        }
+
+        // v3 Ch.6：完整逐年分析（八字面向 + 紫微面向 + 分類綜合論斷）
+        private static string DyBuildCh6_AnnualFull(
+            List<(int year, int age, string flStem, string flBranch,
+                string daiyunStem, string daiyunBranch,
+                int baziScore, int ziweiScore, string crossClass,
+                string flStemSS, string flBranchSS)> annualDetails,
+            bool hasZiwei, JsonElement palaces,
+            Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
+            string yongShenElem, string fuYiElem, string jiShenElem,
+            string dmElem, int gender, string stage, string pattern,
+            string dStemRef, string[] chartStems, string[] branches, string[] branchSSArr,
+            string dStem, string dBranch)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("【第六章：流年逐年分析】");
+            sb.AppendLine();
+            string[] dayEmpty3 = LfCalcDayEmpty(dStem, dBranch);
+            bool isMaleV3 = gender == 1;
+            bool dmIsGuanV3 = pattern.Contains("官");
+            bool dmIsShiShangV3 = pattern.Contains("食") || pattern.Contains("傷");
+            string careerTypeV3 = dmIsGuanV3 ? "管理或公職" : dmIsShiShangV3 ? "技術或創作" : "業務或財務";
+            var v3ElemOrgan = new Dictionary<string, string>
+            {
+                {"木","肝膽、筋骨"}, {"火","心臟、血壓"}, {"土","脾胃、腸道"},
+                {"金","肺部、氣管"}, {"水","腎臟、泌尿"}
+            };
+            string v3Organ = v3ElemOrgan.GetValueOrDefault(jiShenElem, "定期健檢");
+
+            string DyStemNote3(string ss, bool good, bool bad) => ss switch
+            {
+                "比肩" => good ? "自立奮發，同輩合作有利" : bad ? "競爭耗力，防同輩財務糾紛" : "有合作機會，需防競爭",
+                "劫財" => good ? "積極進取，有偏財機遇" : bad ? "破財競爭，防財務損耗" : "有活動能量，謹慎理財",
+                "食神" => good ? "才藝展現，口福豐盛，子女緣佳" : bad ? "耗洩過度，精力分散" : "創作機會多，留意體力",
+                "傷官" => good ? "才華外露，適合突破創新" : bad ? "口舌是非多，防官司" : "有創意但需謹言慎行",
+                "偏財" => good ? "偏財旺，廣結善緣，父緣異性緣佳" : bad ? "財來財去，防詐騙" : "有財機，宜保守理財",
+                "正財" => good ? "財運穩固，努力有回報" : bad ? "財庫受壓，勞而少收" : "財務平穩，踏實耕耘",
+                "七殺" => good ? "壓力化動力，可建功立業" : bad ? "官非壓力大，防意外衝突" : "有競爭壓力，保持冷靜",
+                "正官" => good ? "名聲提升，升遷機會，婚緣顯現" : bad ? "規範束縛，防小人是非" : "職場有規範，守分則吉",
+                "偏印" => good ? "偏門學習，貴人助力，靈感豐富" : bad ? "思路偏執，防孤立" : "適合研究進修",
+                "正印" => good ? "長輩庇蔭，學業晉升，心靈沉穩" : bad ? "依賴心重，行動力不足" : "宜進修學習，穩健前行",
+                _ => ""
+            };
+
+            foreach (var d in annualDetails)
+            {
+                bool isGoodYear = d.crossClass is "大吉" or "吉";
+                bool isBadYear  = d.crossClass is "大凶" or "小凶";
+
+                sb.AppendLine($"【{d.year}年】流年：{d.flStem}{d.flBranch}  {d.age}歲  大運：{d.daiyunStem}{d.daiyunBranch}  【{d.crossClass}】");
+                sb.AppendLine();
+
+                // 八字面向
+                sb.AppendLine("  ▍ 八字面向");
+                string flStemElem3 = KbStemToElement(d.flStem);
+                string flBrMs3 = LfBranchHiddenRatio.TryGetValue(d.flBranch, out var flBrh3) && flBrh3.Count > 0 ? flBrh3[0].stem : "";
+                string flBrElem3 = !string.IsNullOrEmpty(flBrMs3) ? KbStemToElement(flBrMs3) : "";
+                bool stemGood3 = flStemElem3 == yongShenElem || flStemElem3 == fuYiElem;
+                bool stemBad3  = flStemElem3 == jiShenElem;
+                bool brGood3   = flBrElem3 == yongShenElem || flBrElem3 == fuYiElem;
+                bool brBad3    = flBrElem3 == jiShenElem;
+                string stemCls3 = stemBad3 ? "X（大忌）" : stemGood3 ? "○（喜用）" : "△（中性）";
+                string brCls3   = string.IsNullOrEmpty(flBrElem3) ? "△（中性）"
+                    : brBad3 ? "X（大忌）" : brGood3 ? "○（喜用）" : "△（中性）";
+                string stemNote3 = DyStemNote3(d.flStemSS, stemGood3, stemBad3);
+                string brNote3   = !string.IsNullOrEmpty(d.flBranchSS) ? DyStemNote3(d.flBranchSS, brGood3, brBad3) : "";
+                sb.AppendLine($"  流年天干 {d.flStem}（{d.flStemSS}·{stemCls3}）{(string.IsNullOrEmpty(stemNote3) ? "" : "：" + stemNote3)}");
+                if (!string.IsNullOrEmpty(flBrElem3))
+                    sb.AppendLine($"  流年地支 {d.flBranch}（{d.flBranchSS}·{brCls3}）{(string.IsNullOrEmpty(brNote3) ? "" : "：" + brNote3)}");
+                string brEvents3 = LfBranchEvents(d.flBranch, branches);
+                if (!string.IsNullOrEmpty(brEvents3))
+                {
+                    string eventsNote3 = brEvents3
+                        .Replace("六沖", "對沖命局，變動動盪較大")
+                        .Replace("六合", "與命局合化，")
+                        .Replace("三會", "三會局，五行集中，")
+                        .Replace("三合", "三合局，")
+                        .Replace("三刑", "三刑沖局，是非爭訟健康需注意")
+                        .Replace("六害", "暗中阻礙，人際摩擦需留意")
+                        .Replace("六破", "事情有始無終，防財物耗損");
+                    sb.AppendLine($"  歲君互動：{eventsNote3}");
+                }
+                string lnStep3 = LfLnYearAnalysis(
+                    d.flStem, d.flBranch, d.year, LfBranchZodiac.GetValueOrDefault(d.flBranch, ""),
+                    dStemRef, chartStems, branches, branchSSArr,
+                    yongShenElem, jiShenElem, dayEmpty3,
+                    dayunBranch: d.daiyunBranch, skipHeader: true);
+                if (!string.IsNullOrEmpty(lnStep3)) sb.AppendLine(lnStep3);
+                sb.AppendLine();
+
+                // 紫微面向
+                sb.AppendLine("  ▍ 紫微面向");
+                if (hasZiwei && YearStemSiHuaMap.TryGetValue(d.flStem, out var siHua3))
+                {
+                    string decadeMingBr3 = DyGetDecadeMingBranch(palaces, d.age);
+                    string[] flShTypes3 = { "化祿", "化權", "化科", "化忌" };
+                    string[] flStars3   = { siHua3.lu, siHua3.quan, siHua3.ke, siHua3.ji };
+                    int[] priority3 = { 0, 3, 1, 2 }; // 化祿優先，化忌次之
+                    bool hasDesc3 = siHuaDescMap.TryGetValue(d.flStem, out var flDyMap3);
+                    foreach (int si in priority3)
+                    {
+                        string pal3 = "", desc3 = "";
+                        if (hasDesc3)
+                        {
+                            (string palace, string desc) pd = flDyMap3!.GetValueOrDefault(flShTypes3[si], ("", ""));
+                            pal3 = pd.palace; desc3 = pd.desc;
+                        }
+                        else
+                            pal3 = KbGetSiHuaPalace(d.flStem, flShTypes3[si], palaces);
+                        if (!string.IsNullOrEmpty(pal3) && LfShouldSkipPalace(pal3, d.age)) continue;
+                        string decadePal3 = "";
+                        if (!string.IsNullOrEmpty(pal3) && !string.IsNullOrEmpty(decadeMingBr3))
+                        {
+                            string starBr3 = KbGetBranchByPalaceName(palaces, pal3);
+                            decadePal3 = DyGetDecadePalaceName(starBr3, decadeMingBr3);
+                        }
+                        string palLabel3 = string.IsNullOrEmpty(pal3) ? "（命盤未含此星）"
+                            : string.IsNullOrEmpty(decadePal3) ? $"入{pal3}"
+                            : $"入{pal3}（大限{decadePal3}）";
+                        string descText3 = string.IsNullOrEmpty(desc3) ? "" : $"：{desc3}";
+                        string decadeNote3 = string.IsNullOrEmpty(decadePal3) ? ""
+                            : DyGetDecadeSiHuaNote(flStars3[si], flShTypes3[si], decadePal3);
+                        string decadeNoteText3 = string.IsNullOrEmpty(decadeNote3) ? ""
+                            : $"\n    ↳ 大限{decadePal3}：{decadeNote3}。";
+                        sb.AppendLine($"  {flShTypes3[si]}（{flStars3[si]}）{palLabel3}{descText3}{decadeNoteText3}");
+                    }
+                }
+                else if (!hasZiwei && YearStemSiHuaMap.TryGetValue(d.flStem, out var siHuaB3))
+                    sb.AppendLine($"  （無紫微資料）流年四化：化祿（{siHuaB3.lu}）、化忌（{siHuaB3.ji}）");
+                sb.AppendLine();
+
+                // 綜合論斷（分類）
+                sb.AppendLine("  ▍ 綜合論斷");
+                if (isGoodYear)
+                {
+                    string careerGoodV3 = d.flStemSS switch
+                    {
+                        "正官" => $"官職晉升、考試通關最佳年，{careerTypeV3}可積極爭取升遷",
+                        "七殺" => $"衝勁最強，競爭型職務可大膽出擊，{careerTypeV3}有突破機會",
+                        "食神" => $"才藝技術發光，創作展示或業績亮眼，{careerTypeV3}最有利",
+                        "傷官" => $"轉職或創業的好時機，突破舊框架，{careerTypeV3}有亮眼機會",
+                        "偏財" => $"業務衝刺、廣結人脈最佳年，新市場新客戶可主動開發",
+                        "正財" => $"穩健薪資成長，評估加薪升遷，實質財富積累最有力的一年",
+                        "正印" => $"貴人推薦師長助力最強，進修或取認證大有收穫，升遷有望",
+                        "偏印" => $"偏門專業有突破，貴人引薦機會出現，{careerTypeV3}深耕有成",
+                        "比肩" => $"合夥共事、人脈整合有利，{careerTypeV3}同儕互助擴大影響力",
+                        "劫財" => $"積極開拓新機會，偏財型收入與意外機遇明顯",
+                        _      => $"事業整體推進順利，{careerTypeV3}是最佳發力點"
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerGoodV3}");
+                    if (stage != "elder")
+                    {
+                        bool loveStarV3G = isMaleV3 ? (d.flStemSS is "正財" or "偏財") : (d.flStemSS is "正官" or "七殺");
+                        string loveGoodV3 = loveStarV3G
+                            ? (isMaleV3 ? "財星（妻星）流年，感情婚緣訊號最強，遇心儀對象宜主動出擊，已婚者夫妻感情升溫"
+                                        : "官星（夫星）流年，正緣機率高，此年最適合推進婚事或確立關係")
+                            : stage switch
+                            {
+                                "young" => "感情可順勢推進，緣分到時勿錯過",
+                                "adult" => "婚姻穩定，宜多安排夫妻共同時光，增進感情深度",
+                                _       => "感情平順有利，隨緣推進"
+                            };
+                        sb.AppendLine($"    ▸ 感情：{loveGoodV3}");
+                    }
+                    string wealthGoodV3 = (d.flStemSS is "正財" or "偏財")
+                        ? "財星流年，進財最旺，評估置產、穩健投資或擴大財庫的首選年份"
+                        : stage switch
+                        {
+                            "teen"   => "獎學金或兼職收入機會增加",
+                            "young"  => "薪資增長明顯，可開始系統理財或評估首次置產",
+                            "adult"  => "財庫穩固，中長期投資規劃或提前還貸的好時機",
+                            "middle" => "整頓資產、規劃傳承的好年",
+                            _        => "財運平穩有餘，維持現有配置"
+                        };
+                    sb.AppendLine($"    ▸ 財務：{wealthGoodV3}");
+                }
+                else if (isBadYear)
+                {
+                    string careerBadV3 = d.flStemSS switch
+                    {
+                        "正官" or "七殺" => "職場壓力大，上司管控是非多，守紀律低調，防官非或被動離職",
+                        "傷官" => "口舌是非增多，易與上司衝突，謹言慎行，暫緩轉職",
+                        "劫財" or "比肩" => "同業競爭激烈，合夥是非多，宜獨立作業，謹慎選合作對象",
+                        _ => "事業有阻，守成為主，暫緩重大職業決策"
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerBadV3}");
+                    if (stage != "elder")
+                    {
+                        bool loveBadStarV3 = isMaleV3 ? (d.flStemSS is "正財" or "偏財") : (d.flStemSS is "正官" or "七殺");
+                        string loveBadV3 = loveBadStarV3
+                            ? (isMaleV3 ? "財星引動但屬忌神，感情最易有波折，已婚防口角冷戰，未婚不宜衝動論婚"
+                                        : "官星引動但屬忌神，感情壓力大，防感情生變或婚姻摩擦加劇")
+                            : stage switch
+                            {
+                                "young" => "感情宜平穩維繫，不宜此年強求大進展",
+                                "adult" => "夫妻相處宜多包容，防壓力波及感情",
+                                _       => "感情平穩為主，不必強求"
+                            };
+                        sb.AppendLine($"    ▸ 感情：{loveBadV3}");
+                    }
+                    string wealthBadV3 = (d.flStemSS is "正財" or "偏財")
+                        ? "財星引動但屬忌神，財務最大壓力點，嚴禁投機大額借貸，防詐騙破財"
+                        : "財務宜全面收緊，大型投資暫緩，防財務陷阱與意外支出";
+                    sb.AppendLine($"    ▸ 財務：{wealthBadV3}");
+                    sb.AppendLine($"    ▸ 健康：此年壓力偏大，{v3Organ}更需定期檢查，維持規律作息，避免積勞成疾");
+                }
+                else
+                {
+                    sb.AppendLine($"    此年八字與紫微均屬平穩，按部就班推進既有計畫，靜待黃金年份再大舉展開。");
+                }
+                sb.AppendLine();
+                sb.AppendLine("  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -");
+                sb.AppendLine();
+            }
+            return sb.ToString();
+        }
+
+        // v3 整合報告：舊版完整逐年 + 新版分類結構
+        private static string DyBuildReport_V3(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yStemSS, string mStemSS, string hStemSS,
+            string yBranchSS, string mBranchSS, string dBranchSS, string hBranchSS,
+            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string bodyLabel,
+            string season, string seaLabel, string pattern,
+            string yongShenElem, string fuYiElem, string yongReason, string jiShenElem,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge)> luckCycles,
+            List<(int year, int age, string flStem, string flBranch,
+                string daiyunStem, string daiyunBranch,
+                int baziScore, int ziweiScore, string crossClass,
+                string flStemSS, string flBranchSS)> annualDetails,
+            bool hasZiwei, JsonElement palaces,
+            Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
+            string ziweiFullContent, HashSet<string> chartStars,
+            Dictionary<string, string> decadeKbMap,
+            int gender, int birthYear, int years, string[] branches, string dStemRef)
+        {
+            var sb = new StringBuilder();
+            string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
+            string yearsLabel = years == 0 ? "終身" : $"{years} 年";
+            int startYear = annualDetails.Count > 0 ? annualDetails[0].year : DateTime.Today.Year;
+            int endYear   = annualDetails.Count > 0 ? annualDetails[^1].year : startYear;
+            int startAge  = annualDetails.Count > 0 ? annualDetails[0].age : DateTime.Today.Year - birthYear;
+            string stage  = DyGetLifeStage(startAge);
+            int nowAge    = DateTime.Today.Year - birthYear;
+
+            sb.AppendLine("=================================================================");
+            sb.AppendLine("                         大 運 命 書");
+            sb.AppendLine("=================================================================");
+            sb.AppendLine();
+
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  第一章：格局與用神判定");
+            sb.AppendLine("  第二章：命主概況與格局");
+            sb.AppendLine("  第三章：大運干支雙向論斷");
+            sb.AppendLine("  第四章：人生階段重點分析");
+            sb.AppendLine("  第五章：健康、意外與貴人警示");
+            sb.AppendLine("  第六章：流年逐年分析");
+            sb.AppendLine("  第七章：趨吉避凶行動建議");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine();
+
+            // Ch.1 格局與用神判定
+            sb.AppendLine("【第一章：格局與用神判定】");
+            string v3TuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+            string v3JiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+            sb.AppendLine($"格局：【{pattern}】");
+            sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）");
+            sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
+            if (fuYiElem != yongShenElem)
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+            if (!string.IsNullOrEmpty(v3TuneElem) && v3TuneElem != yongShenElem && v3TuneElem != fuYiElem)
+                sb.AppendLine($"調候喜神：【{v3TuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
+            sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
+            if (!string.IsNullOrEmpty(v3JiYongElem) && v3JiYongElem != jiShenElem)
+                sb.AppendLine($"次忌(△忌)：{v3JiYongElem}（克用神{yongShenElem}，力道較輕）");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine();
+            sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v3TuneElem, dStemRef, branches));
+            sb.AppendLine();
+
+            // Ch.2 命主概況
+            sb.AppendLine("【第二章：命主概況與格局】");
+            string SS3(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
+            string wx3 = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
+            sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
+            sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
+            sb.AppendLine($"十神：年干{SS3(yStemSS)} 年支{SS3(yBranchSS)} 月干{SS3(mStemSS)} 月支{SS3(mBranchSS)} 時干{SS3(hStemSS)} 時支{SS3(hBranchSS)}");
+            sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}  日主{bodyLabel}（{bodyPct:F0}%）");
+            sb.AppendLine($"用神：{yongShenElem}  忌神：{jiShenElem}  五行：{wx3}");
+            sb.AppendLine($"分析期間：{startYear} 至 {endYear} 年（{yearsLabel}大運命書）");
+            var curLC3 = luckCycles.FirstOrDefault(lc => nowAge >= lc.startAge && nowAge < lc.endAge);
+            if (!string.IsNullOrEmpty(curLC3.stem))
+            {
+                string curLCSS3  = LfStemShiShen(curLC3.stem, dStemRef);
+                string curLCBMs3 = LfBranchHiddenRatio.TryGetValue(curLC3.branch, out var lcBh3) && lcBh3.Count > 0 ? lcBh3[0].stem : "";
+                string curLCBSS3 = !string.IsNullOrEmpty(curLCBMs3) ? LfStemShiShen(curLCBMs3, dStemRef) : "";
+                sb.AppendLine($"當前大運：{curLC3.stem}{curLC3.branch}（天干{curLCSS3}·地支{curLCBSS3}），{curLC3.startAge}-{curLC3.endAge} 歲");
+            }
+            sb.AppendLine();
+
+            // Ch.3 大運干支雙向論斷
+            sb.AppendLine("【第三章：大運干支雙向論斷】");
+            string[] branchSSArr3 = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+            string[] dyChartStems3 = { yStem, mStem, dStemRef, hStem };
+            string[] dyPillarBranches3 = { yBranch, mBranch, dBranch, hBranch };
+            string[] dyDayEmpty3 = LfCalcDayEmpty(dStem, dBranch);
+            string[] dyTiaoHouList3 = LfTiaoHou.TryGetValue(dStemRef, out var dyTh3) && dyTh3.TryGetValue(mBranch, out var dyTh3b)
+                ? dyTh3b : Array.Empty<string>();
+            string dyTiaoHouElem3 = dyTiaoHouList3.Length > 0 ? KbStemToElement(dyTiaoHouList3[0]) : "";
+            var coveredLucks3 = luckCycles.Where(lc =>
+                annualDetails.Any(a => a.age >= lc.startAge && a.age < lc.endAge)).ToList();
+            if (coveredLucks3.Count == 0) coveredLucks3 = luckCycles.Take(2).ToList();
+            int minAnalysisAge3 = annualDetails.Count > 0 ? annualDetails.Min(a => a.age) : int.MinValue;
+            int maxAnalysisAge3 = annualDetails.Count > 0 ? annualDetails.Max(a => a.age) : int.MaxValue;
+
+            foreach (var lc in coveredLucks3)
+            {
+                string lcSS3  = LfStemShiShen(lc.stem, dStemRef);
+                string lcBMs3 = LfBranchHiddenRatio.TryGetValue(lc.branch, out var lcBH3) && lcBH3.Count > 0 ? lcBH3[0].stem : "";
+                string lcBSS3 = !string.IsNullOrEmpty(lcBMs3) ? LfStemShiShen(lcBMs3, dStemRef) : "";
+                int lcScore3  = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                    dmElem, bodyPct > 50, dyTiaoHouElem3, season, branches, dyChartStems3, dStemRef);
+                string lcLevel3 = LfLuckLevel(lcScore3);
+                string lcStemElem3 = KbStemToElement(lc.stem);
+                bool lcStemGood3 = lcStemElem3 == yongShenElem || lcStemElem3 == fuYiElem;
+                bool lcStemBad3  = lcStemElem3 == jiShenElem;
+                string stemTrend3 = lcStemGood3 ? "屬喜用" : lcStemBad3 ? "屬忌神" : "屬中性";
+                string lcBaseTone3 = lcLevel3 switch
+                {
+                    "大吉" or "吉" => "整體屬順境，適合積極推進人生大計。",
+                    "平"           => "整體屬平穩期，宜鞏固基礎，蓄勢待發。",
+                    _              => "整體壓力偏大，以守成低調為主旋律。"
+                };
+                sb.AppendLine($"▍ {lc.startAge}-{lc.endAge} 歲  大運：{lc.stem}{lc.branch}（{lcSS3}·{lcBSS3}）");
+                sb.AppendLine($"  {lcBaseTone3}");
+                sb.AppendLine();
+                string lcStemEventDesc3 = lcSS3 switch
+                {
+                    "比肩" => lcStemGood3 ? "自立奮發，同輩互助，合夥共事有利。" : "競爭耗力，同輩牽制，宜各自獨立、防糾紛。",
+                    "劫財" => lcStemGood3 ? "積極進取，破舊立新，有偏財機遇。" : "財務競爭激烈，宜防破財耗損、合夥是非，戒投機冒進。",
+                    "食神" => lcStemGood3 ? "才藝展現，口福豐盛，子女緣佳，事業創作機會多。" : "耗洩過度，精力分散，需節制，防止才華難以變現。",
+                    "傷官" => lcStemGood3 ? "才華外露，技術精進，適合創業突破舊局。" : "口舌是非多，易與上司對立，宜修身謙遜、防官司。",
+                    "偏財" => lcStemGood3 ? "偏財運旺，父緣異性緣佳，廣結善緣有助財源。" : "財來財去，易衝動破財，宜謹慎理財、防詐騙。",
+                    "正財" => lcStemGood3 ? "財運穩固，努力必有回報，婚姻穩定，適合穩健投資。" : "財庫受壓，勞而收穫有限，宜節流、保守理財。",
+                    "七殺" => lcStemGood3 ? "壓力化為動力，可建功立業，適合競爭激烈的環境。" : "官非壓力大，健康情緒易受損，宜守成、防意外與衝突。",
+                    "正官" => lcStemGood3 ? "名聲地位提升，升遷機會大，婚緣顯現。" : "規範束縛感強，職場壓力重，宜守紀律、防小人是非。",
+                    "偏印" => lcStemGood3 ? "偏門學習進修，貴人助力，靈感豐富，適合研究鑽研。" : "思路偏執，食傷受制，宜廣納意見、防孤立封閉。",
+                    "正印" => lcStemGood3 ? "印綬護身，學業晉升，長輩庇蔭，心靈沉穩有力。" : "依賴心重，行動力不足，宜主動出擊、防過度保守。",
+                    _ => ""
+                };
+                if (!string.IsNullOrEmpty(lcStemEventDesc3))
+                    sb.AppendLine($"  【天干{lc.stem}（{lcSS3}·{stemTrend3}）】{lcStemEventDesc3}");
+                if (LfTianGanHeMap.TryGetValue(lc.stem, out var lcTgHe3) && dyChartStems3.Contains(lcTgHe3.stem))
+                    sb.AppendLine($"  大運天干{lc.stem}被命局{lcTgHe3.stem}合化，{(lcStemGood3 ? "喜用力量稍受牽制，效力略減。" : "忌神被合化，凶意稍緩。")}");
+                string palaceEvents3 = LfBranchEventsPalace(lc.branch, lcBSS3, branches, branchSSArr3, lc.startAge);
+                if (!string.IsNullOrEmpty(palaceEvents3))
+                    sb.AppendLine($"  【地支{lc.branch}（{lcBSS3}）】{palaceEvents3}");
+                string lcStepAnalysis3 = LfDyStepAnalysis(
+                    lc.stem, lc.branch, lc.startAge, lc.endAge, nowAge,
+                    dStemRef, dyChartStems3, dyPillarBranches3, branchSSArr3,
+                    yongShenElem, jiShenElem, dyDayEmpty3, skipHeader: true);
+                if (!string.IsNullOrEmpty(lcStepAnalysis3)) sb.AppendLine(lcStepAnalysis3);
+                // 紫微大限宮位提醒
+                if (hasZiwei)
+                {
+                    int lcAStart3 = Math.Max(lc.startAge, minAnalysisAge3);
+                    int lcAEnd3   = Math.Min(lc.endAge, maxAnalysisAge3);
+                    var warnPals3 = DyGetOverlappingDecadePalaces(palaces, lcAStart3, lcAEnd3);
+                    var keyPalW3 = new HashSet<string> { "命宮", "財帛宮", "官祿宮", "夫妻宮", "田宅宮" };
+                    foreach (var (wPal3, wStem3, wPs3, wPe3) in warnPals3)
+                    {
+                        if (string.IsNullOrEmpty(wStem3)) continue;
+                        string dyJiPal3 = KbGetSiHuaPalace(wStem3, "化忌", palaces);
+                        if (!string.IsNullOrEmpty(dyJiPal3) && keyPalW3.Contains(dyJiPal3) && !LfShouldSkipPalace(dyJiPal3, lc.startAge))
+                        {
+                            string jiNote3 = dyJiPal3 switch
+                            {
+                                "命宮"   => "本命受衝，宜守護健康、防意外變故",
+                                "財帛宮" => "財路受阻，整個大限需嚴防破財、詐騙、投資損失",
+                                "田宅宮" => "財庫受損，整個大限需嚴防資產流失",
+                                "官祿宮" => "事業受阻，宜守成、防職場是非與官司",
+                                "夫妻宮" => "婚姻感情有波折，宜多溝通、防感情變故",
+                                _        => $"{dyJiPal3}受影響，需謹慎應對"
+                            };
+                            sb.AppendLine($"  【紫微大限提醒】此段大限（{wPs3}-{wPe3}歲）宮干{wStem3}化忌入{dyJiPal3}：{jiNote3}。");
+                        }
+                    }
+                    var overPals3 = DyGetOverlappingDecadePalaces(palaces, Math.Max(lc.startAge, minAnalysisAge3), Math.Min(lc.endAge, maxAnalysisAge3));
+                    foreach (var (lcDecPal3, lcDecStem3, pStart3, pEnd3) in overPals3)
+                    {
+                        int overlapYrs3 = Math.Min(lc.endAge, pEnd3) - Math.Max(lc.startAge, pStart3) + 1;
+                        if (overlapYrs3 < 2) continue;
+                        string decLabel3 = pStart3 == pEnd3 ? $"{pStart3}歲" : $"{pStart3}-{pEnd3}歲";
+                        string palStars3 = KbGetPalaceStars(palaces, lcDecPal3);
+                        sb.AppendLine($"  【紫微大限（{decLabel3}）{lcDecPal3}】{(string.IsNullOrEmpty(palStars3) ? "空宮" : palStars3)}");
+                        if (!string.IsNullOrEmpty(lcDecStem3) && YearStemSiHuaMap.TryGetValue(lcDecStem3, out var lcSiHua3))
+                        {
+                            string luPal3 = KbGetSiHuaPalace(lcDecStem3, "化祿", palaces);
+                            string jiPal3 = KbGetSiHuaPalace(lcDecStem3, "化忌", palaces);
+                            if (!string.IsNullOrEmpty(luPal3)) sb.AppendLine($"    宮干{lcDecStem3}化祿（{lcSiHua3.lu}）入{luPal3}，{luPal3}方向有財祿助力。");
+                            if (!string.IsNullOrEmpty(jiPal3) && !LfShouldSkipPalace(jiPal3, pStart3))
+                                sb.AppendLine($"    宮干{lcDecStem3}化忌（{lcSiHua3.ji}）入{jiPal3}，此大限{jiPal3}需特別謹慎。");
+                        }
+                    }
+                }
+                // 交叉結論（分項）— 以 lcLevel 為主要信號，避免與大運基調矛盾
+                var lcAnnuals3 = annualDetails.Where(a => a.age >= lc.startAge && a.age < lc.endAge).ToList();
+                if (lcAnnuals3.Count > 0)
+                {
+                    bool dyGood3 = lcLevel3 is "大吉" or "吉" or "中吉";
+                    bool dyBad3  = lcLevel3 is "大凶" or "凶" or "小凶";
+                    string crossTone3 = dyGood3 ? "八字與紫微雙向有利，此段屬順境，宜主動積極布局。"
+                        : dyBad3 ? "八字忌神與紫微均有壓力，此段屬逆境，宜全面守成，待機而動。"
+                        : "八字與紫微一強一弱，需視流年精準選時，吉年積極，凶年收守。";
+                    sb.AppendLine($"  【交叉結論】{crossTone3}");
+                    bool dmIsGuan3 = pattern.Contains("官");
+                    bool dmIsShiShang3 = pattern.Contains("食") || pattern.Contains("傷");
+                    string careerType3 = dmIsGuan3 ? "管理或公職" : dmIsShiShang3 ? "技術或創作" : "業務或財務";
+                    string careerLine3;
+                    if (dyGood3)
+                        careerLine3 = lcSS3 switch
+                        {
+                            "正官" => $"官職晉升機會明顯，{careerType3}方向可積極爭取升遷或管理職",
+                            "七殺" => $"衝勁最強，競爭型職務大放異彩，{careerType3}有突破機會",
+                            "食神" => $"才藝技術發光，技術或創作型工作機會多，{careerType3}最有利",
+                            "傷官" => $"突破舊框架時機到，轉職或創業可認真評估，{careerType3}有亮眼機會",
+                            "偏財" => $"業務拓展、廣結人脈有利，新市場新客戶可主動開發",
+                            "正財" => $"穩健努力必有收穫，薪資穩步增長，深耕現職或爭取升遷最穩妥",
+                            "正印" => $"貴人助力強，推薦與進修機會大增，{careerType3}深耕有利",
+                            "偏印" => $"偏門專業有突破，貴人引薦機會增加，{careerType3}研究鑽研有成",
+                            "比肩" => $"人脈合作助力大，同業整合有利，{careerType3}合夥共事可創造加乘效果",
+                            "劫財" => $"積極開拓新機遇，{careerType3}偏財型機會可大膽把握",
+                            _      => $"事業整體推進順利，{careerType3}是最佳發力點"
+                        };
+                    else if (dyBad3)
+                        careerLine3 = lcSS3 switch
+                        {
+                            "正官" or "七殺" => "職場壓力與管控明顯，宜守紀律低調行事，防職場是非與官司",
+                            "傷官" => "口舌是非增多，易與上司衝突，暫緩轉職，宜謹言慎行",
+                            "劫財" or "比肩" => "同業競爭激烈，合夥易生是非，宜獨立作業，謹慎選擇合作對象",
+                            _ => "事業推進阻力偏大，守成為主，避免重大職業異動"
+                        };
+                    else
+                        careerLine3 = $"事業穩步推進，{careerType3}按部就班即可，靜待明確機會再大舉展開";
+                    string stageCareerHint3 = stage switch
+                    {
+                        "young"  => dyGood3 ? "（確立職業方向的黃金期，全力衝刺）" : "（暫勿衝動跳槽或貿然創業）",
+                        "adult"  => dyGood3 ? "（可進一步擴大版圖或衝刺管理層）" : "（守住基盤比擴張更重要）",
+                        "middle" => dyGood3 ? "（完成職涯最後重要布局）" : "（以穩定交棒守成為主）",
+                        _        => ""
+                    };
+                    sb.AppendLine($"    ▸ 事業：{careerLine3}{stageCareerHint3}");
+                    if (stage != "elder")
+                    {
+                        bool isMaleCC3 = gender == 1;
+                        bool loveStarActive3 = isMaleCC3 ? (lcSS3 is "正財" or "偏財") : (lcSS3 is "正官" or "七殺");
+                        string loveLine3;
+                        if (loveStarActive3 && lcStemGood3)
+                            loveLine3 = isMaleCC3
+                                ? "此段財星（妻星）大運引動且喜用，感情婚緣訊號強烈，遇心儀對象宜主動表態，已婚者夫妻感情升溫"
+                                : "此段官星（夫星）大運引動且喜用，正緣機率高，婚緣訊號明顯，有利推進婚事或確立關係";
+                        else if (loveStarActive3 && lcStemBad3)
+                            loveLine3 = isMaleCC3
+                                ? "此段財星（妻星）大運引動但屬忌神，感情易有波折，已婚者宜多溝通防摩擦，未婚者不宜勉強推進"
+                                : "此段官星（夫星）大運引動但屬忌神，感情婚姻壓力偏大，防感情生變，婚事宜緩";
+                        else if (dyGood3)
+                            loveLine3 = stage switch
+                            {
+                                "young" => "整體順境有利感情發展，遇到對的人可順勢推進，緣分到時水到渠成",
+                                "adult" => "婚姻關係整體穩定，宜多陪伴與溝通，增進夫妻感情品質",
+                                _       => "感情平穩有利，隨緣自然推進"
+                            };
+                        else
+                            loveLine3 = dyBad3
+                                ? "此段整體壓力大，感情宜平穩維繫，防因外部壓力波及感情關係"
+                                : "感情平穩，緣分到時水到渠成";
+                        sb.AppendLine($"    ▸ 感情：{loveLine3}");
+                    }
+                    bool caiStarActiveCC3 = lcSS3 is "正財" or "偏財";
+                    string wealthLine3;
+                    if (caiStarActiveCC3 && lcStemGood3)
+                        wealthLine3 = "此段財星大運直接引動且喜用，進財最旺，是置產或穩健投資的最佳時機";
+                    else if (caiStarActiveCC3 && lcStemBad3)
+                        wealthLine3 = "此段財星大運引動但屬忌神，財務是最大壓力點，嚴禁投機或大額借貸，嚴防破財";
+                    else if (dyGood3)
+                        wealthLine3 = stage switch
+                        {
+                            "young"  => "薪資穩步增長，可評估置產時機或開始系統理財計畫",
+                            "adult"  => "財庫穩固，中長期財務規劃是重點，防守並進",
+                            "middle" => "財庫守護良好，宜整頓資產並規劃傳承安排",
+                            _        => "財運平穩，夠用有餘，量入為出"
+                        };
+                    else
+                        wealthLine3 = dyBad3
+                            ? "此段財務壓力偏大，宜收緊開銷、保守理財，大型投資計畫暫緩，防財務陷阱"
+                            : "財運平穩，按部就班累積，不必躁進，靜待財運高峰期";
+                    sb.AppendLine($"    ▸ 財運：{wealthLine3}");
+                    var ccElemOrgan3 = new Dictionary<string, string>
+                    {
+                        {"木","肝膽、筋骨、視力"}, {"火","心臟、血管、血壓"},
+                        {"土","脾胃、腸道、消化"}, {"金","肺、氣管、皮膚"},
+                        {"水","腎臟、膀胱、泌尿"}
+                    };
+                    string ccOrgan3 = ccElemOrgan3.GetValueOrDefault(jiShenElem, "定期健檢");
+                    sb.AppendLine($"    ▸ 健康：命局忌神為{jiShenElem}，先天弱點在{ccOrgan3}，{(dyBad3 ? "此段壓力偏大，更需嚴格執行定期健康檢查" : "平時養成良好保健習慣最重要")}");
+                    if (stage is "young" or "adult")
+                    {
+                        bool shishangGood3 = (lcSS3 is "食神" or "傷官") && lcStemGood3;
+                        bool shishangBad3  = (lcSS3 is "食神" or "傷官") && lcStemBad3;
+                        string childLine3 = shishangGood3
+                            ? (gender == 1 ? "食傷大運引動且喜用，子女緣深，此段是生育的好時機，孩子資質佳"
+                                           : "食傷大運引動且喜用，子女緣深，有利生育或子女有亮眼表現")
+                            : shishangBad3 ? "此段食傷受制，子女緣份或親子溝通需多費心，宜耐心陪伴"
+                            : stage == "young" ? "子女緣視個人選擇，先確認財務與感情穩定後再安排"
+                            : "子女步入獨立成長階段，宜給予充分空間，支持而非過度管控";
+                        sb.AppendLine($"    ▸ 子女：{childLine3}");
+                    }
+                }
+                sb.AppendLine();
+            }
+
+            // Ch.4 人生階段重點分析
+            sb.Append(DyBuildLifeStageSection(
+                stage, pattern, yongShenElem, jiShenElem, dmElem, bodyPct,
+                hasZiwei, palaces, gender, branches, dStem, dBranch,
+                yBranch, mBranch, hBranch));
+            sb.AppendLine();
+
+            // Ch.5 健康、意外與貴人警示
+            sb.AppendLine("【第五章：健康、意外與貴人警示】");
+            sb.AppendLine();
+            sb.AppendLine("▍ 健康體質");
+            sb.AppendLine(LfHealthDesc(wuXing, seaLabel));
+            sb.AppendLine();
+            sb.AppendLine("▍ 小人防範");
+            sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 官司文書風險");
+            sb.AppendLine(LfGuanSiAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem, bodyPct));
+            sb.AppendLine();
+            sb.AppendLine("▍ 車關時機");
+            sb.AppendLine(LfCheGuanAnalysis(yBranch, mBranch, dBranch, hBranch, jiShenElem, dmElem));
+            sb.AppendLine();
+            sb.AppendLine("▍ 天乙貴人方向");
+            var tianYiMapV3 = new Dictionary<string, string>
+            {
+                {"甲","丑未"},{"戊","丑未"},{"庚","丑未"},{"乙","子申"},{"己","子申"},
+                {"丙","亥酉"},{"丁","亥酉"},{"壬","卯巳"},{"癸","卯巳"},{"辛","午寅"}
+            };
+            string tianYiBrV3 = tianYiMapV3.GetValueOrDefault(dStem, "");
+            sb.AppendLine($"{dStem}日主，天乙貴人在{tianYiBrV3}，行此地支的大運或流年，貴人助力最強，遇到困難宜主動求助。");
+            sb.AppendLine();
+
+            // Ch.6 流年逐年分析（核心亮點）
+            string[] v3ChartStems = { yStem, mStem, dStemRef, hStem };
+            sb.Append(DyBuildCh6_AnnualFull(
+                annualDetails, hasZiwei, palaces, siHuaDescMap,
+                yongShenElem, fuYiElem, jiShenElem,
+                dmElem, gender, stage, pattern,
+                dStemRef, v3ChartStems, branches, branchSSArr3,
+                dStem, dBranch));
+
+            // Ch.7 趨吉避凶行動建議
+            sb.AppendLine("【第七章：趨吉避凶行動建議】");
+            sb.AppendLine();
+            var allGoodV3 = annualDetails.Where(a => a.crossClass is "大吉" or "吉").ToList();
+            var allBadV3  = annualDetails.Where(a => a.crossClass is "大凶" or "小凶").ToList();
+            double goodRatioV3 = annualDetails.Count > 0 ? (double)allGoodV3.Count / annualDetails.Count : 0;
+            string overallToneV3 = goodRatioV3 >= 0.5
+                ? "分析期間整體屬順境偏多，吉年全力衝刺，凶年稍作收守即可。"
+                : goodRatioV3 >= 0.3
+                ? "分析期間吉凶各半，需精準選擇時機，黃金年份果斷出手，壓力年份低調蓄勢。"
+                : "分析期間整體壓力偏大，以守住既有成果為優先，等待下一個好運週期再大舉展開。";
+            sb.AppendLine("▍ 整體策略");
+            sb.AppendLine(overallToneV3);
+            sb.AppendLine();
+            sb.AppendLine("▍ 具體行動方向");
+            sb.AppendLine($"  喜用方位：{LfElemDir(yongShenElem)}（{yongShenElem}方），開運色彩：{LfElemColor(yongShenElem)}");
+            sb.AppendLine($"  建議行業：{LfElemCareer(yongShenElem)}");
+            sb.AppendLine($"  忌諱方向：{LfElemDir(jiShenElem)}（{jiShenElem}方），避免過多接觸{jiShenElem}屬性的人事物");
+            sb.AppendLine();
+            if (allGoodV3.Count > 0)
+            {
+                sb.AppendLine($"  黃金年份（{string.Join("、", allGoodV3.Select(y => $"{y.year}年"))}）宜：");
+                string goodAction3 = stage switch
+                {
+                    "teen"   => "衝刺學業、爭取獎學金或升學機會、拓展人際圈",
+                    "young"  => "積極求職升遷、推進感情婚姻、評估置產或創業",
+                    "adult"  => "深化事業版圖、投資理財、子女教育投入",
+                    "middle" => "整固財庫、完成傳承安排、培養健康習慣",
+                    _        => "多走動、享天倫、保持良好作息"
+                };
+                sb.AppendLine($"    {goodAction3}");
+            }
+            if (allBadV3.Count > 0)
+            {
+                sb.AppendLine($"  謹慎年份（{string.Join("、", allBadV3.Select(y => $"{y.year}年"))}）宜：");
+                string badAction3 = stage switch
+                {
+                    "teen"   => "調整心態、尋求師長支持、勿意氣用事",
+                    "young"  => "暫緩重大決策、嚴控財務、低調行事、強化健康",
+                    "adult"  => "守住事業基盤、避免大額投資、多關注身體訊號",
+                    "middle" => "防詐騙、不擔保借貸、減少社交曝光、養生為主",
+                    _        => "以靜養為主、家庭陪伴、少出遠門"
+                };
+                sb.AppendLine($"    {badAction3}");
+            }
+            sb.AppendLine();
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("命理大師：玉洞子 | 大運命書 v3.0");
             return sb.ToString();
         }
 
