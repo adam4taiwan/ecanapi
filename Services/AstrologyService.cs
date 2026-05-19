@@ -1154,8 +1154,8 @@ namespace Ecanapi.Services
                 var goodStars = context.GoodStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 //var badStars = context.BadStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 var badStars = context.BadStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
-                var smallStars = context.SmallStars[i]?.Split(new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
-                //var smallStars = context.SmallStars[i]?.Split(new[] { '|' }, System.StringSplitOptions.None).ToList() ?? new List<string>();
+                // Use None (not RemoveEmptyEntries) to preserve positional indices: [0]=博士, [1]=歲前, [2]=將前
+                var smallStars = context.SmallStars[i]?.Split(new[] { '|' }, System.StringSplitOptions.None).ToList() ?? new List<string>();
                 var annualStarTransformations = context.FourTransformationStars[i]?.ToCharArray().Select(c => c.ToString()).ToList() ?? new List<string>();
                 string palaceStemTrans = CalculatePalaceStemTransformations(context, context.CCO[i]);
                 finalPalaces.Add(palace with { MajorStars = majorStars, SecondaryStars = secondaryStars, AnnualStarTransformations = annualStarTransformations, DecadeAgeRange = context.CCX[i], LifeCycleStage = context.LifeCycleStage[i] ?? "", MainStarBrightness = context.MainStarBrightness[i] ?? "", PalaceStemTransformations = palaceStemTrans, GoodStars = goodStars, BadStars = badStars, SmallStars = smallStars });
