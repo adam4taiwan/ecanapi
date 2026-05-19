@@ -183,10 +183,10 @@ namespace Ecanapi.Services
                         }
                     }
 
-                    // 常見模板預期：副星 (secondary) 放最前，再放吉凶（你可以依模板調整順序）
+                    // 凶星(bad)排首位確保旬空等重要凶星不被格寬截斷；再放副星、吉星
+                    AddIfValid(bad);
                     AddIfValid(secondary);
                     AddIfValid(good);
-                    AddIfValid(bad);
                     //AddIfValid(smalls);
 
                     // 最終文字

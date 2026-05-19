@@ -809,10 +809,15 @@ namespace Ecanapi.Services
 
                     if (isMainStar)
                     {
-                        // 十四主星：維持原邏輯，將四化標記放在 AnnualStarTransformations
-                        if (mainStarsInPalace.Contains(starName))
+                        // 十四主星：區分 CCM/CCN 儲存，確保四化對應到正確主星欄位
+                        if ((context.CCM[i] ?? "").Contains(starName))
                         {
-                            context.FourTransformationStars[i] += transType;
+                            context.FourTransCCM[i] = transType;
+                            return;
+                        }
+                        if ((context.CCN[i] ?? "").Contains(starName))
+                        {
+                            context.FourTransCCN[i] = transType;
                             return;
                         }
                     }
@@ -1156,7 +1161,13 @@ namespace Ecanapi.Services
                 var badStars = context.BadStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 // Use None (not RemoveEmptyEntries) to preserve positional indices: [0]=博士, [1]=歲前, [2]=將前
                 var smallStars = context.SmallStars[i]?.Split(new[] { '|' }, System.StringSplitOptions.None).ToList() ?? new List<string>();
-                var annualStarTransformations = context.FourTransformationStars[i]?.ToCharArray().Select(c => c.ToString()).ToList() ?? new List<string>();
+                // [0] = 四化 for CCM (first main star), [1] = 四化 for CCN (second main star)
+                // Empty string means no 四化 for that star; SetCellValue will skip empty
+                var annualStarTransformations = new List<string>
+                {
+                    context.FourTransCCM[i] ?? "",
+                    context.FourTransCCN[i] ?? ""
+                };
                 string palaceStemTrans = CalculatePalaceStemTransformations(context, context.CCO[i]);
                 finalPalaces.Add(palace with { MajorStars = majorStars, SecondaryStars = secondaryStars, AnnualStarTransformations = annualStarTransformations, DecadeAgeRange = context.CCX[i], LifeCycleStage = context.LifeCycleStage[i] ?? "", MainStarBrightness = context.MainStarBrightness[i] ?? "", PalaceStemTransformations = palaceStemTrans, GoodStars = goodStars, BadStars = badStars, SmallStars = smallStars });
             }

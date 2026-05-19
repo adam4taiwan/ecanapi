@@ -38,6 +38,9 @@ namespace Ecanapi.Services.AstrologyEngine
         public string ShenZhu { get; set; }
 
         public string[] FourTransformationStars { get; set; } = new string[13];
+        // Track 四化 separately for first (CCM) and second (CCN) main star per palace
+        public string[] FourTransCCM { get; set; } = new string[13];
+        public string[] FourTransCCN { get; set; } = new string[13];
         public string[] SecondaryStars { get; set; } = new string[13];
         public string[] MainStarBrightness { get; set; } = new string[13];
         public string[] PalaceShortNames { get; set; } = new string[13];
@@ -70,7 +73,7 @@ namespace Ecanapi.Services.AstrologyEngine
             for (int i = 0; i < 13; i++)
             {
                 CCN[i] = ""; CCM[i] = ""; CCB[i] = ""; CCO[i] = ""; CCX[i] = "";
-                FourTransformationStars[i] = ""; SecondaryStars[i] = "";
+                FourTransformationStars[i] = ""; FourTransCCM[i] = ""; FourTransCCN[i] = ""; SecondaryStars[i] = "";
                 MainStarBrightness[i] = ""; PalaceShortNames[i] = "";
                 LifeCycleStage[i] = "";
                 GoodStars[i] = ""; BadStars[i] = ""; SmallStars[i] = "";
