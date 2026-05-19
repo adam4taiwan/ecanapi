@@ -13197,7 +13197,7 @@ namespace Ecanapi.Controllers
             string yBranch, string mBranch, string hBranch)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("【第三章：人生階段重點分析】");
+            sb.AppendLine("【第四章：人生階段重點分析】");
             sb.AppendLine();
 
             switch (stage)
@@ -13334,7 +13334,7 @@ namespace Ecanapi.Controllers
             string yongShenElem, string jiShenElem, string stage)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("【第五章：流年重點年份】");
+            sb.AppendLine("【第六章：流年重點年份】");
             sb.AppendLine();
 
             var bestYears   = annualDetails.Where(a => a.crossClass is "大吉" or "吉").OrderByDescending(a => a.baziScore + a.ziweiScore).Take(3).ToList();
@@ -13428,8 +13428,40 @@ namespace Ecanapi.Controllers
             sb.AppendLine("=================================================================");
             sb.AppendLine();
 
-            // === Ch.1 命主概況與格局 ===
-            sb.AppendLine("【第一章：命主概況與格局】");
+            // 人生指南目錄
+            sb.AppendLine("                       人  生  指  南");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine("  第一章：格局與用神判定");
+            sb.AppendLine("  第二章：命主概況與格局");
+            sb.AppendLine("  第三章：大運干支雙向論斷");
+            sb.AppendLine("  第四章：人生階段重點分析");
+            sb.AppendLine("  第五章：健康、意外與貴人警示");
+            sb.AppendLine("  第六章：流年重點年份");
+            sb.AppendLine("  第七章：趨吉避凶行動建議");
+            sb.AppendLine("-----------------------------------------------------------------");
+            sb.AppendLine();
+
+            // === Ch.1 格局與用神判定 ===
+            sb.AppendLine("【第一章：格局與用神判定】");
+            string v2TuneElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+            string v2JiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
+            sb.AppendLine($"格局：【{pattern}】");
+            sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）");
+            sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
+            if (fuYiElem != yongShenElem)
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+            if (!string.IsNullOrEmpty(v2TuneElem) && v2TuneElem != yongShenElem && v2TuneElem != fuYiElem)
+                sb.AppendLine($"調候喜神：【{v2TuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
+            sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
+            if (!string.IsNullOrEmpty(v2JiYongElem) && v2JiYongElem != jiShenElem)
+                sb.AppendLine($"次忌(△忌)：{v2JiYongElem}（克用神{yongShenElem}，力道較輕）");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine();
+            sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v2TuneElem, dStemRef, branches));
+            sb.AppendLine();
+
+            // === Ch.2 命主概況與格局 ===
+            sb.AppendLine("【第二章：命主概況與格局】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
             sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}");
@@ -13459,8 +13491,8 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // === Ch.2 大運干支雙向論斷 ===
-            sb.AppendLine("【第二章：大運干支雙向論斷】");
+            // === Ch.3 大運干支雙向論斷 ===
+            sb.AppendLine("【第三章：大運干支雙向論斷】");
             string[] branchSSArr = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
             string[] dyChartStems = { yStem, mStem, dStemRef, hStem };
             string[] dyPillarBranches = { yBranch, mBranch, dBranch, hBranch };
@@ -13592,15 +13624,15 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
-            // === Ch.3 人生階段重點分析（NEW）===
+            // === Ch.4 人生階段重點分析（NEW）===
             sb.Append(DyBuildLifeStageSection(
                 stage, pattern, yongShenElem, jiShenElem, dmElem, bodyPct,
                 hasZiwei, palaces, gender, branches, dStem, dBranch,
                 yBranch, mBranch, hBranch));
             sb.AppendLine();
 
-            // === Ch.4 健康、意外、貴人警示 ===
-            sb.AppendLine("【第四章：健康、意外與貴人警示】");
+            // === Ch.5 健康、意外、貴人警示 ===
+            sb.AppendLine("【第五章：健康、意外與貴人警示】");
             sb.AppendLine();
             sb.AppendLine("▍ 健康體質");
             sb.AppendLine(LfHealthDesc(wuXing, seaLabel));
@@ -13638,12 +13670,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"{dStem}日主，天乙貴人在{tianYiBrV2}，行此地支的大運或流年，貴人助力最強，遇到困難宜主動求助。");
             sb.AppendLine();
 
-            // === Ch.5 流年重點年份（新模式）===
+            // === Ch.6 流年重點年份（新模式）===
             sb.Append(DyBuildKeyYearsSection(annualDetails, yongShenElem, jiShenElem, stage));
             sb.AppendLine();
 
-            // === Ch.6 趨吉避凶行動建議 ===
-            sb.AppendLine("【第六章：趨吉避凶行動建議】");
+            // === Ch.7 趨吉避凶行動建議 ===
+            sb.AppendLine("【第七章：趨吉避凶行動建議】");
             sb.AppendLine();
             // 整體大運基調
             var allGoodV2 = annualDetails.Where(a => a.crossClass is "大吉" or "吉").ToList();
