@@ -193,12 +193,13 @@ namespace Ecanapi.Services
                     }
                     var sorted = allAuxStars.OrderBy(StarPriority).ToList();
 
-                    // P1+P2+P3 全部進 CombinedStars，P4 雜星補到 5 格，超出直接捨棄
-                    const int MaxTotal = 5;
+                    // P1+P2+P3 全部進 CombinedStars，P4 雜星補到 5 格，其餘溢出至博士星旁
+                    const int MaxP4InMain = 5;
                     var mainDisplay = sorted.Where(s => StarPriority(s) < 4).ToList();
                     var p4Stars = sorted.Where(s => StarPriority(s) == 4).ToList();
-                    int p4Slots = Math.Max(0, MaxTotal - mainDisplay.Count);
+                    int p4Slots = Math.Max(0, MaxP4InMain - mainDisplay.Count);
                     mainDisplay.AddRange(p4Stars.Take(p4Slots));
+                    var overflowDisplay = p4Stars.Skip(p4Slots).ToList();
 
                     SetCellValue(sheet, coords.CombinedStars.Row, coords.CombinedStars.Col, string.Join(" ", mainDisplay).Trim());
 
@@ -216,7 +217,10 @@ namespace Ecanapi.Services
                     string ageStar = smallStarParts.Count > 1 ? smallStarParts[1] : "";
                     string generalStar = smallStarParts.Count > 2 ? smallStarParts[2] : "";
                     //
-                    SetCellValue(sheet, coords.DoctorStar.Row, coords.DoctorStar.Col, doctorStar);
+                    string doctorStarDisplay = overflowDisplay.Count > 0
+                        ? (string.IsNullOrEmpty(doctorStar) ? "" : doctorStar + " ") + string.Join(" ", overflowDisplay)
+                        : doctorStar;
+                    SetCellValue(sheet, coords.DoctorStar.Row, coords.DoctorStar.Col, doctorStarDisplay);
                     //
                     string combinedInfoString = $"{palace.PalaceStem}-{palace.PalaceStemTransformations} {ageStar}{generalStar} {palace.LifeCycleStage}";
                     SetCellValue(sheet, coords.CombinedInfo.Row, coords.CombinedInfo.Col, combinedInfoString);
