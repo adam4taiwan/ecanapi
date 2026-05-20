@@ -14023,7 +14023,9 @@ namespace Ecanapi.Controllers
                         && !p.Contains("喜與命身相合")
                         && !p.Contains("影響一個人的相貌")
                         && !p.Contains("奉子命結婚")
-                        && !p.Contains("代溝之象"))
+                        && !p.Contains("代溝之象")
+                        && !p.Contains("對性生活需求量較重")
+                        && !p.Contains("人生大半忙碌"))
                     .Take(2)
                     .ToList();
                 return kept.Count == 0 ? "" : string.Join("。", kept) + "。";
