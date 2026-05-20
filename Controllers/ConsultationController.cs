@@ -9362,6 +9362,12 @@ namespace Ecanapi.Controllers
                 dmElem, bodyPct, yongShenElem, jiShenElem, wuXing, scored));
             sb.AppendLine();
 
+            // === Ch.18 流年提要 ===
+            sb.Append(LfBuildFlowYearSummaryChapter(
+                dStem, yBranch, mBranch, dBranch, hBranch,
+                yongShenElem, fuYiElem, jiShenElem,
+                birthYear, hasZiwei, palacesYdz));
+
             // === 表尾 ===
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine("命理大師：玉洞子 | 玉洞子傳家寶典 v2.0");
@@ -9371,6 +9377,201 @@ namespace Ecanapi.Controllers
                 reportResult = System.Text.RegularExpressions.Regex.Replace(
                     reportResult, "命主(?![星宮垣盤：])", personRef);
             return reportResult;
+        }
+
+        // === Ch.18 流年提要（近十年速查） ===
+        private static string LfBuildFlowYearSummaryChapter(
+            string dStem,
+            string chartYBranch, string chartMBranch, string chartDBranch, string chartHBranch,
+            string yongShenElem, string fuYiElem, string jiShenElem,
+            int birthYear,
+            bool hasZiwei, JsonElement palaces)
+        {
+            var sb = new StringBuilder();
+            int startYear = DateTime.Today.Year;
+
+            var branchToMonth = new Dictionary<string, string>
+            {
+                {"寅","2月"},{"卯","3月"},{"辰","4月"},{"巳","5月"},{"午","6月"},{"未","7月"},
+                {"申","8月"},{"酉","9月"},{"戌","10月"},{"亥","11月"},{"子","12月"},{"丑","1月"}
+            };
+            var sixAuspiciousSet = new HashSet<string>
+                { "左輔","右弼","文昌","文曲","天魁","天鉞","左","右","昌","曲","魁","鉞" };
+            var fourFiendSet = new HashSet<string>
+                { "擎羊","陀羅","火星","鈴星","羊","陀","火","鈴" };
+            var stemSSEvent = new Dictionary<string, string>
+            {
+                {"比肩","自我發揮・同業競爭・人脈拓展"},
+                {"劫財","偏路活躍・耗財競奪・多動多變"},
+                {"食神","才藝口福・子女緣旺・斜槓收入"},
+                {"傷官","才藝創意・口才競爭・突破升級"},
+                {"正財","薪資正職・現金流・理財置產"},
+                {"偏財","投資偏門・父星強旺・業務拓展"},
+                {"正官","升官聲譽・責任名正，女命夫星"},
+                {"七殺","競爭壓力・突破魄力・意外警示"},
+                {"正印","貴人相助・文書學習・母星"},
+                {"偏印","偏技靜修・休整蓄勢・偏門進益"},
+            };
+            var chartBranches     = new[] { chartYBranch, chartMBranch, chartDBranch, chartHBranch };
+            var chartBranchLabels = new[] { "年支", "月支", "日支", "時支" };
+            string[] all12Branches = { "寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑" };
+
+            sb.AppendLine("【第十八章：流年提要（近十年速查）】");
+            sb.AppendLine();
+            sb.AppendLine("本章列出近十年流年主事、運勢引動、吉凶月份與紫微提示，供命主年度部署參考。");
+            sb.AppendLine();
+
+            for (int year = startYear; year < startYear + 10; year++)
+            {
+                var (flStem, flBranch) = DyGetYearStemBranch(year);
+                int flAge = year - birthYear + 1;
+
+                string flStemSS = LfStemShiShen(flStem, dStem);
+                string flBranchMainStem = LfBranchHiddenRatio.TryGetValue(flBranch, out var bh) && bh.Count > 0
+                    ? bh[0].stem : "";
+                string flBranchSS = !string.IsNullOrEmpty(flBranchMainStem)
+                    ? LfStemShiShen(flBranchMainStem, dStem) : "";
+
+                string flStemElem   = KbStemToElement(flStem);
+                string flBranchElem = !string.IsNullOrEmpty(flBranchMainStem) ? KbStemToElement(flBranchMainStem) : "";
+                bool stemGood = flStemElem == yongShenElem || flStemElem == fuYiElem;
+                bool stemBad  = flStemElem == jiShenElem;
+                bool brGood   = flBranchElem == yongShenElem || flBranchElem == fuYiElem;
+                bool brBad    = flBranchElem == jiShenElem;
+
+                // 紫微：找流年地支對應宮位星曜
+                string ziweiPalaceName = "";
+                bool hasAuspicious = false, hasFiend = false;
+                var auspStarList  = new List<string>();
+                var fiendStarList = new List<string>();
+                if (hasZiwei && palaces.ValueKind == JsonValueKind.Array)
+                {
+                    ziweiPalaceName = KbGetPalaceNameByBranch(palaces, flBranch);
+                    if (!string.IsNullOrEmpty(ziweiPalaceName))
+                    {
+                        var starsSet = KbGetPalaceStarsSet(palaces, ziweiPalaceName);
+                        foreach (var s in starsSet)
+                        {
+                            if (sixAuspiciousSet.Contains(s)) { hasAuspicious = true; auspStarList.Add(s); }
+                            if (fourFiendSet.Contains(s))     { hasFiend      = true; fiendStarList.Add(s); }
+                        }
+                    }
+                }
+
+                // 流年天干四化落宮
+                string flLuPalace = KbGetSiHuaPalace(flStem, "化祿", palaces);
+                string flJiPalace = KbGetSiHuaPalace(flStem, "化忌", palaces);
+
+                // 綜合定性（八字面 + 紫微面）
+                int goodScore = (stemGood ? 2 : stemBad ? -2 : 0) + (brGood ? 1 : brBad ? -1 : 0)
+                              + (hasAuspicious ? 1 : 0) - (hasFiend ? 1 : 0);
+                string overallClass = goodScore >= 3 ? "大吉" : goodScore >= 1 ? "吉" :
+                                      goodScore <= -3 ? "大凶" : goodScore <= -1 ? "小凶" : "平";
+
+                // 運（刑沖合破引動）
+                var yunEvents = new List<string>();
+                for (int ci = 0; ci < chartBranches.Length; ci++)
+                {
+                    string cb = chartBranches[ci];
+                    string cl = chartBranchLabels[ci];
+                    if (cb == flBranch) continue;
+                    string pair = flBranch + cb;
+                    string pairRev = cb + flBranch;
+                    if (LfChong.Contains(pair))
+                        yunEvents.Add($"{flBranch}沖{cl}（{cb}）→ {cl}宮位方向震動，防重大異動");
+                    else if (LfHe.TryGetValue(flBranch, out var heI) && heI.partner == cb)
+                    {
+                        bool heGood = heI.elem == yongShenElem || heI.elem == fuYiElem;
+                        yunEvents.Add($"{flBranch}與{cl}（{cb}）六合{heI.elem}（{(heGood ? "吉化" : "凶化")}）→ {(heGood ? "順勢有益" : "化忌耗散")}");
+                    }
+                    else if (LfHai.Contains(pair) || LfHai.Contains(pairRev))
+                        yunEvents.Add($"{flBranch}害{cl}（{cb}）→ 暗傷人際，防小人是非");
+                    else if (LfPo.Contains(pair) || LfPo.Contains(pairRev))
+                        yunEvents.Add($"{flBranch}破{cl}（{cb}）→ 計劃易落空，防耗散");
+                }
+                foreach (var xg in LfXing)
+                {
+                    if (!xg.Contains(flBranch)) continue;
+                    var cm = xg.Where(b => b != flBranch && chartBranches.Contains(b)).ToList();
+                    if (cm.Count > 0)
+                        yunEvents.Add($"{flBranch}刑命局{string.Join("・", cm)} → 口舌糾紛・官非留意");
+                }
+                foreach (var (brs, elem) in LfSanHe)
+                {
+                    if (!brs.Contains(flBranch)) continue;
+                    var pts = brs.Where(b => b != flBranch && chartBranches.Contains(b)).ToList();
+                    if (pts.Count == 2)
+                    {
+                        bool sg = elem == yongShenElem || elem == fuYiElem;
+                        yunEvents.Add($"{flBranch}與命局{string.Join("・", pts)}三合{elem}局（{(sg ? "助吉" : "助凶")}）→ {(sg ? "全年動力大增" : "全年壓力顯著")}");
+                    }
+                }
+
+                // 吉月 / 凶月
+                var goodMonths = new List<string>();
+                var badMonths  = new List<string>();
+                foreach (var mb in all12Branches)
+                {
+                    string mbMs   = LfBranchHiddenRatio.TryGetValue(mb, out var mbh) && mbh.Count > 0 ? mbh[0].stem : "";
+                    string mbElem = KbStemToElement(mbMs);
+                    if      (mbElem == yongShenElem || mbElem == fuYiElem) goodMonths.Add($"{mb}月({branchToMonth[mb]})");
+                    else if (mbElem == jiShenElem)                          badMonths.Add($"{mb}月({branchToMonth[mb]})");
+                }
+
+                // 輸出
+                sb.AppendLine($"═══════════════════════════════════════════════════");
+                sb.AppendLine($"{year}年（{flStem}{flBranch}・{flAge}歲）  【{overallClass}】");
+                sb.AppendLine($"═══════════════════════════════════════════════════");
+
+                string stemYongBad = stemGood ? "喜用" : stemBad ? "忌神" : "中性";
+                string brYongBad   = brGood   ? "喜用" : brBad  ? "忌神" : "中性";
+                string stemEvent   = stemSSEvent.GetValueOrDefault(flStemSS, flStemSS);
+                sb.AppendLine($"主事：{flStem}年天干 ＝ {flStemSS}（{stemYongBad}），主：{stemEvent}");
+                if (!string.IsNullOrEmpty(flBranchSS))
+                    sb.AppendLine($"      {flBranch}年地支藏{flBranchMainStem} ＝ {flBranchSS}（{brYongBad}）");
+                sb.AppendLine();
+
+                sb.AppendLine("運：  " + (yunEvents.Count > 0 ? yunEvents[0] : "流年地支與命局無明顯刑沖合破，平順推進"));
+                foreach (var ev in yunEvents.Skip(1)) sb.AppendLine("      " + ev);
+                sb.AppendLine();
+
+                sb.AppendLine($"吉月：{(goodMonths.Any() ? string.Join("・", goodMonths.Take(4)) : "無特別突出月份")}");
+                sb.AppendLine($"凶月：{(badMonths.Any()  ? string.Join("・", badMonths.Take(3))  : "無特別需防月份")}");
+                sb.AppendLine();
+
+                if (hasZiwei && !string.IsNullOrEmpty(ziweiPalaceName))
+                {
+                    string auspDesc  = auspStarList.Any()  ? string.Join("・", auspStarList.Distinct().Take(3))  : "";
+                    string fiendDesc = fiendStarList.Any() ? string.Join("・", fiendStarList.Distinct().Take(3)) : "";
+                    string ziweiBody = (hasAuspicious && hasFiend)
+                        ? $"有六吉（{auspDesc}）亦有四煞（{fiendDesc}），吉凶交參，精準擇時"
+                        : hasAuspicious ? $"有六吉星（{auspDesc}），吉星護佑，事務吉順"
+                        : hasFiend      ? $"有四煞星（{fiendDesc}），煞星衝擊，宜謹慎防守"
+                        : "無六吉四煞，宮位平靜，無特殊加持";
+                    string luNote = !string.IsNullOrEmpty(flLuPalace) ? $"；{flStem}年化祿飛{flLuPalace}" : "";
+                    string jiNote = !string.IsNullOrEmpty(flJiPalace) ? $"；{flStem}年化忌飛{flJiPalace}" : "";
+                    sb.AppendLine($"紫微：{flBranch}宮＝{ziweiPalaceName}，{ziweiBody}{luNote}{jiNote}");
+                }
+                sb.AppendLine();
+
+                // 提要
+                string kw = stemEvent.Contains('・') ? stemEvent[..stemEvent.IndexOf('・')] : stemEvent;
+                string yunNote = yunEvents.Count > 0 && yunEvents[0].Contains('→')
+                    ? yunEvents[0][(yunEvents[0].IndexOf('→') + 1)..].Trim() : "";
+                string suggestion = overallClass switch
+                {
+                    "大吉" => $"天時地利齊備，{flStemSS}（{kw}）為本年最大機遇，{(goodMonths.Count > 0 ? goodMonths[0] + "前後" : "年中")}積極推進，全力把握。",
+                    "吉"   => $"整體順勢，{flStemSS}（{kw}）有助力，{(yunNote.Length > 0 ? "注意" + yunNote + "，" : "")}擇吉月精準出手。",
+                    "平"   => $"本年平穩推進，{flStemSS}（{kw}）有小機遇，守中求進，{(badMonths.Count > 0 ? badMonths[0] + "前後低調" : "謹慎把握節奏")}。",
+                    "小凶" => $"本年壓力偏大，{flStemSS}（{kw}）阻力多，以守為主，{(yunNote.Length > 0 ? yunNote + "，" : "")}暫緩重大決策。",
+                    "大凶" => $"壓力集中，{flStemSS}（{kw}）宜暫緩重大行動，深蹲蓄力，保全根基，靜待運轉。",
+                    _      => $"平穩推進，{flStemSS}（{kw}），謹慎前行。"
+                };
+                sb.AppendLine("提要：" + suggestion);
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
         }
 
         // === 紫微格局偵測（依命宮主星+地支+四化） ===
@@ -11386,7 +11587,7 @@ namespace Ecanapi.Controllers
         var sb = new System.Text.StringBuilder();
         sb.AppendLine();
         sb.AppendLine("=================================================================");
-        sb.AppendLine("【第十八章：古法提要】");
+        sb.AppendLine("【第十九章：古法提要】");
         sb.AppendLine("=================================================================");
         sb.AppendLine($"（符合條件共 {total} 條，供專家審閱）");
         sb.AppendLine();
