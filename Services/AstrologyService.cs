@@ -1160,21 +1160,16 @@ namespace Ecanapi.Services
             {
                 var palace = context.Result.palaces.First(p => p.Index == i);
                 var majorStars = new List<string>();
-                if (!string.IsNullOrEmpty(context.CCM[i])) majorStars.Add(context.CCM[i].Trim());
-                if (!string.IsNullOrEmpty(context.CCN[i])) majorStars.Add(context.CCN[i].Trim());
+                var annualStarTransformations = new List<string>();
+                // 四化列表與 MajorStars 同步壓縮，確保 index 對齊（避免只有 CCN 時 index 錯位）
+                if (!string.IsNullOrEmpty(context.CCM[i])) { majorStars.Add(context.CCM[i].Trim()); annualStarTransformations.Add(context.FourTransCCM[i] ?? ""); }
+                if (!string.IsNullOrEmpty(context.CCN[i])) { majorStars.Add(context.CCN[i].Trim()); annualStarTransformations.Add(context.FourTransCCN[i] ?? ""); }
                 var secondaryStars = context.SecondaryStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 var goodStars = context.GoodStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 //var badStars = context.BadStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 var badStars = context.BadStars[i]?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>();
                 // Use None (not RemoveEmptyEntries) to preserve positional indices: [0]=博士, [1]=歲前, [2]=將前
                 var smallStars = context.SmallStars[i]?.Split(new[] { '|' }, System.StringSplitOptions.None).ToList() ?? new List<string>();
-                // [0] = 四化 for CCM (first main star), [1] = 四化 for CCN (second main star)
-                // Empty string means no 四化 for that star; SetCellValue will skip empty
-                var annualStarTransformations = new List<string>
-                {
-                    context.FourTransCCM[i] ?? "",
-                    context.FourTransCCN[i] ?? ""
-                };
                 string palaceStemTrans = CalculatePalaceStemTransformations(context, context.CCO[i]);
                 finalPalaces.Add(palace with { MajorStars = majorStars, SecondaryStars = secondaryStars, AnnualStarTransformations = annualStarTransformations, DecadeAgeRange = context.CCX[i], LifeCycleStage = context.LifeCycleStage[i] ?? "", MainStarBrightness = context.MainStarBrightness[i] ?? "", PalaceStemTransformations = palaceStemTrans, GoodStars = goodStars, BadStars = badStars, SmallStars = smallStars });
             }
