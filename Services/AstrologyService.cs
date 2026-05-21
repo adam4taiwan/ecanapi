@@ -417,50 +417,44 @@ namespace Ecanapi.Services
             context.Result = context.Result with { Bazi = baziInfo };
         }
 
+        // 取前後各一年所有「節」（奇數索引）按時間排序，供大運起運計算使用。
+        // 跨三年確保任何出生日期（1月初、12月底等年界邊緣）都能正確找到前後節。
+        private static List<DateTime> BuildSortedJieList(DateTime birthTime)
+        {
+            var jie = new List<DateTime>();
+            for (int yearOffset = -1; yearOffset <= 1; yearOffset++)
+            {
+                var terms = new EcanChineseCalendar(birthTime.AddYears(yearOffset)).ChineseTwentyFour;
+                for (int i = 1; i < terms.Length; i += 2) // 奇數索引 = 節（非中氣）
+                {
+                    if (!string.IsNullOrEmpty(terms[i]) && DateTime.TryParse(terms[i], out var dt))
+                        jie.Add(dt);
+                }
+            }
+            jie.Sort();
+            return jie;
+        }
+
         private void DetermineBaziLuckCycles(AstrologyCalculationContext context)
         {
             var luckCycles = new List<BaziLuckCycle>();
-            var calendar = context.Calendar;
             DateTime birthTime = context.Result.SolarBirthDate;
 
             bool isYearGanYang = context.CUE1 % 2 != 0;
             bool isMale = context.Request.Gender == 1;
             bool isForward = (isMale && isYearGanYang) || (!isMale && !isYearGanYang);
 
+            // 取前後各一年的節氣並排序，確保任何出生日期（含年界邊緣）都能正確找到前後節
+            var sortedJie = BuildSortedJieList(birthTime);
             DateTime prevJie = DateTime.MinValue;
             DateTime nextJie = DateTime.MaxValue;
-
-            DateTime[] solarTermsDate = new DateTime[calendar.ChineseTwentyFour.Length];
-            for (int i = 0; i < calendar.ChineseTwentyFour.Length; i++)
+            for (int i = 0; i < sortedJie.Count; i++)
             {
-                DateTime.TryParse(calendar.ChineseTwentyFour[i], out solarTermsDate[i]);
-            }
-
-            for (int i = 1; i < solarTermsDate.Length; i += 2)
-            {
-                if (solarTermsDate[i] > birthTime)
+                if (sortedJie[i] > birthTime)
                 {
-                    nextJie = solarTermsDate[i];
-                    if (i > 1)
-                    {
-                        prevJie = solarTermsDate[i - 2];
-                    }
-                    else
-                    {
-                        // i==1 (nextJie=立春): prevJie 是小寒(index 23)或大雪(上一年 index 21)
-                        // solarTermsDate[23] = 小寒(本年1月)；若出生在小寒之前，需取上一年大雪
-                        var xiaoHanThisYear = solarTermsDate[23];
-                        if (birthTime < xiaoHanThisYear)
-                            prevJie = DateTime.Parse(new EcanChineseCalendar(birthTime.AddMonths(-1)).ChineseTwentyFour[21]); // 大雪(上一年12月)
-                        else
-                            prevJie = xiaoHanThisYear; // 小寒(本年)
-                    }
+                    nextJie = sortedJie[i];
+                    if (i > 0) prevJie = sortedJie[i - 1];
                     break;
-                }
-                if (i == 23 && nextJie == DateTime.MaxValue)
-                {
-                    prevJie = solarTermsDate[23];
-                    nextJie = DateTime.Parse(new EcanChineseCalendar(birthTime.AddYears(1)).ChineseTwentyFour[1]);
                 }
             }
 
