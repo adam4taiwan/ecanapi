@@ -158,11 +158,17 @@ namespace Ecanapi.Services
                             SetCellValue(sheet, coords.MainStars[i].Row, coords.MainStars[i].Col, palace.MajorStars[i]);
                     }
 
+                    // 主星四化（如 破(權)）合併顯示於廟旺格：「權0+」，兩字緊鄰易識別
                     var brightnessValues = palace.MainStarBrightness.Split(',');
                     for (int i = 0; i < brightnessValues.Length; i++)
                     {
                         if (i < coords.Brightness.Count)
-                            SetCellValue(sheet, coords.Brightness[i].Row, coords.Brightness[i].Col, brightnessValues[i]);
+                        {
+                            var bv = brightnessValues[i];
+                            if (i < palace.AnnualStarTransformations.Count && !string.IsNullOrWhiteSpace(palace.AnnualStarTransformations[i]))
+                                bv = palace.AnnualStarTransformations[i] + bv;
+                            SetCellValue(sheet, coords.Brightness[i].Row, coords.Brightness[i].Col, bv);
+                        }
                     }
 
                     //var allAuxStars = palace.SecondaryStars.Concat(palace.GoodStars).Concat(palace.BadStars);
@@ -219,12 +225,7 @@ namespace Ecanapi.Services
                     if (auxTransChars.Count > 0)
                         SetCellValue(sheet, coords.CombinedStars.Row + 1, coords.CombinedStars.Col, string.Join(" ", auxTransChars));
 
-                    // 主星四化（如 破(權)）寫在主星正下方 Row+1
-                    for (int i = 0; i < palace.AnnualStarTransformations.Count; i++)
-                    {
-                        if (i < coords.MainStars.Count)
-                            SetCellValue(sheet, coords.MainStars[i].Row + 1, coords.MainStars[i].Col, palace.AnnualStarTransformations[i]);
-                    }
+                    // 主星四化已合併至廟旺格顯示，此處不再重複寫入
                     //SetCellValue(sheet, coords.AnnualTrans[i].Row, coords.AnnualTrans[i].Col, string.Join("", palace.AnnualStarTransformations));
 
                     var smallStarParts = palace.SmallStars;
