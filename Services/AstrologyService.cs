@@ -441,7 +441,20 @@ namespace Ecanapi.Services
                 if (solarTermsDate[i] > birthTime)
                 {
                     nextJie = solarTermsDate[i];
-                    prevJie = (i > 1) ? solarTermsDate[i - 2] : DateTime.Parse(new EcanChineseCalendar(birthTime.AddMonths(-2)).ChineseTwentyFour[23]);
+                    if (i > 1)
+                    {
+                        prevJie = solarTermsDate[i - 2];
+                    }
+                    else
+                    {
+                        // i==1 (nextJie=立春): prevJie 是小寒(index 23)或大雪(上一年 index 21)
+                        // solarTermsDate[23] = 小寒(本年1月)；若出生在小寒之前，需取上一年大雪
+                        var xiaoHanThisYear = solarTermsDate[23];
+                        if (birthTime < xiaoHanThisYear)
+                            prevJie = DateTime.Parse(new EcanChineseCalendar(birthTime.AddMonths(-1)).ChineseTwentyFour[21]); // 大雪(上一年12月)
+                        else
+                            prevJie = xiaoHanThisYear; // 小寒(本年)
+                    }
                     break;
                 }
                 if (i == 23 && nextJie == DateTime.MaxValue)
