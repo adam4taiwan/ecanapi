@@ -130,7 +130,7 @@ namespace Ecanapi.Services
             // 3. 建立十二宮座標地圖 (根據您 `正確.xlsx` 檔案完全重製)
             var coordsMap = new Dictionary<int, PalaceCoords>
             {
-                { 1, new PalaceCoords { PalaceName = (36, 12), DecadeAge = (36, 10), MainStars = new List<(int,int)>{(36, 13), (36, 14)}, Brightness = new List<(int,int)>{(38,13), (37,14)}, CombinedStars = (37, 10), AnnualTrans = new List<(int,int)>{(39,13), (39,14)}, DoctorStar = (39,10), OverflowStars = (40,10), CombinedInfo = (44, 10),EarthlyBranch = (45, 10) } }, // 子
+                { 1, new PalaceCoords { PalaceName = (36, 12), DecadeAge = (36, 10), MainStars = new List<(int,int)>{(36, 13), (36, 14)}, Brightness = new List<(int,int)>{(38,13), (38,14)}, CombinedStars = (37, 10), AnnualTrans = new List<(int,int)>{(39,13), (39,14)}, DoctorStar = (39,10), OverflowStars = (40,10), CombinedInfo = (44, 10),EarthlyBranch = (45, 10) } }, // 子
                 { 2, new PalaceCoords { PalaceName = (36, 7), DecadeAge = (36, 5), MainStars = new List<(int,int)>{(36, 8), (36, 9)}, Brightness = new List<(int,int)>{(38,8), (38,9)}, CombinedStars = (37, 5), AnnualTrans = new List<(int,int)>{(39,8), (39,9)}, DoctorStar = (39,5), OverflowStars = (40,5), CombinedInfo = (44, 5),EarthlyBranch = (45, 5) } }, // 丑
                 { 3, new PalaceCoords { PalaceName = (36, 2), DecadeAge = (36, 0), MainStars = new List<(int,int)>{(36, 3), (36, 4)}, Brightness = new List<(int,int)>{(38,3), (38,4)}, CombinedStars = (37, 0), AnnualTrans = new List<(int,int)>{(39,3), (39,4)}, DoctorStar = (39,0), OverflowStars = (40,0), CombinedInfo = (44, 0),EarthlyBranch = (45, 0) } }, // 寅
                 { 4, new PalaceCoords { PalaceName = (26, 2), DecadeAge = (26, 0), MainStars = new List<(int,int)>{(26, 3), (26, 4)}, Brightness = new List<(int,int)>{(28,3), (28,4)}, CombinedStars = (27, 0), AnnualTrans = new List<(int,int)>{(29,3), (29,4)}, DoctorStar = (29,0), OverflowStars = (30,0), CombinedInfo = (34, 0),EarthlyBranch = (35, 0) } }, // 卯
@@ -219,10 +219,11 @@ namespace Ecanapi.Services
                     if (auxTransChars.Count > 0)
                         SetCellValue(sheet, coords.CombinedStars.Row + 1, coords.CombinedStars.Col, string.Join(" ", auxTransChars));
 
+                    // 主星四化（如 破(權)）寫在主星正下方 Row+1
                     for (int i = 0; i < palace.AnnualStarTransformations.Count; i++)
                     {
-                        if (i < coords.AnnualTrans.Count)
-                            SetCellValue(sheet, coords.AnnualTrans[i].Row, coords.AnnualTrans[i].Col, palace.AnnualStarTransformations[i]);
+                        if (i < coords.MainStars.Count)
+                            SetCellValue(sheet, coords.MainStars[i].Row + 1, coords.MainStars[i].Col, palace.AnnualStarTransformations[i]);
                     }
                     //SetCellValue(sheet, coords.AnnualTrans[i].Row, coords.AnnualTrans[i].Col, string.Join("", palace.AnnualStarTransformations));
 
