@@ -16706,7 +16706,26 @@ namespace Ecanapi.Controllers
                     {
                         var (pal, desc) = flMap.GetValueOrDefault(shTypes[si], ("", ""));
                         string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : $"入{pal}";
-                        string descText = string.IsNullOrEmpty(desc) ? "" : $"：{desc}";
+                        // 過濾術語與條件句
+                        string cleanedDesc = string.IsNullOrEmpty(desc) ? "" : string.Join("。",
+                            desc.Split('。')
+                                .Select(p => p.Trim().TrimEnd('，').Trim())
+                                .Where(p => p.Length > 4
+                                    && !p.StartsWith("倘")
+                                    && !p.StartsWith("如格局")
+                                    && !p.StartsWith("如")
+                                    && !p.StartsWith("最好")
+                                    && !p.Contains("逢沖破")
+                                    && !p.Contains("最好該宮")
+                                    && !p.Contains("不主財")
+                                    && !p.Contains("不主貴")
+                                    && !p.Contains("在財宮不能說")
+                                    && !p.Contains("很可惜")
+                                    && !p.Contains("化科不主")
+                                    && !p.Contains("人生大半忙碌"))
+                                .Take(2)) + "。";
+                        if (cleanedDesc == "。") cleanedDesc = "";
+                        string descText = string.IsNullOrEmpty(cleanedDesc) ? "" : $"：{cleanedDesc}";
                         sb.AppendLine($"  {shTypes[si]}{palLabel}{descText}");
                     }
                 }
@@ -16904,7 +16923,7 @@ namespace Ecanapi.Controllers
                     bool mHeFl  = LfHe.TryGetValue(m.mBranchM, out var mHeBrInfo) && mHeBrInfo.partner == flBranch;
                     bool mHaiFl = LfHai.Contains(m.mBranchM + flBranch);
                     bool mPoFl  = LfPo.Contains(m.mBranchM + flBranch);
-                    bool mXiFl  = LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
+                    bool mXiFl  = m.mBranchM != flBranch && LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
                     string bDesc = "";
                     if (mChFl)
                         bDesc = flStemGoodForMth
@@ -16943,7 +16962,7 @@ namespace Ecanapi.Controllers
                     var cLines = new List<string>();
                     foreach (var (tbr, tlabel, tdomain) in cTargets)
                     {
-                        if (string.IsNullOrEmpty(tbr) || tbr == flBranch) continue;
+                        if (string.IsNullOrEmpty(tbr) || tbr == flBranch || tbr == m.mBranchM) continue;
                         string pair = m.mBranchM + tbr;
                         if (LfBranchChongOf.TryGetValue(m.mBranchM, out var cBr2) && cBr2 == tbr)
                             cLines.Add($"沖{tlabel}（{tbr}·{tdomain}）");
