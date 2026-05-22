@@ -61,6 +61,7 @@ namespace Ecanapi.Data
         public DbSet<NineStarDailyRule> NineStarDailyRules { get; set; }
         public DbSet<NineStarCombinationRule> NineStarCombinationRules { get; set; }
         public DbSet<LineUser> LineUsers { get; set; }
+        public DbSet<LinePushLog> LinePushLogs { get; set; }
 
         // 中原盲派命理秘典 KB
         public DbSet<BaziDirectRule> BaziDirectRules { get; set; }

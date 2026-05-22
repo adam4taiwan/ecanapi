@@ -1,5 +1,6 @@
 using Ecanapi.Controllers;
 using Ecanapi.Data;
+using Ecanapi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -57,6 +58,7 @@ namespace Ecanapi.Services
                 var nineStarController = scope.ServiceProvider.GetRequiredService<NineStarController>();
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
+                var pushDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)); // 台灣時間日期
 
                 // Block 1：LineUsers 九星推播（已在 LINE Bot 設定本命星的用戶）
                 var nineStarUsers = await context.LineUsers
@@ -67,17 +69,35 @@ namespace Ecanapi.Services
 
                 foreach (var lu in nineStarUsers)
                 {
+                    string message = "";
+                    string status = "success";
+                    string? errorMsg = null;
                     try
                     {
-                        string message = await nineStarController.NsBuildDailyFortune(lu.NatalStar);
+                        message = await nineStarController.NsBuildDailyFortune(lu.NatalStar);
                         await PushMessageAsync(accessToken, lu.LineUserId, message);
                         await Task.Delay(100);
                     }
                     catch (Exception ex)
                     {
+                        status = "failed";
+                        errorMsg = ex.Message;
                         _logger.LogError(ex, "LineBotDailyPush 九星用戶推播 {LineUserId} 失敗", lu.LineUserId);
                     }
+                    context.LinePushLogs.Add(new LinePushLog
+                    {
+                        LineUserId = lu.LineUserId,
+                        PushType = "ninestar",
+                        NatalStar = lu.NatalStar,
+                        BirthYear = lu.BirthYear > 0 ? lu.BirthYear : null,
+                        PushDate = pushDate,
+                        Message = message,
+                        SentAt = DateTime.UtcNow,
+                        Status = status,
+                        ErrorMessage = errorMsg
+                    });
                 }
+                await context.SaveChangesAsync();
 
                 // Block 2：訂閱會員個人化推播（有效訂閱 + 已綁 LINE + 有出生年月日）
                 var subscriberUsers = await context.UserSubscriptions
@@ -107,21 +127,41 @@ namespace Ecanapi.Services
 
                 foreach (var subUser in subscriberUsers)
                 {
+                    string message = "";
+                    string status = "success";
+                    string? errorMsg = null;
+                    int natalStar = 0;
                     try
                     {
-                        // 以 MyWeb 出生年月日性別計算本命星，推播九星開運指南
                         string gender = subUser.BirthGender == 2 ? "F" : "M";
-                        int natalStar = NineStarController.NsCalcNatalStarStatic(
+                        natalStar = NineStarController.NsCalcNatalStarStatic(
                             subUser.BirthYear!.Value, subUser.BirthMonth!.Value, subUser.BirthDay!.Value, gender);
-                        string message = await nineStarController.NsBuildDailyFortune(natalStar);
+                        message = await nineStarController.NsBuildDailyFortune(natalStar);
                         await PushMessageAsync(accessToken, subUser.LineUserId!, message);
                         await Task.Delay(100);
                     }
                     catch (Exception ex)
                     {
+                        status = "failed";
+                        errorMsg = ex.Message;
                         _logger.LogError(ex, "LineBotDailyPush 訂閱會員推播 {UserId} 失敗", subUser.Id);
                     }
+                    context.LinePushLogs.Add(new LinePushLog
+                    {
+                        LineUserId = subUser.LineUserId!,
+                        UserId = subUser.Id,
+                        UserEmail = subUser.Email,
+                        PushType = "subscriber",
+                        NatalStar = natalStar,
+                        BirthYear = subUser.BirthYear,
+                        PushDate = pushDate,
+                        Message = message,
+                        SentAt = DateTime.UtcNow,
+                        Status = status,
+                        ErrorMessage = errorMsg
+                    });
                 }
+                await context.SaveChangesAsync();
 
                 _logger.LogInformation("LineBotDailyPush 推播完成");
             }
