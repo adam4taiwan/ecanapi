@@ -15800,6 +15800,35 @@ namespace Ecanapi.Controllers
             {"亥","主水享樂，財氣流通；桃花人緣佳；防過度享樂導致財耗散。"}
         };
 
+        // 流年地支象法論斷庫（12地支各自的五行/方位/人事/場域特性）
+        private static readonly Dictionary<string, (string ElemDir, string Desc)> LnBranchXiangDict = new()
+        {
+            ["子"] = ("水·北方·冬",
+                "子年地支屬水，北方之氣當令，主智慧流動與藏蓄。今年人際上容易結識聰慧靈活、思路清晰的人；財務上有藏積儲蓄的象，宜守不宜大手筆外放；水主流動，今年也有旅行、移動或環境改變的機緣。重要出入場所偏向北方地區、水域附近、金融機構或靜態研究場所。"),
+            ["丑"] = ("土·東北·冬末",
+                "丑年地支屬土，東北方寒土之象，主踏實積累與倉庫收藏。今年人際上容易遇到務實保守、腳踏實地的人；土地、房產、農業或倉儲相關事務今年特別突出；事情進展較慢但穩固。重要出入場所多在東北方、倉庫、農場、地產機構或靜態場所。"),
+            ["寅"] = ("木·東方·春",
+                "寅年地支屬木，東方生發之氣旺盛，主積極起步與開拓。今年人際上容易結識積極進取、有朝氣的人；事業新計劃、學業起步或搬遷開始在今年有好機緣；寅也帶有法律醫療之象，相關事務今年較為活絡。重要出入場所偏向東方、林業/木材場所、法院、醫院或教育機構。"),
+            ["卯"] = ("木·東方·春",
+                "卯年地支屬木，東方文雅之氣旺，主文藝親和與花木欣榮。今年人際上容易結識文雅、溫和或與文藝相關的人；書文、出版、藝術、社交活動在今年相對活絡；感情緣分也在春木旺象中有所萌動。重要出入場所偏向東方地區、花園、書店、文化場所或社交場合。"),
+            ["辰"] = ("土·東南·春末",
+                "辰年地支屬土，東南方濕土之象，帶有水庫蓄勢的特性，主潛藏與蓄積。今年人際上容易遇到能力多元、有潛力但低調的人；土地、農田、水利相關事務值得留意；辰為墓庫，財物或人事有收藏入庫的象。重要出入場所多在東南方、水庫、農地、官府或倉儲機構。"),
+            ["巳"] = ("火·南方·夏",
+                "巳年地支屬火，南方文明之氣旺，主智慧謀略與政事文化。今年人際上容易結識有才智、謀略或從事文化政治的人；事業規劃、政府事務、文化活動在今年較為活絡；巳中藏庚金，財務方面也有潛在機緣。重要出入場所偏向南方地區、政府機關、文化機構或宗教場所。"),
+            ["午"] = ("火·南方·夏",
+                "午年地支屬火，南方熱旺之象，主熱情競爭與奔放活力。今年人際上容易結識熱情主動、競爭力強或從事軍警/娛樂的人；今年事務節奏快、行動力強，適合競爭和展現自我；文采榮耀之象也在午中，有表現自我的機緣。重要出入場所偏向南方地區、軍警機構、娛樂場所或運動競技場館。"),
+            ["未"] = ("土·西南·夏末",
+                "未年地支屬土，西南方柔土之象，主溫和包容與文藝滋養。今年人際上容易結識溫和親切、有藝術氣質的人；家庭聚會、農牧、藝術文化活動在今年較為突出；土主包容，今年也有照顧他人或家庭事務的象。重要出入場所偏向西南方、農場、藝術展覽場所或家庭型場合。"),
+            ["申"] = ("金·西方·秋",
+                "申年地支屬金，西方肅殺之氣旺，主靈活機智與法律競爭。今年人際上容易結識機智靈活、有商業頭腦或法律背景的人；商業談判、法律事務、技術開發在今年較為活絡；申也帶有車馬快速流動之象，出行事務增多。重要出入場所偏向西方地區、法院、商業場所、科技機構或交通樞紐。"),
+            ["酉"] = ("金·西方·秋",
+                "酉年地支屬金，西方精緻之象，主金融財務與審美精密。今年人際上容易結識精緻、注重品質或從事金融/美容業的人；財務規劃、金融投資、藝術審美相關事務在今年相對活絡；酉為桃花，感情人緣也有加分。重要出入場所偏向西方地區、銀行、美容場所、精品店或金融機構。"),
+            ["戌"] = ("土·西北·秋末",
+                "戌年地支屬土，西北方燥土之象，主忠誠守護與宗教守成。今年人際上容易結識忠誠義氣、踏實守信的人；土地房產、宗教守護、整理清算相關事務在今年較突出；戌為墓庫，有收藏結束舊事、迎接新局的象。重要出入場所偏向西北方、廟宇、房地產機構或倉庫場所。"),
+            ["亥"] = ("水·北方·冬",
+                "亥年地支屬水，北方享樂之氣旺，主智慧享福與旅行流動。今年人際上容易結識聰慧享樂、樂於交際或與旅遊/海洋相關的人；旅行、海外事務、人際社交在今年相對活絡；水主財，藏財積福也在此象之中。重要出入場所偏向北方地區、海洋/水域附近、旅遊場所或社交娛樂場合。"),
+        };
+
         // 流年十神具體人事場域論斷庫（男/女命各一段，融合人象/事象/物象/地理象）
         private static readonly Dictionary<string, (string MaleDesc, string FemaleDesc)> LnShiShenXiangDict = new()
         {
@@ -16479,19 +16508,26 @@ namespace Ecanapi.Controllers
                 bool isMale = gender == 1;
                 var xiangSections = new List<(string label, string desc)>();
 
-                // 流年天干十神
+                // 流年天干：以十神論（天干主事）
                 if (!string.IsNullOrEmpty(flStemSS) && LnShiShenXiangDict.TryGetValue(flStemSS, out var stemXiang))
                 {
                     string desc = isMale ? stemXiang.MaleDesc : stemXiang.FemaleDesc;
                     xiangSections.Add(($"天干{flStem}（{flStemSS}）", desc));
                 }
 
-                // 流年地支十神（與天干不同才顯示）
-                if (!string.IsNullOrEmpty(flBranchSS) && flBranchSS != flStemSS
-                    && LnShiShenXiangDict.TryGetValue(flBranchSS, out var brXiang))
+                // 流年地支：以地支本身五行/方位/人事象論（不用十神，地支有自己的象）
+                if (LnBranchXiangDict.TryGetValue(flBranch, out var brXiang))
                 {
-                    string desc = isMale ? brXiang.MaleDesc : brXiang.FemaleDesc;
-                    xiangSections.Add(($"地支{flBranch}（{flBranchSS}）", desc));
+                    // 補充：若天干地支同五行，說明力量集中
+                    string stemElemForBr = KbStemToElement(flStem);
+                    string brElem = brXiang.ElemDir.Split('·')[0];
+                    string bonusNote = stemElemForBr == brElem
+                        ? $"（天干{flStem}與地支{flBranch}同屬{brElem}，今年此象的力量更為集中，相關人事影響倍增。）"
+                        : "";
+                    string fullDesc = string.IsNullOrEmpty(bonusNote)
+                        ? brXiang.Desc
+                        : brXiang.Desc + " " + bonusNote;
+                    xiangSections.Add(($"地支{flBranch}（{brXiang.ElemDir}）", fullDesc));
                 }
 
                 if (xiangSections.Count > 0)
