@@ -4375,6 +4375,9 @@ namespace Ecanapi.Controllers
         // 克我 (官殺): element that overcomes day master
         private static readonly Dictionary<string, string> LfElemOvercomeBy = new()
             { { "木", "金" }, { "火", "水" }, { "土", "木" }, { "金", "火" }, { "水", "土" } };
+        // 相生：木→火→土→金→水→木
+        private static readonly Dictionary<string, string> LfElemSheng = new()
+            { { "木", "火" }, { "火", "土" }, { "土", "金" }, { "金", "水" }, { "水", "木" } };
 
         // 地支主氣五行
         private static readonly Dictionary<string, string> LfBranchElem = new()
@@ -16834,6 +16837,10 @@ namespace Ecanapi.Controllers
             // Ch.5 逐月分析
             sb.AppendLine("【第五章：逐月分析（月建喜忌·流月星曜·紫微宮位）】");
             sb.AppendLine();
+            // 流年天干五行（供月份生剋比對）
+            string flStemElemForMth = KbStemToElement(flStem);
+            bool flStemGoodForMth = flStemElemForMth == yongShenElem || flStemElemForMth == fuYiElem;
+            bool flStemBadForMth  = flStemElemForMth == jiShenElem;
             foreach (var m in monthlyDetails)
             {
                 string mStemSS2   = LfStemShiShen(m.mStemM, dStemRef);
@@ -16852,6 +16859,105 @@ namespace Ecanapi.Controllers
                 };
                 sb.AppendLine($"【{monthNames[m.idx-1]}】{m.mStemM}{m.mBranchM}（{m.mSeason}季）  本月運勢：{crossLabel}");
                 sb.AppendLine($"  月建喜忌：天干{m.mStemM}（{mStemElemM}·{mStemSS2}）{mStemCls}{(!string.IsNullOrEmpty(mBrCls) ? $"  地支{m.mBranchM}（{mBrElemM}·{mBrSSM}）{mBrCls}" : "")}");
+
+                // [A] 月干與流年天干生剋 → 本月流年主事強弱
+                {
+                    bool mShengFl  = LfElemSheng.TryGetValue(mStemElemM, out var mShT) && mShT == flStemElemForMth;
+                    bool mKeFl     = LfElemOvercome.TryGetValue(mStemElemM, out var mKeT) && mKeT == flStemElemForMth;
+                    bool flKeMth   = LfElemOvercome.TryGetValue(flStemElemForMth, out var flKeT) && flKeT == mStemElemM;
+                    bool flShMth   = LfElemSheng.TryGetValue(flStemElemForMth, out var flShT) && flShT == mStemElemM;
+                    bool sameEl    = mStemElemM == flStemElemForMth;
+                    string aDesc   = "";
+                    if (sameEl)
+                        aDesc = flStemGoodForMth
+                            ? $"月干{m.mStemM}與流年干{flStem}同為{mStemElemM}，並力強化今年【{flStemSS}】，本月主事動能最旺。"
+                            : flStemBadForMth
+                            ? $"月干{m.mStemM}與流年干{flStem}同為{mStemElemM}，忌神並力，本月【{flStemSS}】壓力最重。"
+                            : $"月干{m.mStemM}與流年干{flStem}同為{mStemElemM}，並力運行，本月主事動能平穩。";
+                    else if (mShengFl)
+                        aDesc = flStemGoodForMth
+                            ? $"月干{m.mStemM}（{mStemElemM}）生流年干{flStem}（{flStemElemForMth}），助推今年【{flStemSS}】，本月主事機緣較旺。"
+                            : flStemBadForMth
+                            ? $"月干{m.mStemM}（{mStemElemM}）生流年干{flStem}（{flStemElemForMth}），本月忌神能量加強，【{flStemSS}】壓力加重。"
+                            : $"月干{m.mStemM}（{mStemElemM}）生流年干{flStem}（{flStemElemForMth}），本月主事動能偏旺。";
+                    else if (mKeFl)
+                        aDesc = flStemGoodForMth
+                            ? $"月干{m.mStemM}（{mStemElemM}）剋流年干{flStem}（{flStemElemForMth}），本月【{flStemSS}】受壓，計劃稍緩，宜調整節奏。"
+                            : flStemBadForMth
+                            ? $"月干{m.mStemM}（{mStemElemM}）剋流年干{flStem}（{flStemElemForMth}），壓制忌神，本月【{flStemSS}】壓力略有緩和。"
+                            : $"月干{m.mStemM}（{mStemElemM}）剋流年干{flStem}（{flStemElemForMth}），本月主事受制，低調應對較宜。";
+                    else if (flKeMth)
+                        aDesc = flStemGoodForMth
+                            ? $"流年干{flStem}（{flStemElemForMth}）剋月干{m.mStemM}（{mStemElemM}），流年主事強勢主導，今年【{flStemSS}】本月全面爆發。"
+                            : $"流年干{flStem}（{flStemElemForMth}）剋月干{m.mStemM}（{mStemElemM}），忌神壓制月力，本月【{flStemSS}】問題強勢浮現。";
+                    else if (flShMth)
+                        aDesc = flStemGoodForMth
+                            ? $"流年干{flStem}（{flStemElemForMth}）生月干{m.mStemM}（{mStemElemM}），流年主事洩力，本月【{flStemSS}】動能略緩。"
+                            : $"流年干{flStem}（{flStemElemForMth}）生月干{m.mStemM}（{mStemElemM}），忌神洩力，本月壓力相對較輕。";
+                    if (!string.IsNullOrEmpty(aDesc))
+                        sb.AppendLine($"  主事強弱：{aDesc}");
+                }
+
+                // [B] 月支與流年地支刑沖合破害 → 本月是否引動流年主事爆發
+                {
+                    bool mChFl  = LfBranchChongOf.TryGetValue(m.mBranchM, out var mChBr) && mChBr == flBranch;
+                    bool mHeFl  = LfHe.TryGetValue(m.mBranchM, out var mHeBrInfo) && mHeBrInfo.partner == flBranch;
+                    bool mHaiFl = LfHai.Contains(m.mBranchM + flBranch);
+                    bool mPoFl  = LfPo.Contains(m.mBranchM + flBranch);
+                    bool mXiFl  = LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
+                    string bDesc = "";
+                    if (mChFl)
+                        bDesc = flStemGoodForMth
+                            ? $"月支{m.mBranchM}沖流年支{flBranch}，今年【{flStemSS}】事項本月震盪最烈，吉事爆發窗口，宜把握行動。"
+                            : flStemBadForMth
+                            ? $"月支{m.mBranchM}沖流年支{flBranch}，忌神領域本月沖動最強，【{flStemSS}】問題集中爆發，宜謹慎應對。"
+                            : $"月支{m.mBranchM}沖流年支{flBranch}，本月流年事項有重大震盪，宜穩住應對，防突發變故。";
+                    else if (mHeFl)
+                        bDesc = flStemGoodForMth
+                            ? $"月支{m.mBranchM}合流年支{flBranch}（合化{mHeBrInfo.elem}），今年【{flStemSS}】本月有成型機緣，宜主動推進促成。"
+                            : flStemBadForMth
+                            ? $"月支{m.mBranchM}合流年支{flBranch}，合住忌神，今年【{flStemSS}】壓力本月被合緩，相對其他月份略鬆。"
+                            : $"月支{m.mBranchM}合流年支{flBranch}，本月流年事項聚合，整合資源的好時機。";
+                    else if (mXiFl)
+                        bDesc = flStemGoodForMth
+                            ? $"月支{m.mBranchM}與流年支{flBranch}三刑，本月【{flStemSS}】事項易生摩擦變數，吉中帶阻，宜稍加謹慎。"
+                            : $"月支{m.mBranchM}與流年支{flBranch}三刑，忌神領域本月壓力集中，衝突摩擦偏高，低調行事。";
+                    else if (mHaiFl)
+                        bDesc = $"月支{m.mBranchM}害流年支{flBranch}，本月【{flStemSS}】事項有暗損，人際易有小人耗損，謹慎行事。";
+                    else if (mPoFl)
+                        bDesc = $"月支{m.mBranchM}破流年支{flBranch}，本月【{flStemSS}】計劃易有折扣或變故，宜備好應對方案。";
+                    if (!string.IsNullOrEmpty(bDesc))
+                        sb.AppendLine($"  流年引動：{bDesc}");
+                }
+
+                // [C] 月支與命局四柱+大運地支刑沖合破 → 宮位動象（次要）
+                {
+                    var cTargets = new (string br, string label, string domain)[]
+                    {
+                        (yBranch,      "年支", "長輩家族"),
+                        (mBranch,      "月支", "父母事業"),
+                        (dBranch,      "日支", "自身配偶"),
+                        (hBranch,      "時支", "子女晚輩"),
+                        (!string.IsNullOrEmpty(daiyunBranch) ? daiyunBranch : "", "大運支", "大運格局"),
+                    };
+                    var cLines = new List<string>();
+                    foreach (var (tbr, tlabel, tdomain) in cTargets)
+                    {
+                        if (string.IsNullOrEmpty(tbr) || tbr == flBranch) continue;
+                        string pair = m.mBranchM + tbr;
+                        if (LfBranchChongOf.TryGetValue(m.mBranchM, out var cBr2) && cBr2 == tbr)
+                            cLines.Add($"沖{tlabel}（{tbr}·{tdomain}）");
+                        else if (LfHe.TryGetValue(m.mBranchM, out var cHe2) && cHe2.partner == tbr)
+                            cLines.Add($"合{tlabel}（{tbr}·{tdomain}）");
+                        else if (LfHai.Contains(pair))
+                            cLines.Add($"害{tlabel}（{tbr}·{tdomain}）");
+                        else if (LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(tbr)))
+                            cLines.Add($"刑{tlabel}（{tbr}·{tdomain}）");
+                    }
+                    if (cLines.Count > 0)
+                        sb.AppendLine($"  命局互動：月支{m.mBranchM}{string.Join("、", cLines)}，對應宮位人事有動。");
+                }
+
                 string monthJiPal = "", monthLuPal = "", monthQuanPal = "";
                 if (hasZiwei && YearStemSiHuaMap.TryGetValue(m.mStemM, out var mSiHua))
                 {
@@ -16913,20 +17019,9 @@ namespace Ecanapi.Controllers
                         "田宅宮" => "家宅事務易有小紛擾，家人互動需多耐心。",
                         _ => ""
                     };
-                    // 月份吉凶概況（凶月必顯示，或四化無命中時顯示）
-                    string fallback = m.cross switch {
-                        "大吉" => "天時大順，宜積極展開事業、感情、財務規劃。",
-                        "吉"   => "整體向好，把握機會主動行動。",
-                        "小凶" => "宜低調保守，重要決策暫緩。",
-                        "大凶" => "深蹲蓄力，靜待轉機，勿強行突破。",
-                        _      => "平穩推進，按部就班，保持穩定節奏。"
-                    };
                     string goodStr = string.Join(" ", new[] { luTip, quanTip }.Where(s => !string.IsNullOrEmpty(s)));
                     if (!string.IsNullOrEmpty(goodStr))   sb.AppendLine($"  本月機緣：{goodStr}");
                     if (!string.IsNullOrEmpty(jiTip))     sb.AppendLine($"  本月注意：{jiTip}");
-                    // 凶月必顯示概況；吉月無四化命中時也顯示概況
-                    if (monthIsBad || string.IsNullOrEmpty(goodStr))
-                        sb.AppendLine($"  本月概況：{fallback}");
                 }
                 sb.AppendLine();
             }
