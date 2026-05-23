@@ -1,11 +1,14 @@
 using Ecanapi.Data;
 using Ecanapi.Models;
 using Ecanapi.Services;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace Ecanapi.Controllers
 {
@@ -95,9 +98,74 @@ namespace Ecanapi.Controllers
             var fileName = report.ApprovedDocxFileName
                 ?? $"{personName}_{report.Title}.docx";
 
-            return File(report.ApprovedDocxBytes,
+            // Add read-only password protection before serving to user
+            string protectionPassword = _config["Report:ProtectionPassword"] ?? "Adam520508";
+            byte[] protectedBytes = AddReadOnlyProtection(report.ApprovedDocxBytes, protectionPassword);
+
+            return File(protectedBytes,
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 fileName);
+        }
+
+        // Add OOXML read-only password protection (SHA-512, spinCount=100000)
+        // Users see doc as read-only; admin enters password in Word > Restrict Editing to unlock
+        private static byte[] AddReadOnlyProtection(byte[] docxBytes, string password)
+        {
+            try
+            {
+                var ms = new MemoryStream();
+                ms.Write(docxBytes, 0, docxBytes.Length);
+                ms.Position = 0;
+
+                // Generate salt and hash (OOXML ECMA-376 §B.7 algorithm: SHA-512, 100000 iterations)
+                var salt = new byte[16];
+                RandomNumberGenerator.Fill(salt);
+                var pwBytes = System.Text.Encoding.Unicode.GetBytes(password); // UTF-16LE
+                byte[] h = SHA512.HashData([.. salt, .. pwBytes]);
+                for (int i = 0; i < 100_000; i++)
+                    h = SHA512.HashData([.. h, .. BitConverter.GetBytes((uint)i)]);
+
+                string hashB64 = Convert.ToBase64String(h);
+                string saltB64 = Convert.ToBase64String(salt);
+
+                using (var wordDoc = WordprocessingDocument.Open(ms, true))
+                {
+                    var mainPart = wordDoc.MainDocumentPart!;
+                    var settingsPart = mainPart.DocumentSettingsPart
+                        ?? mainPart.AddNewPart<DocumentSettingsPart>();
+                    settingsPart.Settings ??= new Settings();
+
+                    // Remove any existing protection
+                    foreach (var ex in settingsPart.Settings.Elements<DocumentProtection>().ToList())
+                        ex.Remove();
+
+                    // Build protection using SetAttribute to avoid OpenXml v3 enum naming issues
+                    const string wns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+                    var protection = new DocumentProtection
+                    {
+                        Edit        = DocumentProtectionValues.ReadOnly,
+                        Enforcement = new DocumentFormat.OpenXml.OnOffValue(true),
+                    };
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "cryptProviderType",   wns, "rsaAES"));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "cryptAlgorithmClass", wns, "hash"));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "cryptAlgorithmType",  wns, "typeAny"));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "cryptAlgorithmSid",   wns, "14"));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "cryptSpinCount",      wns, "100000"));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "hash",               wns, hashB64));
+                    protection.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w", "salt",               wns, saltB64));
+                    settingsPart.Settings.PrependChild(protection);
+
+                    settingsPart.Settings.Save();
+                    wordDoc.Save();
+                }
+
+                return ms.ToArray();
+            }
+            catch
+            {
+                // Fallback: return original bytes if protection fails
+                return docxBytes;
+            }
         }
 
         // ─── Admin endpoints ──────────────────────────────────────────────

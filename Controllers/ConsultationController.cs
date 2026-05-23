@@ -1,6 +1,8 @@
 ﻿using Ecanapi.Data;
 using Ecanapi.Models;
 using Ecanapi.Services;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -3965,7 +3967,93 @@ namespace Ecanapi.Controllers
             AddPara(" 敬 批", 16, true, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
 
             doc.Write(ms);
-            return ms.ToArray();
+            return LfAddWatermarkToDocxBytes(ms.ToArray());
+        }
+
+        // Post-process DOCX bytes: add 玉洞子印 watermark to all pages except cover (first page)
+        private static byte[] LfAddWatermarkToDocxBytes(byte[] npioBytes)
+        {
+            try
+            {
+                var ms = new MemoryStream();
+                ms.Write(npioBytes, 0, npioBytes.Length);
+                ms.Position = 0;
+
+                const string watermarkHeaderXml =
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                    "<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+                    " xmlns:v=\"urn:schemas-microsoft-com:vml\"" +
+                    " xmlns:o=\"urn:schemas-microsoft-com:office:office\">" +
+                    "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
+                    "<w:r><w:rPr><w:noProof/></w:rPr><w:pict>" +
+                    "<v:shape id=\"watermark1\" type=\"#_x0000_t136\"" +
+                    " style=\"position:absolute;margin-left:0;margin-top:0;width:467.65pt;height:116.9pt;" +
+                    "z-index:-251656192;mso-position-horizontal:center;mso-position-horizontal-relative:margin;" +
+                    "mso-position-vertical:center;mso-position-vertical-relative:margin;rotation:315\"" +
+                    " fillcolor=\"#FF9999\" stroked=\"f\" filled=\"t\">" +
+                    "<v:fill on=\"t\" type=\"solid\" color=\"#FF9999\"/>" +
+                    "<v:textbox style=\"mso-fit-shape-to-text:t\">" +
+                    "<w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
+                    "<w:r><w:rPr>" +
+                    "<w:color w:val=\"FF9999\"/>" +
+                    "<w:sz w:val=\"144\"/><w:szCs w:val=\"144\"/>" +
+                    "</w:rPr><w:t>\u7389\u6d1e\u5b50\u5370</w:t></w:r>" +
+                    "</w:p></w:txbxContent>" +
+                    "</v:textbox></v:shape></w:pict></w:r></w:p></w:hdr>";
+
+                const string emptyHeaderXml =
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                    "<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+                    "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr></w:p></w:hdr>";
+
+                using (var wordDoc = WordprocessingDocument.Open(ms, true))
+                {
+                    var mainPart = wordDoc.MainDocumentPart!;
+                    var body = mainPart.Document.Body!;
+
+                    // Add default header with watermark
+                    var defaultHdrPart = mainPart.AddNewPart<HeaderPart>();
+                    using (var s = defaultHdrPart.GetStream(FileMode.Create, FileAccess.Write))
+                    {
+                        var b = Encoding.UTF8.GetBytes(watermarkHeaderXml);
+                        s.Write(b, 0, b.Length);
+                    }
+
+                    // Add empty first-page header (no watermark on cover page)
+                    var firstHdrPart = mainPart.AddNewPart<HeaderPart>();
+                    using (var s = firstHdrPart.GetStream(FileMode.Create, FileAccess.Write))
+                    {
+                        var b = Encoding.UTF8.GetBytes(emptyHeaderXml);
+                        s.Write(b, 0, b.Length);
+                    }
+
+                    // Update section properties to reference new headers
+                    var sectPr = body.GetFirstChild<SectionProperties>();
+                    if (sectPr == null)
+                    {
+                        sectPr = new SectionProperties();
+                        body.AppendChild(sectPr);
+                    }
+
+                    foreach (var hr in sectPr.Elements<HeaderReference>().ToList()) hr.Remove();
+                    if (sectPr.GetFirstChild<TitlePage>() == null)
+                        sectPr.InsertAt(new TitlePage(), 0);
+
+                    string defId   = mainPart.GetIdOfPart(defaultHdrPart);
+                    string firstId = mainPart.GetIdOfPart(firstHdrPart);
+                    sectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.Default, Id = defId },   0);
+                    sectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.First,   Id = firstId }, 0);
+
+                    mainPart.Document.Save();
+                }
+
+                return ms.ToArray();
+            }
+            catch
+            {
+                // Fallback: return original bytes if watermark fails
+                return npioBytes;
+            }
         }
 
         // === 通用命書 DOCX 匯出 ===
