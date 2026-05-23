@@ -3967,39 +3967,17 @@ namespace Ecanapi.Controllers
             AddPara(" 敬 批", 16, true, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
 
             doc.Write(ms);
-            return LfAddWatermarkToDocxBytes(ms.ToArray());
+            return LfAddWatermarkToDocxBytes(ms.ToArray(), sealBytes);
         }
 
-        // Post-process DOCX bytes: add 玉洞子印 watermark to all pages except cover (first page)
-        private static byte[] LfAddWatermarkToDocxBytes(byte[] npioBytes)
+        // Post-process DOCX bytes: add 玉洞子印 seal image as watermark (all pages except cover)
+        private static byte[] LfAddWatermarkToDocxBytes(byte[] npioBytes, byte[] sealImageBytes)
         {
             try
             {
                 var ms = new MemoryStream();
                 ms.Write(npioBytes, 0, npioBytes.Length);
                 ms.Position = 0;
-
-                const string watermarkHeaderXml =
-                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-                    "<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
-                    " xmlns:v=\"urn:schemas-microsoft-com:vml\"" +
-                    " xmlns:o=\"urn:schemas-microsoft-com:office:office\">" +
-                    "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
-                    "<w:r><w:rPr><w:noProof/></w:rPr><w:pict>" +
-                    "<v:shape id=\"watermark1\" type=\"#_x0000_t136\"" +
-                    " style=\"position:absolute;margin-left:0;margin-top:0;width:467.65pt;height:116.9pt;" +
-                    "z-index:-251656192;mso-position-horizontal:center;mso-position-horizontal-relative:margin;" +
-                    "mso-position-vertical:center;mso-position-vertical-relative:margin;rotation:315\"" +
-                    " fillcolor=\"#FF9999\" stroked=\"f\" filled=\"t\">" +
-                    "<v:fill on=\"t\" type=\"solid\" color=\"#FF9999\"/>" +
-                    "<v:textbox style=\"mso-fit-shape-to-text:t\">" +
-                    "<w:txbxContent><w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
-                    "<w:r><w:rPr>" +
-                    "<w:color w:val=\"FF9999\"/>" +
-                    "<w:sz w:val=\"144\"/><w:szCs w:val=\"144\"/>" +
-                    "</w:rPr><w:t>\u7389\u6d1e\u5b50\u5370</w:t></w:r>" +
-                    "</w:p></w:txbxContent>" +
-                    "</v:textbox></v:shape></w:pict></w:r></w:p></w:hdr>";
 
                 const string emptyHeaderXml =
                     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
@@ -4011,8 +3989,36 @@ namespace Ecanapi.Controllers
                     var mainPart = wordDoc.MainDocumentPart!;
                     var body = mainPart.Document.Body!;
 
-                    // Add default header with watermark
+                    // Add default header with seal image watermark
                     var defaultHdrPart = mainPart.AddNewPart<HeaderPart>();
+
+                    string imgRelId = "";
+                    if (sealImageBytes.Length > 0)
+                    {
+                        var imagePart = defaultHdrPart.AddImagePart(ImagePartType.Png);
+                        using (var imgMs = new MemoryStream(sealImageBytes))
+                            imagePart.FeedData(imgMs);
+                        imgRelId = defaultHdrPart.GetIdOfPart(imagePart);
+                    }
+
+                    // VML image watermark: gain="19999" blacklevel="22938f" = Word "Washout" effect
+                    string watermarkHeaderXml =
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                        "<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"" +
+                        " xmlns:v=\"urn:schemas-microsoft-com:vml\"" +
+                        " xmlns:o=\"urn:schemas-microsoft-com:office:office\"" +
+                        " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" +
+                        "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
+                        "<w:r><w:rPr><w:noProof/></w:rPr><w:pict>" +
+                        "<v:shape id=\"watermark1\" type=\"#_x0000_t75\"" +
+                        " style=\"position:absolute;margin-left:0;margin-top:0;width:8cm;height:8cm;" +
+                        "z-index:-251656192;mso-position-horizontal:center;" +
+                        "mso-position-horizontal-relative:margin;" +
+                        "mso-position-vertical:center;mso-position-vertical-relative:margin\"" +
+                        " o:allowincell=\"f\">" +
+                        $"<v:imagedata r:id=\"{imgRelId}\" o:title=\"seal\" gain=\"19999\" blacklevel=\"22938f\"/>" +
+                        "</v:shape></w:pict></w:r></w:p></w:hdr>";
+
                     using (var s = defaultHdrPart.GetStream(FileMode.Create, FileAccess.Write))
                     {
                         var b = Encoding.UTF8.GetBytes(watermarkHeaderXml);
