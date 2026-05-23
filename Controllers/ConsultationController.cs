@@ -15738,6 +15738,18 @@ namespace Ecanapi.Controllers
                     user.BirthGender ?? gender,
                     year);
                 if (!string.IsNullOrEmpty(lnNsSection)) report += lnNsSection;
+                // 移除全報告凶字標籤（含九星章節）
+                report = report
+                    .Replace("【大凶】", "【需特別謹慎】")
+                    .Replace("【小凶】", "【宜低調保守】")
+                    .Replace("（大凶）", "（需謹慎）")
+                    .Replace("（小凶）", "（需注意）")
+                    .Replace("（凶）", "（需注意）")
+                    .Replace("整體偏凶", "整體需謹慎")
+                    .Replace("，凶在唇舌，橫死兵亂，世界大戰，牢獄刑險", "，宜修身養性，謹言慎行")
+                    .Replace("，刀光劍影，開刀殘疾", "，注意身體健康")
+                    .Replace("大凶", "需特別謹慎")
+                    .Replace("小凶", "宜低調保守");
 
 
                 if (!lnIsAdmin) await RecordSubscriptionClaim(user.Id, lnSubId, "BOOK_LIUNIAN");
