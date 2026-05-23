@@ -3941,6 +3941,8 @@ namespace Ecanapi.Controllers
             FlushPipeTable(); // flush any trailing table
 
             // === 玉洞子印（跳頁 + 共勉語 + 印章）===
+            // LfAddWatermarkToDocxBytes will convert this page break into a section break
+            // so that the seal page (last page) gets no watermark header.
             AddPageBreak();
             AddPara(" ", 12, false, "000000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
             AddPara("算命的真蹄", 22, true, "333333", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -4033,22 +4035,63 @@ namespace Ecanapi.Controllers
                         s.Write(b, 0, b.Length);
                     }
 
-                    // Update section properties to reference new headers
-                    var sectPr = body.GetFirstChild<SectionProperties>();
-                    if (sectPr == null)
+                    string defId   = mainPart.GetIdOfPart(defaultHdrPart);
+                    string emptyId = mainPart.GetIdOfPart(firstHdrPart); // reuse empty header
+
+                    // Convert the page break before the seal page into a next-page section break.
+                    // The seal page identifier: first paragraph after the break containing "算命的真蹄".
+                    var allParas = body.Descendants<Paragraph>().ToList();
+                    int sealIdx = allParas.FindIndex(p => p.InnerText.Contains("算命的真蹄"));
+                    if (sealIdx > 0)
                     {
-                        sectPr = new SectionProperties();
-                        body.AppendChild(sectPr);
+                        // Walk back to find the nearest page-break paragraph
+                        for (int i = sealIdx - 1; i >= 0; i--)
+                        {
+                            bool hasPageBreak = allParas[i].Descendants<Break>()
+                                .Any(b => b.Type != null && b.Type.Value == BreakValues.Page);
+                            if (!hasPageBreak) continue;
+
+                            // Inject next-page section break into this paragraph's pPr
+                            var para = allParas[i];
+                            var pPr  = para.ParagraphProperties ?? para.PrependChild(new ParagraphProperties());
+                            pPr.AppendChild(new SectionProperties(
+                                new SectionType { Val = SectionMarkValues.NextPage }
+                            ));
+                            // Remove the run-level page break (section break handles the page jump)
+                            foreach (var run in para.Elements<Run>().ToList()) run.Remove();
+                            break;
+                        }
                     }
 
-                    foreach (var hr in sectPr.Elements<HeaderReference>().ToList()) hr.Remove();
-                    if (sectPr.GetFirstChild<TitlePage>() == null)
-                        sectPr.InsertAt(new TitlePage(), 0);
+                    // After possible injection, find inline sectPr(s) and body-level sectPr
+                    var inlineSectPrs = body.Descendants<SectionProperties>()
+                        .Where(sp => sp.Parent is ParagraphProperties)
+                        .ToList();
+                    var bodySectPr = body.Elements<SectionProperties>().FirstOrDefault();
+                    if (bodySectPr == null) { bodySectPr = new SectionProperties(); body.AppendChild(bodySectPr); }
 
-                    string defId   = mainPart.GetIdOfPart(defaultHdrPart);
-                    string firstId = mainPart.GetIdOfPart(firstHdrPart);
-                    sectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.Default, Id = defId },   0);
-                    sectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.First,   Id = firstId }, 0);
+                    if (inlineSectPrs.Count > 0)
+                    {
+                        // Watermark + TitlePage on content section (Ch.1-Ch.7)
+                        foreach (var sp in inlineSectPrs)
+                        {
+                            foreach (var hr in sp.Elements<HeaderReference>().ToList()) hr.Remove();
+                            if (sp.GetFirstChild<TitlePage>() == null) sp.InsertAt(new TitlePage(), 0);
+                            sp.InsertAt(new HeaderReference { Type = HeaderFooterValues.Default, Id = defId },   0);
+                            sp.InsertAt(new HeaderReference { Type = HeaderFooterValues.First,   Id = emptyId }, 0);
+                        }
+                        // Last page (seal page): explicit empty header, no watermark
+                        foreach (var hr in bodySectPr.Elements<HeaderReference>().ToList()) hr.Remove();
+                        bodySectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.Default, Id = emptyId }, 0);
+                    }
+                    else
+                    {
+                        // Fallback: watermark on all pages except cover
+                        foreach (var hr in bodySectPr.Elements<HeaderReference>().ToList()) hr.Remove();
+                        if (bodySectPr.GetFirstChild<TitlePage>() == null) bodySectPr.InsertAt(new TitlePage(), 0);
+                        bodySectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.Default, Id = defId },   0);
+                        bodySectPr.InsertAt(new HeaderReference { Type = HeaderFooterValues.First,   Id = emptyId }, 0);
+                    }
 
                     mainPart.Document.Save();
                 }
