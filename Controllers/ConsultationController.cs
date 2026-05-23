@@ -14897,8 +14897,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第一章：命主資料與大運概況】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
-            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
-            sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}  日主{bodyLabel}（{bodyPct:F0}%）");
+            sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}  日主{bodyLabel.Split('（')[0]}");
             sb.AppendLine($"用神：{yongShenElem}  忌神：{jiShenElem}  五行：{wx}");
             sb.AppendLine($"分析期間：{startYear} 至 {endYear} 年（{yearsLabel}大運命書）");
             int nowAge = DateTime.Today.Year - birthYear;
@@ -15390,7 +15389,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"  4. 八字與紫微雙吉年宜大膽把握，雙凶年宜蟄伏蓄積，一吉一凶年宜穩健行事");
             sb.AppendLine();
             // === Ch.7 人生警示事項 ===
-            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
+            sb.AppendLine("【第六章：人生警示事項（先天體質）】");
             sb.AppendLine();
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
@@ -16832,54 +16831,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
-            // Ch.4 春夏秋冬四季
-            sb.AppendLine("【第四章：春夏秋冬四季論斷】");
-            sb.AppendLine();
-            var seasonGroups = new[] {
-                ("春", new[] {1,2,3}, "寅月(農曆正月)~辰月(農曆三月)", "木"),
-                ("夏", new[] {4,5,6}, "巳月(農曆四月)~未月(農曆六月)", "火"),
-                ("秋", new[] {7,8,9}, "申月(農曆七月)~戌月(農曆九月)", "金"),
-                ("冬", new[] {10,11,12}, "亥月(農曆十月)~丑月(農曆十二月)", "水"),
-            };
-            foreach (var (sName, mIdxes, sRange, sWang) in seasonGroups)
-            {
-                var sMths = monthlyDetails.Where(m => mIdxes.Contains(m.idx)).ToList();
-                double sAvgBazi  = sMths.Average(m => (double)m.bazi);
-                double sAvgZiwei = sMths.Average(m => (double)m.ziwei);
-                string sCross    = DyCrossClass((int)sAvgBazi, (int)sAvgZiwei);
-                var sBest = sMths.Where(m => m.cross is "大吉" or "吉").Select(m => monthNames[m.idx-1]).ToList();
-                var sCaut = sMths.Where(m => m.cross is "大凶" or "小凶").Select(m => monthNames[m.idx-1]).ToList();
-                string sYongMatch = (sWang == yongShenElem || sWang == fuYiElem)
-                    ? $"五行格局：{sWang}旺與用神{yongShenElem}相輔，此季整體得力。"
-                    : sWang == jiShenElem ? $"五行格局：{sWang}旺為忌神當令，此季壓力偏大，需謹慎應對。"
-                    : (sCross is "大凶" or "小凶")
-                        ? $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，但整體評分偏弱，仍需謹慎行事。"
-                        : $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，此季平穩推進即可。";
-                // 各季對應人生面向（年柱=春/父母長輩，月柱=夏/事業財富，日柱=秋/自身配偶，時柱=冬/子女晚輩）
-                string seasonDomain = sName switch {
-                    "春" => "父母長輩與祖業",
-                    "夏" => "事業財運與同儕",
-                    "秋" => "自身健康與配偶",
-                    "冬" => "子女晚輩與財庫",
-                    _    => "人生各面"
-                };
-                string seasonDomainAdvice = sCross switch {
-                    "大吉" => $"本季【{seasonDomain}】有明顯助力，宜積極把握機會。",
-                    "吉"   => $"本季【{seasonDomain}】整體向好，可有所作為。",
-                    "小凶" => $"本季【{seasonDomain}】承壓，宜低調守成，避免重大決策。",
-                    "大凶" => $"本季【{seasonDomain}】壓力較大，以靜制動，深蹲蓄力。",
-                    _      => $"本季【{seasonDomain}】平穩，按部就班維持穩定。"
-                };
-                sb.AppendLine($"【{sName}季】{sRange}（{sWang}旺）  評分：八字{sAvgBazi:F0}·紫微{sAvgZiwei:F0}·綜合【{sCross}】");
-                sb.AppendLine($"  {seasonDomainAdvice}");
-                sb.AppendLine($"  {sYongMatch}");
-                if (sBest.Count > 0) sb.AppendLine($"  本季佳月：{string.Join("、", sBest)}");
-                if (sCaut.Count > 0) sb.AppendLine($"  本季謹慎：{string.Join("、", sCaut)}");
-                sb.AppendLine();
-            }
-
             // Ch.5 逐月分析
-            sb.AppendLine("【第五章：逐月分析（月建喜忌·流月星曜·紫微宮位）】");
+            sb.AppendLine("【第四章：逐月分析（月建喜忌·流月星曜·紫微宮位）】");
             sb.AppendLine();
             // 流年天干五行（供月份生剋比對）
             string flStemElemForMth = KbStemToElement(flStem);
@@ -17184,7 +17137,7 @@ namespace Ecanapi.Controllers
             }
 
             // Ch.6 趨吉避凶
-            sb.AppendLine("【第六章：趨吉避凶全年建議】");
+            sb.AppendLine("【第五章：趨吉避凶全年建議】");
             var allGood = monthlyDetails.Where(m => m.cross is "大吉" or "吉").OrderByDescending(m => m.bazi + m.ziwei).ToList();
             var allBad  = monthlyDetails.Where(m => m.cross is "大凶" or "小凶").OrderBy(m => m.bazi + m.ziwei).ToList();
             if (allGood.Count > 0)
@@ -17305,7 +17258,7 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
             // === Ch.7 人生警示事項 ===
-            sb.AppendLine("【第七章：人生警示事項（先天體質）】");
+            sb.AppendLine("【第六章：人生警示事項（先天體質）】");
             sb.AppendLine("以下為本命先天體質評估，屬終身通用資訊，非本年度專屬論斷。");
             sb.AppendLine("各子項末段「本年引動」說明，才是本年度需特別留意的具體提示。");
             sb.AppendLine();
@@ -17425,7 +17378,20 @@ namespace Ecanapi.Controllers
 
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine($"命理大師：玉洞子 | 流年命書 v1.1 | {year} 年");
-            return sb.ToString();
+            // 移除命書中的「凶」字標籤，改為委婉措辭（僅影響輸出，不影響邏輯）
+            string lnResult = sb.ToString()
+                .Replace("【大凶】", "【需特別謹慎】")
+                .Replace("【小凶】", "【宜低調保守】")
+                .Replace("（大凶）", "（需謹慎）")
+                .Replace("（小凶）", "（需注意）")
+                .Replace("（凶）", "（需注意）")
+                .Replace("大凶·", "謹慎·")
+                .Replace("·大凶）", "·需謹慎）")
+                .Replace("小凶·", "注意·")
+                .Replace("·小凶）", "·需注意）")
+                .Replace("大凶", "需特別謹慎")
+                .Replace("小凶", "宜低調保守");
+            return lnResult;
         }
 
         // ── analyze-topic ────────────────────────────────────────────────
@@ -17694,7 +17660,7 @@ namespace Ecanapi.Controllers
                 var sb = new System.Text.StringBuilder();
                 sb.AppendLine();
                 sb.AppendLine("---");
-                sb.AppendLine($"【第八章：九星氣學流年加成】");
+                sb.AppendLine($"【第七章：九星氣學流年加成】");
                 sb.AppendLine();
                 sb.AppendLine($"本命星：{natalStar} {natalName}（{Ecanapi.Services.NineStarCalcHelper.StarAliases[natalStar]}）");
                 sb.AppendLine($"當前元運：{currentYun}運（{yunName}），本命星為「{yunLabel}」");
