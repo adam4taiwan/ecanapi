@@ -15803,6 +15803,23 @@ namespace Ecanapi.Controllers
             {"亥","主水享樂，財氣流通；桃花人緣佳；防過度享樂導致財耗散。"}
         };
 
+        // 月支象義補語（每月地支的行事場域/能量特色，用於區分同關係的不同月份）
+        private static readonly Dictionary<string, string> LnMonthBranchFlavorDict = new()
+        {
+            ["寅"] = "寅木行動力強，本月職場外出場域最為活躍，動中有機。",
+            ["卯"] = "卯木人緣旺，本月人脈往來與文書事項頻繁，溝通為重。",
+            ["辰"] = "辰土蓄積，本月適合整合資源、沉澱規劃，謀定後動。",
+            ["巳"] = "巳火旺發，本月社交應酬熱絡，展現機會多但需防過度張揚。",
+            ["午"] = "午火烈旺，本月競爭激烈，情緒起伏偏大，冷靜決策最重要。",
+            ["未"] = "未土濡緩，本月人際關係複雜，耐心協調、以和為貴。",
+            ["申"] = "申金肅清，本月法律財務事宜浮現，精細處理、避免粗心。",
+            ["酉"] = "酉金收斂，本月財務精算機會在，細節把關決定成果。",
+            ["戌"] = "戌土歸藏，本月適合沉澱整理、鞏固根基，不宜求新求變。",
+            ["亥"] = "亥水潛藏，本月謀略思慮深，靜中求變，廣結善緣為佳。",
+            ["子"] = "子水靜深，本月適合靜觀等待、充電蓄勢，不宜輕舉妄動。",
+            ["丑"] = "丑土守藏，本月守本固元，積累實力，穩健前行。",
+        };
+
         // 天干在各地支的十二長生表（用於判斷天干在流年地支的力量強弱）
         private static readonly Dictionary<string, Dictionary<string, string>> LnStemLifeAtBranch = new()
         {
@@ -16914,7 +16931,16 @@ namespace Ecanapi.Controllers
                             ? $"流年干{flStem}（{flStemElemForMth}）生月干{m.mStemM}（{mStemElemM}），流年主事洩力，本月【{flStemSS}】動能略緩。"
                             : $"流年干{flStem}（{flStemElemForMth}）生月干{m.mStemM}（{mStemElemM}），忌神洩力，本月壓力相對較輕。";
                     if (!string.IsNullOrEmpty(aDesc))
+                    {
+                        // 補月支象義，讓同關係不同月份各有差異
+                        if (LnMonthBranchFlavorDict.TryGetValue(m.mBranchM, out var mBFlavor))
+                            aDesc += " " + mBFlavor;
+                        // 矛盾修正：大凶/小凶月出現「緩和」「較輕」時補上整體提醒
+                        bool mIsBadCross = m.cross is "小凶" or "大凶";
+                        if (mIsBadCross && (aDesc.Contains("緩和") || aDesc.Contains("較輕")))
+                            aDesc += " 惟整體月份評分偏弱，仍以低調守成為宜。";
                         sb.AppendLine($"  主事強弱：{aDesc}");
+                    }
                 }
 
                 // [B] 月支與流年地支刑沖合破害 → 本月是否引動流年主事爆發
