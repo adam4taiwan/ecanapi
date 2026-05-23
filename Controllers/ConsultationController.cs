@@ -4013,7 +4013,7 @@ namespace Ecanapi.Controllers
                         "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr>" +
                         "<w:r><w:rPr><w:noProof/></w:rPr><w:pict>" +
                         "<v:shape id=\"watermark1\" type=\"#_x0000_t75\"" +
-                        " style=\"position:absolute;margin-left:0;margin-top:0;width:8cm;height:8cm;" +
+                        " style=\"position:absolute;margin-left:0;margin-top:0;width:13cm;height:13cm;" +
                         "z-index:-251656192;mso-position-horizontal:center;" +
                         "mso-position-horizontal-relative:margin;" +
                         "mso-position-vertical:center;mso-position-vertical-relative:margin\"" +
