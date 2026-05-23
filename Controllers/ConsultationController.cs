@@ -16818,11 +16818,17 @@ namespace Ecanapi.Controllers
                 {
                     sb.AppendLine($"多術共鳴重點：{string.Join("、", strongRes.Select(a => a.Key))}");
                     sb.AppendLine("  上述領域有兩項以上術數同時指向，論斷可信度高，宜特別重視。");
+                    if (singleRes.Count > 0)
+                        sb.AppendLine($"  次要觀察：{string.Join("、", singleRes.Select(a => a.Key))}（單術指向，供參考）");
+                }
+                else if (singleRes.Count > 0)
+                {
+                    sb.AppendLine("各術數方向較分散，以下為本年值得關注的重點方向：");
+                    foreach (var kv in singleRes)
+                        sb.AppendLine($"  · {kv.Key}");
                 }
                 else
-                    sb.AppendLine("本年各術數面向分歧，尚無集中共鳴領域，整體運勢較為平均分散。");
-                if (singleRes.Count > 0)
-                    sb.AppendLine($"觀察（單術指向，供參考）：{string.Join("、", singleRes.Select(a => a.Key))}");
+                    sb.AppendLine("本年各術數指向均衡，整體運勢平穩，無特別集中的壓力或機會。");
                 sb.AppendLine();
             }
 
@@ -16846,7 +16852,9 @@ namespace Ecanapi.Controllers
                 string sYongMatch = (sWang == yongShenElem || sWang == fuYiElem)
                     ? $"五行格局：{sWang}旺與用神{yongShenElem}相輔，此季整體得力。"
                     : sWang == jiShenElem ? $"五行格局：{sWang}旺為忌神當令，此季壓力偏大，需謹慎應對。"
-                    : $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，此季平穩行事。";
+                    : (sCross is "大凶" or "小凶")
+                        ? $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，但整體評分偏弱，仍需謹慎行事。"
+                        : $"五行格局：{sWang}旺對用神{yongShenElem}影響中性，此季平穩推進即可。";
                 // 各季對應人生面向（年柱=春/父母長輩，月柱=夏/事業財富，日柱=秋/自身配偶，時柱=冬/子女晚輩）
                 string seasonDomain = sName switch {
                     "春" => "父母長輩與祖業",
@@ -17067,6 +17075,25 @@ namespace Ecanapi.Controllers
                     string goodStr = string.Join(" ", new[] { luTip, quanTip }.Where(s => !string.IsNullOrEmpty(s)));
                     if (!string.IsNullOrEmpty(goodStr))   sb.AppendLine($"  本月機緣：{goodStr}");
                     if (!string.IsNullOrEmpty(jiTip))     sb.AppendLine($"  本月注意：{jiTip}");
+                }
+                // P3: 本月行動建議（流年主事 × 月份吉凶 → 具體行動）
+                {
+                    string actionDomain = flStemSS switch {
+                        "正官" or "七殺" => "職場與對外事務",
+                        "正財" or "偏財" => "財務與收益規劃",
+                        "正印" or "偏印" => "學習、文書與長輩事宜",
+                        "食神" or "傷官" => "才藝表達與溝通事項",
+                        "比肩" or "劫財" => "合作、競爭與自我展現",
+                        _                => "各項事務",
+                    };
+                    string actionTip = m.cross switch {
+                        "大吉" => $"本月宜主動出擊【{actionDomain}】，機緣窗口難得，積極行動可見成效。",
+                        "吉"   => $"本月可穩步推進【{actionDomain}】，洽談合作均有收穫，把握節奏。",
+                        "小凶" => $"本月【{actionDomain}】宜暫緩重大決策，低調觀望、保守應對為上。",
+                        "大凶" => $"本月【{actionDomain}】需特別謹慎，以守代攻、靜待轉機，避免逆勢而行。",
+                        _      => $"本月【{actionDomain}】按部就班，維持現況穩健推進即可。",
+                    };
+                    sb.AppendLine($"  行動建議：{actionTip}");
                 }
                 sb.AppendLine();
             }
