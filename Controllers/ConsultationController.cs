@@ -17011,6 +17011,91 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"  命局互動：月支{m.mBranchM}{string.Join("、", cLines)}，對應宮位人事有動。");
                 }
 
+                // [D] 情境論斷：整合 A+B+C 合成具體白話預測（客人可讀）
+                {
+                    string yeGood = flStemSS switch {
+                        "正官" => "職場官方有升遷表彰、名分確立的機會",
+                        "七殺" => "在競爭衝突中尋求突破，衝勁帶動成果",
+                        "正財" => "固定收入有進帳，財務往來有所推進",
+                        "偏財" => "業外財源或人脈引財機緣出現",
+                        "正印" => "考試文書順利，長輩貴人有助力",
+                        "偏印" => "技術研究有進展，靈感與專業成果被認可",
+                        "食神" => "才藝展現順暢，業務拓展有新機會",
+                        "傷官" => "創意方案受重視，突破帶來機遇",
+                        "比肩" => "合作夥伴帶來機緣，人脈互助效果顯著",
+                        "劫財" => "行動積極有推進，合作夥伴帶動機遇",
+                        _      => ""
+                    };
+                    string yeBad = flStemSS switch {
+                        "正官" => "職場管束或官非壓力浮現，文書合約需格外謹慎",
+                        "七殺" => "強勢競爭或直接衝突風險高，官非意外需防範",
+                        "正財" => "固定收入受阻或支出偏大，財務耗損需留意",
+                        "偏財" => "投機損財或業外糾紛風險高，合夥事宜謹慎",
+                        "正印" => "文書事務受阻，長輩或上位關係有摩擦",
+                        "偏印" => "思慮過重或小人暗算，專業方向受阻",
+                        "食神" => "表達才藝受阻，業務拓展遇困難",
+                        "傷官" => "口舌是非易起，言多必失，謹防觸怒上位者",
+                        "比肩" => "同業競爭加劇，合作關係易生嫌隙或被搶先機",
+                        "劫財" => "合夥財務糾紛易發，衝動決策損財",
+                        _      => ""
+                    };
+                    string yeEvent = flStemGoodForMth ? yeGood : flStemBadForMth ? yeBad : "";
+                    if (!string.IsNullOrEmpty(yeEvent))
+                    {
+                        // 月支與流年支的引動程度
+                        bool dChFl  = LfBranchChongOf.TryGetValue(m.mBranchM, out var dCh2) && dCh2 == flBranch;
+                        bool dHeFl  = LfHe.TryGetValue(m.mBranchM, out var dHe2) && dHe2.partner == flBranch;
+                        bool dXiFl  = m.mBranchM != flBranch && LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
+                        bool dHaiFl = LfHai.Contains(m.mBranchM + flBranch);
+                        bool dPoFl  = LfPo.Contains(m.mBranchM + flBranch);
+                        string intensityPhrase;
+                        if (dChFl)
+                            intensityPhrase = flStemGoodForMth
+                                ? $"本月月支與流年支相沖，今年【{flStemSS}】的吉事在本月集中爆發，"
+                                : $"本月月支與流年支相沖，今年【{flStemSS}】的壓力在本月最為激烈，";
+                        else if (dHeFl)
+                            intensityPhrase = flStemGoodForMth
+                                ? $"本月月支與流年支相合，今年【{flStemSS}】的機緣在本月有成型聚合的機會，"
+                                : $"本月月支與流年支相合，今年【{flStemSS}】的忌神壓力被合住，本月相對略緩，";
+                        else if (dXiFl)
+                            intensityPhrase = $"本月月支與流年支三刑，今年【{flStemSS}】主事的摩擦與變數在本月最集中，";
+                        else if (dHaiFl)
+                            intensityPhrase = $"本月月支害流年支，今年【{flStemSS}】主事有暗耗暗損，";
+                        else if (dPoFl)
+                            intensityPhrase = $"本月月支破流年支，今年【{flStemSS}】主事計劃易有折扣或變故，";
+                        else
+                            intensityPhrase = m.cross switch {
+                                "大吉" => $"今年【{flStemSS}】主事本月運行最旺，",
+                                "吉"   => $"今年【{flStemSS}】主事本月順暢推進，",
+                                "小凶" => $"今年【{flStemSS}】主事本月承壓，",
+                                "大凶" => $"今年【{flStemSS}】主事本月壓力偏重，",
+                                _      => $"今年【{flStemSS}】主事本月平穩運行，"
+                            };
+                        // 找主要引動命局宮位
+                        string primaryDomain = "";
+                        var dNatalTargets = new (string br, string dom)[]
+                        {
+                            (yBranch, "長輩家族"), (mBranch, "父母事業"), (dBranch, "自身配偶"),
+                            (hBranch, "子女晚輩"),
+                            (!string.IsNullOrEmpty(daiyunBranch) ? daiyunBranch : "", "大運格局"),
+                        };
+                        foreach (var (nbr, ndom) in dNatalTargets)
+                        {
+                            if (string.IsNullOrEmpty(nbr) || nbr == flBranch || nbr == m.mBranchM) continue;
+                            string np = m.mBranchM + nbr;
+                            if ((LfBranchChongOf.TryGetValue(m.mBranchM, out var nc2) && nc2 == nbr) ||
+                                (LfHe.TryGetValue(m.mBranchM, out var nh2) && nh2.partner == nbr) ||
+                                LfHai.Contains(np) ||
+                                LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(nbr)))
+                            { primaryDomain = ndom; break; }
+                        }
+                        string situationLine = intensityPhrase + yeEvent;
+                        if (!string.IsNullOrEmpty(primaryDomain))
+                            situationLine += $"，與【{primaryDomain}】相關的人事本月尤其敏感";
+                        sb.AppendLine($"  情境論斷：{situationLine}。");
+                    }
+                }
+
                 string monthJiPal = "", monthLuPal = "", monthQuanPal = "";
                 if (hasZiwei && YearStemSiHuaMap.TryGetValue(m.mStemM, out var mSiHua))
                 {
