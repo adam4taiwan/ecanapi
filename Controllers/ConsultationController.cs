@@ -15931,6 +15931,28 @@ namespace Ecanapi.Controllers
             return (stems[(startIdx + monthIdx - 1) % 10], branches[monthIdx - 1]);
         }
 
+        // 日主五行在月支的長生十二宮 → 氣數強弱分類（旺/衰/墓/絕/養）
+        private static string LnGetGrowthStage(string dmElem, string branch)
+        {
+            // Yang 長生起點：木=亥, 火/土=寅, 金=巳, 水=申；順序為長生→沐浴→冠帶→臨官→帝旺→衰→病→死→墓→絕→胎→養
+            var startMap = new Dictionary<string, string>
+                { ["木"]="亥", ["火"]="寅", ["土"]="寅", ["金"]="巳", ["水"]="申" };
+            string[] branchOrder = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            string[] stages = { "長生","沐浴","冠帶","臨官","帝旺","衰","病","死","墓","絕","胎","養" };
+            if (!startMap.TryGetValue(dmElem, out var start)) return "平";
+            int startIdx = Array.IndexOf(branchOrder, start);
+            int brIdx    = Array.IndexOf(branchOrder, branch);
+            if (startIdx < 0 || brIdx < 0) return "平";
+            string stage = stages[(brIdx - startIdx + 12) % 12];
+            return stage switch {
+                "長生" or "冠帶" or "臨官" or "帝旺" => "旺",
+                "衰" or "病" or "死"               => "衰",
+                "墓"                               => "墓",
+                "絕"                               => "絕",
+                _                                  => "養" // 沐浴/胎/養
+            };
+        }
+
         private static string LnGetMonthSeason(int monthIdx) => monthIdx switch
         {
             1 or 2 or 3 => "春",
@@ -17133,89 +17155,87 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"  命局互動：月支{m.mBranchM}{string.Join("、", cLines)}，對應宮位人事有動。");
                 }
 
-                // [D] 情境論斷：整合 A+B+C 合成具體白話預測（客人可讀）
+                // [D] 情境論斷 v2：月干十神×大運基調×日主氣數×應期強度 → 具體人事物論斷
+                // 每月依月干十神差異化，不再重複使用流年天干同一事件
                 {
-                    string yeGood = flStemSS switch {
-                        "正官" => "職場官方有升遷表彰、名分確立的機會",
-                        "七殺" => "在競爭衝突中尋求突破，衝勁帶動成果",
-                        "正財" => "固定收入有進帳，財務往來有所推進",
-                        "偏財" => "業外財源或人脈引財機緣出現",
-                        "正印" => "考試文書順利，長輩貴人有助力",
-                        "偏印" => "技術研究有進展，靈感與專業成果被認可",
-                        "食神" => "才藝展現順暢，業務拓展有新機會",
-                        "傷官" => "創意方案受重視，突破帶來機遇",
-                        "比肩" => "合作夥伴帶來機緣，人脈互助效果顯著",
-                        "劫財" => "行動積極有推進，合作夥伴帶動機遇",
-                        _      => ""
+                    bool mthIsGood = m.cross is "大吉" or "吉";
+                    bool mthIsBad  = m.cross is "小凶" or "大凶";
+
+                    // 1. 大運基調：大運五行是用神/忌神，影響月份吉凶上限
+                    string dyElem = !string.IsNullOrEmpty(daiyunStem) ? KbStemToElement(daiyunStem) : "";
+                    bool dyGood = !string.IsNullOrEmpty(dyElem) && (dyElem == yongShenElem || dyElem == fuYiElem);
+                    bool dyBad  = !string.IsNullOrEmpty(dyElem) && dyElem == jiShenElem;
+                    string dyPrefix = dyGood ? "大運順勢加持，" : dyBad ? "大運逆勢承壓，" : "";
+
+                    // 2. 月干十神 → 本月人事物類型（每月干支不同，十神不同）
+                    string mthEvent = (mStemSS2, mthIsGood) switch {
+                        ("正官", true)  => "職場官方有升遷表彰、名分確立的機緣，公職文書事務進展順利",
+                        ("正官", false) => "職場管束壓力或官非文書浮現，上司關係需謹慎維護",
+                        ("七殺", true)  => "競爭環境帶來突破動力，在衝突中尋求主導機會",
+                        ("七殺", false) => "強勢衝突、官非或意外風險偏高，宜低調謹慎遠離糾紛",
+                        ("正財", true)  => "固定收入有進帳，薪資財務往來順暢，財務穩固",
+                        ("正財", false) => "固定收入受阻或支出偏大，財務耗損需謹慎管控",
+                        ("偏財", true)  => "業外財源或人脈引財機緣浮現，異路偏財可期",
+                        ("偏財", false) => "投機損財或業外糾紛風險高，合夥事宜需格外謹慎",
+                        ("正印", true)  => "貴人長輩有助力，文書考試、合約進展順利，學業有望",
+                        ("正印", false) => "長輩或上位關係易有摩擦，文書合約事務受阻",
+                        ("偏印", true)  => "技術鑽研有進展，靈感與專業成果被認可，適合深入研究",
+                        ("偏印", false) => "思慮過重或小人暗算，專業方向受阻，防孤立無援",
+                        ("食神", true)  => "才藝表現順暢，業務拓展有新機會，口福與享受俱佳",
+                        ("食神", false) => "才藝表達受阻，業務推進遇困難，飲食健康需多留意",
+                        ("傷官", true)  => "創意方案受重視，突破常規帶來機遇，思路靈活有發揮",
+                        ("傷官", false) => "口舌是非易起，言多必失，謹防觸怒上位或得罪官方",
+                        ("比肩", true)  => "同儕合作帶來機緣，人脈互助效果顯著，並肩共進",
+                        ("比肩", false) => "同業競爭加劇，合作關係易生嫌隙，防被搶先機",
+                        ("劫財", true)  => "行動積極有推進，合作夥伴帶動機遇，競爭中展現實力",
+                        ("劫財", false) => "合夥財務糾紛易發，衝動決策損財，防兄弟朋友連累",
+                        _               => ""
                     };
-                    string yeBad = flStemSS switch {
-                        "正官" => "職場管束或官非壓力浮現，文書合約需格外謹慎",
-                        "七殺" => "強勢競爭或直接衝突風險高，官非意外需防範",
-                        "正財" => "固定收入受阻或支出偏大，財務耗損需留意",
-                        "偏財" => "投機損財或業外糾紛風險高，合夥事宜謹慎",
-                        "正印" => "文書事務受阻，長輩或上位關係有摩擦",
-                        "偏印" => "思慮過重或小人暗算，專業方向受阻",
-                        "食神" => "表達才藝受阻，業務拓展遇困難",
-                        "傷官" => "口舌是非易起，言多必失，謹防觸怒上位者",
-                        "比肩" => "同業競爭加劇，合作關係易生嫌隙或被搶先機",
-                        "劫財" => "合夥財務糾紛易發，衝動決策損財",
-                        _      => ""
+
+                    // 3. 月支地支長生宮 → 日主當月氣數
+                    string growthStage = LnGetGrowthStage(dmElem, m.mBranchM);
+                    string energyNote = growthStage switch {
+                        "旺" => "日主氣旺，行事有力度，宜積極把握",
+                        "衰" => "日主氣洩，體力精力偏弱，宜保守蓄力",
+                        "墓" => "日主逢墓，重要人事易停滯或有收場變動",
+                        "絕" => "日主氣絕，精力最低，謹防意外失利",
+                        _   => ""
                     };
-                    string yeEvent = flStemGoodForMth ? yeGood : flStemBadForMth ? yeBad : "";
-                    if (!string.IsNullOrEmpty(yeEvent))
+
+                    // 4. 特殊凶神引動：七殺無制 / 梟神奪食 / 劫財奪財
+                    string specialWarn = "";
+                    string[] natalSS = { yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS };
+                    bool natalHas食神 = natalSS.Any(s => s == "食神");
+                    bool natalHas正印 = natalSS.Any(s => s == "正印");
+                    if ((mStemSS2 == "七殺" || mBrSSM == "七殺") && !natalHas食神 && !natalHas正印 && bodyPct < 50)
+                        specialWarn = "七殺無制（原局缺食神/正印），身弱逢殺，本月須防意外傷害或強勢壓制。";
+                    else if (mStemSS2 == "偏印" && natalHas食神)
+                        specialWarn = "梟神奪食（偏印月干制住命局食神），本月須防失業、破財或脾胃問題。";
+                    else if ((mStemSS2 == "劫財" || mBrSSM == "劫財") &&
+                             (flStemSS is "正財" or "偏財" || daiyunSS is "正財" or "偏財"))
+                        specialWarn = "劫財剋奪財星，本月財務支出偏大，防合夥糾紛或兄弟朋友連累損財。";
+
+                    // 5. 月支應期強度：與流年支的沖/合/刑/害關係
+                    bool dChFl2  = LfBranchChongOf.TryGetValue(m.mBranchM, out var dCh2) && dCh2 == flBranch;
+                    bool dHeFl2  = LfHe.TryGetValue(m.mBranchM, out var dHe2) && dHe2.partner == flBranch;
+                    bool dXiFl2  = m.mBranchM != flBranch && LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
+                    bool dHaiFl2 = LfHai.Contains(m.mBranchM + flBranch);
+                    string periodNote = dChFl2  ? $"（月支沖流年支，是今年【{flStemSS}】事件的最強爆發應期）"
+                                     : dHeFl2  ? $"（月支合流年支，今年【{flStemSS}】機緣在本月聚合成形）"
+                                     : dXiFl2  ? $"（月支刑流年支，摩擦變數集中，需額外謹慎）"
+                                     : dHaiFl2 ? $"（月支害流年支，暗耗暗損，防人事暗算）"
+                                     : "";
+
+                    // 6. 組合輸出：大運基調 + 月干十神事件 + 應期強度 + 日主氣數
+                    if (!string.IsNullOrEmpty(mthEvent))
                     {
-                        // 月支與流年支的引動程度
-                        bool dChFl  = LfBranchChongOf.TryGetValue(m.mBranchM, out var dCh2) && dCh2 == flBranch;
-                        bool dHeFl  = LfHe.TryGetValue(m.mBranchM, out var dHe2) && dHe2.partner == flBranch;
-                        bool dXiFl  = m.mBranchM != flBranch && LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(flBranch));
-                        bool dHaiFl = LfHai.Contains(m.mBranchM + flBranch);
-                        bool dPoFl  = LfPo.Contains(m.mBranchM + flBranch);
-                        string intensityPhrase;
-                        if (dChFl)
-                            intensityPhrase = flStemGoodForMth
-                                ? $"本月月支與流年支相沖，今年【{flStemSS}】的吉事在本月集中爆發，"
-                                : $"本月月支與流年支相沖，今年【{flStemSS}】的壓力在本月最為激烈，";
-                        else if (dHeFl)
-                            intensityPhrase = flStemGoodForMth
-                                ? $"本月月支與流年支相合，今年【{flStemSS}】的機緣在本月有成型聚合的機會，"
-                                : $"本月月支與流年支相合，今年【{flStemSS}】的忌神壓力被合住，本月相對略緩，";
-                        else if (dXiFl)
-                            intensityPhrase = $"本月月支與流年支三刑，今年【{flStemSS}】主事的摩擦與變數在本月最集中，";
-                        else if (dHaiFl)
-                            intensityPhrase = $"本月月支害流年支，今年【{flStemSS}】主事有暗耗暗損，";
-                        else if (dPoFl)
-                            intensityPhrase = $"本月月支破流年支，今年【{flStemSS}】主事計劃易有折扣或變故，";
-                        else
-                            intensityPhrase = m.cross switch {
-                                "大吉" => $"今年【{flStemSS}】主事本月運行最旺，",
-                                "吉"   => $"今年【{flStemSS}】主事本月順暢推進，",
-                                "小凶" => $"今年【{flStemSS}】主事本月承壓，",
-                                "大凶" => $"今年【{flStemSS}】主事本月壓力偏重，",
-                                _      => $"今年【{flStemSS}】主事本月平穩運行，"
-                            };
-                        // 找主要引動命局宮位
-                        string primaryDomain = "";
-                        var dNatalTargets = new (string br, string dom)[]
-                        {
-                            (yBranch, "長輩家族"), (mBranch, "父母事業"), (dBranch, "自身配偶"),
-                            (hBranch, "子女晚輩"),
-                            (!string.IsNullOrEmpty(daiyunBranch) ? daiyunBranch : "", "大運格局"),
-                        };
-                        foreach (var (nbr, ndom) in dNatalTargets)
-                        {
-                            if (string.IsNullOrEmpty(nbr) || nbr == flBranch || nbr == m.mBranchM) continue;
-                            string np = m.mBranchM + nbr;
-                            if ((LfBranchChongOf.TryGetValue(m.mBranchM, out var nc2) && nc2 == nbr) ||
-                                (LfHe.TryGetValue(m.mBranchM, out var nh2) && nh2.partner == nbr) ||
-                                LfHai.Contains(np) ||
-                                LfXing.Any(g => g.Contains(m.mBranchM) && g.Contains(nbr)))
-                            { primaryDomain = ndom; break; }
-                        }
-                        string situationLine = intensityPhrase + yeEvent;
-                        if (!string.IsNullOrEmpty(primaryDomain))
-                            situationLine += $"，與【{primaryDomain}】相關的人事本月尤其敏感";
+                        string situationLine = dyPrefix + mthEvent + periodNote;
+                        if (!string.IsNullOrEmpty(energyNote))
+                            situationLine += $"；{energyNote}";
                         sb.AppendLine($"  情境論斷：{situationLine}。");
                     }
+                    if (!string.IsNullOrEmpty(specialWarn))
+                        sb.AppendLine($"  特別提醒：{specialWarn}");
                 }
 
                 string monthJiPal = "", monthLuPal = "", monthQuanPal = "";
