@@ -1,4 +1,5 @@
 ﻿using Ecanapi.Data;
+using Ecanapi.Helpers;
 using Ecanapi.Models;
 using Ecanapi.Services;
 using DocumentFormat.OpenXml.Packaging;
@@ -3554,7 +3555,7 @@ namespace Ecanapi.Controllers
             }
         }
 
-        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 傳 家 寶 典", string? skipTitle = null)
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 傳 家 寶 典", string? skipTitle = null, bool addWatermark = true)
         {
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
@@ -3969,10 +3970,11 @@ namespace Ecanapi.Controllers
             AddPara(" 敬 批", 16, true, "CC0000", NPOI.XWPF.UserModel.ParagraphAlignment.CENTER);
 
             doc.Write(ms);
-            return LfAddWatermarkToDocxBytes(ms.ToArray(), sealBytes);
+            var rawBytes = ms.ToArray();
+            return addWatermark ? DocxWatermarkHelper.AddWatermark(rawBytes, sealBytes) : rawBytes;
         }
 
-        // Post-process DOCX bytes: add 玉洞子印 seal image as watermark (all pages except cover)
+        // Kept for reference — logic moved to Helpers/DocxWatermarkHelper.cs
         private static byte[] LfAddWatermarkToDocxBytes(byte[] npioBytes, byte[] sealImageBytes)
         {
             try
@@ -4134,6 +4136,7 @@ namespace Ecanapi.Controllers
             public string BookTitle   { get; set; } = "";   // 封面顯示標題
             public string? SkipTitle  { get; set; }         // report body 裡要略過的標題行（預設同 BookTitle）
             public string? ChartImageBase64 { get; set; }
+            public bool AddWatermark  { get; set; } = true; // false = 草稿模式，浮水印在下載時才加
         }
 
         [HttpPost("export-generic-docx")]
@@ -4155,7 +4158,7 @@ namespace Ecanapi.Controllers
                 string bookTitle  = !string.IsNullOrEmpty(request.BookTitle)  ? request.BookTitle  : "命書";
 
                 string skipTitle = !string.IsNullOrEmpty(request.SkipTitle) ? request.SkipTitle : bookTitle;
-                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle, skipTitle);
+                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle, skipTitle, request.AddWatermark);
 
                 string safeTitle = bookTitle.Replace(" ", "");
                 string fileName  = $"{personName}_{safeTitle}.docx";

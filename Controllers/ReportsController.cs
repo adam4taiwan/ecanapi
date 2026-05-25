@@ -1,4 +1,5 @@
 using Ecanapi.Data;
+using Ecanapi.Helpers;
 using Ecanapi.Models;
 using Ecanapi.Services;
 using DocumentFormat.OpenXml.Packaging;
@@ -98,9 +99,17 @@ namespace Ecanapi.Controllers
             var fileName = report.ApprovedDocxFileName
                 ?? $"{personName}_{report.Title}.docx";
 
+            // Apply fresh watermark from original seal image (replaces any blurry watermark from Word re-save)
+            string wwwroot  = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            string sealPath = Path.Combine(wwwroot, "images", "玉洞子印.png");
+            byte[] sealBytes = System.IO.File.Exists(sealPath)
+                ? await System.IO.File.ReadAllBytesAsync(sealPath)
+                : Array.Empty<byte>();
+            byte[] watermarkedBytes = DocxWatermarkHelper.AddWatermark(report.ApprovedDocxBytes, sealBytes);
+
             // Add read-only password protection before serving to user
             string protectionPassword = _config["Report:ProtectionPassword"] ?? "Adam520508";
-            byte[] protectedBytes = AddReadOnlyProtection(report.ApprovedDocxBytes, protectionPassword);
+            byte[] protectedBytes = AddReadOnlyProtection(watermarkedBytes, protectionPassword);
 
             return File(protectedBytes,
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
