@@ -71,6 +71,7 @@ namespace Ecanapi.Controllers
                     r.ApprovedAt,
                     r.AdminNote,
                     HasDownloadToken = r.DownloadToken != null && r.DownloadTokenExpiry > DateTime.UtcNow,
+                    DownloadToken = r.DownloadToken != null && r.DownloadTokenExpiry > DateTime.UtcNow ? r.DownloadToken : null,
                     HasApprovedDocx = r.ApprovedDocxBytes != null
                 })
                 .ToListAsync();
