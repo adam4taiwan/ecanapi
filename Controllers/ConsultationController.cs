@@ -3540,6 +3540,21 @@ namespace Ecanapi.Controllers
                     yNaYin, dStem, dBranch);
                 if (!string.IsNullOrEmpty(starPingDxDocx)) reportText += starPingDxDocx;
 
+                // 河洛理數命卦（從 lunarBirthDate 或 calendar 取農曆月日）
+                int docxLunarDay = LfParseLunarDay(lunarRawDocx);
+                if (docxLunarDay <= 0 && user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
+                        c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
+                    if (calEntry != null)
+                    {
+                        if (lunarMonthDocx <= 0) int.TryParse(calEntry.LunarMonth, out lunarMonthDocx);
+                        int.TryParse(calEntry.LunarDay, out docxLunarDay);
+                    }
+                }
+                string heluoDocx = await LfBuildHeLuoChapter(yStem, yBranch, hBranch, lunarMonthDocx, docxLunarDay, _context);
+                if (!string.IsNullOrEmpty(heluoDocx)) reportText += heluoDocx;
+
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
                 byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
 
@@ -7466,6 +7481,263 @@ namespace Ecanapi.Controllers
                 return m4;
 
             return 0;
+        }
+
+        private static int LfParseLunarDay(string lunarBirthDate)
+        {
+            if (string.IsNullOrEmpty(lunarBirthDate)) return 0;
+
+            // 格式一：中文「...月Z日」
+            int monthIdx = lunarBirthDate.IndexOf('月');
+            int dayIdx   = lunarBirthDate.IndexOf('日', monthIdx >= 0 ? monthIdx : 0);
+            if (monthIdx >= 0 && dayIdx > monthIdx)
+            {
+                string dayStr = lunarBirthDate.Substring(monthIdx + 1, dayIdx - monthIdx - 1);
+                int chResult = dayStr switch {
+                    "初一"  => 1,  "初二"  => 2,  "初三"  => 3,  "初四"  => 4,  "初五"  => 5,
+                    "初六"  => 6,  "初七"  => 7,  "初八"  => 8,  "初九"  => 9,  "初十"  => 10,
+                    "十一"  => 11, "十二"  => 12, "十三"  => 13, "十四"  => 14, "十五"  => 15,
+                    "十六"  => 16, "十七"  => 17, "十八"  => 18, "十九"  => 19, "二十"  => 20,
+                    "廿一"  => 21, "廿二"  => 22, "廿三"  => 23, "廿四"  => 24, "廿五"  => 25,
+                    "廿六"  => 26, "廿七"  => 27, "廿八"  => 28, "廿九"  => 29, "三十"  => 30,
+                    "二十一" => 21, "二十二" => 22, "二十三" => 23, "二十四" => 24, "二十五" => 25,
+                    "二十六" => 26, "二十七" => 27, "二十八" => 28, "二十九" => 29,
+                    _ => 0
+                };
+                if (chResult > 0) return chResult;
+                if (int.TryParse(dayStr, out int dp) && dp >= 1 && dp <= 30) return dp;
+            }
+
+            // 格式二：YYYY/MM/DD 或 YYYY-MM-DD
+            var parts = lunarBirthDate.Split(new[] { '/', '-' });
+            if (parts.Length >= 3 && int.TryParse(parts[2], out int d2) && d2 >= 1 && d2 <= 30)
+                return d2;
+
+            return 0;
+        }
+
+        // === 河洛理數命卦章節 ===
+        private static async Task<string> LfBuildHeLuoChapter(
+            string yStem, string yBranch, string hBranch,
+            int lunarMonth, int lunarDay,
+            ApplicationDbContext context)
+        {
+            if (lunarMonth <= 0 || lunarDay <= 0) return "";
+
+            // 地支 → 數字（子=1..亥=12）
+            var branchNum = new Dictionary<string, int> {
+                {"子",1},{"丑",2},{"寅",3},{"卯",4},{"辰",5},{"巳",6},
+                {"午",7},{"未",8},{"申",9},{"酉",10},{"戌",11},{"亥",12}
+            };
+            // 先天八卦序（數字→三爻碼 初→三，陽=1陰=0）
+            // 正確碼: 乾111, 兌110, 離101, 震100, 巽011, 坎010, 艮001, 坤000
+            var guaCode = new Dictionary<int, string> {
+                {1,"111"},{2,"110"},{3,"101"},{4,"100"},
+                {5,"011"},{6,"010"},{7,"001"},{8,"000"}
+            };
+            var guaName = new Dictionary<int, string> {
+                {1,"乾"},{2,"兌"},{3,"離"},{4,"震"},{5,"巽"},{6,"坎"},{7,"艮"},{8,"坤"}
+            };
+            // 天干序號（甲=1..癸=10）
+            var stemNum = new Dictionary<string, int> {
+                {"甲",1},{"乙",2},{"丙",3},{"丁",4},{"戊",5},
+                {"己",6},{"庚",7},{"辛",8},{"壬",9},{"癸",10}
+            };
+            // 上卦納干（外卦）
+            var upperNaGan = new Dictionary<string, string> {
+                {"乾","壬"},{"坤","癸"},{"坎","戊"},{"離","己"},
+                {"艮","丙"},{"震","庚"},{"巽","辛"},{"兌","丁"}
+            };
+            // 下卦納干（內卦）
+            var lowerNaGan = new Dictionary<string, string> {
+                {"乾","甲"},{"坤","乙"},{"坎","戊"},{"離","己"},
+                {"艮","丙"},{"震","庚"},{"巽","辛"},{"兌","丁"}
+            };
+            // 世應位置（RowId→(世爻,應爻)）1-based yao number
+            static (int shi, int ying) GetShiYing(int rowId) => rowId switch {
+                1 => (1, 4), 2 => (2, 5), 3 => (3, 6),
+                4 => (4, 1), 5 => (5, 2), 6 => (6, 3),
+                7 => (5, 2), 8 => (4, 1),
+                _ => (0, 0)
+            };
+            // 爻位名
+            static string YaoName(int n) => n switch {
+                1 => "初爻", 2 => "二爻", 3 => "三爻",
+                4 => "四爻", 5 => "五爻", 6 => "六爻(上)", _ => ""
+            };
+
+            if (!branchNum.TryGetValue(yBranch, out int intY)) return "";
+            if (!branchNum.TryGetValue(hBranch, out int intT)) return "";
+            int intM = lunarMonth, intD = lunarDay;
+
+            // 起卦
+            int flNum = (intY + intM + intD) % 8; if (flNum == 0) flNum = 8;
+            int skNum = (intY + intM + intD + intT) % 8; if (skNum == 0) skNum = 8;
+            int ichange = (intY + intM + intD + intT) % 6; if (ichange == 0) ichange = 6;
+
+            string xtCode = guaCode[flNum] + guaCode[skNum]; // 先天卦碼（下+上 各3字）
+
+            // 後天卦：動爻反轉
+            char[] htChars = xtCode.ToCharArray();
+            htChars[ichange - 1] = htChars[ichange - 1] == '1' ? '0' : '1';
+            string htCode = new string(htChars);
+
+            // 查詢 DB
+            var xtGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == xtCode);
+            var htGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == htCode);
+            if (xtGua == null) return "";
+
+            var xtSix = xtGua.Name != null
+                ? await context.Ig64Sixs.FirstOrDefaultAsync(s => s.Ig64 == xtGua.Name)
+                : null;
+            var htSix = htGua?.Name != null
+                ? await context.Ig64Sixs.FirstOrDefaultAsync(s => s.Ig64 == htGua.Name)
+                : null;
+
+            // 推算納干
+            string flGuaName = guaName[flNum]; // 下卦名
+            string skGuaName = guaName[skNum]; // 上卦名
+            string lnGan = lowerNaGan.TryGetValue(flGuaName, out var lg) ? lg : "";
+            string unGan = upperNaGan.TryGetValue(skGuaName, out var ug) ? ug : "";
+
+            // 後天卦下/上卦名稱
+            string htFlCode = new string(htCode.Take(3).ToArray());
+            string htSkCode = new string(htCode.Skip(3).ToArray());
+            string htFlGuaName = "", htSkGuaName = "";
+            foreach (var kv in guaCode) { if (kv.Value == htFlCode) { htFlGuaName = guaName[kv.Key]; break; } }
+            foreach (var kv in guaCode) { if (kv.Value == htSkCode) { htSkGuaName = guaName[kv.Key]; break; } }
+            string htLnGan = lowerNaGan.TryGetValue(htFlGuaName, out var htlg) ? htlg : "";
+            string htUnGan = upperNaGan.TryGetValue(htSkGuaName, out var htug) ? htug : "";
+
+            // 組合各爻資料（yao[0]=初爻, yao[5]=六爻）
+            string?[] GetYaos(Ig64Six? six) => six == null
+                ? new string?[6]
+                : new[] { six.OneYao, six.TwoYao, six.ThreeYao, six.FourYao, six.FiveYao, six.SixYao };
+
+            // 計算先天大運年齡（陽爻=9年, 陰爻=6年，從元堂起順序循環）
+            int[] xtYears = new int[6];
+            for (int i = 0; i < 6; i++)
+                xtYears[i] = xtCode[i] == '1' ? 9 : 6;
+            // 大運起始順序：從元堂(ichange,1-based)向上循環
+            int[] xtOrder = new int[6];
+            for (int j = 0; j < 6; j++)
+                xtOrder[j] = (ichange - 1 + j) % 6; // 0-based yao index
+            int[] xtStartAge = new int[6], xtEndAge = new int[6];
+            int curAge = 1;
+            for (int j = 0; j < 6; j++)
+            {
+                int idx = xtOrder[j];
+                xtStartAge[idx] = curAge;
+                xtEndAge[idx]   = curAge + xtYears[idx] - 1;
+                curAge           = xtEndAge[idx] + 1;
+            }
+            int htBaseAge = curAge; // 後天起始年齡
+
+            // 計算後天大運年齡
+            int[] htYears = new int[6];
+            for (int i = 0; i < 6; i++)
+                htYears[i] = htCode[i] == '1' ? 9 : 6;
+            // 後天元堂=先天動爻位（同 ichange）
+            int htChange = ichange;
+            int[] htOrder = new int[6];
+            for (int j = 0; j < 6; j++)
+                htOrder[j] = (htChange - 1 + j) % 6;
+            int[] htStartAge = new int[6], htEndAge = new int[6];
+            curAge = htBaseAge;
+            for (int j = 0; j < 6; j++)
+            {
+                int idx = htOrder[j];
+                htStartAge[idx] = curAge;
+                htEndAge[idx]   = curAge + htYears[idx] - 1;
+                curAge           = htEndAge[idx] + 1;
+            }
+
+            // 六神（依年天干）
+            var liushenSeq = new Dictionary<int, string[]> {
+                {1, new[]{"青龍","朱雀","勾陳","螣蛇","白虎","玄武"}}, // 甲
+                {2, new[]{"青龍","朱雀","勾陳","螣蛇","白虎","玄武"}}, // 乙
+                {3, new[]{"朱雀","勾陳","螣蛇","白虎","玄武","青龍"}}, // 丙
+                {4, new[]{"朱雀","勾陳","螣蛇","白虎","玄武","青龍"}}, // 丁
+                {5, new[]{"勾陳","螣蛇","白虎","玄武","青龍","朱雀"}}, // 戊
+                {6, new[]{"螣蛇","白虎","玄武","青龍","朱雀","勾陳"}}, // 己
+                {7, new[]{"白虎","玄武","青龍","朱雀","勾陳","螣蛇"}}, // 庚
+                {8, new[]{"白虎","玄武","青龍","朱雀","勾陳","螣蛇"}}, // 辛
+                {9, new[]{"玄武","青龍","朱雀","勾陳","螣蛇","白虎"}}, // 壬
+                {10,new[]{"玄武","青龍","朱雀","勾陳","螣蛇","白虎"}}, // 癸
+            };
+            string[] liushen = stemNum.TryGetValue(yStem, out int sn) && liushenSeq.TryGetValue(sn, out var ls)
+                ? ls : new string[6];
+
+            // 輸出章節文字
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("【第二十章：河洛理數·命卦】");
+            sb.AppendLine();
+
+            // 起卦說明
+            sb.AppendLine($"【起卦數】下卦={flNum}({flGuaName}) 上卦={skNum}({skGuaName}) 動爻={ichange}");
+            sb.AppendLine();
+
+            // 先天卦
+            sb.AppendLine($"【先天命卦】{xtGua.Name}");
+            if (!string.IsNullOrEmpty(xtSix?.Gongming))
+                sb.AppendLine($"宮象：{xtSix.Gongming}　五行：{xtSix?.Wuxing}");
+            if (!string.IsNullOrEmpty(xtGua.Description))
+                sb.AppendLine($"卦辭：{xtGua.Description}");
+            sb.AppendLine();
+
+            var xtYaos = GetYaos(xtSix);
+            var (xtShi, xtYing) = GetShiYing(xtSix?.RowId ?? 0);
+            // 表頭
+            sb.AppendLine("| 爻位 | 六親 | 地支 | 納干 | 六神 | 大運 | 世應 |");
+            sb.AppendLine("|----|----|----|----|----|----|----|");
+            // 從六爻(index 5)到初爻(index 0)，由上而下顯示
+            for (int i = 5; i >= 0; i--)
+            {
+                int yaoNum = i + 1;
+                string yaoData = xtYaos[i] ?? "";
+                string liuqin  = yaoData.Length >= 2 ? yaoData.Substring(0, 2) : "";
+                string dizhi   = yaoData.Length >= 4 ? yaoData.Substring(2, 2) : (yaoData.Length >= 3 ? yaoData.Substring(2) : "");
+                string nagan   = yaoNum <= 3 ? lnGan : unGan; // 初~三=下卦, 四~六=上卦
+                string shen    = liushen.Length > i ? (liushen[i] ?? "") : "";
+                string dayun   = $"{xtStartAge[i]}~{xtEndAge[i]}";
+                string shiyingLabel = yaoNum == xtShi ? "世" : (yaoNum == xtYing ? "應" : "");
+                if (yaoNum == ichange) shiyingLabel = string.IsNullOrEmpty(shiyingLabel) ? "元堂" : shiyingLabel + "·元堂";
+                sb.AppendLine($"| {YaoName(yaoNum)} | {liuqin} | {dizhi} | {nagan} | {shen} | {dayun} | {shiyingLabel} |");
+            }
+            sb.AppendLine();
+
+            // 後天卦
+            if (htGua != null)
+            {
+                sb.AppendLine($"【後天命卦】{htGua.Name}");
+                if (!string.IsNullOrEmpty(htSix?.Gongming))
+                    sb.AppendLine($"宮象：{htSix.Gongming}　五行：{htSix?.Wuxing}");
+                if (!string.IsNullOrEmpty(htGua.Description))
+                    sb.AppendLine($"卦辭：{htGua.Description}");
+                sb.AppendLine();
+
+                var htYaos = GetYaos(htSix);
+                var (htShi, htYing) = GetShiYing(htSix?.RowId ?? 0);
+                sb.AppendLine("| 爻位 | 六親 | 地支 | 納干 | 六神 | 大運 | 世應 |");
+                sb.AppendLine("|----|----|----|----|----|----|----|");
+                for (int i = 5; i >= 0; i--)
+                {
+                    int yaoNum = i + 1;
+                    string yaoData = htYaos[i] ?? "";
+                    string liuqin  = yaoData.Length >= 2 ? yaoData.Substring(0, 2) : "";
+                    string dizhi   = yaoData.Length >= 4 ? yaoData.Substring(2, 2) : (yaoData.Length >= 3 ? yaoData.Substring(2) : "");
+                    string nagan   = yaoNum <= 3 ? htLnGan : htUnGan;
+                    string shen    = liushen.Length > i ? (liushen[i] ?? "") : "";
+                    string dayun   = $"{htStartAge[i]}~{htEndAge[i]}";
+                    string shiyingLabel = yaoNum == htShi ? "世" : (yaoNum == htYing ? "應" : "");
+                    if (yaoNum == ichange) shiyingLabel = string.IsNullOrEmpty(shiyingLabel) ? "元堂" : shiyingLabel + "·元堂";
+                    sb.AppendLine($"| {YaoName(yaoNum)} | {liuqin} | {dizhi} | {nagan} | {shen} | {dayun} | {shiyingLabel} |");
+                }
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
         }
 
         // === 百分百確信度斷語（條件2-9）===

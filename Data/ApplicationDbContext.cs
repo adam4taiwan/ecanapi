@@ -90,6 +90,10 @@ namespace Ecanapi.Data
         // 八字技法知識庫
         public DbSet<BaziTechnique> BaziTechniques { get; set; }
 
+        // 河洛理數六十四卦
+        public DbSet<IgHexagram> IgHexagrams { get; set; }
+        public DbSet<Ig64Six> Ig64Sixs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
