@@ -7610,19 +7610,22 @@ namespace Ecanapi.Controllers
 
             if (!branchNum.TryGetValue(yBranch, out int intY)) return "";
             if (!branchNum.TryGetValue(hBranch, out int intT)) return "";
-            int intM = lunarMonth, intD = lunarDay;
+            // 河洛理數用0-indexed月日（農曆月-1, 農曆日-1）
+            int intM = lunarMonth - 1, intD = lunarDay - 1;
 
-            // 起卦
+            // 起卦（地數 = intY+intM+intD+intT）
             int flNum = (intY + intM + intD) % 8; if (flNum == 0) flNum = 8;
             int skNum = (intY + intM + intD + intT) % 8; if (skNum == 0) skNum = 8;
             int ichange = (intY + intM + intD + intT) % 6; if (ichange == 0) ichange = 6;
 
             string xtCode = guaCode[flNum] + guaCode[skNum]; // 先天卦碼（下+上 各3字）
 
-            // 後天卦：動爻反轉
-            char[] htChars = xtCode.ToCharArray();
-            htChars[ichange - 1] = htChars[ichange - 1] == '1' ? '0' : '1';
-            string htCode = new string(htChars);
+            // 後天卦：後天下卦=先天上卦，後天上卦=(先天下卦+動爻)%8
+            int htFlNum = skNum;
+            int htSkNum = (flNum + ichange) % 8; if (htSkNum == 0) htSkNum = 8;
+            string htCode = guaCode[htFlNum] + guaCode[htSkNum];
+            // 後天元堂 = 7 - 先天動爻
+            int htChange = 7 - ichange;
 
             // 查詢 DB（用 raw SQL 確保與 PostgreSQL ig 表欄位一致）
             var xtGua = await context.IgHexagrams
@@ -7698,8 +7701,7 @@ namespace Ecanapi.Controllers
             int[] htYears = new int[6];
             for (int i = 0; i < 6; i++)
                 htYears[i] = htCode[i] == '1' ? 9 : 6;
-            // 後天元堂=先天動爻位（同 ichange）
-            int htChange = ichange;
+            // 後天元堂從 htChange 開始（已於上方定義）
             int[] htOrder = new int[6];
             for (int j = 0; j < 6; j++)
                 htOrder[j] = (htChange - 1 + j) % 6;
@@ -7792,7 +7794,7 @@ namespace Ecanapi.Controllers
                     string shen    = liushen.Length > i ? (liushen[i] ?? "") : "";
                     string dayun   = $"{htStartAge[i]}~{htEndAge[i]}";
                     string shiyingLabel = yaoNum == htShi ? "世" : (yaoNum == htYing ? "應" : "");
-                    if (yaoNum == ichange) shiyingLabel = string.IsNullOrEmpty(shiyingLabel) ? "元堂" : shiyingLabel + "·元堂";
+                    if (yaoNum == htChange) shiyingLabel = string.IsNullOrEmpty(shiyingLabel) ? "元堂" : shiyingLabel + "·元堂";
                     sb.AppendLine($"| {YaoName(yaoNum)} | {liuqin} | {dizhi} | {nagan} | {shen} | {dayun} | {shiyingLabel} |");
                 }
                 sb.AppendLine();
