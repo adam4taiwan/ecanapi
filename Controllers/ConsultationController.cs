@@ -7775,6 +7775,14 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"| {YaoName(yaoNum)} | {liuqin} | {dizhi} | {nagan} | {shen} | {dayun} | {shiyingLabel} |");
             }
             sb.AppendLine();
+            // 各爻爻辭（初爻→六爻）
+            string?[] xtDescs = new[] { xtGua.DescOne, xtGua.DescTwo, xtGua.DescThree, xtGua.DescFour, xtGua.DescFive, xtGua.DescSix };
+            for (int i = 0; i < 6; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(xtDescs[i]))
+                    sb.AppendLine($"【{YaoName(i + 1)}爻辭】{xtDescs[i]}");
+            }
+            sb.AppendLine();
 
             // 後天卦
             if (htGua != null)
@@ -7802,6 +7810,14 @@ namespace Ecanapi.Controllers
                     string shiyingLabel = yaoNum == htShi ? "世" : (yaoNum == htYing ? "應" : "");
                     if (yaoNum == htChange) shiyingLabel = string.IsNullOrEmpty(shiyingLabel) ? "元堂" : shiyingLabel + "·元堂";
                     sb.AppendLine($"| {YaoName(yaoNum)} | {liuqin} | {dizhi} | {nagan} | {shen} | {dayun} | {shiyingLabel} |");
+                }
+                sb.AppendLine();
+                // 各爻爻辭（初爻→六爻）
+                string?[] htDescs = new[] { htGua.DescOne, htGua.DescTwo, htGua.DescThree, htGua.DescFour, htGua.DescFive, htGua.DescSix };
+                for (int i = 0; i < 6; i++)
+                {
+                    if (!string.IsNullOrWhiteSpace(htDescs[i]))
+                        sb.AppendLine($"【{YaoName(i + 1)}爻辭】{htDescs[i]}");
                 }
                 sb.AppendLine();
             }
