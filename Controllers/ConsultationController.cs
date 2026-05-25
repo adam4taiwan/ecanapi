@@ -7624,9 +7624,13 @@ namespace Ecanapi.Controllers
             htChars[ichange - 1] = htChars[ichange - 1] == '1' ? '0' : '1';
             string htCode = new string(htChars);
 
-            // 查詢 DB
-            var xtGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == xtCode);
-            var htGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == htCode);
+            // 查詢 DB（用 raw SQL 確保與 PostgreSQL ig 表欄位一致）
+            var xtGua = await context.IgHexagrams
+                .FromSqlInterpolated($"SELECT id, code, name, description, desc_one, desc_two, desc_three, desc_four, desc_five, desc_six FROM public.ig WHERE code = {xtCode}")
+                .AsNoTracking().FirstOrDefaultAsync();
+            var htGua = await context.IgHexagrams
+                .FromSqlInterpolated($"SELECT id, code, name, description, desc_one, desc_two, desc_three, desc_four, desc_five, desc_six FROM public.ig WHERE code = {htCode}")
+                .AsNoTracking().FirstOrDefaultAsync();
             if (xtGua == null)
             {
                 // 查無此卦碼時，輸出診斷資訊供驗算
@@ -7641,10 +7645,14 @@ namespace Ecanapi.Controllers
             }
 
             var xtSix = xtGua.Name != null
-                ? await context.Ig64Sixs.FirstOrDefaultAsync(s => s.Ig64 == xtGua.Name)
+                ? await context.Ig64Sixs
+                    .FromSqlInterpolated($"SELECT id, ig64, one_yao, two_yao, three_yao, four_yao, five_yao, six_yao, \"RowID\", gongming, wuxing FROM public.ig64_six WHERE ig64 = {xtGua.Name}")
+                    .AsNoTracking().FirstOrDefaultAsync()
                 : null;
             var htSix = htGua?.Name != null
-                ? await context.Ig64Sixs.FirstOrDefaultAsync(s => s.Ig64 == htGua.Name)
+                ? await context.Ig64Sixs
+                    .FromSqlInterpolated($"SELECT id, ig64, one_yao, two_yao, three_yao, four_yao, five_yao, six_yao, \"RowID\", gongming, wuxing FROM public.ig64_six WHERE ig64 = {htGua.Name}")
+                    .AsNoTracking().FirstOrDefaultAsync()
                 : null;
 
             // 推算納干
