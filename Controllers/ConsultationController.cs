@@ -3542,14 +3542,18 @@ namespace Ecanapi.Controllers
 
                 // 河洛理數命卦（從 lunarBirthDate 或 calendar 取農曆月日）
                 int docxLunarDay = LfParseLunarDay(lunarRawDocx);
-                if (docxLunarDay <= 0 && user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                if (lunarMonthDocx <= 0 || docxLunarDay <= 0)
                 {
-                    var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
-                        c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
-                    if (calEntry != null)
+                    // fallback：查 calendar DB
+                    if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                     {
-                        if (lunarMonthDocx <= 0) int.TryParse(calEntry.LunarMonth, out lunarMonthDocx);
-                        int.TryParse(calEntry.LunarDay, out docxLunarDay);
+                        var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
+                            c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
+                        if (calEntry != null)
+                        {
+                            if (lunarMonthDocx <= 0) lunarMonthDocx = LfParseLunarMonthField(calEntry.LunarMonth);
+                            if (docxLunarDay <= 0)   docxLunarDay   = LfParseLunarDayField(calEntry.LunarDay);
+                        }
                     }
                 }
                 string heluoDocx = await LfBuildHeLuoChapter(yStem, yBranch, hBranch, lunarMonthDocx, docxLunarDay, _context);
@@ -7513,7 +7517,45 @@ namespace Ecanapi.Controllers
             if (parts.Length >= 3 && int.TryParse(parts[2], out int d2) && d2 >= 1 && d2 <= 30)
                 return d2;
 
+            // 格式三：純數字字串（YYYYMMDD 8碼）
+            string digits = new string(lunarBirthDate.Where(char.IsDigit).ToArray());
+            if (digits.Length == 8 && int.TryParse(digits.Substring(6, 2), out int d3) && d3 >= 1 && d3 <= 30)
+                return d3;
+
             return 0;
+        }
+
+        // 解析農曆日（單一欄位值，可能是純數字或中文如「初一」「十五」）
+        private static int LfParseLunarDayField(string? s)
+        {
+            if (string.IsNullOrEmpty(s)) return 0;
+            s = s.Trim();
+            if (int.TryParse(s, out int n) && n >= 1 && n <= 30) return n;
+            // 中文農曆日名
+            return s switch {
+                "初一"  => 1,  "初二"  => 2,  "初三"  => 3,  "初四"  => 4,  "初五"  => 5,
+                "初六"  => 6,  "初七"  => 7,  "初八"  => 8,  "初九"  => 9,  "初十"  => 10,
+                "十一"  => 11, "十二"  => 12, "十三"  => 13, "十四"  => 14, "十五"  => 15,
+                "十六"  => 16, "十七"  => 17, "十八"  => 18, "十九"  => 19, "二十"  => 20,
+                "廿一"  => 21, "廿二"  => 22, "廿三"  => 23, "廿四"  => 24, "廿五"  => 25,
+                "廿六"  => 26, "廿七"  => 27, "廿八"  => 28, "廿九"  => 29, "三十"  => 30,
+                "二十一" => 21, "二十二" => 22, "二十三" => 23, "二十四" => 24, "二十五" => 25,
+                "二十六" => 26, "二十七" => 27, "二十八" => 28, "二十九" => 29,
+                _ => 0
+            };
+        }
+
+        // 解析農曆月（單一欄位值）
+        private static int LfParseLunarMonthField(string? s)
+        {
+            if (string.IsNullOrEmpty(s)) return 0;
+            s = s.Trim().Replace("月", "");
+            if (int.TryParse(s, out int n) && n >= 1 && n <= 12) return n;
+            return s switch {
+                "正" or "一" => 1, "二" => 2, "三" => 3, "四" => 4, "五" => 5, "六" => 6,
+                "七" => 7, "八" => 8, "九" => 9, "十" => 10, "十一" => 11, "十二" => 12,
+                _ => 0
+            };
         }
 
         // === 河洛理數命卦章節 ===
@@ -7585,7 +7627,18 @@ namespace Ecanapi.Controllers
             // 查詢 DB
             var xtGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == xtCode);
             var htGua = await context.IgHexagrams.FirstOrDefaultAsync(g => g.Code == htCode);
-            if (xtGua == null) return "";
+            if (xtGua == null)
+            {
+                // 查無此卦碼時，輸出診斷資訊供驗算
+                var sb0 = new System.Text.StringBuilder();
+                sb0.AppendLine();
+                sb0.AppendLine("【第二十章：河洛理數·命卦】");
+                sb0.AppendLine();
+                sb0.AppendLine($"【起卦數】年支={intY} 農曆月={intM} 農曆日={intD} 時支={intT}");
+                sb0.AppendLine($"下卦數={flNum}({guaName.GetValueOrDefault(flNum,"?")}) 上卦數={skNum}({guaName.GetValueOrDefault(skNum,"?")}) 動爻={ichange}");
+                sb0.AppendLine($"先天卦碼={xtCode}（查無資料，請確認 ig 表 code 欄位格式）");
+                return sb0.ToString();
+            }
 
             var xtSix = xtGua.Name != null
                 ? await context.Ig64Sixs.FirstOrDefaultAsync(s => s.Ig64 == xtGua.Name)
