@@ -399,6 +399,20 @@ namespace Ecanapi.Controllers
             return Ok(new { message = "已退回" });
         }
 
+        // DELETE /api/Reports/admin/{id}
+        // Hard delete a report (admin only, for removing test entries)
+        [HttpDelete("admin/{id:guid}")]
+        [Authorize]
+        public async Task<IActionResult> DeleteReport(Guid id)
+        {
+            if (!IsAdmin()) return Forbid();
+            var report = await _context.UserReports.FirstOrDefaultAsync(r => r.Id == id);
+            if (report == null) return NotFound(new { error = "找不到命書" });
+            _context.UserReports.Remove(report);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "已刪除" });
+        }
+
         // POST /api/Reports/admin/{id}/resend
         // Resend email with new token (if 72hr expired)
         [HttpPost("admin/{id:guid}/resend")]
