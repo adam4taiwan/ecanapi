@@ -4442,7 +4442,7 @@ namespace Ecanapi.Controllers
                         pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                         luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                         ziweiFullContent, chartStars, decadeKbMap,
-                        gender, birthYear, years, branches, dStem)
+                        gender, birthYear, years, branches, dStem, guFaPoetry: dyGuFaPoetry)
                     : DyBuildReport(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                         yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -4450,7 +4450,7 @@ namespace Ecanapi.Controllers
                         pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                         luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                         ziweiFullContent, chartStars, decadeKbMap,
-                        gender, birthYear, years, branches, dStem);
+                        gender, birthYear, years, branches, dStem, guFaPoetry: dyGuFaPoetry);
 
                 // 九星氣學加成（純 KB）
                 string dyNsSection = await NsBuildBirthSection(
@@ -14431,7 +14431,8 @@ namespace Ecanapi.Controllers
             Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
             string ziweiFullContent, HashSet<string> chartStars,
             Dictionary<string, string> decadeKbMap,
-            int gender, int birthYear, int years, string[] branches, string dStemRef)
+            int gender, int birthYear, int years, string[] branches, string dStemRef,
+            string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -14477,6 +14478,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v2TuneElem, dStemRef, branches));
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
+                sb.AppendLine();
+            }
             sb.AppendLine();
 
             // === Ch.2 命主概況與格局 ===
@@ -15592,7 +15599,8 @@ namespace Ecanapi.Controllers
             Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
             string ziweiFullContent, HashSet<string> chartStars,
             Dictionary<string, string> decadeKbMap,
-            int gender, int birthYear, int years, string[] branches, string dStemRef)
+            int gender, int birthYear, int years, string[] branches, string dStemRef,
+            string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -15655,6 +15663,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp2, dStemRef, branches));
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
+                sb.AppendLine();
+            }
             sb.AppendLine();
 
             // === Ch.3 分析期間大運干支論斷 ===
