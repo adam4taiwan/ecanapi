@@ -2208,7 +2208,9 @@ namespace Ecanapi.Controllers
                 string bz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string bz1GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string bz1GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string bz1GuFaPoetry  = string.IsNullOrWhiteSpace(bz1GuFaTitle) ? KbStripHtml(bz1GuFaContent) : $"《{bz1GuFaTitle}》\n{KbStripHtml(bz1GuFaContent)}";
+                string bz1GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz1GuFaPoetry  = (string.IsNullOrWhiteSpace(bz1GuFaTitle) ? KbStripHtml(bz1GuFaContent) : $"《{bz1GuFaTitle}》\n{KbStripHtml(bz1GuFaContent)}")
+                                      + (string.IsNullOrWhiteSpace(bz1GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(bz1GuFaHour)}");
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2405,7 +2407,9 @@ namespace Ecanapi.Controllers
                 string bz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string bz2GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string bz2GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string bz2GuFaPoetry  = string.IsNullOrWhiteSpace(bz2GuFaTitle) ? KbStripHtml(bz2GuFaContent) : $"《{bz2GuFaTitle}》\n{KbStripHtml(bz2GuFaContent)}";
+                string bz2GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz2GuFaPoetry  = (string.IsNullOrWhiteSpace(bz2GuFaTitle) ? KbStripHtml(bz2GuFaContent) : $"《{bz2GuFaTitle}》\n{KbStripHtml(bz2GuFaContent)}")
+                                      + (string.IsNullOrWhiteSpace(bz2GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(bz2GuFaHour)}");
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3151,7 +3155,9 @@ namespace Ecanapi.Controllers
                 string ydz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string ydz1GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string ydz1GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string ydz1GuFaPoetry  = string.IsNullOrWhiteSpace(ydz1GuFaTitle) ? KbStripHtml(ydz1GuFaContent) : $"《{ydz1GuFaTitle}》\n{KbStripHtml(ydz1GuFaContent)}";
+                string ydz1GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz1GuFaPoetry  = (string.IsNullOrWhiteSpace(ydz1GuFaTitle) ? KbStripHtml(ydz1GuFaContent) : $"《{ydz1GuFaTitle}》\n{KbStripHtml(ydz1GuFaContent)}")
+                                       + (string.IsNullOrWhiteSpace(ydz1GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(ydz1GuFaHour)}");
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3505,7 +3511,9 @@ namespace Ecanapi.Controllers
                 string ydz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string ydz2GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string ydz2GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string ydz2GuFaPoetry  = string.IsNullOrWhiteSpace(ydz2GuFaTitle) ? KbStripHtml(ydz2GuFaContent) : $"《{ydz2GuFaTitle}》\n{KbStripHtml(ydz2GuFaContent)}";
+                string ydz2GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz2GuFaPoetry  = (string.IsNullOrWhiteSpace(ydz2GuFaTitle) ? KbStripHtml(ydz2GuFaContent) : $"《{ydz2GuFaTitle}》\n{KbStripHtml(ydz2GuFaContent)}")
+                                       + (string.IsNullOrWhiteSpace(ydz2GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(ydz2GuFaHour)}");
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -4412,7 +4420,9 @@ namespace Ecanapi.Controllers
                 string dyQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string dyGuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string dyGuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string dyGuFaPoetry  = string.IsNullOrWhiteSpace(dyGuFaTitle) ? KbStripHtml(dyGuFaContent) : $"《{dyGuFaTitle}》\n{KbStripHtml(dyGuFaContent)}";
+                string dyGuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string dyGuFaPoetry  = (string.IsNullOrWhiteSpace(dyGuFaTitle) ? KbStripHtml(dyGuFaContent) : $"《{dyGuFaTitle}》\n{KbStripHtml(dyGuFaContent)}")
+                                     + (string.IsNullOrWhiteSpace(dyGuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(dyGuFaHour)}");
 
                 string report = v == 3
                     ? DyBuildReport_V3(
@@ -16433,7 +16443,9 @@ namespace Ecanapi.Controllers
                 string lnQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string lnGuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string lnGuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string lnGuFaPoetry  = string.IsNullOrWhiteSpace(lnGuFaTitle) ? KbStripHtml(lnGuFaContent) : $"《{lnGuFaTitle}》\n{KbStripHtml(lnGuFaContent)}";
+                string lnGuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string lnGuFaPoetry  = (string.IsNullOrWhiteSpace(lnGuFaTitle) ? KbStripHtml(lnGuFaContent) : $"《{lnGuFaTitle}》\n{KbStripHtml(lnGuFaContent)}")
+                                     + (string.IsNullOrWhiteSpace(lnGuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(lnGuFaHour)}");
 
                 string report = LnBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
