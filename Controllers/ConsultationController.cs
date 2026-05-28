@@ -3131,6 +3131,8 @@ namespace Ecanapi.Controllers
                         allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
                 }
 
+                string ydz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM public.\"ASTRO_DESC\" WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string ydz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3156,7 +3158,9 @@ namespace Ecanapi.Controllers
                     calDb: _calendarDb,
                     mingGongStarList: await _context.BaziMingGongStars.ToListAsync(),
                     guoQi: user.BirthMonth.HasValue && user.BirthDay.HasValue
-                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb));
+                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb),
+                    astroDescGeJu: ydz1AstroGeJu,
+                    qiongTongBaoJian: ydz1QiongTong);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -3477,6 +3481,8 @@ namespace Ecanapi.Controllers
                         allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
                 }
 
+                string ydz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM public.\"ASTRO_DESC\" WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string ydz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3499,7 +3505,9 @@ namespace Ecanapi.Controllers
                     starDescOffYdz, starDescWltYdz, starDescSpsYdz, starDescHltYdz,
                     ziweiParStarYdz, ziweiParYdz, ziweiCldStarYdz, ziweiCldYdz,
                     userName: docxUserName,
-                    calDb: _calendarDb);
+                    calDb: _calendarDb,
+                    astroDescGeJu: ydz2AstroGeJu,
+                    qiongTongBaoJian: ydz2QiongTong);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -7191,6 +7199,18 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
+            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
+            {
+                sb.AppendLine("【格局論】");
+                sb.AppendLine(astroDescGeJu);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
+            {
+                sb.AppendLine("【月令精論·窮通寶鑑】");
+                sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
 
             // === Ch.5 六親論斷 ===
             sb.Append(LfBuildCh5SixRelatives(
@@ -8500,7 +8520,9 @@ namespace Ecanapi.Controllers
             string userName = "",
             CalendarDbContext? calDb = null,
             IList<BaziMingGongStar>? mingGongStarList = null,
-            bool guoQi = false)
+            bool guoQi = false,
+            string astroDescGeJu = "",
+            string qiongTongBaoJian = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
