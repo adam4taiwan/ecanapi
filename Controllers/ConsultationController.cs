@@ -7199,18 +7199,6 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
-            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
-            {
-                sb.AppendLine("【格局論】");
-                sb.AppendLine(astroDescGeJu);
-                sb.AppendLine();
-            }
-            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
-            {
-                sb.AppendLine("【月令精論·窮通寶鑑】");
-                sb.AppendLine(qiongTongBaoJian);
-                sb.AppendLine();
-            }
 
             // === Ch.5 六親論斷 ===
             sb.Append(LfBuildCh5SixRelatives(
@@ -9314,6 +9302,18 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("【星曜影響】");
                 foreach (var ss in shenShaList)
                     sb.AppendLine(ss);
+            }
+            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
+            {
+                sb.AppendLine();
+                sb.AppendLine("【格局論】");
+                sb.AppendLine(astroDescGeJu);
+            }
+            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
+            {
+                sb.AppendLine();
+                sb.AppendLine("【月令精論·窮通寶鑑】");
+                sb.AppendLine(qiongTongBaoJian);
             }
             sb.AppendLine();
 
