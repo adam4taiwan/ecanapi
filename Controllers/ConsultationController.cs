@@ -2206,6 +2206,9 @@ namespace Ecanapi.Controllers
 
                 string bz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string bz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string bz1GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz1GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz1GuFaPoetry  = string.IsNullOrWhiteSpace(bz1GuFaTitle) ? KbStripHtml(bz1GuFaContent) : $"《{bz1GuFaTitle}》\n{KbStripHtml(bz1GuFaContent)}";
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2217,7 +2220,8 @@ namespace Ecanapi.Controllers
                     mingGongStars: lfMingGongStars,
                     guoQi: lfGuoQi,
                     astroDescGeJu: bz1AstroGeJu,
-                    qiongTongBaoJian: bz1QiongTong);
+                    qiongTongBaoJian: bz1QiongTong,
+                    guFaPoetry: bz1GuFaPoetry);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2399,6 +2403,9 @@ namespace Ecanapi.Controllers
 
                 string bz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string bz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string bz2GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz2GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string bz2GuFaPoetry  = string.IsNullOrWhiteSpace(bz2GuFaTitle) ? KbStripHtml(bz2GuFaContent) : $"《{bz2GuFaTitle}》\n{KbStripHtml(bz2GuFaContent)}";
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2410,7 +2417,8 @@ namespace Ecanapi.Controllers
                     mingGongStars: bzBaziMingGongStars,
                     guoQi: bzGuoQi,
                     astroDescGeJu: bz2AstroGeJu,
-                    qiongTongBaoJian: bz2QiongTong);
+                    qiongTongBaoJian: bz2QiongTong,
+                    guFaPoetry: bz2GuFaPoetry);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -3141,6 +3149,9 @@ namespace Ecanapi.Controllers
 
                 string ydz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string ydz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string ydz1GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz1GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz1GuFaPoetry  = string.IsNullOrWhiteSpace(ydz1GuFaTitle) ? KbStripHtml(ydz1GuFaContent) : $"《{ydz1GuFaTitle}》\n{KbStripHtml(ydz1GuFaContent)}";
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3168,7 +3179,8 @@ namespace Ecanapi.Controllers
                     guoQi: user.BirthMonth.HasValue && user.BirthDay.HasValue
                         && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb),
                     astroDescGeJu: ydz1AstroGeJu,
-                    qiongTongBaoJian: ydz1QiongTong);
+                    qiongTongBaoJian: ydz1QiongTong,
+                    guFaPoetry: ydz1GuFaPoetry);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -3491,6 +3503,9 @@ namespace Ecanapi.Controllers
 
                 string ydz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string ydz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string ydz2GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz2GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string ydz2GuFaPoetry  = string.IsNullOrWhiteSpace(ydz2GuFaTitle) ? KbStripHtml(ydz2GuFaContent) : $"《{ydz2GuFaTitle}》\n{KbStripHtml(ydz2GuFaContent)}";
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3515,7 +3530,8 @@ namespace Ecanapi.Controllers
                     userName: docxUserName,
                     calDb: _calendarDb,
                     astroDescGeJu: ydz2AstroGeJu,
-                    qiongTongBaoJian: ydz2QiongTong);
+                    qiongTongBaoJian: ydz2QiongTong,
+                    guFaPoetry: ydz2GuFaPoetry);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -4394,6 +4410,9 @@ namespace Ecanapi.Controllers
 
                 string dyAstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string dyQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string dyGuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string dyGuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string dyGuFaPoetry  = string.IsNullOrWhiteSpace(dyGuFaTitle) ? KbStripHtml(dyGuFaContent) : $"《{dyGuFaTitle}》\n{KbStripHtml(dyGuFaContent)}";
 
                 string report = v == 3
                     ? DyBuildReport_V3(
@@ -4404,7 +4423,7 @@ namespace Ecanapi.Controllers
                         luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                         ziweiFullContent, chartStars, decadeKbMap,
                         gender, birthYear, years, branches, dStem,
-                        astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong)
+                        astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong, guFaPoetry: dyGuFaPoetry)
                     : v == 2
                     ? DyBuildReport_V2(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -7034,7 +7053,8 @@ namespace Ecanapi.Controllers
             IList<BaziMingGongStar>? mingGongStars = null,
             bool guoQi = false,
             string astroDescGeJu = "",
-            string qiongTongBaoJian = "")
+            string qiongTongBaoJian = "",
+            string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -7223,6 +7243,12 @@ namespace Ecanapi.Controllers
             {
                 sb.AppendLine("【月令精論·窮通寶鑑】");
                 sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
                 sb.AppendLine();
             }
 
@@ -8536,7 +8562,8 @@ namespace Ecanapi.Controllers
             IList<BaziMingGongStar>? mingGongStarList = null,
             bool guoQi = false,
             string astroDescGeJu = "",
-            string qiongTongBaoJian = "")
+            string qiongTongBaoJian = "",
+            string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -9340,6 +9367,12 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
                 sb.AppendLine("【月令精論·窮通寶鑑】");
                 sb.AppendLine(qiongTongBaoJian);
+            }
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine();
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
             }
             sb.AppendLine();
 
@@ -15133,7 +15166,7 @@ namespace Ecanapi.Controllers
             string ziweiFullContent, HashSet<string> chartStars,
             Dictionary<string, string> decadeKbMap,
             int gender, int birthYear, int years, string[] branches, string dStemRef,
-            string astroDescGeJu = "", string qiongTongBaoJian = "")
+            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -15189,6 +15222,12 @@ namespace Ecanapi.Controllers
             {
                 sb.AppendLine("【月令精論·窮通寶鑑】");
                 sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
                 sb.AppendLine();
             }
             sb.AppendLine();
@@ -16392,6 +16431,9 @@ namespace Ecanapi.Controllers
 
                 string lnAstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string lnQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+                string lnGuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string lnGuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
+                string lnGuFaPoetry  = string.IsNullOrWhiteSpace(lnGuFaTitle) ? KbStripHtml(lnGuFaContent) : $"《{lnGuFaTitle}》\n{KbStripHtml(lnGuFaContent)}";
 
                 string report = LnBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -16409,7 +16451,7 @@ namespace Ecanapi.Controllers
                     branches, dStem,
                     shenSha12: lnShenSha12,
                     mingGongChartText: lnMingGongChartText,
-                    astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong);
+                    astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong, guFaPoetry: lnGuFaPoetry);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -17074,7 +17116,7 @@ namespace Ecanapi.Controllers
             string[] branches, string dStemRef,
             IList<BaziShenSha12>? shenSha12 = null,
             string mingGongChartText = "",
-            string astroDescGeJu = "", string qiongTongBaoJian = "")
+            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -17222,6 +17264,12 @@ namespace Ecanapi.Controllers
             {
                 sb.AppendLine("【月令精論·窮通寶鑑】");
                 sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(guFaPoetry))
+            {
+                sb.AppendLine("【古法詩評】");
+                sb.AppendLine(guFaPoetry);
                 sb.AppendLine();
             }
             sb.AppendLine();
