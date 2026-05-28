@@ -3131,7 +3131,7 @@ namespace Ecanapi.Controllers
                         allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
                 }
 
-                string ydz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM public.\"ASTRO_DESC\" WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string ydz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string ydz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -3481,7 +3481,7 @@ namespace Ecanapi.Controllers
                         allPalaceStarDescsYdz[pal] = await KbQueryStarInPalace(palacesYdz, pal);
                 }
 
-                string ydz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM public.\"ASTRO_DESC\" WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string ydz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
                 string ydz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
