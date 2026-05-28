@@ -3556,7 +3556,7 @@ namespace Ecanapi.Controllers
                         }
                     }
                 }
-                string heluoDocx = await LfBuildHeLuoChapter(yStem, yBranch, hBranch, lunarMonthDocx, docxLunarDay, _context);
+                string heluoDocx = await LfBuildHeLuoChapter(yStem, yBranch, hBranch, lunarMonthDocx, docxLunarDay, _context, birthYear);
                 if (!string.IsNullOrEmpty(heluoDocx)) reportText += heluoDocx;
 
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
@@ -7562,7 +7562,7 @@ namespace Ecanapi.Controllers
         private static async Task<string> LfBuildHeLuoChapter(
             string yStem, string yBranch, string hBranch,
             int lunarMonth, int lunarDay,
-            ApplicationDbContext context)
+            ApplicationDbContext context, int birthYear = 0)
         {
             if (lunarMonth <= 0 || lunarDay <= 0) return "";
 
@@ -7613,6 +7613,27 @@ namespace Ecanapi.Controllers
                 1 => "初爻", 2 => "二爻", 3 => "三爻",
                 4 => "四爻", 5 => "五爻", 6 => "六爻(上)", _ => ""
             };
+            // 翻轉卦碼中第 idx 爻（0-based，0=初爻）
+            static string FlipYao(string code, int idx)
+            {
+                var chars = code.ToCharArray();
+                chars[idx] = chars[idx] == '1' ? '0' : '1';
+                return new string(chars);
+            }
+            // 年份轉干支
+            static string YearGanzhi(int year)
+            {
+                var stm = new[]{"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
+                var brc = new[]{"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
+                return stm[(year - 4 + 4000) % 10] + brc[(year - 4 + 4800) % 12];
+            }
+            // 農曆月份名稱
+            static string LunarMonthLabel(int m)
+            {
+                var names = new[]{"正月","二月","三月","四月","五月","六月",
+                                  "七月","八月","九月","十月","十一月","十二月"};
+                return m >= 1 && m <= 12 ? names[m - 1] : "";
+            }
 
             if (!branchNum.TryGetValue(yBranch, out int intY)) return "";
             if (!branchNum.TryGetValue(hBranch, out int intT)) return "";
@@ -7820,6 +7841,85 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"【{YaoName(i + 1)}爻辭】{htDescs[i]}");
                 }
                 sb.AppendLine();
+            }
+
+            // === 流年卦·流月卦（從目前年齡往後十年）===
+            if (birthYear > 0)
+            {
+                // 一次載入全部64卦（ig表僅64筆）
+                var allGuas = await context.IgHexagrams
+                    .FromSqlInterpolated($"SELECT id, code, name, description, desc_one, desc_two, desc_three, desc_four, desc_five, desc_six FROM public.ig")
+                    .AsNoTracking().ToListAsync();
+                var codeToName = allGuas
+                    .Where(g => g.Code != null && g.Name != null)
+                    .ToDictionary(g => g.Code!, g => g.Name!);
+                string GetGuaName(string code) => codeToName.TryGetValue(code, out var n) ? n : code;
+
+                int currentYear = DateTime.Today.Year;
+                int baseAge = currentYear - birthYear + 1; // 虛歲
+
+                sb.AppendLine("【流年卦·流月卦】");
+                sb.AppendLine($"（{currentYear}~{currentYear + 9} 年，共十年）");
+                sb.AppendLine();
+
+                for (int y = 0; y < 10; y++)
+                {
+                    int yr = currentYear + y;
+                    int age = baseAge + y;
+
+                    // 找此虛歲所在大運爻
+                    bool isXt = true;
+                    int dyIdx = -1;
+                    int dyStart = 0, dyEnd = 0;
+                    string baseGuaCode = xtCode;
+
+                    for (int i = 0; i < 6; i++)
+                    {
+                        if (age >= xtStartAge[i] && age <= xtEndAge[i])
+                        {
+                            dyIdx = i; dyStart = xtStartAge[i]; dyEnd = xtEndAge[i];
+                            isXt = true; baseGuaCode = xtCode;
+                            break;
+                        }
+                    }
+                    if (dyIdx == -1)
+                    {
+                        for (int i = 0; i < 6; i++)
+                        {
+                            if (age >= htStartAge[i] && age <= htEndAge[i])
+                            {
+                                dyIdx = i; dyStart = htStartAge[i]; dyEnd = htEndAge[i];
+                                isXt = false; baseGuaCode = htCode;
+                                break;
+                            }
+                        }
+                    }
+                    if (dyIdx == -1) continue;
+
+                    // 大運卦 = 命卦碼翻轉大運爻
+                    string dyCode = FlipYao(baseGuaCode, dyIdx);
+                    // 流年在大運內序號（0-based），流年動爻
+                    int lnSeq = age - dyStart;
+                    int lnYaoIdx = lnSeq % 6;
+                    // 流年卦 = 大運卦翻轉流年爻
+                    string lnCode = FlipYao(dyCode, lnYaoIdx);
+
+                    string gz = YearGanzhi(yr);
+                    sb.AppendLine($"【{yr}{gz}年·虛歲{age}】");
+                    sb.AppendLine($"大運：{(isXt ? "先天" : "後天")} {dyStart}~{dyEnd}歲，{YaoName(dyIdx + 1)}發動 → 大運卦：{GetGuaName(dyCode)}");
+                    sb.AppendLine($"流年卦：{GetGuaName(lnCode)}（大運第{lnSeq + 1}年，大運卦{YaoName(lnYaoIdx + 1)}發動）");
+                    sb.AppendLine();
+                    sb.AppendLine("| 月份 | 動爻 | 流月卦 |");
+                    sb.AppendLine("|------|------|--------|");
+                    for (int m = 1; m <= 12; m++)
+                    {
+                        // 流月動爻：以流年值年爻為正月起點，每月+1
+                        int mYaoIdx = (lnYaoIdx + m - 1) % 6;
+                        string mCode = FlipYao(lnCode, mYaoIdx);
+                        sb.AppendLine($"| {LunarMonthLabel(m)} | {YaoName(mYaoIdx + 1)} | {GetGuaName(mCode)} |");
+                    }
+                    sb.AppendLine();
+                }
             }
 
             return sb.ToString();
