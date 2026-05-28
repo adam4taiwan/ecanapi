@@ -2204,6 +2204,8 @@ namespace Ecanapi.Controllers
 
                 var lfMingGongStars = await _context.BaziMingGongStars.ToListAsync();
 
+                string bz1AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string bz1QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2213,7 +2215,9 @@ namespace Ecanapi.Controllers
                     pillarFormulas: lfPillarFormulas,
                     zodiacKb: zodiacKbList,
                     mingGongStars: lfMingGongStars,
-                    guoQi: lfGuoQi);
+                    guoQi: lfGuoQi,
+                    astroDescGeJu: bz1AstroGeJu,
+                    qiongTongBaoJian: bz1QiongTong);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2393,6 +2397,8 @@ namespace Ecanapi.Controllers
 
                 var bzBaziMingGongStars = await _context.BaziMingGongStars.ToListAsync();
 
+                string bz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string bz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
                 string report = LfBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -2402,7 +2408,9 @@ namespace Ecanapi.Controllers
                     bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb,
                     bzPillarFormulas,
                     mingGongStars: bzBaziMingGongStars,
-                    guoQi: bzGuoQi);
+                    guoQi: bzGuoQi,
+                    astroDescGeJu: bz2AstroGeJu,
+                    qiongTongBaoJian: bz2QiongTong);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -4384,6 +4392,9 @@ namespace Ecanapi.Controllers
                         decadeKbMap[br] = await KbZiweiQueryByBranch(ziweiPos, br);
                 }
 
+                string dyAstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string dyQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+
                 string report = v == 3
                     ? DyBuildReport_V3(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -4392,7 +4403,8 @@ namespace Ecanapi.Controllers
                         pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
                         luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                         ziweiFullContent, chartStars, decadeKbMap,
-                        gender, birthYear, years, branches, dStem)
+                        gender, birthYear, years, branches, dStem,
+                        astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong)
                     : v == 2
                     ? DyBuildReport_V2(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -7020,7 +7032,9 @@ namespace Ecanapi.Controllers
             IReadOnlyDictionary<string, string>? pillarFormulas = null,
             IList<ZodiacKnowledge>? zodiacKb = null,
             IList<BaziMingGongStar>? mingGongStars = null,
-            bool guoQi = false)
+            bool guoQi = false,
+            string astroDescGeJu = "",
+            string qiongTongBaoJian = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -7199,6 +7213,18 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
+            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
+            {
+                sb.AppendLine("【格局論】");
+                sb.AppendLine(astroDescGeJu);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
+            {
+                sb.AppendLine("【月令精論·窮通寶鑑】");
+                sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
 
             // === Ch.5 六親論斷 ===
             sb.Append(LfBuildCh5SixRelatives(
@@ -15106,7 +15132,8 @@ namespace Ecanapi.Controllers
             Dictionary<string, Dictionary<string, (string palace, string desc)>> siHuaDescMap,
             string ziweiFullContent, HashSet<string> chartStars,
             Dictionary<string, string> decadeKbMap,
-            int gender, int birthYear, int years, string[] branches, string dStemRef)
+            int gender, int birthYear, int years, string[] branches, string dStemRef,
+            string astroDescGeJu = "", string qiongTongBaoJian = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -15152,6 +15179,18 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v3TuneElem, dStemRef, branches));
+            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
+            {
+                sb.AppendLine("【格局論】");
+                sb.AppendLine(astroDescGeJu);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
+            {
+                sb.AppendLine("【月令精論·窮通寶鑑】");
+                sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
             sb.AppendLine();
 
             // Ch.2 命主概況
@@ -16351,6 +16390,9 @@ namespace Ecanapi.Controllers
 
                 var lnShenSha12 = await _context.BaziShenSha12s.ToListAsync();
 
+                string lnAstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
+                string lnQiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
+
                 string report = LnBuildReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -16366,7 +16408,8 @@ namespace Ecanapi.Controllers
                     hasZiwei, palaces, siHuaDescMap, monthlyDetails, bestMonths, cautionMonths,
                     branches, dStem,
                     shenSha12: lnShenSha12,
-                    mingGongChartText: lnMingGongChartText);
+                    mingGongChartText: lnMingGongChartText,
+                    astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -17030,7 +17073,8 @@ namespace Ecanapi.Controllers
             List<int> bestMonths, List<int> cautionMonths,
             string[] branches, string dStemRef,
             IList<BaziShenSha12>? shenSha12 = null,
-            string mingGongChartText = "")
+            string mingGongChartText = "",
+            string astroDescGeJu = "", string qiongTongBaoJian = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -17168,6 +17212,18 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"次忌(△忌)：{jiYongElem}（克用神{yongShenElem}）");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElem, dStemRef, branches));
+            if (!string.IsNullOrWhiteSpace(astroDescGeJu))
+            {
+                sb.AppendLine("【格局論】");
+                sb.AppendLine(astroDescGeJu);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(qiongTongBaoJian))
+            {
+                sb.AppendLine("【月令精論·窮通寶鑑】");
+                sb.AppendLine(qiongTongBaoJian);
+                sb.AppendLine();
+            }
             sb.AppendLine();
 
             // 流年天干地支喜忌
