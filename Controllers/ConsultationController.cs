@@ -7945,8 +7945,7 @@ namespace Ecanapi.Controllers
                         0 => g.DescOne, 1 => g.DescTwo, 2 => g.DescThree,
                         3 => g.DescFour, 4 => g.DescFive, 5 => g.DescSix, _ => null };
                     if (string.IsNullOrWhiteSpace(desc)) return "";
-                    int cut = desc.IndexOf('，'); if (cut < 0 || cut > 40) cut = desc.IndexOf('。');
-                    return cut > 0 && cut <= 40 ? desc[..(cut + 1)] : (desc.Length > 40 ? desc[..40] + "…" : desc);
+                    return desc.Length > 40 ? desc[..40] + "…" : desc;
                 }
 
                 int currentYear = DateTime.Today.Year;
