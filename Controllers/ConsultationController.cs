@@ -7920,10 +7920,34 @@ namespace Ecanapi.Controllers
                 var allGuas = await context.IgHexagrams
                     .FromSqlInterpolated($"SELECT id, code, name, description, desc_one, desc_two, desc_three, desc_four, desc_five, desc_six FROM public.ig")
                     .AsNoTracking().ToListAsync();
+                var allIg64Sixs = await context.Ig64Sixs
+                    .FromSqlInterpolated($"SELECT id, ig64, one_yao, two_yao, three_yao, four_yao, five_yao, six_yao, \"RowID\", gongming, wuxing FROM public.ig64_six")
+                    .AsNoTracking().ToListAsync();
                 var codeToName = allGuas
                     .Where(g => g.Code != null && g.Name != null)
                     .ToDictionary(g => g.Code!, g => g.Name!);
+                var nameToSix = allIg64Sixs
+                    .Where(s => s.Ig64 != null)
+                    .GroupBy(s => s.Ig64!)
+                    .ToDictionary(g => g.Key, g => g.First());
                 string GetGuaName(string code) => codeToName.TryGetValue(code, out var n) ? n : code;
+                string GetLiuQin(string guaName, int yaoIdx) {
+                    if (!nameToSix.TryGetValue(guaName, out var six)) return "";
+                    string? d = yaoIdx switch {
+                        0 => six.OneYao, 1 => six.TwoYao, 2 => six.ThreeYao,
+                        3 => six.FourYao, 4 => six.FiveYao, 5 => six.SixYao, _ => null };
+                    return d?.Length >= 2 ? d.Substring(0, 2) : "";
+                }
+                string GetYaoDesc(string code, int yaoIdx) {
+                    var g = allGuas.FirstOrDefault(x => x.Code == code);
+                    if (g == null) return "";
+                    string? desc = yaoIdx switch {
+                        0 => g.DescOne, 1 => g.DescTwo, 2 => g.DescThree,
+                        3 => g.DescFour, 4 => g.DescFive, 5 => g.DescSix, _ => null };
+                    if (string.IsNullOrWhiteSpace(desc)) return "";
+                    int cut = desc.IndexOf('，'); if (cut < 0 || cut > 20) cut = desc.IndexOf('。');
+                    return cut > 0 && cut <= 20 ? desc[..(cut + 1)] : (desc.Length > 20 ? desc[..20] + "…" : desc);
+                }
 
                 int currentYear = DateTime.Today.Year;
                 int baseAge = currentYear - birthYear + 1; // 虛歲
@@ -7979,14 +8003,19 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"大運：{(isXt ? "先天" : "後天")} {dyStart}~{dyEnd}歲，{YaoName(dyIdx + 1)}發動 → 大運卦：{GetGuaName(dyCode)}");
                     sb.AppendLine($"流年卦：{GetGuaName(lnCode)}（大運第{lnSeq + 1}年，大運卦{YaoName(lnYaoIdx + 1)}發動）");
                     sb.AppendLine();
-                    sb.AppendLine("| 月份 | 動爻 | 流月卦 |");
-                    sb.AppendLine("|------|------|--------|");
+                    sb.AppendLine("| 月份 | 動爻 | 流月卦 | 內宮提要 |");
+                    sb.AppendLine("|------|------|--------|---------|");
                     for (int m = 1; m <= 12; m++)
                     {
                         // 流月動爻：以流年值年爻為正月起點，每月+1
                         int mYaoIdx = (lnYaoIdx + m - 1) % 6;
                         string mCode = FlipYao(lnCode, mYaoIdx);
-                        sb.AppendLine($"| {LunarMonthLabel(m)} | {YaoName(mYaoIdx + 1)} | {GetGuaName(mCode)} |");
+                        string mName = GetGuaName(mCode);
+                        string mLiuQin = GetLiuQin(mName, mYaoIdx);
+                        string mShen   = liushen.Length > mYaoIdx ? (liushen[mYaoIdx] ?? "") : "";
+                        string mDesc   = GetYaoDesc(mCode, mYaoIdx);
+                        string mTip    = string.Join("·", new[] { mLiuQin, mShen, mDesc }.Where(s => !string.IsNullOrEmpty(s)));
+                        sb.AppendLine($"| {LunarMonthLabel(m)} | {YaoName(mYaoIdx + 1)} | {mName} | {mTip} |");
                     }
                     sb.AppendLine();
                 }
