@@ -4997,59 +4997,85 @@ namespace Ecanapi.Controllers
             };
         }
 
-        // 內格三原則篩選用神（僅用於八格/建祿格/月刃格）
-        // Step1: 有根優先；有2個以上有根 → Step2決勝
-        // Step2: 月支旺相決勝（從有根集合 or 全候選中選旺→相）
-        // Step3: 確認無沖剋合（有問題換下一候選重跑）
+        // 用神篩選三原則（僅用於八格/建祿格/月刃格）
+        // 規則1：有根（地支藏干含該五行）
+        // 規則2：根所在地支不空亡
+        // 規則3：根所在地支不被命局其他地支 刑沖害
+        // 多位通過 → 按月令旺相休囚死排序取最旺
         private static string LfPickYongShen(
             string[] candidates,
-            string yBranch, string mBranch, string dBranch, string hBranch,
-            string[] chartStems, Dictionary<string, double> wuXing)
+            string yStem, string yBranch, string mBranch, string dStem, string dBranch, string hBranch,
+            Dictionary<string, double> wuXing)
         {
             var allBranches = new[] { yBranch, mBranch, dBranch, hBranch };
-            var (wang, xiang, _, _, _) = LfGetWangXiang(mBranch);
+            var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
 
-            // 內部：對候選集合執行 Step1+Step2，回傳最佳候選
-            string PickFromPool(List<string> pool)
+            // ── 旬空計算 ──
+            var branchList = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            var stemList   = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+            string[] CalcEmpty(string stem, string branch)
             {
-                if (pool.Count == 0) return "";
-                if (pool.Count == 1) return pool[0];
-                // 多個 → 月支旺相決勝
-                var wangHit  = pool.FirstOrDefault(e => e == wang);
-                if (wangHit  != null) return wangHit;
-                var xiangHit = pool.FirstOrDefault(e => e == xiang);
-                if (xiangHit != null) return xiangHit;
-                // 旺相都沒有 → 古文優先序第一位
-                return pool[0];
+                int si2 = Array.IndexOf(stemList, stem);
+                int bi  = Array.IndexOf(branchList, branch);
+                if (si2 < 0 || bi < 0) return Array.Empty<string>();
+                int start = (bi - si2 + 12) % 12;
+                return new[] { branchList[(start + 10) % 12], branchList[(start + 11) % 12] };
+            }
+            var dayEmpty  = CalcEmpty(dStem, dBranch);   // 年/月/時支空亡以日柱查
+            var yearEmpty = CalcEmpty(yStem, yBranch);    // 日支空亡以年柱查
+
+            // 判斷地支是否空亡
+            bool IsBranchKong(string branch)
+                => branch == dBranch ? yearEmpty.Contains(branch) : dayEmpty.Contains(branch);
+
+            // 判斷地支是否被命局其他地支 刑沖害
+            bool IsBranchXingChongHai(string branch)
+            {
+                var others = allBranches.Where(b => b != branch).ToList();
+                if (others.Any(b => LfChong.Contains(branch + b))) return true;
+                if (others.Any(b => LfHai.Contains(branch + b)))   return true;
+                foreach (var xg in LfXing)
+                    if (xg.Contains(branch) && xg.Any(x => x != branch && others.Contains(x))) return true;
+                return false;
             }
 
-            // Step3：確認候選無沖剋合；若有問題換下一個
-            string ValidateOrFallback(string picked)
+            // 判斷五行是否有「有效根」：根所在地支不空亡 且 不刑沖害
+            bool ElemHasValidRoot(string elem)
             {
-                if (string.IsNullOrEmpty(picked)) return candidates[0];
-                // 若被合剋 → 嘗試下一個候選（只換一次）
-                if (LfIsElemNeutralizedByChart(picked, chartStems, allBranches))
+                foreach (var b in allBranches)
                 {
-                    var next = candidates.FirstOrDefault(e => e != picked
-                        && !LfIsElemNeutralizedByChart(e, chartStems, allBranches));
-                    if (next != null) return next;
+                    if (!LfBranchHiddenRatio.TryGetValue(b, out var hidden)) continue;
+                    if (!hidden.Any(h => KbStemToElement(h.stem) == elem)) continue;
+                    if (!IsBranchKong(b) && !IsBranchXingChongHai(b)) return true;
                 }
-                return picked;
+                return false;
             }
 
-            // Step1：有根集合
+            // 按旺相休囚死完整5階排序，取最旺者
+            int WangXiangRank(string elem)
+            {
+                if (elem == wang)  return 0; // 旺
+                if (elem == xiang) return 1; // 相
+                if (elem == xiu)   return 2; // 休
+                if (elem == qiu)   return 3; // 囚
+                if (elem == si)    return 4; // 死
+                return 5;
+            }
+            string BestByRank(IEnumerable<string> pool)
+                => pool.OrderBy(WangXiangRank).FirstOrDefault() ?? candidates[0];
+
+            // 主篩選：有有效根（有根 + 不空亡 + 不刑沖害）
+            var validRooted = candidates.Where(ElemHasValidRoot).ToList();
+            if (validRooted.Count > 0) return BestByRank(validRooted);
+
+            // 降級：有根但根被空亡或刑沖害（仍優於完全無根）
             var rooted = candidates
                 .Where(e => LfElemHasRoot(e, yBranch, mBranch, dBranch, hBranch))
                 .ToList();
+            if (rooted.Count > 0) return BestByRank(rooted);
 
-            if (rooted.Count == 1)
-                return ValidateOrFallback(rooted[0]);
-
-            if (rooted.Count > 1)
-                return ValidateOrFallback(PickFromPool(rooted));
-
-            // Step2：皆無根 → 從全候選月支旺相決勝
-            return ValidateOrFallback(PickFromPool(candidates.ToList()));
+            // 最後：全無根 → 旺相排序取最佳
+            return BestByRank(candidates);
         }
 
         // 檢查某五行元素是否在地支有根（藏干包含該元素）
@@ -5440,7 +5466,7 @@ namespace Ecanapi.Controllers
             else
             {
                 string[] candidates = LfGetYongShenCandidates(pattern, dmElem, bodyPct, wuXing);
-                yongShenElem = LfPickYongShen(candidates, yBranch, mBranch, dBranch, hBranch, allHeavenStems, wuXing);
+                yongShenElem = LfPickYongShen(candidates, yStem, yBranch, mBranch, dStem, dBranch, hBranch, wuXing);
 
                 string lfYongRole = "";
                 if (bodyPct >= 60) {
