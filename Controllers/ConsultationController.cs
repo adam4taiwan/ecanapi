@@ -4979,7 +4979,7 @@ namespace Ecanapi.Controllers
                 "建祿格" when isWeak && guanHeavy => new[] { inElem },
                 "建祿格" when isWeak && shiHeavy  => new[] { inElem },
                 "建祿格" when isWeak              => new[] { inElem, biElem },
-                "建祿格" when isStrong && biHeavy  => new[] { guanElem },
+                "建祿格" when isStrong && biHeavy  => new[] { guanElem, caiElem },  // 官無根時降到財
                 "建祿格" when isStrong && inHeavy  => new[] { caiElem },
                 "建祿格" when isStrong && shiHeavy => new[] { caiElem },         // 古文：傷食多身強→財
                 "建祿格" when isStrong && caiHeavy => new[] { guanElem, shiElem },
@@ -5028,25 +5028,44 @@ namespace Ecanapi.Controllers
             bool IsBranchKong(string branch)
                 => branch == dBranch ? yearEmpty.Contains(branch) : dayEmpty.Contains(branch);
 
-            // 判斷地支是否被命局其他地支 刑沖害
-            bool IsBranchXingChongHai(string branch)
+            // 判斷地支是否被命局其他地支 六沖（完全破壞，排除）
+            bool IsBranchChong(string branch)
             {
                 var others = allBranches.Where(b => b != branch).ToList();
-                if (others.Any(b => LfChong.Contains(branch + b))) return true;
-                if (others.Any(b => LfHai.Contains(branch + b)))   return true;
+                return others.Any(b => LfChong.Contains(branch + b));
+            }
+
+            // 判斷地支是否被命局其他地支 三刑或六害（動盪削弱，降級）
+            bool IsBranchXingHai(string branch)
+            {
+                var others = allBranches.Where(b => b != branch).ToList();
+                if (others.Any(b => LfHai.Contains(branch + b))) return true;
                 foreach (var xg in LfXing)
                     if (xg.Contains(branch) && xg.Any(x => x != branch && others.Contains(x))) return true;
                 return false;
             }
 
-            // 判斷五行是否有「有效根」：根所在地支不空亡 且 不刑沖害
-            bool ElemHasValidRoot(string elem)
+            // 五行是否有「一類根」的判斷helper
+            // tier1: 有根 + 不空亡 + 不沖 + 不刑害
+            // tier2: 有根 + 不空亡 + 不沖 + 有刑或害（降級）
+            // tier3: 有根 + 空亡（再降級）
+            bool ElemHasTier1Root(string elem)
             {
                 foreach (var b in allBranches)
                 {
                     if (!LfBranchHiddenRatio.TryGetValue(b, out var hidden)) continue;
                     if (!hidden.Any(h => KbStemToElement(h.stem) == elem)) continue;
-                    if (!IsBranchKong(b) && !IsBranchXingChongHai(b)) return true;
+                    if (!IsBranchKong(b) && !IsBranchChong(b) && !IsBranchXingHai(b)) return true;
+                }
+                return false;
+            }
+            bool ElemHasTier2Root(string elem)
+            {
+                foreach (var b in allBranches)
+                {
+                    if (!LfBranchHiddenRatio.TryGetValue(b, out var hidden)) continue;
+                    if (!hidden.Any(h => KbStemToElement(h.stem) == elem)) continue;
+                    if (!IsBranchKong(b) && !IsBranchChong(b)) return true; // 有刑害但不沖
                 }
                 return false;
             }
@@ -5064,15 +5083,19 @@ namespace Ecanapi.Controllers
             string BestByRank(IEnumerable<string> pool)
                 => pool.OrderBy(WangXiangRank).FirstOrDefault() ?? candidates[0];
 
-            // 主篩選：有有效根（有根 + 不空亡 + 不刑沖害）
-            var validRooted = candidates.Where(ElemHasValidRoot).ToList();
-            if (validRooted.Count > 0) return BestByRank(validRooted);
+            // Tier1：有根 + 不空亡 + 不沖 + 不刑害
+            var tier1 = candidates.Where(ElemHasTier1Root).ToList();
+            if (tier1.Count > 0) return BestByRank(tier1);
 
-            // 降級：有根但根被空亡或刑沖害（仍優於完全無根）
-            var rooted = candidates
+            // Tier2：有根 + 不空亡 + 不沖（有刑或害，降級）
+            var tier2 = candidates.Where(ElemHasTier2Root).ToList();
+            if (tier2.Count > 0) return BestByRank(tier2);
+
+            // Tier3：有根但空亡
+            var tier3 = candidates
                 .Where(e => LfElemHasRoot(e, yBranch, mBranch, dBranch, hBranch))
                 .ToList();
-            if (rooted.Count > 0) return BestByRank(rooted);
+            if (tier3.Count > 0) return BestByRank(tier3);
 
             // 最後：全無根 → 旺相排序取最佳
             return BestByRank(candidates);
