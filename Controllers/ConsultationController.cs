@@ -5379,23 +5379,33 @@ namespace Ecanapi.Controllers
 
             if (string.IsNullOrEmpty(pattern) && LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                // 月令非比劫藏干
-                var nonBiJieMH = mH
-                    .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
-                    .ToList();
-
-                if (nonBiJieMH.Count == 0)
+                // 月支本氣（比例最高藏干）若為比肩/劫財 → 直接建祿/月刃格，不取餘氣
+                // 涵蓋四庫月（辰戌丑未）遇同元素日主的情況，例如：己日丑月（本氣己=比肩）
+                string mainQiSS = LfStemShiShen(mH[0].stem, dStem);
+                if (mainQiSS == "比肩" || mainQiSS == "劫財")
                 {
-                    // 月令藏干全是比劫 → 建祿格/月刃格
                     chosenStem = mH[0].stem;
                 }
                 else
                 {
-                    // 內格取格：優先取透出（年/月/時干出現）的非比劫藏干，ratio 高者優先
-                    // 若無透出則取主氣（ratio 最高非比劫）
-                    var sortedMH = nonBiJieMH.OrderByDescending(h => h.ratio).ToList();
-                    var transparentMH = sortedMH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
-                    chosenStem = transparentMH.Count > 0 ? transparentMH[0].stem : sortedMH[0].stem;
+                    // 月令非比劫藏干（內格取格）
+                    var nonBiJieMH = mH
+                        .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
+                        .ToList();
+
+                    if (nonBiJieMH.Count == 0)
+                    {
+                        // 月令藏干全是比劫 → 建祿格/月刃格
+                        chosenStem = mH[0].stem;
+                    }
+                    else
+                    {
+                        // 內格取格：優先取透出（年/月/時干出現）的非比劫藏干，ratio 高者優先
+                        // 若無透出則取主氣（ratio 最高非比劫）
+                        var sortedMH = nonBiJieMH.OrderByDescending(h => h.ratio).ToList();
+                        var transparentMH = sortedMH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
+                        chosenStem = transparentMH.Count > 0 ? transparentMH[0].stem : sortedMH[0].stem;
+                    }
                 }
 
                 string chosenSS = LfStemShiShen(chosenStem, dStem);
