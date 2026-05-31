@@ -4904,7 +4904,8 @@ namespace Ecanapi.Controllers
         // 依格局 x 日主強弱 x 命局組合，取古文用神候選清單（優先序由前到後）
         private static string[] LfGetYongShenCandidates(
             string pattern, string dmElem, double bodyPct,
-            Dictionary<string, double> wuXing)
+            Dictionary<string, double> wuXing,
+            string yBranch = "", string mBranch = "", string dBranch = "", string hBranch = "")
         {
             string inElem   = LfGenByElem.GetValueOrDefault(dmElem, "");      // 印
             string biElem   = dmElem;                                           // 比劫
@@ -4920,6 +4921,12 @@ namespace Ecanapi.Controllers
             bool guanHeavy = wuXing.GetValueOrDefault(guanElem, 0) >= 15;
             bool inHeavy   = wuXing.GetValueOrDefault(inElem, 0)   >= 15;
             bool biHeavy   = wuXing.GetValueOrDefault(biElem, 0)   >= 15;
+
+            // 食傷三合成局：食傷五行的三合三支全在命局中（如巳酉丑=金，寅午戌=火…）
+            // 三合成局代表食傷力量結構性強旺，建祿/月刃格身強時應直接取財為用（食傷生財）
+            var allBrs = new[] { yBranch, mBranch, dBranch, hBranch };
+            bool shiSanHe = !string.IsNullOrEmpty(shiElem) &&
+                LfSanHe.Any(sh => sh.elem == shiElem && sh.branches.All(b => allBrs.Contains(b)));
 
             return pattern switch
             {
@@ -4979,12 +4986,14 @@ namespace Ecanapi.Controllers
                 "建祿格" when isWeak && guanHeavy => new[] { inElem },
                 "建祿格" when isWeak && shiHeavy  => new[] { inElem },
                 "建祿格" when isWeak              => new[] { inElem, biElem },
+                "建祿格" when isStrong && shiSanHe => new[] { caiElem },             // 食傷三合成局→直接取財（食傷生財）
                 "建祿格" when isStrong && biHeavy  => new[] { guanElem, caiElem },  // 官無根時降到財
                 "建祿格" when isStrong && inHeavy  => new[] { caiElem },
                 "建祿格" when isStrong && shiHeavy => new[] { caiElem },         // 古文：傷食多身強→財
                 "建祿格" when isStrong && caiHeavy => new[] { guanElem, shiElem },
                 "建祿格"                           => new[] { guanElem, shiElem },
 
+                "月刃格" when shiSanHe  => new[] { caiElem },             // 食傷三合成局→取財
                 "月刃格" when caiHeavy  => new[] { guanElem },
                 "月刃格" when guanHeavy => new[] { caiElem },
                 "月刃格" when shiHeavy  => new[] { caiElem },
@@ -5488,7 +5497,7 @@ namespace Ecanapi.Controllers
             // 八格 + 建祿格 + 月刃格：候選清單 → 三原則篩選
             else
             {
-                string[] candidates = LfGetYongShenCandidates(pattern, dmElem, bodyPct, wuXing);
+                string[] candidates = LfGetYongShenCandidates(pattern, dmElem, bodyPct, wuXing, yBranch, mBranch, dBranch, hBranch);
                 yongShenElem = LfPickYongShen(candidates, yStem, yBranch, mBranch, dStem, dBranch, hBranch, wuXing);
 
                 string lfYongRole = "";
