@@ -1,267 +1,558 @@
-﻿using Ecanapi.Models;
+using Ecanapi.Models;
 using Ecanapi.Models.Ecanapi.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace Ecanapi.Services
 {
+    /// <summary>
+    /// 一柱論命引擎（六步完整算法）
+    /// Step1: 有效日干（男女陰陽換位）
+    /// Step2: 虛辰遁法定六親地支位
+    /// Step3: 六親十二長生強弱 + 日支刑沖害合
+    /// Step4: 十神非六親命理象意
+    /// Step5: 月令對日干喜忌 → 先天根基
+    /// Step6: 旬中干支 vs 日柱互動 × 喜忌
+    /// </summary>
     public class YiZhuEngine
     {
-        private static readonly string[] Stems = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
-        private static readonly string[] Zhi = { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+        private static readonly string[] Stems =
+            { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
+
+        private static readonly string[] Branches =
+            { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+
+        private static readonly string[] LifeStages =
+            { "長生", "沐浴", "冠帶", "臨官", "帝旺", "衰", "病", "死", "墓", "絕", "胎", "養" };
+
+        // 各天干長生起點（Branches 索引）
+        private static readonly Dictionary<string, int> LifeStageStart = new()
+        {
+            { "甲", 11 }, { "丙", 2 }, { "戊", 2 }, { "庚", 5 }, { "壬", 8 },
+            { "乙", 6  }, { "丁", 9 }, { "己", 9 }, { "辛", 0 }, { "癸", 3 }
+        };
+
+        // 五行索引：0=木 1=火 2=土 3=金 4=水
+        private static readonly int[] StemElement = { 0, 0, 1, 1, 2, 2, 3, 3, 4, 4 };
+
+        private static readonly Dictionary<string, int> BranchMonthElement = new()
+        {
+            { "寅", 0 }, { "卯", 0 },
+            { "巳", 1 }, { "午", 1 },
+            { "辰", 2 }, { "戌", 2 }, { "丑", 2 }, { "未", 2 },
+            { "申", 3 }, { "酉", 3 },
+            { "亥", 4 }, { "子", 4 }
+        };
+
+        // 地支六合
+        private static readonly HashSet<string> LiuHeSet = new()
+        {
+            "子丑", "丑子", "寅亥", "亥寅", "卯戌", "戌卯",
+            "辰酉", "酉辰", "巳申", "申巳", "午未", "未午"
+        };
+
+        // 地支六沖
+        private static readonly HashSet<string> LiuChongSet = new()
+        {
+            "子午", "午子", "丑未", "未丑", "寅申", "申寅",
+            "卯酉", "酉卯", "辰戌", "戌辰", "巳亥", "亥巳"
+        };
+
+        // 地支六害
+        private static readonly HashSet<string> LiuHaiSet = new()
+        {
+            "子未", "未子", "丑午", "午丑", "寅巳", "巳寅",
+            "卯辰", "辰卯", "申亥", "亥申", "酉戌", "戌酉"
+        };
+
+        // 地支三合（各組）
+        private static readonly List<HashSet<string>> SanHeGroups = new()
+        {
+            new() { "申", "子", "辰" },
+            new() { "寅", "午", "戌" },
+            new() { "巳", "酉", "丑" },
+            new() { "亥", "卯", "未" }
+        };
+
+        // 地支三刑
+        private static readonly HashSet<string> SanXingSet = new()
+        {
+            "寅巳", "巳寅", "巳申", "申巳", "申寅", "寅申",
+            "丑戌", "戌丑", "戌未", "未戌", "未丑", "丑未",
+            "子卯", "卯子"
+        };
+
+        // 天干五合
+        private static readonly Dictionary<string, string> StemHeMap = new()
+        {
+            { "甲", "己" }, { "己", "甲" }, { "乙", "庚" }, { "庚", "乙" },
+            { "丙", "辛" }, { "辛", "丙" }, { "丁", "壬" }, { "壬", "丁" },
+            { "戊", "癸" }, { "癸", "戊" }
+        };
+
+        // 天干相沖（甲庚 乙辛 丙壬 丁癸）
+        private static readonly HashSet<string> StemChongSet = new()
+        {
+            "甲庚", "庚甲", "乙辛", "辛乙", "丙壬", "壬丙", "丁癸", "癸丁"
+        };
+
+        // ==========================================
+        // 主入口：六步完整分析
+        // ==========================================
+
+        /// <summary>
+        /// 一柱論命六步完整分析
+        /// </summary>
+        public string Analyze(string dayStem, string dayBranch, string monthBranch, int gender)
+        {
+            // Step 1: 有效日干
+            string effStem = GetEffectiveStem(dayStem, gender);
+
+            // Step 2: 旬首 + 旬中地支映射 + 空亡
+            string xunShou = GetXunShou(dayStem, dayBranch);
+            var xunMap = GetXunMapping(xunShou);           // stem -> branch
+            var kongWang = GetKongWang(xunShou);           // 空亡地支列表
+
+            // Step 5 先算（Step 6 需要喜忌資訊）
+            var (bodyStrength, xiElements, jiElements) = GetBodyStrength(dayStem, monthBranch);
+
+            var sb = new StringBuilder();
+            sb.AppendLine($"【六親定數 · {dayStem}{dayBranch}日（{(gender == 1 ? "男" : "女")}命）】");
+            sb.AppendLine($"有效干：{effStem}　旬首：{xunShou}　空亡：{string.Join("、", kongWang)}");
+            sb.AppendLine();
+
+            // Step 3 + 4
+            sb.AppendLine("▍六親定位與命理象意");
+            foreach (string stem in Stems)
+            {
+                string branch  = xunMap[stem];
+                string tenGod  = GetTenGodName(effStem, stem);
+                string relative = GetRelativeName(tenGod, gender);
+                string stage    = GetLifeStage(stem, branch);
+                string dayRel   = GetBranchRelation(dayBranch, branch);
+                bool isKong     = kongWang.Contains(branch);
+                string nonRelMeaning = GetTenGodNonRelMeaning(tenGod, stage);
+
+                sb.AppendLine(BuildRelativeLine(relative, tenGod, stem, branch, stage, dayRel, isKong, nonRelMeaning));
+            }
+            sb.AppendLine();
+
+            // Step 5
+            sb.AppendLine("▍先天根基（月令喜忌）");
+            sb.AppendLine(BuildBodyStrengthText(dayStem, monthBranch, bodyStrength, xiElements, jiElements));
+            sb.AppendLine();
+
+            // Step 6
+            sb.AppendLine("▍旬中干支互動");
+            sb.Append(BuildXunInteractions(dayStem, dayBranch, effStem, xunMap, xiElements, gender));
+
+            return sb.ToString().Trim();
+        }
+
+        // ==========================================
+        // Step 1：有效日干
+        // ==========================================
+
+        private static string GetEffectiveStem(string dayStem, int gender)
+        {
+            bool isYang = "甲丙戊庚壬".Contains(dayStem);
+            bool needSwitch = (gender == 1 && !isYang) || (gender == 0 && isYang);
+            if (!needSwitch) return dayStem;
+
+            var pair = new Dictionary<string, string>
+            {
+                { "甲","乙" }, { "乙","甲" }, { "丙","丁" }, { "丁","丙" }, { "戊","己" },
+                { "己","戊" }, { "庚","辛" }, { "辛","庚" }, { "壬","癸" }, { "癸","壬" }
+            };
+            return pair[dayStem];
+        }
+
+        // ==========================================
+        // Step 2：虛辰遁法
+        // ==========================================
+
+        private static string GetXunShou(string dayStem, string dayBranch)
+        {
+            int si = Array.IndexOf(Stems, dayStem);
+            int bi = Array.IndexOf(Branches, dayBranch);
+            int startBi = (bi - si % 12 + 12) % 12;
+            return "甲" + Branches[startBi];
+        }
+
+        private static Dictionary<string, string> GetXunMapping(string xunShou)
+        {
+            int start = Array.IndexOf(Branches, xunShou[1].ToString());
+            var map = new Dictionary<string, string>();
+            for (int i = 0; i < 10; i++)
+                map[Stems[i]] = Branches[(start + i) % 12];
+            return map;
+        }
+
+        private static List<string> GetKongWang(string xunShou)
+        {
+            int start = Array.IndexOf(Branches, xunShou[1].ToString());
+            var used = new HashSet<int>(Enumerable.Range(0, 10).Select(i => (start + i) % 12));
+            return Branches.Where((_, i) => !used.Contains(i)).ToList();
+        }
+
+        // ==========================================
+        // 十神計算
+        // ==========================================
+
+        private static string GetTenGodName(string dayStem, string targetStem)
+        {
+            if (dayStem == targetStem) return "比肩";
+
+            int di = Array.IndexOf(Stems, dayStem);
+            int ti = Array.IndexOf(Stems, targetStem);
+            int de = StemElement[di];
+            int te = StemElement[ti];
+            bool sameP = (di % 2) == (ti % 2);
+
+            if (de == te) return sameP ? "比肩" : "劫財";
+            if ((de + 1) % 5 == te) return sameP ? "食神" : "傷官";   // 我生
+            if ((de + 2) % 5 == te) return sameP ? "偏財" : "正財";   // 我剋
+            if ((te + 2) % 5 == de) return sameP ? "七殺" : "正官";   // 剋我
+            if ((te + 1) % 5 == de) return sameP ? "偏印" : "正印";   // 生我
+            return "比肩";
+        }
+
+        private static string GetRelativeName(string tenGod, int gender)
+        {
+            if (gender == 1)
+                return tenGod switch
+                {
+                    "比肩" => "兄姊", "劫財" => "弟妹",
+                    "食神" => "孫子", "傷官" => "孫女",
+                    "偏財" => "父",   "正財" => "妻",
+                    "七殺" => "兒子", "正官" => "女兒",
+                    "偏印" => "祖父", "正印" => "母",
+                    _ => tenGod
+                };
+            else
+                return tenGod switch
+                {
+                    "比肩" => "兄姊",  "劫財" => "弟妹",
+                    "食神" => "兒子",  "傷官" => "女兒",
+                    "偏財" => "嫂",    "正財" => "父",
+                    "七殺" => "媳婦",  "正官" => "夫",
+                    "偏印" => "母",    "正印" => "祖父母",
+                    _ => tenGod
+                };
+        }
+
+        // ==========================================
+        // Step 3：地支關係 + 六親強弱
+        // ==========================================
+
+        public static string GetBranchRelation(string b1, string b2)
+        {
+            if (b1 == b2) return "";
+            string key = b1 + b2;
+            if (LiuHeSet.Contains(key))    return "六合";
+            if (LiuChongSet.Contains(key)) return "相沖";
+            if (LiuHaiSet.Contains(key))   return "相害";
+            if (SanXingSet.Contains(key))  return "相刑";
+            foreach (var g in SanHeGroups)
+                if (g.Contains(b1) && g.Contains(b2)) return "三合";
+            return "";
+        }
+
+        private static string ClassifyStrength(string stage) => stage switch
+        {
+            "長生" or "冠帶" or "臨官" or "帝旺" => "旺",
+            "沐浴" or "養" => "中",
+            "衰" or "病" => "弱",
+            _ => "極弱"   // 死 墓 絕 胎
+        };
+
+        private static string BuildRelativeLine(
+            string relative, string tenGod, string stem, string branch,
+            string stage, string dayRel, bool isKong, string nonRelMeaning)
+        {
+            string strength = ClassifyStrength(stage);
+            string kongNote = isKong ? "【空亡】" : "";
+
+            // 六親關係斷語
+            string relDesc = (strength, dayRel) switch
+            {
+                ("旺",  "相沖") => "六親有力，然相沖主分離聚少離多",
+                ("旺",  "六合") => "六親有力，相合情深，多得助力",
+                ("旺",  "相害") => "六親有力，然暗中有損，需防隱患",
+                ("旺",  "三合") => "六親有力，三合成局，緣份深厚",
+                ("旺",  "相刑") => "六親有力，然相刑主紛爭口舌",
+                ("旺",  _)      => "六親有力，先天根基穩固",
+                ("極弱","相沖") => "六親緣薄，且相沖，刑剋最重",
+                ("極弱","六合") => "六親雖弱，相合有情，緣份勉強維繫",
+                ("極弱",_)      => "六親緣薄，先天刑剋，緣分不深",
+                ("弱",  "相沖") => "六親稍弱，且相沖，聚少離多",
+                ("弱",  _)      => "六親稍弱，宜後天努力維繫",
+                (_,     "相沖") => "有情有緣，然相沖主波折",
+                (_,     "六合") => "相合情融，六親緣份佳",
+                (_,     _)      => "六親緣份平常"
+            };
+
+            if (isKong) relDesc += "；逢空亡，需填實方顯";
+
+            string dayRelNote = !string.IsNullOrEmpty(dayRel) ? $"，日支{dayRel}" : "";
+
+            // 非六親象意
+            string nonRelNote = !string.IsNullOrEmpty(nonRelMeaning) ? $"　{nonRelMeaning}" : "";
+
+            return $"· {relative}（{tenGod}{stem} · {branch}{kongNote} · {stage}）{dayRelNote}：{relDesc}。{nonRelNote}";
+        }
+
+        // ==========================================
+        // Step 4：十神非六親象意
+        // ==========================================
+
+        private static string GetTenGodNonRelMeaning(string tenGod, string stage)
+        {
+            string strength = ClassifyStrength(stage);
+            bool isStrong = strength is "旺" or "中";
+
+            return tenGod switch
+            {
+                "正財" => isStrong ? "【財運】財源穩定，薪資豐厚。"   : "【財運】正財薄弱，錢財難聚。",
+                "偏財" => isStrong ? "【偏財】橫財機會多，理財靈活。" : "【偏財】橫財難得，偏業無緣。",
+                "正官" => isStrong ? "【官職】仕途順遂，名譽佳。"     : "【官職】官職難求，名譽易損。",
+                "七殺" => isStrong ? "【競爭】競爭力強，衝勁十足。"   : "【競爭】壓力極重，易招官非。",
+                "正印" => isStrong ? "【貴人】文書順利，貴人相助。"   : "【貴人】貴人難求，學業不利。",
+                "偏印" => isStrong ? "【技藝】術業有專攻，宗教緣深。" : "【技藝】偏業難成，心神不定。",
+                "食神" => isStrong ? "【才藝】口福佳，才藝出眾，壽元足。" : "【才藝】才藝平平，口福稍薄。",
+                "傷官" => isStrong ? "【才華】才華橫溢，口才極佳。"   : "【才華】才華受阻，官運不順。",
+                "比肩" => isStrong ? "【朋友】平輩助力多，合夥有利。" : "【朋友】同輩競爭，合夥需謹慎。",
+                "劫財" => isStrong ? "【競爭】鬥志強，但需防破財。"   : "【破財】劫財無力，破財風險低。",
+                _ => ""
+            };
+        }
+
+        // ==========================================
+        // Step 5：月令喜忌 → 先天根基
+        // ==========================================
+
+        private static (string strength, string[] xiElements, string[] jiElements)
+            GetBodyStrength(string dayStem, string monthBranch)
+        {
+            int dayEl = StemElement[Array.IndexOf(Stems, dayStem)];
+            int monthEl = BranchMonthElement.TryGetValue(monthBranch, out int me) ? me : 2;
+
+            string rel;
+            if (monthEl == dayEl)                   rel = "比劫";
+            else if ((monthEl + 1) % 5 == dayEl)   rel = "印";      // 月令生日主
+            else if ((dayEl + 1) % 5 == monthEl)   rel = "食傷";   // 日主生月令
+            else if ((dayEl + 2) % 5 == monthEl)   rel = "財";     // 日主剋月令
+            else                                     rel = "官殺";   // 月令剋日主
+
+            string strength = rel switch
+            {
+                "比劫"  => "身旺",
+                "印"    => "偏強",
+                "食傷"  => "偏弱",
+                "財"    => "偏弱",
+                "官殺"  => "身弱",
+                _       => "中和"
+            };
+
+            // 喜用五行
+            string[] xiElements = (strength is "身旺" or "偏強")
+                ? new[] { Fe((dayEl + 1) % 5), Fe((dayEl + 2) % 5), Fe((dayEl + 3) % 5) }
+                : new[] { Fe((dayEl + 4) % 5), Fe(dayEl) };
+
+            string[] jiElements = (strength is "身旺" or "偏強")
+                ? new[] { Fe((dayEl + 4) % 5), Fe(dayEl) }
+                : new[] { Fe((dayEl + 1) % 5), Fe((dayEl + 2) % 5), Fe((dayEl + 3) % 5) };
+
+            return (strength, xiElements, jiElements);
+        }
+
+        private static string Fe(int el) => el switch
+        {
+            0 => "木", 1 => "火", 2 => "土", 3 => "金", 4 => "水", _ => ""
+        };
+
+        private static string BuildBodyStrengthText(
+            string dayStem, string monthBranch, string bodyStrength,
+            string[] xiElements, string[] jiElements)
+        {
+            int dayEl = StemElement[Array.IndexOf(Stems, dayStem)];
+            int monthEl = BranchMonthElement.TryGetValue(monthBranch, out int me) ? me : 2;
+            return
+                $"生於{monthBranch}月（{Fe(monthEl)}旺），日主{dayStem}{Fe(dayEl)}，{bodyStrength}。\n" +
+                $"  喜用：{string.Join("、", xiElements)}。\n" +
+                $"  忌：{string.Join("、", jiElements)}。";
+        }
+
+        // ==========================================
+        // Step 6：旬中干支 vs 日柱互動
+        // ==========================================
+
+        private static string BuildXunInteractions(
+            string dayStem, string dayBranch, string effStem,
+            Dictionary<string, string> xunMap, string[] xiElements, int gender)
+        {
+            var sb = new StringBuilder();
+
+            foreach (string stem in Stems)
+            {
+                if (stem == dayStem) continue;
+                string branch  = xunMap[stem];
+                if (branch == dayBranch) continue;
+
+                string stemRel   = GetStemRelation(dayStem, stem);
+                string branchRel = GetBranchRelation(dayBranch, branch);
+                if (string.IsNullOrEmpty(stemRel) && string.IsNullOrEmpty(branchRel)) continue;
+
+                string tenGod   = GetTenGodName(effStem, stem);
+                string relative = GetRelativeName(tenGod, gender);
+                int stemEl      = StemElement[Array.IndexOf(Stems, stem)];
+                bool isXi       = xiElements.Contains(Fe(stemEl));
+                string xiJi     = isXi ? "喜" : "忌";
+
+                bool bothActive = !string.IsNullOrEmpty(stemRel) && !string.IsNullOrEmpty(branchRel);
+                string intensity = bothActive ? "天地俱動，影響最烈" : "";
+
+                string impact = (isXi, branchRel, stemRel) switch
+                {
+                    (true,  "六合",  _)      => "喜神相合，吉上加吉",
+                    (true,  "三合",  _)      => "喜神三合，增強吉象",
+                    (true,  "相沖",  "相沖") => "喜神天地俱沖，吉中帶憂",
+                    (true,  "相沖",  _)      => "喜神被地沖，有所折損",
+                    (true,  "相害",  _)      => "喜神受害，暗中有損",
+                    (true,  _,       "相合") => "喜神天合，有情有義",
+                    (true,  _,       _)      => "喜神有動，裨益命主",
+                    (false, "相沖",  "相沖") => "忌神天地俱沖，凶象最烈",
+                    (false, "相沖",  _)      => "忌神沖日，凶象較重",
+                    (false, "六合",  _)      => "忌神相合，暗損難防",
+                    (false, "相害",  _)      => "忌神相害，隱患纏身",
+                    (false, "相刑",  _)      => "忌神相刑，紛爭官非",
+                    (false, _,       "相合") => "忌神天合，需防被拖累",
+                    _                        => isXi ? "喜神互動，有所助益" : "忌神互動，需加防範"
+                };
+
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(stemRel))   parts.Add($"天干{stemRel}（{dayStem}{stem}）");
+                if (!string.IsNullOrEmpty(branchRel)) parts.Add($"地支{branchRel}（{dayBranch}{branch}）");
+                if (!string.IsNullOrEmpty(intensity)) parts.Add(intensity);
+
+                sb.AppendLine($"· {stem}{branch}（{relative}·{tenGod}·{xiJi}神）：{string.Join("，", parts)}。{impact}。");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string GetStemRelation(string s1, string s2)
+        {
+            if (StemHeMap.TryGetValue(s1, out var he) && he == s2) return "相合";
+            if (StemChongSet.Contains(s1 + s2)) return "相沖";
+            return "";
+        }
+
+        // ==========================================
+        // 公用：十二長生
+        // ==========================================
+
+        public string GetLifeStage(string stem, string branch)
+        {
+            int bi = Array.IndexOf(Branches, branch);
+            if (bi == -1 || !LifeStageStart.TryGetValue(stem, out int si)) return "未知";
+            bool forward = "甲丙戊庚壬".Contains(stem);
+            int offset = forward ? (bi - si + 12) % 12 : (si - bi + 12) % 12;
+            return LifeStages[offset];
+        }
+
+        // ==========================================
+        // 舊版 Diagnose（向下相容保留）
+        // ==========================================
 
         public PillarAnalysisResult Diagnose(AstrologyChartResult data, int gender)
         {
             if (data?.Bazi?.DayPillar == null) return null;
 
-            string stem = data.Bazi.DayPillar.HeavenlyStem;
+            string stem   = data.Bazi.DayPillar.HeavenlyStem;
             string branch = data.Bazi.DayPillar.EarthlyBranch;
 
-            var result = new PillarAnalysisResult
+            return new PillarAnalysisResult
             {
-                DayPillar = stem + branch,
-                DayMasterAnalysis = GetDayMasterText(stem)
+                DayPillar         = stem + branch,
+                DayMasterAnalysis = GetDayMasterText(stem),
+                MarriageStatus    = InferMarriageStatus(stem, branch, gender),
+                CareerStatus      = InferCareerStatus(stem, branch),
+                ChildrenStatus    = InferChildrenStatus(stem, branch, gender),
+                RelativesAnalysis = InferExpertAdvice(stem, branch)
             };
-
-            // 1. 婚姻定數：自動抓取夫/妻星在日支的位階 (對應文稿 2.1)
-            result.MarriageStatus = InferMarriageStatus(stem, branch, gender);
-
-            // 2. 事業財富：自動抓取財星位階 (對應文稿 3.2)
-            result.CareerStatus = InferCareerStatus(stem, branch);
-
-            // 3. 子息產厄：自動抓取食傷位階 (對應文稿 2.2，包含辛亥壬水祿旺邏輯)
-            result.ChildrenStatus = InferChildrenStatus(stem, branch,gender);
-
-            // 4. 專家建議：結合能態與氣化感應
-            result.RelativesAnalysis = InferExpertAdvice(stem, branch);
-
-            return result;
         }
 
         private string InferMarriageStatus(string stem, string branch, int gender)
         {
-            // 1. 定義十神對照
-            // 男命看正財 (妻星), 女命看正官 (夫星)
-            string targetStar = "";
-            string starTitle = "";
-
-            if (gender == 1) // 男命
-            {
-                starTitle = "妻星";
-                targetStar = GetTenGodStar(stem, "正財");
-            }
-            else // 女命
-            {
-                starTitle = "夫星";
-                targetStar = GetTenGodStar(stem, "正官");
-            }
-
-            // 2. 取得該星在「日支」的能量位 (例如：辛金男命，妻星甲木在亥位)
-            string stage = GetLifeStage(targetStar, branch);
-
-            // 3. 專家級特殊斷語 (針對辛亥日)
-            if (stem == "辛" && branch == "亥")
-            {
-                if (gender == 1) // 男命辛亥
-                    return $"· 婚姻定數：【日坐長生】妻星({targetStar})處亥位「長生」。主妻子端莊，得妻財或妻助，感情深厚。";
-                else // 女命辛亥
-                    return $"· 婚姻定數：【傷官坐命】夫星(丙火)處亥位「絕」地。感情易起波瀾，宜晚婚或修養心性。";
-            }
-
-            return $"· 婚姻定數：{starTitle}({targetStar})處日支「{stage}」位。{GetStageDescription(stage)}";
-        }
-        private string GetStageDescription(string stage)
-        {
-            return stage switch
-            {
-                "長生" => "屬生機勃勃、根基深厚之格，凡事多得貴人助。",
-                "沐浴" => "主情感豐富，具備藝術才華，但需防情海浮沈。",
-                "冠帶" => "象徵事業起步，具備領導潛力，名利雙收之象。",
-                "臨官" => "代表祿旺之地，白手起家，具備極強競爭力。",
-                "帝旺" => "能量達到巔峰，事業輝煌，但須注意剛愎自用。",
-                "衰" => "氣勢趨緩，宜守成、不宜冒進，凡事求穩。",
-                "病" => "能量稍弱，凡事不宜過度操勞，適合靜心修養。",
-                "死" => "能量入庫，適合鑽研技術或宗教玄學，不宜爭鋒。",
-                "墓" => "主守成、聚財，性格較內斂，適合幕後規劃。",
-                "絕" => "屬置之死地而後生，大器晚成，宜修身養性。",
-                "胎" => "孕育之象，具備無限可能，適合創業初期。",
-                "養" => "培育之時，穩打穩紮，後勁十足。",
-                _ => "能量平穩，順其自然發展即可。"
-            };
-        }
-
-        // 輔助方法：根據日主取得對應的十神天干
-        private string GetTenGodStar(string dayStem, string tenGodName)
-        {
-            var map = new Dictionary<string, Dictionary<string, string>> {
-        { "甲", new Dictionary<string, string> { { "正財", "己" }, { "正官", "辛" }, { "傷官", "丁" } } },
-        { "乙", new Dictionary<string, string> { { "正財", "戊" }, { "正官", "庚" }, { "傷官", "丙" } } },
-        { "丙", new Dictionary<string, string> { { "正財", "辛" }, { "正官", "癸" }, { "傷官", "己" } } },
-        { "丁", new Dictionary<string, string> { { "正財", "庚" }, { "正官", "壬" }, { "傷官", "戊" } } },
-        { "戊", new Dictionary<string, string> { { "正財", "癸" }, { "正官", "乙" }, { "傷官", "辛" } } },
-        { "己", new Dictionary<string, string> { { "正財", "壬" }, { "正官", "甲" }, { "傷官", "庚" } } },
-        { "庚", new Dictionary<string, string> { { "正財", "乙" }, { "正官", "丁" }, { "傷官", "癸" } } },
-        { "辛", new Dictionary<string, string> { { "正財", "甲" }, { "正官", "丙" }, { "傷官", "壬" } } },
-        { "壬", new Dictionary<string, string> { { "正財", "丁" }, { "正官", "己" }, { "傷官", "乙" } } },
-        { "癸", new Dictionary<string, string> { { "正財", "丙" }, { "正官", "戊" }, { "傷官", "甲" } } }
-        };
-
-            if (map.TryGetValue(dayStem, out var tenGods))
-            {
-                if (tenGods.TryGetValue(tenGodName, out var star)) return star;
-            }
-            return "";
-        }
-
-        // 輔助方法：根據日主取得對應的十神天干
-
-
-        private string InferChildrenStatus(string stem, string branch, int gender)
-        {
-            // 1. 根據性別定義子息星 (男官殺、女食傷)
-            // 這裡以辛金日主為例：男看丙/丁火，女看壬/癸水
-            string childStar = "";
-            string starName = "";
-
-            if (gender == 1) // 男命
-            {
-                childStar = GetTenGodStar(stem, "正官"); // 這裡建議取官星
-                starName = $"子息星({childStar}火)";
-            }
-            else // 女命
-            {
-                childStar = GetTenGodStar(stem, "傷官");
-                starName = $"子息星({childStar}水)";
-            }
-
-            // 2. 取得能量位 (例如：壬水見亥為「臨官/祿旺」)
-            string stage = GetLifeStage(childStar, branch);
-
-            // 3. 根據能量位給予深度解說
-            switch (stage)
-            {
-                case "長生":
-                case "臨官":
-                case "帝旺":
-                    return $"· 子息產厄：【子女聰慧】{starName}處{branch}位「{stage}」。子女多才多藝，具備極強的競爭意識與創造力，未來必成大器。";
-
-                case "冠帶":
-                case "養":
-                    return $"· 子息產厄：【後輩有為】{starName}處{branch}位「{stage}」。子女發展穩健，具備責任感，成年後能光耀門楣。";
-
-                case "死":
-                case "絕":
-                    return $"· 子息產厄：{starName}處{branch}位「{stage}」。需注意首胎健康，子女發展較易受限於先天環境，宜多加耐心引導。";
-
-                case "病":
-                case "墓":
-                    return $"· 子息產厄：{starName}處{branch}位「{stage}」。子女體質可能稍弱，但與父母緣分深厚，晚年有依。";
-
-                default:
-                    return $"· 子息產厄：{starName}處{branch}位「{stage}」。子息能量正常，晚年有依。";
-            }
+            string effStem = GetEffectiveStem(stem, gender);
+            string spouseTenGod = gender == 1 ? "正財" : "正官";
+            string spouseStem = GetTenGodStemByName(effStem, spouseTenGod);
+            string stage = GetLifeStage(spouseStem, branch);
+            string title = gender == 1 ? "妻星" : "夫星";
+            return $"· 婚姻定數：{title}（{spouseStem}）處日支「{stage}」。{GetStageDesc(stage)}";
         }
 
         private string InferCareerStatus(string stem, string branch)
         {
-            string moneyStar = GetTenGod(stem, "正財");
-            string stage = GetLifeStage(moneyStar, branch);
-
-            if (stem == "辛" && branch == "亥")
-                return "· 事業財富：適合創意、設計、專業技術或靠技能獲利之行業。具備技術立身之定數。";
-
+            string moneyStem = GetTenGodStemByName(stem, "正財");
+            string stage = GetLifeStage(moneyStem, branch);
             return stage switch
             {
-                "臨官" or "帝旺" => $"· 事業財富：財星坐「{stage}」祿位。具備極強的理財能量與經營天賦，財源厚實。",
-                "墓" => "· 事業財富：財星入庫。主為人節儉守財，適合穩定儲蓄與不動產投資。",
-                _ => $"· 事業財富：能量趨向「{stage}」。宜專業技術立身，穩健求財。"
+                "臨官" or "帝旺" => $"· 事業財富：財星坐「{stage}」，財源豐厚，經營天賦強。",
+                "墓"             => "· 事業財富：財星入庫，節儉守財，適合穩健投資。",
+                _                => $"· 事業財富：財星「{stage}」，宜專業技術立身，穩健求財。"
+            };
+        }
+
+        private string InferChildrenStatus(string stem, string branch, int gender)
+        {
+            string effStem = GetEffectiveStem(stem, gender);
+            string childTenGod = gender == 1 ? "七殺" : "食神";
+            string childStem = GetTenGodStemByName(effStem, childTenGod);
+            string stage = GetLifeStage(childStem, branch);
+            return stage switch
+            {
+                "長生" or "臨官" or "帝旺" => $"· 子息定數：子女聰慧（{childStem}·{stage}），有力旺相，未來必成大器。",
+                "死" or "絕"               => $"· 子息定數：子女緣薄（{childStem}·{stage}），需耐心引導。",
+                _                          => $"· 子息定數：子女緣份平常（{childStem}·{stage}），晚年有依。"
             };
         }
 
         private string InferExpertAdvice(string stem, string branch)
-        {
-            if (stem == "辛" && branch == "亥")
-                return "· 專家建議：【日坐食傷】才華溢出，感性豐富。具備極佳的表達力，宜強化執行力以貫徹志向。";
-
-            return "· 專家建議：依據日柱能態，宜修身齊家，順應五行生剋規律，方能化解先天定數之不足。";
-        }
-
-        // --- 底層運算工具 ---
-
-        private string GetTenGod(string dayStem, string target)
-        {
-            int idx = Array.IndexOf(Stems, dayStem);
-            if (idx == -1) return "";
-            return target switch
-            {
-                "正財" => Stems[((idx + 4) % 10) % 2 == 0 ? ((idx + 4) % 10) + 1 : ((idx + 4) % 10) - 1],
-                "正官" => Stems[((idx + 6) % 10) % 2 == 0 ? ((idx + 6) % 10) + 1 : ((idx + 6) % 10) - 1],
-                "傷官" => Stems[((idx + 2) % 10) % 2 == 0 ? ((idx + 2) % 10) + 1 : ((idx + 2) % 10) - 1],
-                _ => dayStem
-            };
-        }
-
-        private string GetLifeStage(string stem, string branch)
-        {
-            // 定義地支順序，用於計算位移
-            string branches = "子丑寅卯辰巳午未申酉戌亥";
-            int branchIdx = branches.IndexOf(branch);
-            if (branchIdx == -1) return "未知";
-
-            // 定義長生十二神名稱
-            string[] stages = { "長生", "沐浴", "冠帶", "臨官", "帝旺", "衰", "病", "死", "墓", "絕", "胎", "養" };
-
-            // 定義各天干「長生」起點的地支索引
-            // 陽干：長生、沐浴...順行；陰干：長生、沐浴...逆行
-            var startPos = new Dictionary<string, (int startIdx, bool isForward)>
-    {
-        { "甲", (2, true)  }, // 甲木長生在寅 (順) - 註：部分門派論亥，依通用標準取寅或亥
-        { "丙", (5, true)  }, // 丙火長生在巳 (順) - 註：通用取寅，此處依標準長生表
-        { "戊", (5, true)  }, // 戊土同丙火
-        { "庚", (8, true)  }, // 庚金長生在申 (順) - 註：通用取巳
-        { "壬", (11, true) }, // 壬水長生在亥 (順) - 註：通用取申
-        
-        // 依照經典《三命通會》標準長生表：
-        { "乙", (6, false) }, // 乙木長生在午 (逆)
-        { "丁", (9, false) }, // 丁火長生在酉 (逆)
-        { "己", (9, false) }, // 己土同丁火
-        { "辛", (0, false) }, // 辛金長生在子 (逆)
-        { "癸", (3, false) }  // 癸水長生在卯 (逆)
-    };
-
-            // --- 專業對照表修正 (採用最通用的五行長生邏輯) ---
-            var standardMap = new Dictionary<string, int> {
-        {"甲", 11}, {"丙", 2}, {"戊", 2}, {"庚", 5}, {"壬", 8},  // 陽干長生位
-        {"乙", 6},  {"丁", 9}, {"己", 9}, {"辛", 0}, {"癸", 3}   // 陰干長生位
-    };
-
-            if (!standardMap.ContainsKey(stem)) return "未知";
-
-            int startIdx = standardMap[stem];
-            bool isForward = "甲丙戊庚壬".Contains(stem);
-
-            int offset;
-            if (isForward)
-            {
-                offset = (branchIdx - startIdx + 12) % 12;
-            }
-            else
-            {
-                offset = (startIdx - branchIdx + 12) % 12;
-            }
-
-            return stages[offset];
-        }
+            => $"· 建議：依據{stem}{branch}日柱能態，宜修身齊家，順應五行規律。";
 
         private string GetDayMasterText(string stem)
+            => $"【{stem}】日元，{Fe(StemElement[Array.IndexOf(Stems, stem)])}性命主，具備相應五行特質。";
+
+        private static string GetStageDesc(string stage) => stage switch
         {
-            return stem switch
+            "長生" => "根基深厚，感情穩定。",
+            "沐浴" => "情感豐富，具藝術才華。",
+            "冠帶" => "事業起步，名利雙收。",
+            "臨官" => "祿旺之地，白手起家。",
+            "帝旺" => "巔峰能量，感情強勢。",
+            "衰"   => "氣勢趨緩，宜守成。",
+            "病"   => "能量稍弱，宜靜心。",
+            "死"   => "能量入庫，適合鑽研。",
+            "墓"   => "守成聚財，性格內斂。",
+            "絕"   => "大器晚成，宜修養。",
+            "胎"   => "孕育之象，可能性多。",
+            "養"   => "後勁十足，穩打穩紮。",
+            _      => "順其自然。"
+        };
+
+        // 根據十神名稱取對應天干
+        private static string GetTenGodStemByName(string dayStem, string tenGodName)
+        {
+            foreach (string target in Stems)
             {
-                "辛" => "【辛金】最清秀，為人處事多靈巧。創造力強且具競爭意識，外柔內剛，自尊心強。",
-                "甲" => "【甲木】仁慈具開創力，領袖慾強，具備開拓精神。",
-                _ => $"【{stem}】日元，具備五行基本特性。"
-            };
+                if (GetTenGodName(dayStem, target) == tenGodName)
+                    return target;
+            }
+            return dayStem;
         }
     }
 }

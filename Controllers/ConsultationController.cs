@@ -9429,11 +9429,19 @@ namespace Ecanapi.Controllers
             }
 
             // === 一柱論命（第三章延伸：日柱定數） ===
+            // 靜態原文（六十甲子 DB）
             string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch);
             if (!string.IsNullOrEmpty(yiZhuDesc))
             {
                 sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
                 sb.AppendLine(yiZhuDesc);
+                sb.AppendLine();
+            }
+            // 六步演算論斷（YiZhuEngine）
+            string yiZhuAnalysis = new YiZhuEngine().Analyze(dStem, dBranch, mBranch, gender);
+            if (!string.IsNullOrEmpty(yiZhuAnalysis))
+            {
+                sb.AppendLine(yiZhuAnalysis);
                 sb.AppendLine();
             }
 
