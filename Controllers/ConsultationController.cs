@@ -3158,6 +3158,9 @@ namespace Ecanapi.Controllers
                 string ydz1GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string ydz1GuFaPoetry  = (string.IsNullOrWhiteSpace(ydz1GuFaTitle) ? KbStripHtml(ydz1GuFaContent) : $"《{ydz1GuFaTitle}》\n{KbStripHtml(ydz1GuFaContent)}")
                                        + (string.IsNullOrWhiteSpace(ydz1GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(ydz1GuFaHour)}");
+                // 一柱論命·日柱定數
+                var ydz1YiZhu = await _context.YiZhuLunMings
+                    .FirstOrDefaultAsync(y => y.DayPillar == dStem + dBranch);
                 string report = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3186,7 +3189,8 @@ namespace Ecanapi.Controllers
                         && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb),
                     astroDescGeJu: ydz1AstroGeJu,
                     qiongTongBaoJian: ydz1QiongTong,
-                    guFaPoetry: ydz1GuFaPoetry);
+                    guFaPoetry: ydz1GuFaPoetry,
+                    yiZhuData: ydz1YiZhu);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -3514,6 +3518,9 @@ namespace Ecanapi.Controllers
                 string ydz2GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
                 string ydz2GuFaPoetry  = (string.IsNullOrWhiteSpace(ydz2GuFaTitle) ? KbStripHtml(ydz2GuFaContent) : $"《{ydz2GuFaTitle}》\n{KbStripHtml(ydz2GuFaContent)}")
                                        + (string.IsNullOrWhiteSpace(ydz2GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(ydz2GuFaHour)}");
+                // 一柱論命·日柱定數（DOCX 端點共用同一筆資料）
+                var ydz2YiZhu = await _context.YiZhuLunMings
+                    .FirstOrDefaultAsync(y => y.DayPillar == dStem + dBranch);
                 string reportText = LfBuildYudongziReportV2(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
@@ -3539,7 +3546,8 @@ namespace Ecanapi.Controllers
                     calDb: _calendarDb,
                     astroDescGeJu: ydz2AstroGeJu,
                     qiongTongBaoJian: ydz2QiongTong,
-                    guFaPoetry: ydz2GuFaPoetry);
+                    guFaPoetry: ydz2GuFaPoetry,
+                    yiZhuData: ydz2YiZhu);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -8669,7 +8677,8 @@ namespace Ecanapi.Controllers
             bool guoQi = false,
             string astroDescGeJu = "",
             string qiongTongBaoJian = "",
-            string guFaPoetry = "")
+            string guFaPoetry = "",
+            YiZhuLunMing? yiZhuData = null)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -9417,6 +9426,15 @@ namespace Ecanapi.Controllers
                         sb.AppendLine();
                     }
                 }
+            }
+
+            // === 一柱論命（第三章延伸：日柱定數） ===
+            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch);
+            if (!string.IsNullOrEmpty(yiZhuDesc))
+            {
+                sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
+                sb.AppendLine(yiZhuDesc);
+                sb.AppendLine();
             }
 
             // === Ch.4 命局格局判定 ===
@@ -13231,6 +13249,54 @@ namespace Ecanapi.Controllers
         return (sb2.ToString().Trim(), sbZodiac.ToString().Trim());
     }
 
+
+        // ─── 一柱論命：日柱定數（六十甲子） ────────────────────────────────────
+        private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch)
+        {
+            if (data == null) return "";
+            var sb = new StringBuilder();
+
+            // 1. 五行象義（點竅）
+            if (!string.IsNullOrWhiteSpace(data.VoidAnalysis))
+            {
+                sb.AppendLine("▍五行象義");
+                sb.AppendLine(data.VoidAnalysis.Trim());
+                sb.AppendLine();
+            }
+
+            // 2. 性格特質
+            if (!string.IsNullOrWhiteSpace(data.Personality))
+            {
+                sb.AppendLine("▍性格特質");
+                sb.AppendLine(data.Personality.Trim());
+                sb.AppendLine();
+            }
+
+            // 3. 詩句
+            if (!string.IsNullOrWhiteSpace(data.Poem))
+            {
+                sb.AppendLine(data.Poem.Trim());
+                sb.AppendLine();
+            }
+
+            // 4. 月令論斷（依月支篩選）
+            if (!string.IsNullOrWhiteSpace(data.MonthlyAnalysis))
+            {
+                try
+                {
+                    var monthly = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(data.MonthlyAnalysis);
+                    if (monthly != null && monthly.TryGetValue(mBranch, out var monthText) && !string.IsNullOrWhiteSpace(monthText))
+                    {
+                        sb.AppendLine($"▍生月論斷（{mBranch}月）");
+                        sb.AppendLine(monthText.Trim());
+                        sb.AppendLine();
+                    }
+                }
+                catch { /* JSON parse error: skip */ }
+            }
+
+            return sb.ToString().Trim();
+        }
 
         private static string LfShiGanXiangFa(string dStem, string mBranch)
         {

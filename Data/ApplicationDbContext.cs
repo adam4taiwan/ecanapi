@@ -94,6 +94,9 @@ namespace Ecanapi.Data
         public DbSet<IgHexagram> IgHexagrams { get; set; }
         public DbSet<Ig64Six> Ig64Sixs { get; set; }
 
+        // 一柱論命·六十甲子日柱定數
+        public DbSet<YiZhuLunMing> YiZhuLunMings { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
