@@ -127,13 +127,19 @@ namespace Ecanapi.Services
             sb.AppendLine("▍六親定位與命理象意");
             foreach (string stem in Stems)
             {
+                // 問題3修正：跳過日柱本身（日干在旬中坐日支，即命主本位，非六親）
+                if (stem == dayStem) continue;
+
                 string branch  = xunMap[stem];
                 string tenGod  = GetTenGodName(effStem, stem);
                 string relative = GetRelativeName(tenGod, gender);
                 string stage    = GetLifeStage(stem, branch);
                 string dayRel   = GetBranchRelation(dayBranch, branch);
                 bool isKong     = kongWang.Contains(branch);
-                string nonRelMeaning = GetTenGodNonRelMeaning(tenGod, stage);
+                // 問題2修正：傳入喜忌判斷
+                int stemEl = StemElement[Array.IndexOf(Stems, stem)];
+                bool isXi  = xiElements.Contains(Fe(stemEl));
+                string nonRelMeaning = GetTenGodNonRelMeaning(tenGod, stage, isXi);
 
                 sb.AppendLine(BuildRelativeLine(relative, tenGod, stem, branch, stage, dayRel, isKong, nonRelMeaning));
             }
@@ -255,8 +261,9 @@ namespace Ecanapi.Services
             if (LiuChongSet.Contains(key)) return "相沖";
             if (LiuHaiSet.Contains(key))   return "相害";
             if (SanXingSet.Contains(key))  return "相刑";
+            // 問題1修正：兩支相遇只是半合，非三合（三合需三支同聚）
             foreach (var g in SanHeGroups)
-                if (g.Contains(b1) && g.Contains(b2)) return "三合";
+                if (g.Contains(b1) && g.Contains(b2)) return "半合";
             return "";
         }
 
@@ -281,7 +288,7 @@ namespace Ecanapi.Services
                 ("旺",  "相沖") => "六親有力，然相沖主分離聚少離多",
                 ("旺",  "六合") => "六親有力，相合情深，多得助力",
                 ("旺",  "相害") => "六親有力，然暗中有損，需防隱患",
-                ("旺",  "三合") => "六親有力，三合成局，緣份深厚",
+                ("旺",  "半合") => "六親有力，半合拱局，緣份深厚",
                 ("旺",  "相刑") => "六親有力，然相刑主紛爭口舌",
                 ("旺",  _)      => "六親有力，先天根基穩固",
                 ("極弱","相沖") => "六親緣薄，且相沖，刑剋最重",
@@ -308,25 +315,41 @@ namespace Ecanapi.Services
         // Step 4：十神非六親象意
         // ==========================================
 
-        private static string GetTenGodNonRelMeaning(string tenGod, string stage)
+        private static string GetTenGodNonRelMeaning(string tenGod, string stage, bool isXi)
         {
             string strength = ClassifyStrength(stage);
             bool isStrong = strength is "旺" or "中";
 
-            return tenGod switch
-            {
-                "正財" => isStrong ? "【財運】財源穩定，薪資豐厚。"   : "【財運】正財薄弱，錢財難聚。",
-                "偏財" => isStrong ? "【偏財】橫財機會多，理財靈活。" : "【偏財】橫財難得，偏業無緣。",
-                "正官" => isStrong ? "【官職】仕途順遂，名譽佳。"     : "【官職】官職難求，名譽易損。",
-                "七殺" => isStrong ? "【競爭】競爭力強，衝勁十足。"   : "【競爭】壓力極重，易招官非。",
-                "正印" => isStrong ? "【貴人】文書順利，貴人相助。"   : "【貴人】貴人難求，學業不利。",
-                "偏印" => isStrong ? "【技藝】術業有專攻，宗教緣深。" : "【技藝】偏業難成，心神不定。",
-                "食神" => isStrong ? "【才藝】口福佳，才藝出眾，壽元足。" : "【才藝】才藝平平，口福稍薄。",
-                "傷官" => isStrong ? "【才華】才華橫溢，口才極佳。"   : "【才華】才華受阻，官運不順。",
-                "比肩" => isStrong ? "【朋友】平輩助力多，合夥有利。" : "【朋友】同輩競爭，合夥需謹慎。",
-                "劫財" => isStrong ? "【競爭】鬥志強，但需防破財。"   : "【破財】劫財無力，破財風險低。",
-                _ => ""
-            };
+            if (isXi)
+                return tenGod switch
+                {
+                    "正財" => isStrong ? "【財運】財源穩定，薪資豐厚。"       : "【財運】正財薄弱，錢財難聚。",
+                    "偏財" => isStrong ? "【偏財】橫財機會多，理財靈活。"     : "【偏財】橫財難得，偏業無緣。",
+                    "正官" => isStrong ? "【官職】仕途順遂，名譽佳。"         : "【官職】官職難求，名譽易損。",
+                    "七殺" => isStrong ? "【競爭】競爭力強，衝勁十足。"       : "【競爭】壓力雖重，能化為衝勁。",
+                    "正印" => isStrong ? "【貴人】文書順利，貴人相助。"       : "【貴人】貴人難求，學業不利。",
+                    "偏印" => isStrong ? "【技藝】術業有專攻，宗教緣深。"     : "【技藝】偏業難成，心神不定。",
+                    "食神" => isStrong ? "【才藝】口福佳，才藝出眾，壽元足。" : "【才藝】才藝平平，口福稍薄。",
+                    "傷官" => isStrong ? "【才華】才華橫溢，口才極佳。"       : "【才華】才華受阻，官運不順。",
+                    "比肩" => isStrong ? "【朋友】平輩助力多，合夥有利。"     : "【朋友】同輩競爭，合夥需謹慎。",
+                    "劫財" => isStrong ? "【助力】同氣幫身，鬥志增強。"       : "【助力】比劫雖弱，仍可扶身。",
+                    _ => ""
+                };
+            else
+                return tenGod switch
+                {
+                    "正財" => isStrong ? "【財運】財雖有根，然屬忌神，財來財去，難以積聚。" : "【財運】財星忌神且弱，破財耗財之象。",
+                    "偏財" => isStrong ? "【偏財】偏財屬忌，橫財易得易失，散財之象。"       : "【偏財】偏財忌神且弱，投機損耗。",
+                    "正官" => isStrong ? "【官職】官殺屬忌，名位雖有，壓力沉重難承。"       : "【官職】官星忌神且弱，仕途坎坷。",
+                    "七殺" => isStrong ? "【競爭】七殺屬忌，外部壓力極重，易招官非爭端。"   : "【競爭】七殺忌神且弱，紛爭雖輕，仍宜謹慎。",
+                    "正印" => isStrong ? "【貴人】印星屬忌，依賴心重，文書反成束縛。"       : "【貴人】印星忌神且弱，貴人無力。",
+                    "偏印" => isStrong ? "【技藝】梟印屬忌，鑽牛角尖，思路易偏執。"         : "【技藝】梟印忌神且弱，雜學無成。",
+                    "食神" => isStrong ? "【才藝】食神屬忌，洩氣過重，雖有才藝卻耗損精神。" : "【才藝】食傷忌神且弱，才藝有限。",
+                    "傷官" => isStrong ? "【才華】傷官屬忌，才高易惹非議，官運受損。"       : "【才華】傷官忌神且弱，口才受限。",
+                    "比肩" => isStrong ? "【朋友】比肩屬忌（身旺），同輩爭財，合夥損耗。"   : "【朋友】比肩忌神且弱，同儕拖累有限。",
+                    "劫財" => isStrong ? "【破財】劫財屬忌，破財耗損最烈，防競爭損失。"     : "【破財】劫財忌神且弱，破財較輕。",
+                    _ => ""
+                };
         }
 
         // ==========================================
@@ -417,7 +440,7 @@ namespace Ecanapi.Services
                 string impact = (isXi, branchRel, stemRel) switch
                 {
                     (true,  "六合",  _)      => "喜神相合，吉上加吉",
-                    (true,  "三合",  _)      => "喜神三合，增強吉象",
+                    (true,  "半合",  _)      => "喜神半合拱局，增強吉象",
                     (true,  "相沖",  "相沖") => "喜神天地俱沖，吉中帶憂",
                     (true,  "相沖",  _)      => "喜神被地沖，有所折損",
                     (true,  "相害",  _)      => "喜神受害，暗中有損",
