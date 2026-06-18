@@ -9429,16 +9429,16 @@ namespace Ecanapi.Controllers
             }
 
             // === 一柱論命（第三章延伸：日柱定數） ===
-            // 靜態原文（六十甲子 DB）
-            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch);
+            // 靜態原文（六十甲子 DB，依性別過濾）
+            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender);
             if (!string.IsNullOrEmpty(yiZhuDesc))
             {
                 sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
                 sb.AppendLine(yiZhuDesc);
                 sb.AppendLine();
             }
-            // 六步演算論斷（YiZhuEngine）
-            string yiZhuAnalysis = new YiZhuEngine().Analyze(dStem, dBranch, mBranch, gender);
+            // 六步演算論斷（YiZhuEngine，格局用神覆蓋喜忌）
+            string yiZhuAnalysis = new YiZhuEngine().Analyze(dStem, dBranch, mBranch, gender, yongShenElem);
             if (!string.IsNullOrEmpty(yiZhuAnalysis))
             {
                 sb.AppendLine(yiZhuAnalysis);
@@ -13259,25 +13259,33 @@ namespace Ecanapi.Controllers
 
 
         // ─── 一柱論命：日柱定數（六十甲子） ────────────────────────────────────
-        private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch)
+        private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch, int gender = 1)
         {
             if (data == null) return "";
             var sb = new StringBuilder();
 
-            // 1. 五行象義（點竅）
+            // 1. 五行象義（點竅，依性別過濾）
             if (!string.IsNullOrWhiteSpace(data.VoidAnalysis))
             {
-                sb.AppendLine("▍五行象義");
-                sb.AppendLine(data.VoidAnalysis.Trim());
-                sb.AppendLine();
+                string filtered = LfYiZhuFilterByGender(data.VoidAnalysis, gender);
+                if (!string.IsNullOrWhiteSpace(filtered))
+                {
+                    sb.AppendLine("▍五行象義");
+                    sb.AppendLine(filtered.Trim());
+                    sb.AppendLine();
+                }
             }
 
-            // 2. 性格特質
+            // 2. 性格特質（依性別過濾）
             if (!string.IsNullOrWhiteSpace(data.Personality))
             {
-                sb.AppendLine("▍性格特質");
-                sb.AppendLine(data.Personality.Trim());
-                sb.AppendLine();
+                string filtered = LfYiZhuFilterByGender(data.Personality, gender);
+                if (!string.IsNullOrWhiteSpace(filtered))
+                {
+                    sb.AppendLine("▍性格特質");
+                    sb.AppendLine(filtered.Trim());
+                    sb.AppendLine();
+                }
             }
 
             // 3. 詩句
@@ -13304,6 +13312,52 @@ namespace Ecanapi.Controllers
             }
 
             return sb.ToString().Trim();
+        }
+
+        /// <summary>
+        /// 依性別過濾一柱論命原文：男命去除女命斷句，女命去除男命斷句
+        /// </summary>
+        private static string LfYiZhuFilterByGender(string text, int gender)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+
+            // 女命專屬關鍵字（男命時過濾含這些的整行）
+            var femaleStartKeywords = new[] { "女命", "女人", "母女", "妾", "養夫", "偏夫", "嫁夫", "女兒之" };
+            var femaleContainsKeywords = new[] { "偏夫", "養夫", "妾合", "妾命", "嫁夫", "夫宮", "夫長生" };
+
+            // 男命專屬關鍵字（女命時過濾）
+            var maleStartKeywords = new[] { "男命", "男人" };
+
+            var lines = text.Split('\n');
+            var result = new List<string>();
+
+            foreach (var rawLine in lines)
+            {
+                string t = rawLine.Trim();
+                if (t.Length == 0) { result.Add(rawLine); continue; }
+
+                bool skip = false;
+                if (gender == 1) // 男命：過濾女命斷句
+                {
+                    skip = femaleStartKeywords.Any(k => t.StartsWith(k))
+                        || femaleContainsKeywords.Any(k => t.Contains(k))
+                        || (t.Contains("女命") && !t.Contains("（女命"));  // 女命為主詞（非括號附注）
+                }
+                else // 女命：過濾男命斷句
+                {
+                    skip = maleStartKeywords.Any(k => t.StartsWith(k));
+                }
+
+                if (!skip)
+                {
+                    // 男命：移除行中括號內的女命附注，如 "文才好（女命稍差）"
+                    string line = (gender == 1)
+                        ? System.Text.RegularExpressions.Regex.Replace(rawLine, @"[（(]女命[^）)]*[）)]", "")
+                        : rawLine;
+                    result.Add(line);
+                }
+            }
+            return string.Join('\n', result);
         }
 
         private static string LfShiGanXiangFa(string dStem, string mBranch)

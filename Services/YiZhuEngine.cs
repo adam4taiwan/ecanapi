@@ -105,7 +105,9 @@ namespace Ecanapi.Services
         /// <summary>
         /// 一柱論命六步完整分析
         /// </summary>
-        public string Analyze(string dayStem, string dayBranch, string monthBranch, int gender)
+        /// <param name="yongShenElem">八字格局用神五行（如"水"），若提供則覆蓋月令喜忌判定</param>
+        public string Analyze(string dayStem, string dayBranch, string monthBranch, int gender,
+            string? yongShenElem = null)
         {
             // Step 1: 有效日干
             string effStem = GetEffectiveStem(dayStem, gender);
@@ -117,6 +119,15 @@ namespace Ecanapi.Services
 
             // Step 5 先算（Step 6 需要喜忌資訊）
             var (bodyStrength, xiElements, jiElements) = GetBodyStrength(dayStem, monthBranch);
+
+            // 格局用神覆蓋：若外部傳入 yongShenElem，以此為準判定六親喜忌標注
+            string[]? xiOverride = null;
+            var elemMap = new Dictionary<string, int> { {"木",0},{"火",1},{"土",2},{"金",3},{"水",4} };
+            if (!string.IsNullOrEmpty(yongShenElem) && elemMap.TryGetValue(yongShenElem, out int yel))
+            {
+                // 喜：用神 + 生用神的五行；忌：其餘
+                xiOverride = new[] { yongShenElem, Fe((yel + 4) % 5) };
+            }
 
             var sb = new StringBuilder();
             sb.AppendLine($"【六親定數 · {dayStem}{dayBranch}日（{(gender == 1 ? "男" : "女")}命）】");
@@ -136,9 +147,10 @@ namespace Ecanapi.Services
                 string stage    = GetLifeStage(stem, branch);
                 string dayRel   = GetBranchRelation(dayBranch, branch);
                 bool isKong     = kongWang.Contains(branch);
-                // 問題2修正：傳入喜忌判斷
+                // 喜忌判斷：優先用格局用神覆蓋值，否則用月令計算值
                 int stemEl = StemElement[Array.IndexOf(Stems, stem)];
-                bool isXi  = xiElements.Contains(Fe(stemEl));
+                string stemFe = Fe(stemEl);
+                bool isXi = (xiOverride != null) ? xiOverride.Contains(stemFe) : xiElements.Contains(stemFe);
                 string nonRelMeaning = GetTenGodNonRelMeaning(tenGod, stage, isXi);
 
                 sb.AppendLine(BuildRelativeLine(relative, tenGod, stem, branch, stage, dayRel, isKong, nonRelMeaning));
@@ -147,12 +159,13 @@ namespace Ecanapi.Services
 
             // Step 5
             sb.AppendLine("▍先天根基（月令喜忌）");
-            sb.AppendLine(BuildBodyStrengthText(dayStem, monthBranch, bodyStrength, xiElements, jiElements));
+            sb.AppendLine(BuildBodyStrengthText(dayStem, monthBranch, bodyStrength, xiElements, jiElements, yongShenElem));
             sb.AppendLine();
 
-            // Step 6
+            // Step 6（喜忌標注同樣優先用格局用神）
             sb.AppendLine("▍旬中干支互動");
-            sb.Append(BuildXunInteractions(dayStem, dayBranch, effStem, xunMap, xiElements, gender));
+            var xiForStep6 = xiOverride ?? xiElements;
+            sb.Append(BuildXunInteractions(dayStem, dayBranch, effStem, xunMap, xiForStep6, gender));
 
             return sb.ToString().Trim();
         }
@@ -398,14 +411,16 @@ namespace Ecanapi.Services
 
         private static string BuildBodyStrengthText(
             string dayStem, string monthBranch, string bodyStrength,
-            string[] xiElements, string[] jiElements)
+            string[] xiElements, string[] jiElements, string? yongShenElem = null)
         {
             int dayEl = StemElement[Array.IndexOf(Stems, dayStem)];
             int monthEl = BranchMonthElement.TryGetValue(monthBranch, out int me) ? me : 2;
-            return
-                $"生於{monthBranch}月（{Fe(monthEl)}旺），日主{dayStem}{Fe(dayEl)}，{bodyStrength}。\n" +
-                $"  喜用：{string.Join("、", xiElements)}。\n" +
-                $"  忌：{string.Join("、", jiElements)}。";
+            var sb = new StringBuilder();
+            sb.AppendLine($"生於{monthBranch}月（{Fe(monthEl)}旺），日主{dayStem}{Fe(dayEl)}，{bodyStrength}。");
+            sb.AppendLine($"  月令基礎：喜{string.Join("、", xiElements)}；忌{string.Join("、", jiElements)}。");
+            if (!string.IsNullOrEmpty(yongShenElem))
+                sb.AppendLine($"  ▷ 格局用神：{yongShenElem}（六親喜忌標注以格局用神為準）");
+            return sb.ToString().TrimEnd();
         }
 
         // ==========================================
