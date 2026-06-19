@@ -2924,6 +2924,7 @@ namespace Ecanapi.Controllers
 
                 string lunarRawYdz = root.TryGetProperty("lunarBirthDate", out var lbYdzEl) ? lbYdzEl.GetString() ?? "" : "";
                 int lunarMonthYdz = LfParseLunarMonth(lunarRawYdz);
+                int lunarDayYdz   = LfParseLunarDay(lunarRawYdz);
 
                 var yearP  = LfGetPillar(bazi, "yearPillar");
                 var monthP = LfGetPillar(bazi, "monthPillar");
@@ -3190,7 +3191,8 @@ namespace Ecanapi.Controllers
                     astroDescGeJu: ydz1AstroGeJu,
                     qiongTongBaoJian: ydz1QiongTong,
                     guFaPoetry: ydz1GuFaPoetry,
-                    yiZhuData: ydz1YiZhu);
+                    yiZhuData: ydz1YiZhu,
+                    lunarDay: lunarDayYdz);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -3332,6 +3334,7 @@ namespace Ecanapi.Controllers
 
                 string lunarRawDocx = root.TryGetProperty("lunarBirthDate", out var lbDocxEl) ? lbDocxEl.GetString() ?? "" : "";
                 int lunarMonthDocx = LfParseLunarMonth(lunarRawDocx);
+                int lunarDayDocx   = LfParseLunarDay(lunarRawDocx);
 
                 var yearP  = LfGetPillar(bazi, "yearPillar");
                 var monthP = LfGetPillar(bazi, "monthPillar");
@@ -3547,7 +3550,8 @@ namespace Ecanapi.Controllers
                     astroDescGeJu: ydz2AstroGeJu,
                     qiongTongBaoJian: ydz2QiongTong,
                     guFaPoetry: ydz2GuFaPoetry,
-                    yiZhuData: ydz2YiZhu);
+                    yiZhuData: ydz2YiZhu,
+                    lunarDay: lunarDayDocx);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -8678,7 +8682,8 @@ namespace Ecanapi.Controllers
             string astroDescGeJu = "",
             string qiongTongBaoJian = "",
             string guFaPoetry = "",
-            YiZhuLunMing? yiZhuData = null)
+            YiZhuLunMing? yiZhuData = null,
+            int lunarDay = 0)
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -9442,6 +9447,14 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(yiZhuAnalysis))
             {
                 sb.AppendLine(yiZhuAnalysis);
+                sb.AppendLine();
+            }
+
+            // === 神機妙算一掌經 ===
+            string yiZhangJingText = LfBuildYiZhangJing(yBranch, hBranch, lunarMonth, lunarDay, gender);
+            if (!string.IsNullOrEmpty(yiZhangJingText))
+            {
+                sb.AppendLine(yiZhangJingText);
                 sb.AppendLine();
             }
 
@@ -13358,6 +13371,248 @@ namespace Ecanapi.Controllers
                 }
             }
             return string.Join('\n', result);
+        }
+
+        /// <summary>
+        /// 神機妙算一掌經 · 六道神數
+        /// 算法：年宮起，男順女逆，依農曆月日時依序推算四宮位置
+        /// </summary>
+        private static string LfBuildYiZhangJing(
+            string yBranch, string hBranch,
+            int lunarMonth, int lunarDay, int gender)
+        {
+            if (lunarMonth <= 0 || lunarDay <= 0
+                || string.IsNullOrEmpty(yBranch) || string.IsNullOrEmpty(hBranch))
+                return "";
+
+            var br        = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            var starName  = new[] { "天貴","天厄","天權","天破","天奸","天文","天福","天驛","天孤","天刃","天藝","天壽" };
+            var starShort = new[] { "貴","厄","權","破","奸","文","福","驛","孤","刃","藝","壽" };
+            // 上品: 天貴(子)天權(寅)天福(午)天壽(亥) / 中品: 天文(巳)天驛(未)天刃(酉)天藝(戌)
+            // 下品: 天厄(丑)天破(卯)天奸(辰)天孤(申)
+            var starGrade = new[] { "上","下","上","下","下","中","上","中","下","中","中","上" };
+            // 六道: 子午佛,丑未鬼,寅申人,卯酉畜,辰戌修羅,巳亥仙
+            var liuDao    = new[] { "佛","鬼","人","畜","修羅","仙","佛","鬼","人","畜","修羅","仙" };
+
+            int y0 = Array.IndexOf(br, yBranch);
+            int h0 = Array.IndexOf(br, hBranch);
+            if (y0 < 0 || h0 < 0) return "";
+
+            // 計算四宮 0-indexed（男順+，女逆-）
+            // 步距：月=(lunarMonth-1)，日=(lunarDay-1)，時=h0(地支0起)
+            int yP, mP, dP, hP;
+            if (gender == 1) // 男順
+            {
+                yP = y0;
+                mP = (y0 + lunarMonth - 1) % 12;
+                dP = (mP + lunarDay - 1) % 12;
+                hP = (dP + h0) % 12;
+            }
+            else // 女逆
+            {
+                yP = y0;
+                mP = ((y0 - (lunarMonth - 1)) % 12 + 12) % 12;
+                dP = ((mP - (lunarDay - 1))   % 12 + 12) % 12;
+                hP = ((dP - h0)               % 12 + 12) % 12;
+            }
+
+            // 統計品級
+            int upper  = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "上");
+            int middle = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "中");
+            int lower  = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "下");
+            // 品 = 時宮星品，等 = 同品星數，級 = 加權分 (上×3+中×2+下×1)
+            string pinStr  = starGrade[hP] + "品";
+            int    dengNum = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == starGrade[hP]);
+            int    jiScore = upper * 3 + middle * 2 + lower * 1;
+            string duanYu  = jiScore switch {
+                12                => "王候卿相之命",
+                11                => "六部九卿、科道之命",
+                10                => "掌握兵權、富翁之命",
+                9                 => "外藩方面之命",
+                8                 => "卿科佐二之命",
+                7                 => "公門起家、勞碌成家之命",
+                6                 => "遊學終身之命",
+                5                 => "勞碌奔波之命",
+                _                 => "肩挑負板、衣食艱難之命"
+            };
+
+            var sb = new StringBuilder();
+            sb.AppendLine("【神機妙算一掌經 · 六道神數】");
+            sb.AppendLine();
+
+            // 四宮表
+            sb.AppendLine($"     時        日        月        年");
+            sb.AppendLine($"     {hP+1,-9}{dP+1,-9}{mP+1,-9}{yP+1}");
+            sb.AppendLine($"     {br[hP],-9}{br[dP],-9}{br[mP],-9}{br[yP]}");
+            sb.AppendLine($"     {starShort[hP],-9}{starShort[dP],-9}{starShort[mP],-9}{starShort[yP]}");
+            sb.AppendLine($"     {starGrade[hP],-9}{starGrade[dP],-9}{starGrade[mP],-9}{starGrade[yP]}");
+            sb.AppendLine();
+
+            // 定數
+            sb.AppendLine($"定數：{pinStr}{dengNum}等{jiScore}級　{duanYu}");
+            // 六道
+            sb.AppendLine($"六道：{liuDao[hP]}（時）／{liuDao[dP]}（日）／{liuDao[mP]}（月）／{liuDao[yP]}（年）");
+            sb.AppendLine();
+
+            // 大運表（每運主十年，共10運，全部四宮同步移動）
+            sb.AppendLine("【大運表】（每運主十年）");
+            var ageLabels = Enumerable.Range(0, 10).Select(i => $"{1+i*10}歲").ToArray();
+            var yRows = new string[10]; var mRows = new string[10];
+            var dRows = new string[10]; var hRows = new string[10];
+            for (int i = 0; i < 10; i++)
+            {
+                int dy, dm, dd, dh;
+                if (gender == 1) { dy=(yP+i)%12; dm=(mP+i)%12; dd=(dP+i)%12; dh=(hP+i)%12; }
+                else             { dy=((yP-i)%12+12)%12; dm=((mP-i)%12+12)%12; dd=((dP-i)%12+12)%12; dh=((hP-i)%12+12)%12; }
+                yRows[i] = br[dy] + starShort[dy];
+                mRows[i] = br[dm] + starShort[dm];
+                dRows[i] = br[dd] + starShort[dd];
+                hRows[i] = br[dh] + starShort[dh];
+            }
+            string ColW(string s) => s.PadRight(7);
+            sb.AppendLine("大運  " + string.Join("", ageLabels.Select(ColW)));
+            sb.AppendLine("年    " + string.Join("", yRows.Select(ColW)));
+            sb.AppendLine("月    " + string.Join("", mRows.Select(ColW)));
+            sb.AppendLine("日    " + string.Join("", dRows.Select(ColW)));
+            sb.AppendLine("時    " + string.Join("", hRows.Select(ColW)));
+            sb.AppendLine();
+
+            // 以時為主宮論命
+            sb.AppendLine("【一掌經命書論斷】");
+            sb.AppendLine();
+            sb.AppendLine($"以時宮為主：{starName[hP]}（{br[hP]}宮）");
+            sb.AppendLine(GetYiZhangJingStarDesc(hP, gender));
+            sb.AppendLine();
+
+            // 四柱組合評述
+            string comboDesc = GetYiZhangJingComboDesc(upper, middle, lower, gender,
+                starShort[hP], starShort[dP], starShort[mP], starShort[yP]);
+            if (!string.IsNullOrEmpty(comboDesc))
+            {
+                sb.AppendLine(comboDesc);
+                sb.AppendLine();
+            }
+
+            // 六道特性（取時宮六道）
+            sb.AppendLine($"【六道特性】{liuDao[hP]}道");
+            sb.AppendLine(GetYiZhangJingLiuDaoDesc(hP));
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string GetYiZhangJingStarDesc(int pos, int gender)
+        {
+            // 總論 + 男/女論斷 + 詩曰（摘錄自增廣神機妙算一掌經）
+            var descs = new Dictionary<int, (string general, string male, string female, string poem)>
+            {
+                [0]  = ("主一生清貴，不受人欺，仕途中有成有望，性躁氣暴。富者好作善事，貧者亦衣祿無缺。",
+                        "若年月日值天權天福天壽者，必為公卿將相文武兼全；若逢孤厄破刃照命，仕途折挫。",
+                        "若年月日值天福天壽天藝在年月日者，依夫人之命方得安榮；若值孤刃厄星，必是孀居，或有疾病。",
+                        "自倫天貴始為奇，衣祿天然不缺時，兄弟父母緣分薄，外方朋友反相知。"),
+                [1]  = ("生人帶疾方延壽，勞碌辛苦常生悔疾。宜背井離鄉，他鄉立業，中年發福，暮年昌盛。",
+                        "若年月日得福文善壽藝吉星幫助，主無疾而有壽，財帛盈餘；若犯逢刃破重，難為妻子，刑傷父母。",
+                        "若得福壽藝三吉星相，一生富貴，生跨寵之子；若值天驛權，亦奸破孤星沖克者，夫婦不格，父母有傷。",
+                        "初限之年主苦辛，中年發福暮年盈，衣祿財源前有定，夫高妻少兩方寧。"),
+                [2]  = ("主人聰明，俊秀灑落，多智多能。若逢貴福文壽星相助，人人欽敬；若逢厄破孤驛，勞力浮泛，反為下格。",
+                        "聰明豁達出類超群，處世剛柔相濟，作事機變隨時；若坐天貴福刃藝壽星，到處神鬼伏，名高望重。",
+                        "若年月日值天福文藝壽星者，旺夫富貴多子，作事有為；若犯孤驛奸破刃厄者，不賢不孝，刑傷夫子。",
+                        "生來衣食自前緣，快樂優遊在晚年，還是近宮方遂意，僧家苦行福無邊。"),
+                [3]  = ("主根基破敗，祖業難招。宜他鄉立業，白手成家。若得權貴福星協助，可積聚財源，衣祿豐足。",
+                        "若值文藝福星，姿俊雅舊俗名家，書香可惟；若逢驛刃孤星，妻子刑傷，東奔西走，辛勤度日。",
+                        "若值福壽文藝權星相助，破後成家，旺夫旺子；若逢奸驛刃星，欺淩夫主，奸妒悍逆之命。",
+                        "卯宿之宮是破居，生時坐此不斯文，枉自日操並夜算，徒勞心力費精神。"),
+                [4]  = ("主人一生勞碌啾唧，指東說西，機變難測。若得天貴福星相助，財帛豐盈，亦為上命。",
+                        "若得權貴壽文藝吉星居年月日上，反主有財有祿，出言辯理，立志公道，乃上格；若逢孤驛破厄，奸詐難測。",
+                        "若逢福壽驛星，亦是享福有壽之命，但為人奸巧；若宜值文藝貴，必主聰明巧日，閨中雅秀。",
+                        "辰垣之位是奸宮，時上逢之必主凶，祖業必須難保守，離家處世難漂流。"),
+                [5]  = ("心性聰明靈悟，學識過人，作事和美。若逢天貴天福天藝星相助，鰲頭獨占，金階玉陛；最怕文星犯重，多學少成，有頭無尾。",
+                        "最聰明穎悟，志氣過人；若值天權刃，文武雙全；若逢奸破驛者，勞碌無休，朝游花街，為下命之格。",
+                        "萬性惟蘭心，幽貞靜；若逢天福貴壽，夫貴身榮，子女成行；若值天孤驛刃，克子傷夫，師尼之命。",
+                        "天文居巳最為奇，居子宜逢日共時，若能權貴福星助，脫卻藍袍換紫袍。"),
+                [6]  = ("主受福清閑，性情自在，度量寬洪，根基穩實。若得權刃相扶，衣帛充足，堆金積玉；若犯重者，衣祿不多。",
+                        "若年月日逢天貴權刃，金珠滿室，王公貴人之格；若逢奸驛破厄，吝嗇之徒，器小之輩。",
+                        "若再得權壽貴星，居年月日上，必是誥命夫人，多福壽；若逢天孤破，傷夫克子；若犯天奸破厄，心性奸惡。",
+                        "福星值此最為強，時位逢之主吉祥，時達聰明兼厚重，慈和恭儉更溫良。"),
+                [7]  = ("主離鄉別井，骨肉情多勞碌，身心自成自立之命。若逢福權貴刃壽五星，顯榮之命；若逢孤破厄，奔馳不定。",
+                        "心性無擔，喜離家出外；若得權貴福星居年月日，執掌朝綱，顯祖揚宗；若值天孤天破，克子傷妻。",
+                        "主奔波勞碌，一生不得安逸；若值孤刃權福，孀居寡婦；若臨富貴天壽，身雖奔波，原處富貴之鄉。",
+                        "天驛之星在未宮，時逢此宿當成空，四改三遷尤未定，鐵壁踏破不成功。"),
+                [8]  = ("主一生孤獨，六親無分。孤星犯重，反不為孤；若得權福貴壽相助，亦不免少年刑剋。",
+                        "若得天貴福壽居年月日，亦是富貴之格，但早年不免刑傷耳；若犯破奸厄刃及孤星重犯，宜為僧道。",
+                        "若年月日得吉星救助，不為大害，但有刑傷；或良人經商出外，庶免刑克；若犯奸驛刃破及天厄，必作師尼。",
+                        "申上之宿號天孤，生辰逢者六親疏，再加厄破奸星照，男傷妻子女妨夫。"),
+                [9]  = ("主人一生剛狠，性格躁暴，不受人欺。若得權貴福星，可化強暴，禮義不俗；若逢孤破奸厄，不免刑傷之憂。",
+                        "心高氣硬，不受人欺，自是不受人觸；若值三刃一貴或一福，指揮三軍，名成者也；若值破孤奸厄，連遭官訟。",
+                        "性格躁暴，不耐歲寒；若值文藝福貴，衣食不饑不冷；若值驛破奸厄，在家敗父母，出嫁敗夫家。",
+                        "酉垣天刃殺鄉星，時上逢之不利人，性如烈火財難聚，一生慷慨意妄貧。"),
+                [10] = ("主人多智多能，機巧近貴。若逢天權貴福文壽俱全，名高位重；若本宮犯重，懶惰多學少成，忘前失後。",
+                        "有操持多機變，上下皆知；若值權貴福星作合，多智慧，名高位重；若值破厄孤，財源不聚，天驛再臨，東奔西走。",
+                        "心性聰慧，針指技藝精巧；若年月日值權壽福星，享福多壽；若值奸孤厄文，獨守孤寒，針指度日。",
+                        "戌宮天藝性巧靈，時逢學業必然成，若無吉曜來相助，到辰還教藝不精。"),
+                [11] = ("主長壽康健，智慧聰明，作事溫良，有救人之心。若得天權福貴刃相助，福壽綿綿；若犯孤破厄星，中平之命。",
+                        "肚量寬洪，信義有方；若值權貴福星，功名顯達；若值天孤刃破，刑傷妻子，白手成家。",
+                        "主壽命延長，端麗聰明；若值權福文貴，福壽雙全；若值天驛，孤單主奔；若值天孤，必作師尼。",
+                        "天壽之宮是亥垣，生辰值此福綿綿，年月日星相助吉，垂眉皓首壽無邊。"),
+            };
+
+            if (!descs.TryGetValue(pos, out var d)) return "";
+            var sb = new StringBuilder();
+            sb.AppendLine(d.general);
+            sb.AppendLine(gender == 1 ? d.male : d.female);
+            sb.AppendLine($"詩曰：{d.poem}");
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string GetYiZhangJingComboDesc(
+            int upper, int middle, int lower, int gender,
+            string hShort, string dShort, string mShort, string yShort)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("【四柱總評】");
+
+            // 上品比例評語
+            if (upper == 4)
+                sb.AppendLine("四柱俱吉，天賦厚重，一生大富大貴，財源有益，家道必昌。");
+            else if (upper == 3)
+                sb.AppendLine("三吉一凶，格局上中，名利兼顧，中年後發福，家道漸昌。");
+            else if (upper == 2 && lower == 0)
+                sb.AppendLine("吉多於凶，格局中上，有衣祿，中年後可成家立業。");
+            else if (upper == 2 && lower == 2)
+                sb.AppendLine("吉凶各半，一生有得有失，需自強不息，方能突破際遇。");
+            else if (upper == 1 && lower == 3)
+                sb.AppendLine("凶多吉少，奔波辛苦，若時宮有吉星，尚可逢凶化吉，平安度日。");
+            else if (lower == 4)
+                sb.AppendLine("四柱皆凶，肩挑負板，一生辛勞；若信心向善，廣行方便，亦可轉禍為福。");
+            else
+                sb.AppendLine("四柱吉凶參半，一生有起有落，宜把握機遇，趨吉避凶。");
+
+            // 重複星判斷（三見/四見）
+            var allStars = new[] { hShort, dShort, mShort, yShort };
+            var counts = allStars.GroupBy(s => s).Where(g => g.Count() >= 2).ToList();
+            foreach (var g in counts)
+            {
+                int cnt = g.Count();
+                string starKey = g.Key;
+                if (cnt == 2) sb.AppendLine($"雙{starKey}：命逢兩重，得失互見，宜觀其年月日星吉凶以定論。");
+                else if (cnt == 3) sb.AppendLine($"三見{starKey}：三見為真宮星，以宮星之性論之，命中此性極強。");
+                else if (cnt == 4) sb.AppendLine($"四見{starKey}：此星極重，論命須特別留意此星之象意。");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static string GetYiZhangJingLiuDaoDesc(int pos)
+        {
+            // 六道特性（依時宮地支）
+            return pos switch {
+                0 or 6  => "佛道（子午）：生人慈和慷慨，有救人之心，無害人之意。在世一生煩惱易斷，廣結善緣。出家修道者最有福報，廣度有情，必成正果。",
+                1 or 7  => "鬼道（丑未）：生人性不常，多慮疑善機變。丑宮主帶暗疾，未宮主奔波勞碌。出家修道者，善巧方便，然心勞勞碌。",
+                2 or 8  => "人道（寅申）：生人心性溫雅，作事聰慧奉敬，行事圓融，不受人欺。申宮主孤克，主六親緣薄，半生自立。",
+                3 or 9  => "畜道（卯酉）：生人成敬不一，目甲自尊，作事易致顛覆成敗。卯宮多破敗財散，酉宮膽大不安分。出家修道者，心難長駐一所。",
+                4 or 10 => "修羅道（辰戌）：生人每事好勝，剛強不屈。辰宮多詐偽，戌宮多技巧。遇弱不欺，逢強偏要爭強，能主事幹業。",
+                5 or 11 => "仙道（巳亥）：生人性情柔緩，惡聲不發，怒容不見。安閒享福兼多壽，學行優長過不群。出家修道者，最多福報，有學有德。",
+                _       => ""
+            };
         }
 
         private static string LfShiGanXiangFa(string dStem, string mBranch)
