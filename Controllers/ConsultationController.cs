@@ -2948,12 +2948,15 @@ namespace Ecanapi.Controllers
                 int gender    = user.BirthGender ?? 1;
 
                 // fallback：lunarBirthDate 未提供時，從 calendar DB 取農曆月日（供一掌經/河洛使用）
+                // 注意：EF Core LINQ 對此表有回傳 null 的 bug，必須用 FromSqlInterpolated
                 if (lunarMonthYdz <= 0 || lunarDayYdz <= 0)
                 {
                     if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                     {
-                        var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
-                            c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
+                        int bm = user.BirthMonth.Value, bd = user.BirthDay.Value;
+                        var calEntry = _calendarDb.CalendarEntries
+                            .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={bm} AND \"陽日\"={bd} LIMIT 1")
+                            .FirstOrDefault();
                         if (calEntry != null)
                         {
                             if (lunarMonthYdz <= 0) lunarMonthYdz = LfParseLunarMonthField(calEntry.LunarMonth);
