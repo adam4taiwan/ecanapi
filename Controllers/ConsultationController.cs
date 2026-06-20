@@ -9469,7 +9469,21 @@ namespace Ecanapi.Controllers
             }
 
             // === 神機妙算一掌經 ===
-            string yiZhangJingText = LfBuildYiZhangJing(yBranch, hBranch, lunarMonth, lunarDay, gender);
+            // fallback：若 lunarDay 未傳入，在此直接從 calDb 補查
+            int yzjLunarMonth = lunarMonth;
+            int yzjLunarDay   = lunarDay;
+            if ((yzjLunarMonth <= 0 || yzjLunarDay <= 0) && calDb != null && birthMonth.HasValue && birthDay.HasValue)
+            {
+                var yzjCal = calDb.CalendarEntries
+                    .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={birthMonth.Value} AND \"陽日\"={birthDay.Value} LIMIT 1")
+                    .FirstOrDefault();
+                if (yzjCal != null)
+                {
+                    if (yzjLunarMonth <= 0) yzjLunarMonth = LfParseLunarMonthField(yzjCal.LunarMonth);
+                    if (yzjLunarDay   <= 0) yzjLunarDay   = LfParseLunarDayField(yzjCal.LunarDay);
+                }
+            }
+            string yiZhangJingText = LfBuildYiZhangJing(yBranch, hBranch, yzjLunarMonth, yzjLunarDay, gender);
             if (!string.IsNullOrEmpty(yiZhangJingText))
             {
                 sb.AppendLine(yiZhangJingText);
