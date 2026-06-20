@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Ecanapi.Data; // 確認命名空間與您的專案結構一致
@@ -12,14 +13,6 @@ public class CalendarDbContext : DbContext
 
     // 這個 DbSet<CalendarEntry> 就代表了您的 public.calendar 資料表
     public DbSet<CalendarEntry> CalendarEntries { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        // 由於原始資料表沒有主鍵，我們在此手動將「西元年、陽月、陽日」設定為複合主鍵。
-        // 這對於 EF Core 正常運作是必要的。
-        modelBuilder.Entity<CalendarEntry>()
-            .HasKey(c => new { c.Year, c.SolarMonth, c.SolarDay });
-    }
 }
 
 
@@ -31,6 +24,10 @@ public class CalendarDbContext : DbContext
 [Table("calendar", Schema = "public")]
 public class CalendarEntry
 {
+    [Key]
+    [Column("Id")]
+    public int Id { get; set; }
+
     [Column("西元年")]
     public int Year { get; set; }
 
