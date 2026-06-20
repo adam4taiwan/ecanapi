@@ -13479,21 +13479,18 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【神機妙算一掌經 · 六道神數】");
             sb.AppendLine();
 
-            // 四宮表（時/日/月/年，每欄12字寬）
-            string C(string s) => s.PadRight(12);
-            sb.AppendLine($"{C("時")}{C("日")}{C("月")}{"年"}");
-            sb.AppendLine($"{C((hP+1).ToString())}{C((dP+1).ToString())}{C((mP+1).ToString())}{yP+1}");
-            sb.AppendLine($"{C(br[hP])}{C(br[dP])}{C(br[mP])}{br[yP]}");
-            sb.AppendLine($"{C(starShort[hP])}{C(starShort[dP])}{C(starShort[mP])}{starShort[yP]}");
-            sb.AppendLine($"{C(starGrade[hP])}{C(starGrade[dP])}{C(starGrade[mP])}{starGrade[yP]}");
+            // 四宮表 + 六道（pipe格式，DOCX自動轉表格）
+            sb.AppendLine($"|時|日|月|年|");
+            sb.AppendLine($"|{hP+1}|{dP+1}|{mP+1}|{yP+1}|");
+            sb.AppendLine($"|{br[hP]}|{br[dP]}|{br[mP]}|{br[yP]}|");
+            sb.AppendLine($"|{starShort[hP]}|{starShort[dP]}|{starShort[mP]}|{starShort[yP]}|");
+            sb.AppendLine($"|{starGrade[hP]}|{starGrade[dP]}|{starGrade[mP]}|{starGrade[yP]}|");
+            sb.AppendLine($"|{liuDao[hP]}|{liuDao[dP]}|{liuDao[mP]}|{liuDao[yP]}|");
 
-            // 定數（主品n等m級 + 九品論斷）
+            // 定數（pipe結束，自動flush表格，定數另起段落）
             int dengNum = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == mainPin);
             int jiScore = upper * 3 + middle * 2 + lower * 1;
             sb.AppendLine($"定數：{mainPin}品  {dengNum}等  {jiScore}級    {jiuPin}    {duanYu}");
-
-            // 六道（與四宮表同格式）
-            sb.AppendLine($"{C(liuDao[hP])}{C(liuDao[dP])}{C(liuDao[mP])}{liuDao[yP]}");
             sb.AppendLine();
 
             // 大運表（10運，逆序：91歲在左，1歲在右）
@@ -13510,17 +13507,18 @@ namespace Ecanapi.Controllers
                 hStars[i]    = starShort[dh];
                 hBranches[i] = br[dh];
             }
-            // 逆序輸出（91歲在左，1歲在右）
-            string ColW(string s) => s.PadRight(9);
-            sb.AppendLine(string.Join("", ages.Reverse().Select(ColW)));
-            sb.AppendLine(string.Join("", posNums.Reverse().Select(ColW)));
-            sb.AppendLine(string.Join("", hStars.Reverse().Select(ColW)));
-            sb.AppendLine(string.Join("", hBranches.Reverse().Select(ColW)));
+            // pipe表，逆序（91左→1右）；第一行(age)自動加粗
+            sb.AppendLine("|" + string.Join("|", ages.Reverse()) + "|");
+            sb.AppendLine("|" + string.Join("|", posNums.Reverse()) + "|");
+            sb.AppendLine("|" + string.Join("|", hStars.Reverse()) + "|");
+            sb.AppendLine("|" + string.Join("|", hBranches.Reverse()) + "|");
+
+            // 空行 → flush 大運表，再起流年細表
+            sb.AppendLine();
 
             // 流年細表：日宮每年 +1（男順/女逆），每運10行，相鄰運共用一行（過渡年）
             // 第n運（0起）第r行（0起）的日宮 index = (dP ± (n×9+r)) % 12
-            // age = n×9+r，範圍 0~90
-            string DayColW(string s) => s.PadRight(9);
+            sb.AppendLine("|" + string.Join("|", ages.Reverse().Select(a => a + "運")) + "|行|");
             for (int r = 0; r < 10; r++)
             {
                 var row = new string[10];
@@ -13530,10 +13528,10 @@ namespace Ecanapi.Controllers
                     int idx = gender == 1
                         ? (dP + age) % 12
                         : ((dP - age) % 12 + 12) % 12;
-                    row[n] = $"{idx + 1}{br[idx]}{starShort[idx]}";
+                    row[n] = $"{idx+1}{br[idx]}{starShort[idx]}";
                 }
-                // 逆序（運10在左，運1在右），右端加行號
-                sb.AppendLine(string.Join("", row.Reverse().Select(DayColW)) + $"{r + 1}");
+                // 逆序（運10在左，運1在右），末欄加行號
+                sb.AppendLine("|" + string.Join("|", row.Reverse()) + $"|{r+1}|");
             }
             sb.AppendLine();
 
