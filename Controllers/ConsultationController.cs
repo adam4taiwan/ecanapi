@@ -13479,7 +13479,9 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"{C(liuDao[hP])}{C(liuDao[dP])}{C(liuDao[mP])}{liuDao[yP]}");
             sb.AppendLine();
 
-            // 大運表（10運，逆序：91歲在左，1歲在右；只顯示時宮主星）
+            // 大運表（10運，逆序：91歲在左，1歲在右）
+            // 參考：docs/yizhanjing/yizhanjing-p15-dayun-liuyear.png
+            //       docs/yizhanjing/yizhanjing-p16-liuyear-detail.png
             sb.AppendLine("【大運表】");
             var ages = new string[10]; var posNums = new string[10];
             var hStars = new string[10]; var hBranches = new string[10];
@@ -13492,11 +13494,30 @@ namespace Ecanapi.Controllers
                 hBranches[i] = br[dh];
             }
             // 逆序輸出（91歲在左，1歲在右）
-            string ColW(string s) => s.PadRight(6);
+            string ColW(string s) => s.PadRight(9);
             sb.AppendLine(string.Join("", ages.Reverse().Select(ColW)));
             sb.AppendLine(string.Join("", posNums.Reverse().Select(ColW)));
             sb.AppendLine(string.Join("", hStars.Reverse().Select(ColW)));
             sb.AppendLine(string.Join("", hBranches.Reverse().Select(ColW)));
+
+            // 流年細表：日宮每年 +1（男順/女逆），每運10行，相鄰運共用一行（過渡年）
+            // 第n運（0起）第r行（0起）的日宮 index = (dP ± (n×9+r)) % 12
+            // age = n×9+r，範圍 0~90
+            string DayColW(string s) => s.PadRight(9);
+            for (int r = 0; r < 10; r++)
+            {
+                var row = new string[10];
+                for (int n = 0; n < 10; n++)
+                {
+                    int age = n * 9 + r;
+                    int idx = gender == 1
+                        ? (dP + age) % 12
+                        : ((dP - age) % 12 + 12) % 12;
+                    row[n] = $"{idx + 1}{br[idx]}{starShort[idx]}";
+                }
+                // 逆序（運10在左，運1在右），右端加行號
+                sb.AppendLine(string.Join("", row.Reverse().Select(DayColW)) + $"{r + 1}");
+            }
             sb.AppendLine();
 
             // 以時為主宮論命
