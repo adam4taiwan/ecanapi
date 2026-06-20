@@ -13416,24 +13416,31 @@ namespace Ecanapi.Controllers
                 hP = ((dP - h0)               % 12 + 12) % 12;
             }
 
-            // 統計品級
+            // 九品判斷：主品（時宮）× 副品（年月日三宮組合）
+            // 參考影像：docs/yizhanjing/yizhanjing-p10-jiupin-table.png
+            //           docs/yizhanjing/yizhanjing-p11-jiupin-detail.png
+            // 主品 = 時宮星品（上/中/下）
+            string mainPin = starGrade[hP];
+            // 副品 = 年月日三宮多數決：上品星>=2 → 上；下品星>=2 → 下；其餘 → 中
+            int subUpper = new[]{yP,mP,dP}.Count(p => starGrade[p] == "上");
+            int subLower = new[]{yP,mP,dP}.Count(p => starGrade[p] == "下");
+            string subPin = subUpper >= 2 ? "上" : subLower >= 2 ? "下" : "中";
+            // 四宮合計（供四柱總評使用）
             int upper  = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "上");
             int middle = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "中");
             int lower  = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == "下");
-            // 品 = 時宮星品，等 = 同品星數，級 = 加權分 (上×3+中×2+下×1)
-            string pinStr  = starGrade[hP] + "品";
-            int    dengNum = new[]{yP,mP,dP,hP}.Count(p => starGrade[p] == starGrade[hP]);
-            int    jiScore = upper * 3 + middle * 2 + lower * 1;
-            string duanYu  = jiScore switch {
-                12                => "王候卿相之命",
-                11                => "六部九卿、科道之命",
-                10                => "掌握兵權、富翁之命",
-                9                 => "外藩方面之命",
-                8                 => "卿科佐二之命",
-                7                 => "公門起家、勞碌成家之命",
-                6                 => "遊學終身之命",
-                5                 => "勞碌奔波之命",
-                _                 => "肩挑負板、衣食艱難之命"
+            // 合併九品名稱
+            string jiuPin = mainPin + subPin + "品";
+            string duanYu = (mainPin, subPin) switch {
+                ("上", "上") => "王候卿相之命",
+                ("上", "中") => "六部九卿、科道之命",
+                ("上", "下") => "掌握兵權、富翁之命",
+                ("中", "上") => "外藩方面之命",
+                ("中", "中") => "卿科佐二之命",
+                ("中", "下") => "公門起家、勞碌成家之命",
+                ("下", "上") => "遊學終身之命",
+                ("下", "中") => "勞碌奔波之命",
+                _            => "肩挑負板、衣食艱難之命"
             };
 
             var sb = new StringBuilder();
@@ -13449,7 +13456,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 定數
-            sb.AppendLine($"定數：{pinStr}{dengNum}等{jiScore}級　{duanYu}");
+            sb.AppendLine($"定數：{jiuPin}　{duanYu}");
             // 六道
             sb.AppendLine($"六道：{liuDao[hP]}（時）／{liuDao[dP]}（日）／{liuDao[mP]}（月）／{liuDao[yP]}（年）");
             sb.AppendLine();
