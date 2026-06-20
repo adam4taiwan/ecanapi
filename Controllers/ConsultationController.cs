@@ -2946,6 +2946,21 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
+
+                // fallback：lunarBirthDate 未提供時，從 calendar DB 取農曆月日（供一掌經/河洛使用）
+                if (lunarMonthYdz <= 0 || lunarDayYdz <= 0)
+                {
+                    if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                    {
+                        var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
+                            c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
+                        if (calEntry != null)
+                        {
+                            if (lunarMonthYdz <= 0) lunarMonthYdz = LfParseLunarMonthField(calEntry.LunarMonth);
+                            if (lunarDayYdz   <= 0) lunarDayYdz   = LfParseLunarDayField(calEntry.LunarDay);
+                        }
+                    }
+                }
                 string ydzUserName = !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
