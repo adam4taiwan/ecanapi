@@ -89,7 +89,12 @@ namespace Ecanapi.Controllers
             var prevTerm = await _calendarService.GetPrevSolarTermAsync(request.Year, request.Month, request.Day);
             if (prevTerm != null && !string.IsNullOrEmpty(prevTerm.SolarTerm))
             {
-                string termLabel = $"{prevTerm.SolarTerm}（{prevTerm.SolarMonth}/{prevTerm.SolarDay}）";
+                var termDate = new DateTime(prevTerm.Year, prevTerm.SolarMonth, prevTerm.SolarDay);
+                var birthDate = new DateTime(request.Year, request.Month, request.Day);
+                int daysDiff = (int)(birthDate - termDate).TotalDays;
+                string termLabel = daysDiff == 0
+                    ? $"{prevTerm.SolarTerm}（當日）"
+                    : $"{prevTerm.SolarTerm} 後第{daysDiff}天";
                 chartData = chartData with { SolarTermInfo = termLabel };
             }
 

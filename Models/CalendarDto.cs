@@ -17,6 +17,5 @@ public record CalendarResponse(
     string? LunarDay,
     string? WeekDay,
     string? Season,
-    string? CurrentSolarTerm,      // 當天所屬節氣名稱（當天若有節氣則同 SolarTerm，否則為前一個節氣）
-    string? CurrentSolarTermDate   // 該節氣的日期，格式 MM/DD
+    string? SolarTermInfo          // 節氣後第幾天，如「清明 後第3天」或「清明（當日）」
 );
