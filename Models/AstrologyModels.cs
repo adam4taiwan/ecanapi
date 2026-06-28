@@ -124,7 +124,11 @@ namespace Ecanapi.Models
         string LunarBirthDate,
         ShiShenResult? BaziAnalysisResult,
         string? LuckCycleNote // 大運起運節氣計算說明
-    );
+    )
+    {
+        // 節氣資訊，格式如 "清明（4/5）"，由 ExportChart 在下載時注入
+        public string? SolarTermInfo { get; init; }
+    }
     public class AnnualLuck
     {
         public int Year { get; set; }                // 流年西元

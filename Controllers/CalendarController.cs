@@ -35,6 +35,16 @@ namespace Ecanapi.Controllers
                 return NotFound(new { message = $"找不到日期 {year}-{month}-{day} 的資料" });
             }
 
+            // 查詢當天所屬節氣（當天若有節氣則直接用，否則往前找最近節氣）
+            string? currentSolarTerm = null;
+            string? currentSolarTermDate = null;
+            var prevTerm = await _calendarService.GetPrevSolarTermAsync(year, month, day);
+            if (prevTerm != null && !string.IsNullOrEmpty(prevTerm.SolarTerm))
+            {
+                currentSolarTerm = prevTerm.SolarTerm;
+                currentSolarTermDate = $"{prevTerm.SolarMonth}/{prevTerm.SolarDay}";
+            }
+
             // 將從資料庫讀取的實體模型，轉換為乾淨的 API 回應模型 (DTO)
             var response = new CalendarResponse(
                 calendarData.Year,
@@ -48,7 +58,9 @@ namespace Ecanapi.Controllers
                 calendarData.LunarMonth,
                 calendarData.LunarDay,
                 calendarData.WeekDay,
-                calendarData.Season
+                calendarData.Season,
+                currentSolarTerm,
+                currentSolarTermDate
             );
 
             return Ok(response);

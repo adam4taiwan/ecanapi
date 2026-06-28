@@ -22,19 +22,22 @@ namespace Ecanapi.Controllers
         private readonly IAnalysisReportService _analysisReportService;
         private readonly IWebHostEnvironment _env;
         private readonly ApplicationDbContext _context;
+        private readonly ICalendarService _calendarService;
 
         public AstrologyController(
             IAstrologyService astrologyService,
             IExcelExportService excelExportService,
             IAnalysisReportService analysisReportService,
             IWebHostEnvironment env,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            ICalendarService calendarService)
         {
             _astrologyService = astrologyService;
             _excelExportService = excelExportService;
             _analysisReportService = analysisReportService;
             _env = env;
             _context = context;
+            _calendarService = calendarService;
         }
 
         [HttpPost("calculate")]
@@ -81,6 +84,14 @@ namespace Ecanapi.Controllers
 
             // 正常流程：呼叫修正後的 AstrologyService 產生正確資料
             var chartData = await _astrologyService.CalculateChartAsync(request);
+
+            // 查詢出生日期所屬節氣，加入命盤資料
+            var prevTerm = await _calendarService.GetPrevSolarTermAsync(request.Year, request.Month, request.Day);
+            if (prevTerm != null && !string.IsNullOrEmpty(prevTerm.SolarTerm))
+            {
+                string termLabel = $"{prevTerm.SolarTerm}（{prevTerm.SolarMonth}/{prevTerm.SolarDay}）";
+                chartData = chartData with { SolarTermInfo = termLabel };
+            }
 
             var templatePath = Path.Combine(_env.WebRootPath, "templates", "chart_template.xlt");
 

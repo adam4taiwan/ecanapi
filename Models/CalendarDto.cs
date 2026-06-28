@@ -16,5 +16,7 @@ public record CalendarResponse(
     string? LunarMonth,
     string? LunarDay,
     string? WeekDay,
-    string? Season
+    string? Season,
+    string? CurrentSolarTerm,      // 當天所屬節氣名稱（當天若有節氣則同 SolarTerm，否則為前一個節氣）
+    string? CurrentSolarTermDate   // 該節氣的日期，格式 MM/DD
 );

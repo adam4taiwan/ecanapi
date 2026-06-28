@@ -131,7 +131,20 @@ namespace Ecanapi.Services
 
             var sb = new StringBuilder();
             sb.AppendLine($"【六親定數 · {dayStem}{dayBranch}日（{(gender == 1 ? "男" : "女")}命）】");
-            sb.AppendLine($"有效干：{effStem}　旬首：{xunShou}　空亡：{string.Join("、", kongWang)}");
+            sb.AppendLine($"有效干：{dayStem}　旬首：{xunShou}　空亡：{string.Join("、", kongWang)}");
+            sb.AppendLine();
+
+            // 驗證表：日干十神六親對照
+            sb.AppendLine("▍日干十神六親對照");
+            var verifyParts = new List<string>();
+            foreach (string s in Stems)
+            {
+                string tg  = GetTenGodName(dayStem, s);
+                string rel = (s == dayStem) ? "本命" : GetRelativeName(tg, gender);
+                verifyParts.Add($"{s}={tg}({rel})");
+            }
+            sb.AppendLine(string.Join("　", verifyParts.Take(5)));
+            sb.AppendLine(string.Join("　", verifyParts.Skip(5)));
             sb.AppendLine();
 
             // Step 3 + 4
@@ -142,7 +155,7 @@ namespace Ecanapi.Services
                 if (stem == dayStem) continue;
 
                 string branch  = xunMap[stem];
-                string tenGod  = GetTenGodName(effStem, stem);
+                string tenGod  = GetTenGodName(dayStem, stem);
                 string relative = GetRelativeName(tenGod, gender);
                 string stage    = GetLifeStage(stem, branch);
                 string dayRel   = GetBranchRelation(dayBranch, branch);
@@ -165,7 +178,7 @@ namespace Ecanapi.Services
             // Step 6（喜忌標注同樣優先用格局用神）
             sb.AppendLine("▍旬中干支互動");
             var xiForStep6 = xiOverride ?? xiElements;
-            sb.Append(BuildXunInteractions(dayStem, dayBranch, effStem, xunMap, xiForStep6, gender));
+            sb.Append(BuildXunInteractions(dayStem, dayBranch, dayStem, xunMap, xiForStep6, gender));
 
             return sb.ToString().Trim();
         }
@@ -447,7 +460,7 @@ namespace Ecanapi.Services
                 string branchRel = GetBranchRelation(dayBranch, branch);
                 if (string.IsNullOrEmpty(stemRel) && string.IsNullOrEmpty(branchRel)) continue;
 
-                string tenGod   = GetTenGodName(effStem, stem);
+                string tenGod   = GetTenGodName(dayStem, stem);
                 string relative = GetRelativeName(tenGod, gender);
                 int stemEl      = StemElement[Array.IndexOf(Stems, stem)];
                 bool isXi       = xiElements.Contains(Fe(stemEl));
