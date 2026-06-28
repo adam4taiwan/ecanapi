@@ -37,9 +37,10 @@ namespace Ecanapi.Services
 
             // 1. 填寫盤首資訊
             SetCellValue(sheet, 5, 8, chartData.UserName);
-            SetCellValue(sheet, 46, 7, chartData.SolarBirthDate.ToString("yyyy-MM-dd HH:mm"));
+            string birthDateText = chartData.SolarBirthDate.ToString("yyyy-MM-dd HH:mm");
             if (!string.IsNullOrEmpty(chartData.SolarTermInfo))
-                SetCellValue(sheet, 47, 7, "節氣：" + chartData.SolarTermInfo);
+                birthDateText += "  節氣：" + chartData.SolarTermInfo;
+            SetCellValue(sheet, 46, 7, birthDateText);
             SetCellValue(sheet, 5, 2, chartData.LunarBirthDate);
             SetCellValue(sheet, 5, 17, chartData.WuXingJuText);
             SetCellValue(sheet, 5, 7, "命主" + chartData.MingZhu);
