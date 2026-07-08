@@ -10151,6 +10151,17 @@ namespace Ecanapi.Controllers
             }
             // 行業建議
             sb.AppendLine("【適合行業綜合建議】");
+            {
+                // 職業適性（身財強弱論，依屬相及大運流年擇要方法）
+                string caiElemCh13 = LfElemOvercome.GetValueOrDefault(dmElem, "");
+                double caiPctCh13  = wuXing.GetValueOrDefault(caiElemCh13, 0);
+                string careerTypeCh13 = (bodyPct > 55 && caiPctCh13 < 15)
+                    ? "工業・技術・製造型（身強財弱，宜從事技術、生產、加工、農漁、軍警等實作領域）"
+                    : (bodyPct < 45 && caiPctCh13 >= 20)
+                    ? "服務業・仲介・顧問型（身弱財多，宜從事服務、仲介、保險、顧問、教育、設計等）"
+                    : "商業・貿易・業務型（身財均衡，宜從事貿易、販賣、業務、經銷、代理等）";
+                sb.AppendLine($"職業適性：{careerTypeCh13}");
+            }
             sb.Append(KbSanmenJobByElem(dmElem, pattern, yongShenElem, cfHuangliang, cfYangZhiYin));
             if (!string.IsNullOrEmpty(mingGongStars))
                 sb.AppendLine($"  紫微命宮{mingGongStars}：建議依命宮星性質選擇職業方向");
@@ -10244,7 +10255,7 @@ namespace Ecanapi.Controllers
             sb.Append(LfBuildFlowYearSummaryChapter(
                 dStem, yBranch, mBranch, dBranch, hBranch,
                 yongShenElem, fuYiElem, jiShenElem,
-                birthYear, hasZiwei, palacesYdz));
+                birthYear, hasZiwei, palacesYdz, gender));
 
             // === 表尾 ===
             sb.AppendLine("-----------------------------------------------------------------");
@@ -10263,7 +10274,7 @@ namespace Ecanapi.Controllers
             string chartYBranch, string chartMBranch, string chartDBranch, string chartHBranch,
             string yongShenElem, string fuYiElem, string jiShenElem,
             int birthYear,
-            bool hasZiwei, JsonElement palaces)
+            bool hasZiwei, JsonElement palaces, int gender = 1)
         {
             var sb = new StringBuilder();
             int startYear = DateTime.Today.Year;
@@ -10407,11 +10418,22 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"主事：{flStem}年天干 ＝ {flStemSS}（{stemYongBad}），主：{stemEvent}");
                 if (!string.IsNullOrEmpty(flBranchSS))
                     sb.AppendLine($"      {flBranch}年地支藏{flBranchMainStem} ＝ {flBranchSS}（{brYongBad}）");
+                // 歲君×太歲：具體事件論斷（歲君主事、太歲主吉凶）
+                string eventNarr18 = LfYearEventNarrative(flStemSS, stemGood, stemBad, brGood, brBad, gender);
+                sb.AppendLine($"論斷：{eventNarr18}");
                 sb.AppendLine();
 
                 sb.AppendLine("運：  " + (yunEvents.Count > 0 ? yunEvents[0] : "流年地支與命局無明顯刑沖合破，平順推進"));
                 foreach (var ev in yunEvents.Skip(1)) sb.AppendLine("      " + ev);
                 sb.AppendLine();
+                // 居位地與職業變動信號
+                string careerSignal18 = LfCareerResidenceSignal(
+                    flBranch, flStemSS, chartBranches, chartBranchLabels, dStem, yongShenElem, jiShenElem);
+                if (!string.IsNullOrEmpty(careerSignal18))
+                {
+                    sb.AppendLine($"異動：{careerSignal18}");
+                    sb.AppendLine();
+                }
 
                 sb.AppendLine($"吉月：{(goodMonths.Any() ? string.Join("・", goodMonths.Take(4)) : "無特別突出月份")}");
                 sb.AppendLine($"凶月：{(badMonths.Any()  ? string.Join("・", badMonths.Take(3))  : "無特別需防月份")}");
@@ -10450,6 +10472,144 @@ namespace Ecanapi.Controllers
             }
 
             return sb.ToString();
+        }
+
+        // === 歲君主事×太歲吉凶：具體事件論斷（屬相及大運流年擇要方法） ===
+        // 歲君（流年天干）決定「主什麼事」；太歲（流年地支）決定「吉凶如何」
+        private static string LfYearEventNarrative(
+            string flStemSS, bool stemGood, bool stemBad,
+            bool brGood, bool brBad, int gender)
+        {
+            // Step 1: 歲君十神對應事件（正面/負面）
+            string eventPos, eventNeg;
+            switch (flStemSS)
+            {
+                case "比肩":
+                    eventPos = "同業人脈引薦，兄弟姐妹或同事助力可期，宜主動拓展人際合作";
+                    eventNeg = "同業競爭激烈，合夥破局，兄弟口舌耗財，防競爭者挖角或被人拖累";
+                    break;
+                case "劫財":
+                    eventPos = "偏路活躍，廣結人脈，合夥開創有助力，自主創業或副業機遇浮現";
+                    eventNeg = "財務容易被耗散，合夥易破局，人際是非多，防被親友或合夥人拖累";
+                    break;
+                case "食神":
+                    eventPos = "才藝技能大放異彩，口才得以發揮，斜槓收入增加，子女緣旺，生活品質提升";
+                    eventNeg = "言多惹禍，官非壓力浮現，謹言慎行，計劃易被上級打壓，口惹是非";
+                    break;
+                case "傷官":
+                    eventPos = "創意突破最強，口才表現出眾，適合跨界發展或轉職創業，展現個人特色";
+                    eventNeg = "長官壓力重，職場衝突多，官非口舌，宜避免與上級正面衝突，防職場危機";
+                    break;
+                case "正財":
+                    eventPos = "薪資穩健成長，正職收入有進帳，置產理財有利，感情有實質進展";
+                    eventNeg = "財務壓力沉重，支出大增，父親或長輩健康需留意，感情婚姻生變";
+                    break;
+                case "偏財":
+                    eventPos = "投資理財機遇佳，業務拓展順利，偏門收入或父星助力顯現";
+                    eventNeg = "投資虧損風險高，偏財容易耗散，賭性心理需節制，父親費心操勞";
+                    break;
+                case "正官":
+                    eventPos = gender == 1
+                        ? "職位晉升、聲譽提升，貴人提拔有望，考試名正順遂，紀律中見成就"
+                        : "感情緣分旺，夫星緣分出現，婚姻感情有進展，工作穩定受肯定";
+                    eventNeg = gender == 1
+                        ? "主管壓力重、職場刁難，謹防官司文書，人際關係緊張，需謹慎應對"
+                        : "感情衝突增加，婚姻關係有壓力，另需防官非文書，夫星化忌宜謹慎";
+                    break;
+                case "七殺":
+                    eventPos = "競爭突破力強，勇於開拓新局，魄力決策，軍警武職或業務主管者尤其有利";
+                    eventNeg = "競爭壓力最重，意外官非風險大，宜低調穩健，防小人傷害或突發事故";
+                    break;
+                case "正印":
+                    eventPos = "貴人出現，文書契約順遂，長輩庇護，進修升學有成，名譽提升";
+                    eventNeg = "文書糾紛纏身，長輩健康費心，進修受阻，居住環境可能有異動";
+                    break;
+                case "偏印":
+                    eventPos = "靜心修煉，偏門技藝精進，適合蓄勢積累，偏門或非主流之業有機遇";
+                    eventNeg = "思慮偏執，食神受剋影響表達與健康，學業事業阻礙，情緒需調適";
+                    break;
+                default:
+                    eventPos = "整體平順推進，謹守本份，靜待時機";
+                    eventNeg = "謹守為主，低調應對，守中求穩";
+                    break;
+            }
+
+            // Step 2: 選擇正面或負面論斷文字
+            string mainEvent = stemGood ? eventPos : stemBad ? eventNeg : eventPos;
+
+            // Step 3: 太歲（流年地支）強化說明
+            string brNote;
+            if (brGood && stemGood)
+                brNote = "太歲喜用助力，此年主事吉上加吉，全力把握機遇。";
+            else if (brBad && stemBad)
+                brNote = "太歲忌神加重，此年主事阻礙加倍，宜守不宜攻，靜待運轉。";
+            else if (stemGood && brBad)
+                brNote = "歲君吉利但太歲忌神，機遇有限，需克服阻力才能成事，謹慎行事。";
+            else if (stemBad && brGood)
+                brNote = "歲君忌神但太歲喜用，阻力雖存，仍有貴人助化，低調中伺機而動。";
+            else if (brGood)
+                brNote = "太歲喜用，地支有護持，整體吉象，可積極推動。";
+            else if (brBad)
+                brNote = "太歲忌神，地支凶化，需防意外耗損，保守應對。";
+            else
+                brNote = "太歲中性，整體平穩，謹守本份即可。";
+
+            return $"{mainEvent}。{brNote}";
+        }
+
+        // === 居位地與職業變動信號（大運流年居位地與職業變遷看法方法） ===
+        // 子午卯酉沖 = 地域之沖（居位地變遷）；寅申巳亥沖 = 職業+遷居；辰戌丑未沖 = 職業變動
+        private static string LfCareerResidenceSignal(
+            string flBranch, string flStemSS,
+            string[] chartBranches4, string[] chartBranchLabels4,
+            string dStem, string yongShenElem, string jiShenElem)
+        {
+            var geographicSet = new HashSet<string> { "子","午","卯","酉" };  // 地域之沖
+            var careerMoveSet = new HashSet<string> { "寅","申","巳","亥" };  // 職業+遷居之沖
+            // 辰戌丑未 = 職業之沖（居住不動）
+
+            var results = new List<string>();
+
+            for (int i = 0; i < chartBranches4.Length; i++)
+            {
+                string cb = chartBranches4[i];
+                string cl = chartBranchLabels4[i];
+                if (!LfChong.Contains(flBranch + cb) && !LfChong.Contains(cb + flBranch)) continue;
+
+                // 被沖地支的十神
+                string cbMainStem = LfBranchHiddenRatio.TryGetValue(cb, out var cbHidden) && cbHidden.Count > 0
+                    ? cbHidden[0].stem : "";
+                string cbSS = !string.IsNullOrEmpty(cbMainStem) ? LfStemShiShen(cbMainStem, dStem) : "";
+                string cbElem = !string.IsNullOrEmpty(cbMainStem) ? KbStemToElement(cbMainStem) : "";
+
+                // 沖的類型
+                string clashType;
+                if (geographicSet.Contains(flBranch))
+                    clashType = "地域之沖：居住地有異動跡象，職業方向不變";
+                else if (careerMoveSet.Contains(flBranch))
+                    clashType = "職業之沖：職業與居住地均有異動跡象";
+                else
+                    clashType = "職業之沖：職業有異動跡象，居住地相對穩定";
+
+                // 吉凶判定
+                string goodBad = cbElem == yongShenElem ? "喜用引動，異動後更進"
+                               : cbElem == jiShenElem   ? "忌神受沖，宜審慎評估，防被動異動"
+                               : "中性，視實際機遇而定";
+
+                string ssNote = !string.IsNullOrEmpty(cbSS) ? $"（{cl}{cb}為{cbSS}）" : "";
+                results.Add($"流年{flBranch}沖命局{cl}（{cb}）{ssNote}→ {clashType}，{goodBad}");
+            }
+
+            // 附加：流年天干食傷 → 職業職務有異動信號
+            if (flStemSS is "食神" or "傷官")
+            {
+                string fsNote = flStemSS == "食神"
+                    ? "食神洩秀，職務可能有調整，喜用時有利異動，忌神時防被動轉職"
+                    : "傷官衝官，職場有異動或衝突跡象，喜用時適合主動轉職，忌神時防被迫離職";
+                results.Add($"流年天干{flStemSS}→ {fsNote}");
+            }
+
+            return string.Join("\n      ", results);
         }
 
         // === 紫微格局偵測（依命宮主星+地支+四化） ===
