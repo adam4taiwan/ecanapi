@@ -10255,7 +10255,7 @@ namespace Ecanapi.Controllers
             sb.Append(LfBuildFlowYearSummaryChapter(
                 dStem, yBranch, mBranch, dBranch, hBranch,
                 yongShenElem, fuYiElem, jiShenElem,
-                birthYear, hasZiwei, palacesYdz, gender));
+                birthYear, hasZiwei, palacesYdz, gender, scored));
 
             // === 表尾 ===
             sb.AppendLine("-----------------------------------------------------------------");
@@ -10274,7 +10274,8 @@ namespace Ecanapi.Controllers
             string chartYBranch, string chartMBranch, string chartDBranch, string chartHBranch,
             string yongShenElem, string fuYiElem, string jiShenElem,
             int birthYear,
-            bool hasZiwei, JsonElement palaces, int gender = 1)
+            bool hasZiwei, JsonElement palaces, int gender = 1,
+            List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)>? scored = null)
         {
             var sb = new StringBuilder();
             int startYear = DateTime.Today.Year;
@@ -10411,6 +10412,40 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"═══════════════════════════════════════════════════");
                 sb.AppendLine($"{year}年（{flStem}{flBranch}・{flAge}歲）  【{overallClass}】");
                 sb.AppendLine($"═══════════════════════════════════════════════════");
+
+                // 找出本年所在大運（大運定背景，太歲如君、大運如臣）
+                string dyContext = "";
+                if (scored != null)
+                {
+                    var dy = scored.FirstOrDefault(c => c.startAge <= flAge && c.endAge >= flAge);
+                    if (dy != default)
+                    {
+                        string dyStemSS   = LfStemShiShen(dy.stem, dStem);
+                        string dyBrMs     = LfBranchHiddenRatio.TryGetValue(dy.branch, out var dyBH) && dyBH.Count > 0
+                                            ? dyBH[0].stem : "";
+                        string dyBrSS     = !string.IsNullOrEmpty(dyBrMs) ? LfStemShiShen(dyBrMs, dStem) : "";
+                        bool   dyGood     = dy.level is "大吉" or "吉" or "中吉";
+                        bool   dyBad      = dy.level is "大凶" or "凶" or "小凶";
+                        string dyLabel    = dyGood ? "喜用大運" : dyBad ? "忌神大運" : "中性大運";
+
+                        // 大運×流年疊加論斷
+                        string dyFlCross;
+                        bool flGood = stemGood || brGood;
+                        bool flBad  = stemBad  || brBad;
+                        if      (dyGood && flGood) dyFlCross = "喜用大運×喜用流年：順境疊加，本年主事機遇最強，全力把握。";
+                        else if (dyGood && flBad)  dyFlCross = "喜用大運×忌神流年：大運護持中逢流年壓力，有一定緩衝，凶中有護，謹慎推進。";
+                        else if (dyBad  && flGood) dyFlCross = "忌神大運×喜用流年：大環境壓力仍在，小機遇難以完全發揮，低調中把握可見機遇。";
+                        else if (dyBad  && flBad)  dyFlCross = "忌神大運×忌神流年：雙重壓力疊加，此年最需謹慎守成，暫緩重大決策，靜待運轉。";
+                        else if (dyGood)            dyFlCross = "喜用大運×中性流年：大運護持，本年主事雖無特別加速，整體穩健。";
+                        else if (dyBad)             dyFlCross = "忌神大運×中性流年：大運壓力持續，本年即使中性也需保守應對。";
+                        else                        dyFlCross = "中性大運×中性流年：整體平穩，守中求進。";
+
+                        string dyBrNote = !string.IsNullOrEmpty(dyBrSS) ? $"·{dy.branch}{dyBrSS}" : "";
+                        dyContext = $"大運背景：{dy.stem}{dy.branch}（{dy.startAge}-{dy.endAge}歲）{dy.stem}{dyStemSS}{dyBrNote}·{dyLabel}";
+                        sb.AppendLine($"大運背景：{dy.stem}{dy.branch}（{dy.startAge}-{dy.endAge}歲）{dy.stem}{dyStemSS}{dyBrNote}·{dyLabel}");
+                        sb.AppendLine($"          {dyFlCross}");
+                    }
+                }
 
                 string stemYongBad = stemGood ? "喜用" : stemBad ? "忌神" : "中性";
                 string brYongBad   = brGood   ? "喜用" : brBad  ? "忌神" : "中性";
