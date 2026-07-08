@@ -10428,7 +10428,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
                 // 居位地與職業變動信號
                 string careerSignal18 = LfCareerResidenceSignal(
-                    flBranch, flStemSS, chartBranches, chartBranchLabels, dStem, yongShenElem, jiShenElem);
+                    flBranch, flStemSS, chartBranches, chartBranchLabels, dStem, yongShenElem, jiShenElem,
+                    stemGood, stemBad, brGood, brBad);
                 if (!string.IsNullOrEmpty(careerSignal18))
                 {
                     sb.AppendLine($"異動：{careerSignal18}");
@@ -10559,14 +10560,23 @@ namespace Ecanapi.Controllers
 
         // === 居位地與職業變動信號（大運流年居位地與職業變遷看法方法） ===
         // 子午卯酉沖 = 地域之沖（居位地變遷）；寅申巳亥沖 = 職業+遷居；辰戌丑未沖 = 職業變動
+        // 好壞依流年整體喜忌判定（文件原文：「至於變好還是變壞看流年喜忌，喜用神之年變好，忌神年變壞」）
         private static string LfCareerResidenceSignal(
             string flBranch, string flStemSS,
             string[] chartBranches4, string[] chartBranchLabels4,
-            string dStem, string yongShenElem, string jiShenElem)
+            string dStem, string yongShenElem, string jiShenElem,
+            bool stemGood, bool stemBad, bool brGood, bool brBad)
         {
             var geographicSet = new HashSet<string> { "子","午","卯","酉" };  // 地域之沖
             var careerMoveSet = new HashSet<string> { "寅","申","巳","亥" };  // 職業+遷居之沖
             // 辰戌丑未 = 職業之沖（居住不動）
+
+            // 流年整體吉凶（依流年天干+地支喜忌）
+            bool yearGood = stemGood || brGood;
+            bool yearBad  = stemBad  || brBad;
+            string yearGoodBad = yearGood ? "喜用年引動，異動後通常更進"
+                               : yearBad  ? "忌神年引動，宜審慎評估，防被動異動"
+                               : "中性年引動，異動機會存在，視實際機遇而定";
 
             var results = new List<string>();
 
@@ -10576,11 +10586,10 @@ namespace Ecanapi.Controllers
                 string cl = chartBranchLabels4[i];
                 if (!LfChong.Contains(flBranch + cb) && !LfChong.Contains(cb + flBranch)) continue;
 
-                // 被沖地支的十神
+                // 被沖地支的十神（標示受影響的六親/宮位）
                 string cbMainStem = LfBranchHiddenRatio.TryGetValue(cb, out var cbHidden) && cbHidden.Count > 0
                     ? cbHidden[0].stem : "";
                 string cbSS = !string.IsNullOrEmpty(cbMainStem) ? LfStemShiShen(cbMainStem, dStem) : "";
-                string cbElem = !string.IsNullOrEmpty(cbMainStem) ? KbStemToElement(cbMainStem) : "";
 
                 // 沖的類型
                 string clashType;
@@ -10591,21 +10600,24 @@ namespace Ecanapi.Controllers
                 else
                     clashType = "職業之沖：職業有異動跡象，居住地相對穩定";
 
-                // 吉凶判定
-                string goodBad = cbElem == yongShenElem ? "喜用引動，異動後更進"
-                               : cbElem == jiShenElem   ? "忌神受沖，宜審慎評估，防被動異動"
-                               : "中性，視實際機遇而定";
+                // 附加：若被沖的是官殺（工作單位標誌）→ 額外提示職務變動
+                string officialNote = (cbSS is "正官" or "七殺")
+                    ? "（官殺宮被沖，工作職務異動跡象明顯）" : "";
 
-                string ssNote = !string.IsNullOrEmpty(cbSS) ? $"（{cl}{cb}為{cbSS}）" : "";
-                results.Add($"流年{flBranch}沖命局{cl}（{cb}）{ssNote}→ {clashType}，{goodBad}");
+                // 附加：若被沖的是印梟（住房標誌）→ 額外提示居住
+                string houseNote = (cbSS is "正印" or "偏印")
+                    ? "（印星被沖，居住環境或房產有異動可能）" : "";
+
+                string ssNote = !string.IsNullOrEmpty(cbSS) ? $"（{cl}為{cbSS}）" : "";
+                results.Add($"流年{flBranch}沖命局{cl}（{cb}）{ssNote}{officialNote}{houseNote}→ {clashType}，{yearGoodBad}");
             }
 
             // 附加：流年天干食傷 → 職業職務有異動信號
             if (flStemSS is "食神" or "傷官")
             {
                 string fsNote = flStemSS == "食神"
-                    ? "食神洩秀，職務可能有調整，喜用時有利異動，忌神時防被動轉職"
-                    : "傷官衝官，職場有異動或衝突跡象，喜用時適合主動轉職，忌神時防被迫離職";
+                    ? "食神洩秀，職務可能有調整，" + (yearGood ? "喜用年：有利主動異動或職升" : yearBad ? "忌神年：防被動轉職或職場壓力" : "中性年：視機而動")
+                    : "傷官衝官，職場異動或衝突跡象，" + (yearGood ? "喜用年：適合主動轉職或創業" : yearBad ? "忌神年：防被迫離職或職場糾紛" : "中性年：謹慎評估是否異動");
                 results.Add($"流年天干{flStemSS}→ {fsNote}");
             }
 
