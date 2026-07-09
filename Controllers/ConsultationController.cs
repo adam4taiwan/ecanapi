@@ -10420,6 +10420,8 @@ namespace Ecanapi.Controllers
             var chartBranches     = new[] { chartYBranch, chartMBranch, chartDBranch, chartHBranch };
             var chartBranchLabels = new[] { "年支", "月支", "日支", "時支" };
             string[] all12Branches = { "寅","卯","辰","巳","午","未","申","酉","戌","亥","子","丑" };
+            // 次忌元素（克用神的五行，如用神=火則次忌=水）
+            string ciJiElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
 
             sb.AppendLine("【第十八章：流年提要（近十年速查）】");
             sb.AppendLine();
@@ -10440,9 +10442,14 @@ namespace Ecanapi.Controllers
                 string flStemElem   = KbStemToElement(flStem);
                 string flBranchElem = !string.IsNullOrEmpty(flBranchMainStem) ? KbStemToElement(flBranchMainStem) : "";
                 bool stemGood = flStemElem == yongShenElem || flStemElem == fuYiElem;
-                bool stemBad  = flStemElem == jiShenElem;
+                // stemBad 包含大忌（jiShenElem）與次忌（ciJiElem，克用神），次忌權重稍輕
+                bool stemBadMajor = flStemElem == jiShenElem;
+                bool stemBadMinor = !stemBadMajor && flStemElem == ciJiElem;
+                bool stemBad      = stemBadMajor || stemBadMinor;
                 bool brGood   = flBranchElem == yongShenElem || flBranchElem == fuYiElem;
-                bool brBad    = flBranchElem == jiShenElem;
+                bool brBadMajor = flBranchElem == jiShenElem;
+                bool brBadMinor = !brBadMajor && flBranchElem == ciJiElem;
+                bool brBad      = brBadMajor || brBadMinor;
 
                 // 紫微：找流年地支對應宮位星曜
                 string ziweiPalaceName = "";
@@ -10468,8 +10475,18 @@ namespace Ecanapi.Controllers
                 string flJiPalace = KbGetSiHuaPalace(flStem, "化忌", palaces);
 
                 // 綜合定性（八字面 + 紫微面）
-                int goodScore = (stemGood ? 2 : stemBad ? -2 : 0) + (brGood ? 1 : brBad ? -1 : 0)
-                              + (hasAuspicious ? 1 : 0) - (hasFiend ? 1 : 0);
+                // 大忌扣2分，次忌扣1分（次忌力道較輕）
+                int stemScore = stemGood ? 2 : stemBadMajor ? -2 : stemBadMinor ? -1 : 0;
+                int brScore   = brGood   ? 1 : brBadMajor   ? -1 : brBadMinor   ?  0 : 0;
+                int goodScore = stemScore + brScore + (hasAuspicious ? 1 : 0) - (hasFiend ? 1 : 0);
+                // 三合成忌神局額外扣分（三合力道強，已成局者影響全年）
+                foreach (var (brs, elem) in LfSanHe)
+                {
+                    if (!brs.Contains(flBranch)) continue;
+                    var sanHePts = brs.Where(b => b != flBranch && chartBranches.Contains(b)).ToList();
+                    if (sanHePts.Count == 2)
+                        goodScore += (elem == yongShenElem || elem == fuYiElem) ? 1 : -2;
+                }
                 string overallClass = goodScore >= 3 ? "大吉" : goodScore >= 1 ? "吉" :
                                       goodScore <= -3 ? "大凶" : goodScore <= -1 ? "小凶" : "平";
 
@@ -10547,13 +10564,29 @@ namespace Ecanapi.Controllers
                         string dyFlCross;
                         bool flGood = stemGood || brGood;
                         bool flBad  = stemBad  || brBad;
-                        if      (dyGood && flGood) dyFlCross = "喜用大運×喜用流年：順境疊加，本年主事機遇最強，全力把握。";
-                        else if (dyGood && flBad)  dyFlCross = "喜用大運×忌神流年：大運護持中逢流年壓力，有一定緩衝，凶中有護，謹慎推進。";
-                        else if (dyBad  && flGood) dyFlCross = "忌神大運×喜用流年：大環境壓力仍在，小機遇難以完全發揮，低調中把握可見機遇。";
-                        else if (dyBad  && flBad)  dyFlCross = "忌神大運×忌神流年：雙重壓力疊加，此年最需謹慎守成，暫緩重大決策，靜待運轉。";
-                        else if (dyGood)            dyFlCross = "喜用大運×中性流年：大運護持，本年主事雖無特別加速，整體穩健。";
-                        else if (dyBad)             dyFlCross = "忌神大運×中性流年：大運壓力持續，本年即使中性也需保守應對。";
-                        else                        dyFlCross = "中性大運×中性流年：整體平穩，守中求進。";
+                        // 嚴重程度：天干地支皆忌，或三合成忌神局，視為重度凶年
+                        bool flBadSevere = (stemBadMajor && brBadMajor) ||
+                            LfSanHe.Any(sh => sh.branches.Contains(flBranch) &&
+                                sh.branches.Where(b => b != flBranch).All(b => chartBranches.Contains(b)) &&
+                                sh.elem == jiShenElem);
+                        // 生成忌神方向說明（讓建議更具體）
+                        string jiDesc = jiShenElem switch {
+                            "木" => "官殺忌（防壓力、法律糾紛）",
+                            "水" => "財忌（切勿大額舉債投資）",
+                            "火" => "印忌（防貴人失去、文書困擾）",
+                            "金" => "食傷忌（防才藝耗損、官非）",
+                            "土" => "比劫忌（防競爭破財、合夥損失）",
+                            _ => "忌神"
+                        };
+                        if      (dyGood && flBadSevere) dyFlCross = $"【警示】大運雖有護持，本年忌神（{jiDesc}）雙重爆發，切勿大額投資或擴張，嚴格守成，靜待下一個喜用流年。";
+                        else if (dyGood && flBad)       dyFlCross = $"喜用大運×忌神流年：大方向有利，但本年逆風（{jiDesc}），宜守不宜攻，等流年轉喜再出手。";
+                        else if (dyGood && flGood)      dyFlCross = "喜用大運×喜用流年：順境疊加，本年主事機遇最強，全力把握。";
+                        else if (dyBad  && flGood)      dyFlCross = "忌神大運×喜用流年：底盤壓力仍在，今年有小機遇，低調中把握，切勿重押。";
+                        else if (dyBad  && flBadSevere) dyFlCross = $"【嚴重警示】大運與流年忌神雙重壓力，此年風險極高（{jiDesc}），全面守成，不動為上，防禦優先於進攻。";
+                        else if (dyBad  && flBad)       dyFlCross = $"忌神大運×忌神流年：雙重壓力疊加（{jiDesc}），此年最需謹慎守成，暫緩重大決策，靜待運轉。";
+                        else if (dyGood)                dyFlCross = "喜用大運×中性流年：大運護持，本年整體穩健，按計畫推進。";
+                        else if (dyBad)                 dyFlCross = "忌神大運×中性流年：大運壓力持續，本年即使中性也需保守應對，守住基盤。";
+                        else                            dyFlCross = "中性大運×中性流年：整體平穩，守中求進。";
 
                         string dyBrNote = !string.IsNullOrEmpty(dyBrSS) ? $"·{dy.branch}{dyBrSS}" : "";
                         dyContext = $"大運背景：{dy.stem}{dy.branch}（{dy.startAge}-{dy.endAge}歲）{dy.stem}{dyStemSS}{dyBrNote}·{dyLabel}";
@@ -10562,8 +10595,8 @@ namespace Ecanapi.Controllers
                     }
                 }
 
-                string stemYongBad = stemGood ? "喜用" : stemBad ? "忌神" : "中性";
-                string brYongBad   = brGood   ? "喜用" : brBad  ? "忌神" : "中性";
+                string stemYongBad = stemGood ? "喜用" : stemBadMajor ? "忌神" : stemBadMinor ? "次忌" : "中性";
+                string brYongBad   = brGood   ? "喜用" : brBadMajor   ? "忌神" : brBadMinor   ? "次忌" : "中性";
                 string stemEvent   = stemSSEvent.GetValueOrDefault(flStemSS, flStemSS);
                 sb.AppendLine($"主事：{flStem}年天干 ＝ {flStemSS}（{stemYongBad}），主：{stemEvent}");
                 if (!string.IsNullOrEmpty(flBranchSS))
@@ -10576,6 +10609,50 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("運：  " + (yunEvents.Count > 0 ? yunEvents[0] : "流年地支與命局無明顯刑沖合破，平順推進"));
                 foreach (var ev in yunEvents.Skip(1)) sb.AppendLine("      " + ev);
                 sb.AppendLine();
+
+                // === 流年神煞 ===
+                var shenShaItems = new List<string>();
+                // 驛馬（出行變動信號）
+                string maBranch18 = flBranch switch {
+                    "申" or "子" or "辰" => "寅", "亥" or "卯" or "未" => "巳",
+                    "寅" or "午" or "戌" => "申", "巳" or "酉" or "丑" => "亥", _ => "" };
+                if (!string.IsNullOrEmpty(maBranch18)) {
+                    string maElem = KbStemToElement(LfBranchHiddenRatio.TryGetValue(maBranch18, out var mah18) && mah18.Count > 0 ? mah18[0].stem : "");
+                    bool maGood18 = maElem == yongShenElem || maElem == fuYiElem;
+                    bool maInChart = chartBranches.Contains(maBranch18);
+                    string maNote = maInChart ? "（命局有驛馬，引動更強）" : "";
+                    shenShaItems.Add($"驛馬{maNote}：" + (maGood18 ? "出行變動帶來機遇，宜主動拓展" : "出行易有耗損，慎防強迫搬遷"));
+                }
+                // 桃花（感情人際）
+                string tfBranch18 = flBranch switch {
+                    "申" or "子" or "辰" => "酉", "亥" or "卯" or "未" => "子",
+                    "寅" or "午" or "戌" => "卯", "巳" or "酉" or "丑" => "午", _ => "" };
+                if (!string.IsNullOrEmpty(tfBranch18)) {
+                    string tfElem = KbStemToElement(LfBranchHiddenRatio.TryGetValue(tfBranch18, out var tfh) && tfh.Count > 0 ? tfh[0].stem : "");
+                    bool tfGood = tfElem == yongShenElem || tfElem == fuYiElem;
+                    bool tfInChart = chartBranches.Contains(tfBranch18);
+                    string tfNote = tfInChart ? "（命局有桃花，引動更旺）" : "";
+                    shenShaItems.Add($"桃花{tfNote}：" + (tfGood ? "感情人際有助力，人緣旺盛，異性緣佳" : "爛桃花風險，感情糾紛防口舌是非"));
+                }
+                // 劫煞（破財小人）
+                string jsBranch18 = flBranch switch {
+                    "申" or "子" or "辰" => "巳", "亥" or "卯" or "未" => "申",
+                    "寅" or "午" or "戌" => "亥", "巳" or "酉" or "丑" => "寅", _ => "" };
+                if (!string.IsNullOrEmpty(jsBranch18)) {
+                    bool jsInChart = chartBranches.Contains(jsBranch18);
+                    string jsNote = jsInChart ? "（引動命局，破財小人風險加重）" : "";
+                    shenShaItems.Add($"劫煞{jsNote}：防意外耗財及小人陷害，合夥投資尤需謹慎");
+                }
+                // 犯太歲（流年支=生年支）
+                if (flBranch == chartYBranch)
+                    shenShaItems.Add("犯太歲：本年犯太歲，事業健康易波動，宜守不宜攻，避免重大決策");
+                if (shenShaItems.Any())
+                {
+                    sb.AppendLine("神煞：  " + shenShaItems[0]);
+                    foreach (var ss in shenShaItems.Skip(1)) sb.AppendLine("        " + ss);
+                    sb.AppendLine();
+                }
+
                 // 居位地與職業變動信號
                 string careerSignal18 = LfCareerResidenceSignal(
                     flBranch, flStemSS, chartBranches, chartBranchLabels, dStem, yongShenElem, jiShenElem,
