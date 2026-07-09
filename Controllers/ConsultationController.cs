@@ -5545,63 +5545,64 @@ namespace Ecanapi.Controllers
 
             if (string.IsNullOrEmpty(pattern) && LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                // 傳統八格取格四則（格局篇）：比劫不能取格，祿刃非在八格之內
-                // 排除比肩/劫財藏干，只從非比劫中取格
-                var candidates = mH
-                    .Where(h => LfStemShiShen(h.stem, dStem) is not ("比肩" or "劫財"))
-                    .ToList();
+                string mainQiSS = LfStemShiShen(mH[0].stem, dStem);
 
-                if (candidates.Count == 0)
+                if (mainQiSS == "比肩" || mainQiSS == "劫財")
                 {
-                    // 月支藏干全是比劫（如卯月乙、子月癸），建祿/月刃格應在 Step 2 已判定
-                    // fallback: 強制以比劫本氣定外格
-                    chosenStem = mH[0].stem;
+                    // 月支本氣為比劫 → 建祿格/月刃格（陽干陰干皆適用）
+                    // 比肩月=建祿格，劫財月=月刃格
+                    pattern = mainQiSS == "劫財" ? "月刃格" : "建祿格";
                 }
                 else
                 {
-                    // Rule 1: 非比劫有效本氣（candidates[0]，ratio最高）若透出天干 → 最優先
-                    if (allHeavenStems.Contains(candidates[0].stem))
-                    {
-                        chosenStem = candidates[0].stem;
-                    }
-                    else
-                    {
-                        // Rule 2: 本氣不透，取其他透出天干的非比劫藏干
-                        // 多個透干：以得令（siLingStem）優先，次以 ratio 排序
-                        var transparents = candidates
-                            .Where(h => allHeavenStems.Contains(h.stem))
-                            .OrderByDescending(h => h.ratio)
-                            .ToList();
+                    // 月支本氣非比劫 → 傳統八格取格四則（格局篇）
+                    // 排除比肩/劫財藏干，只從非比劫中取格
+                    var candidates = mH
+                        .Where(h => LfStemShiShen(h.stem, dStem) is not ("比肩" or "劫財"))
+                        .ToList();
 
-                        if (transparents.Count > 0)
+                    if (candidates.Count > 0)
+                    {
+                        // Rule 1: 非比劫有效本氣（ratio最高）若透出天干 → 最優先
+                        if (allHeavenStems.Contains(candidates[0].stem))
                         {
-                            var silingTrans = transparents.FirstOrDefault(h => h.stem == siLingStem);
-                            chosenStem = !string.IsNullOrEmpty(silingTrans.stem)
-                                ? silingTrans.stem : transparents[0].stem;
+                            chosenStem = candidates[0].stem;
                         }
                         else
                         {
-                            // Rule 3: 皆不透，月內人元輕重較量
-                            // 得令（siLingStem）最重，次以 ratio（月支藏干比例）
-                            var silingCand = candidates.FirstOrDefault(h => h.stem == siLingStem);
-                            chosenStem = !string.IsNullOrEmpty(silingCand.stem)
-                                ? silingCand.stem
-                                : candidates.OrderByDescending(h => h.ratio).First().stem;
+                            // Rule 2: 本氣不透，取其他透出天干的非比劫藏干
+                            // 多個透干：以得令（siLingStem）優先，次以 ratio 排序
+                            var transparents = candidates
+                                .Where(h => allHeavenStems.Contains(h.stem))
+                                .OrderByDescending(h => h.ratio)
+                                .ToList();
+
+                            if (transparents.Count > 0)
+                            {
+                                var silingTrans = transparents.FirstOrDefault(h => h.stem == siLingStem);
+                                chosenStem = !string.IsNullOrEmpty(silingTrans.stem)
+                                    ? silingTrans.stem : transparents[0].stem;
+                            }
+                            else
+                            {
+                                // Rule 3: 皆不透，月內人元輕重較量
+                                // 得令（siLingStem）最重，次以 ratio（月支藏干比例）
+                                var silingCand = candidates.FirstOrDefault(h => h.stem == siLingStem);
+                                chosenStem = !string.IsNullOrEmpty(silingCand.stem)
+                                    ? silingCand.stem
+                                    : candidates.OrderByDescending(h => h.ratio).First().stem;
+                            }
                         }
                     }
-                }
 
-                string chosenSS = LfStemShiShen(chosenStem, dStem);
-                pattern = chosenSS switch
-                {
-                    "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
-                    "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
-                    // 比劫 fallback（正常不應到這裡，建祿/月刃在 Step 2 已處理）
-                    "比肩" => "建祿格",
-                    "劫財" when "甲丙戊庚壬".Contains(dStem) => "月刃格",
-                    "劫財" => "建祿格",
-                    _ => "普通格"
-                };
+                    string chosenSS = LfStemShiShen(chosenStem, dStem);
+                    pattern = chosenSS switch
+                    {
+                        "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
+                        "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
+                        _ => "普通格"
+                    };
+                }
             }
 
             string yongShenElem;
