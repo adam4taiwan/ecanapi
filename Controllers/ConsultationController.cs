@@ -2159,17 +2159,27 @@ namespace Ecanapi.Controllers
                 int gender    = user.BirthGender ?? 1;
                 var luckCycles = LfExtractLuckCycles(root);
 
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
@@ -2363,17 +2373,27 @@ namespace Ecanapi.Controllers
                 int gender    = user.BirthGender ?? 1;
                 var luckCycles = LfExtractLuckCycles(root);
 
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
@@ -2967,17 +2987,27 @@ namespace Ecanapi.Controllers
                 string ydzUserName = !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var chartStems2 = new[] { yStem, mStem, dStem, hStem };
@@ -3377,17 +3407,27 @@ namespace Ecanapi.Controllers
                 string docxUserName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season  = LfGetSeason(mBranch);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var chartStems2 = new[] { yStem, mStem, dStem, hStem };
@@ -4314,17 +4354,27 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season    = LfGetSeason(mBranch);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
 
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
 
                 var luckCycles = LfExtractLuckCycles(root);
@@ -4824,6 +4874,37 @@ namespace Ecanapi.Controllers
             "寅" or "卯" or "辰" => "濕木", _ => "燥金"
         };
 
+        // 四立前18天才是土旺（四季），其他時間以春木/夏火/秋金/冬水為旺
+        // solarTermRaw 例：「寒露第10天」或「霜降」
+        private static string LfGetSeasonFromSolarTerm(string mBranch, string solarTermRaw)
+        {
+            // 非四庫月：直接返回對應季節（不受影響）
+            if (mBranch != "辰" && mBranch != "戌" && mBranch != "丑" && mBranch != "未")
+                return LfGetSeason(mBranch);
+            // 無節氣資料：回退原邏輯
+            if (string.IsNullOrEmpty(solarTermRaw)) return "四季";
+
+            // 四庫月第一個節氣（月初，可能還未進土旺期）
+            var firstTerms  = new HashSet<string> { "清明", "小暑", "寒露", "小寒" };
+            // 四庫月第二個節氣（必在四立前18天內，土旺）
+            var secondTerms = new HashSet<string> { "穀雨", "大暑", "霜降", "大寒" };
+            // 對應的基礎季節（非土旺時以此為旺）
+            var baseSeason  = new Dictionary<string, string>
+                { {"辰","春"}, {"未","夏"}, {"戌","秋"}, {"丑","冬"} };
+
+            // 解析節氣名稱和入節天數
+            var match = System.Text.RegularExpressions.Regex.Match(solarTermRaw, @"^(.+?)(?:第(\d+)天)?$");
+            string termName = match.Groups[1].Value.Trim();
+            int dayN = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : 1;
+
+            // 第二個節氣 → 四立前18天 → 土旺
+            if (secondTerms.Contains(termName)) return "四季";
+            // 第一個節氣 第13天後 → 進入土旺（約四立前18天）
+            if (firstTerms.Contains(termName) && dayN > 12) return "四季";
+            // 第一個節氣前12天 → 尚在本季（春木/夏火/秋金/冬水）
+            return baseSeason.GetValueOrDefault(mBranch, "四季");
+        }
+
         private static double LfGetBranchMult(string branch, string[] allBranches)
         {
             double m = 1.0;
@@ -4869,9 +4950,10 @@ namespace Ecanapi.Controllers
 
         private static Dictionary<string, double> LfCalcWuXingMatrix(
             string yStem, string yBranch, string mStem, string mBranch,
-            string dStem, string dBranch, string hStem, string hBranch)
+            string dStem, string dBranch, string hStem, string hBranch,
+            string seasonOverride = "")
         {
-            string season = LfGetSeason(mBranch);
+            string season = !string.IsNullOrEmpty(seasonOverride) ? seasonOverride : LfGetSeason(mBranch);
             var scores = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
 
@@ -5385,9 +5467,10 @@ namespace Ecanapi.Controllers
         private static (string pattern, string yongShenElem, string fuYiElem, string reason, string tiaoHouElem) LfDetectGeJuAndYongShen(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
-            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string season)
+            string dmElem, Dictionary<string, double> wuXing, double bodyPct, string season,
+            string siLingStem = "")
         {
-            // 取格優先順序：透干 → [調候優先 > 根氣最強] → 皆不透取根氣最強藏干 → 比劫改外格
+            // 取格優先順序：化氣格 → 外格（専旺/従格/建祿/月刃）→ 內格（八格，比劫排除，透干優先）
             var allHeavenStems = new[] { yStem, mStem, hStem };
             var allBranches    = new[] { yBranch, mBranch, dBranch, hBranch };
 
@@ -5420,17 +5503,12 @@ namespace Ecanapi.Controllers
             // 從格/從旺格
             if (string.IsNullOrEmpty(pattern) && bodyPct <= 20)
             {
-                // 前置條件：天干有比劫/印通根 → 不能從格
-                bool hasRootedBiJiYin = new[] { yStem, mStem, hStem }.Any(s =>
-                {
-                    string ss = LfStemShiShen(s, dStem);
-                    if (ss != "比肩" && ss != "劫財" && ss != "正印" && ss != "偏印") return false;
-                    string sElem = KbStemToElement(s);
-                    return allBranches.Any(b =>
-                        LfBranchHiddenRatio.TryGetValue(b, out var h) && h.Any(hh => KbStemToElement(hh.stem) == sElem));
-                });
+                // 従格前置條件：日主在四柱地支中無比印通根（完全無根才能從）
+                bool dayMasterHasRoot = allBranches.Any(b =>
+                    LfBranchHiddenRatio.TryGetValue(b, out var h) &&
+                    h.Any(hh => LfStemShiShen(hh.stem, dStem) is "比肩" or "劫財" or "正印" or "偏印"));
 
-                if (!hasRootedBiJiYin)
+                if (!dayMasterHasRoot)
                 {
                     string guanElemD = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
                     string caiElemD  = LfElemOvercome.GetValueOrDefault(dmElem, "");
@@ -5467,32 +5545,49 @@ namespace Ecanapi.Controllers
 
             if (string.IsNullOrEmpty(pattern) && LfBranchHiddenRatio.TryGetValue(mBranch, out var mH) && mH.Count > 0)
             {
-                // 月支本氣（比例最高藏干）若為比肩/劫財 → 直接建祿/月刃格，不取餘氣
-                // 涵蓋四庫月（辰戌丑未）遇同元素日主的情況，例如：己日丑月（本氣己=比肩）
-                string mainQiSS = LfStemShiShen(mH[0].stem, dStem);
-                if (mainQiSS == "比肩" || mainQiSS == "劫財")
+                // 傳統八格取格四則（格局篇）：比劫不能取格，祿刃非在八格之內
+                // 排除比肩/劫財藏干，只從非比劫中取格
+                var candidates = mH
+                    .Where(h => LfStemShiShen(h.stem, dStem) is not ("比肩" or "劫財"))
+                    .ToList();
+
+                if (candidates.Count == 0)
                 {
+                    // 月支藏干全是比劫（如卯月乙、子月癸），建祿/月刃格應在 Step 2 已判定
+                    // fallback: 強制以比劫本氣定外格
                     chosenStem = mH[0].stem;
                 }
                 else
                 {
-                    // 月令非比劫藏干（內格取格）
-                    var nonBiJieMH = mH
-                        .Where(h => { var ss = LfStemShiShen(h.stem, dStem); return ss != "比肩" && ss != "劫財"; })
-                        .ToList();
-
-                    if (nonBiJieMH.Count == 0)
+                    // Rule 1: 非比劫有效本氣（candidates[0]，ratio最高）若透出天干 → 最優先
+                    if (allHeavenStems.Contains(candidates[0].stem))
                     {
-                        // 月令藏干全是比劫 → 建祿格/月刃格
-                        chosenStem = mH[0].stem;
+                        chosenStem = candidates[0].stem;
                     }
                     else
                     {
-                        // 內格取格：優先取透出（年/月/時干出現）的非比劫藏干，ratio 高者優先
-                        // 若無透出則取主氣（ratio 最高非比劫）
-                        var sortedMH = nonBiJieMH.OrderByDescending(h => h.ratio).ToList();
-                        var transparentMH = sortedMH.Where(h => allHeavenStems.Contains(h.stem)).ToList();
-                        chosenStem = transparentMH.Count > 0 ? transparentMH[0].stem : sortedMH[0].stem;
+                        // Rule 2: 本氣不透，取其他透出天干的非比劫藏干
+                        // 多個透干：以得令（siLingStem）優先，次以 ratio 排序
+                        var transparents = candidates
+                            .Where(h => allHeavenStems.Contains(h.stem))
+                            .OrderByDescending(h => h.ratio)
+                            .ToList();
+
+                        if (transparents.Count > 0)
+                        {
+                            var silingTrans = transparents.FirstOrDefault(h => h.stem == siLingStem);
+                            chosenStem = !string.IsNullOrEmpty(silingTrans.stem)
+                                ? silingTrans.stem : transparents[0].stem;
+                        }
+                        else
+                        {
+                            // Rule 3: 皆不透，月內人元輕重較量
+                            // 得令（siLingStem）最重，次以 ratio（月支藏干比例）
+                            var silingCand = candidates.FirstOrDefault(h => h.stem == siLingStem);
+                            chosenStem = !string.IsNullOrEmpty(silingCand.stem)
+                                ? silingCand.stem
+                                : candidates.OrderByDescending(h => h.ratio).First().stem;
+                        }
                     }
                 }
 
@@ -5501,7 +5596,11 @@ namespace Ecanapi.Controllers
                 {
                     "正官" => "正官格", "七殺" => "七殺格", "正印" => "正印格", "偏印" => "偏印格",
                     "正財" => "正財格", "偏財" => "偏財格", "食神" => "食神格", "傷官" => "傷官格",
-                    "比肩" => "建祿格", "劫財" => "月刃格", _ => "普通格"
+                    // 比劫 fallback（正常不應到這裡，建祿/月刃在 Step 2 已處理）
+                    "比肩" => "建祿格",
+                    "劫財" when "甲丙戊庚壬".Contains(dStem) => "月刃格",
+                    "劫財" => "建祿格",
+                    _ => "普通格"
                 };
             }
 
@@ -10424,8 +10523,8 @@ namespace Ecanapi.Controllers
                         string dyBrMs     = LfBranchHiddenRatio.TryGetValue(dy.branch, out var dyBH) && dyBH.Count > 0
                                             ? dyBH[0].stem : "";
                         string dyBrSS     = !string.IsNullOrEmpty(dyBrMs) ? LfStemShiShen(dyBrMs, dStem) : "";
-                        bool   dyGood     = dy.level is "大吉" or "吉" or "中吉";
-                        bool   dyBad      = dy.level is "大凶" or "凶" or "小凶";
+                        bool   dyGood     = dy.level.Contains("吉");
+                        bool   dyBad      = dy.level.Contains("凶");
                         string dyLabel    = dyGood ? "喜用大運" : dyBad ? "忌神大運" : "中性大運";
 
                         // 大運×流年疊加論斷
@@ -12287,6 +12386,24 @@ namespace Ecanapi.Controllers
         if (si < 0 || bi < 0) return Array.Empty<string>();
         int start = (bi - si + 12) % 12;
         return new[] { branches[(start + 10) % 12], branches[(start + 11) % 12] };
+    }
+
+    // 解析節氣原始字串 "寒露第10天" or "寒露" → 入節天數（無天數視為第1天）
+    private static int LfParseDayInTerm(string solarTermRaw)
+    {
+        if (string.IsNullOrEmpty(solarTermRaw)) return 0;
+        var m = System.Text.RegularExpressions.Regex.Match(solarTermRaw, @"第(\d+)天$");
+        return m.Success ? int.Parse(m.Groups[1].Value) : 1;
+    }
+
+    // 依月支 + 入節天數，回傳月令司令藏干（格局取格用）
+    private static string LfGetSiLingStem(string mBranch, int dayInTerm)
+    {
+        if (!LfSilingTable.TryGetValue(mBranch, out var periods) || dayInTerm <= 0)
+            return "";
+        foreach (var (s, end) in periods)
+            if (dayInTerm <= end) return s;
+        return periods[^1].stem;
     }
 
     // 星平大限秘訣：命宮定大限法（果老星宗）
@@ -16985,16 +17102,26 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season    = LfGetSeason(mBranch);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
                 var chartStems4   = new[] { yStem, mStem, dStem, hStem };
 
@@ -19033,15 +19160,25 @@ namespace Ecanapi.Controllers
                 string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+                string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
                 double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
-                string season    = LfGetSeason(mBranch);
+                string siLingStem5 = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, _, tiaoHouElem5) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    dmElem, wuXing, bodyPct, season);
+                    dmElem, wuXing, bodyPct, season, siLingStem5);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
                 var chartStems5   = new[] { yStem, mStem, dStem, hStem };
 
