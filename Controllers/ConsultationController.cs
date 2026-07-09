@@ -7453,7 +7453,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(jiYongElemDisp) && jiYongElemDisp != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp}，天干 {LfElemStems(jiYongElemDisp)}，地支 {LfElemBranches(jiYongElemDisp)}（克用神{yongShenElem}，力道較輕）");
-            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -9638,7 +9638,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
             sb.AppendLine("【格局判定】");
             sb.AppendLine($"格局：【{pattern}】");
-            sb.AppendLine(LfPatternDesc(pattern));
+            sb.AppendLine(LfPatternDesc(pattern, bodyPct));
             // 四柱神殺
             var shenShaList = LfGetBaziShenSha(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             if (shenShaList.Count > 0)
@@ -14171,7 +14171,7 @@ namespace Ecanapi.Controllers
             return sb2.ToString().Trim();
         }
 
-        private static string LfPatternDesc(string pattern) => pattern switch
+        private static string LfPatternDesc(string pattern, double bodyPct = 50) => pattern switch
         {
             "正官格" => "命主天生具官貴氣質，一生有制度保障，適合公職管理，貴人多助。",
             "七殺格" => "命主魄力十足，敢冒險衝刺，適合軍警競爭行業，需注意制殺方能建功。",
@@ -14181,8 +14181,10 @@ namespace Ecanapi.Controllers
             "偏財格" => "命主豪爽善交際，善於冒險理財，財來財去，貿易業務見長。",
             "食神格" => "命主隨和享受，具藝術才能，適合餐飲、技術、創意行業。",
             "傷官格" => "命主聰明叛逆，才華橫溢，適合技藝創意自由業，婚姻感情需謹慎。",
+            "建祿格" when bodyPct >= 60 => "命主自強不息，意志堅定，靠自身努力打拼，財富靠雙手掙來，氣勢強旺不喜依賴他人。",
             "建祿格" => "命主自強不息，靠自身努力打拼，財富靠雙手掙來，不喜依賴他人。",
-            "月刃格" => "命主個性剛強，競爭意識強，財路需防劫財耗損，合夥宜謹慎。",
+            "月刃格" when bodyPct >= 60 => "命主個性剛強，競爭意識旺盛，事業衝勁強，財路需防劫財耗損，合夥宜謹慎。",
+            "月刃格" => "命主本質剛強，競爭意識強，善於見機而動，懂得以柔克剛，合夥需審慎。",
             "從強格" => "命主以從旺勢為吉，順從主流大方向，不宜逆勢而行。",
             "從殺格" => "命主日主極弱、七殺極旺，一生宜順從主流強勢，借力使力，忌逆勢抵抗。宜從事競爭型行業，但防財庫不穩。",
             "從財格" => "命主日主極弱、財星極旺，一生重財重物質，善於理財聚財，忌比劫印星破格。",
@@ -15352,7 +15354,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(v2JiYongElem) && v2JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v2JiYongElem}（克用神{yongShenElem}，力道較輕）");
-            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v2TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
@@ -16103,7 +16105,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(v3JiYongElem) && v3JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v3JiYongElem}（克用神{yongShenElem}，力道較輕）");
-            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v3TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -16537,7 +16539,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(jiYongElemDisp2) && jiYongElemDisp2 != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp2}（克用神{yongShenElem}，力道較輕）");
-            sb.AppendLine($"格局說明：{LfPatternDesc(pattern)}");
+            sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp2, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
