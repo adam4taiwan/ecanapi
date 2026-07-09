@@ -5635,6 +5635,16 @@ namespace Ecanapi.Controllers
                 string[] candidates = LfGetYongShenCandidates(pattern, dmElem, bodyPct, wuXing, yBranch, mBranch, dBranch, hBranch);
                 yongShenElem = LfPickYongShen(candidates, yStem, yBranch, mBranch, dStem, dBranch, hBranch, wuXing);
 
+                // 身弱月刃格/建祿格：印星 > 比劫（印生身比比劫幫身更根本）
+                // LfPickYongShen 以月令旺相排序，秋月土>火，但身弱以印優先
+                if (bodyPct < 45 && (pattern == "月刃格" || pattern == "建祿格"))
+                {
+                    string _inElem2 = LfGenByElem.GetValueOrDefault(dmElem, "");
+                    if (yongShenElem == dmElem && candidates.Contains(_inElem2) &&
+                        LfElemHasRoot(_inElem2, yBranch, mBranch, dBranch, hBranch))
+                        yongShenElem = _inElem2;
+                }
+
                 string lfYongRole = "";
                 if (bodyPct >= 60) {
                     string _guanE = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
