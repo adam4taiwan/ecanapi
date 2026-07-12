@@ -9517,6 +9517,15 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
+            // === 盲派十干象法（千里課堂）===
+            string shiGanQianLiDesc = LfQianLiShiGanXiangFa(dStem, mBranch);
+            if (!string.IsNullOrEmpty(shiGanQianLiDesc))
+            {
+                sb.AppendLine("【盲派十干象法】");
+                sb.AppendLine(shiGanQianLiDesc);
+                sb.AppendLine();
+            }
+
             // === 納音論斷 ===
             var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             if (!string.IsNullOrEmpty(nayinDesc))
