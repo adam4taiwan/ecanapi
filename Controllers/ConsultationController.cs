@@ -9508,20 +9508,11 @@ namespace Ecanapi.Controllers
                 AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
                 AppKb("最佳時辰", kb.SpecialHours);
             }
-            // === 十干象法 ===
-            string shiGanXiangDesc = LfShiGanXiangFa(dStem, mBranch);
-            if (!string.IsNullOrEmpty(shiGanXiangDesc))
-            {
-                sb.AppendLine("【十干象法】");
-                sb.AppendLine(shiGanXiangDesc);
-                sb.AppendLine();
-            }
-
-            // === 盲派十干象法（千里課堂）===
+            // === 十干象法（千里課堂盲派）===
             string shiGanQianLiDesc = LfQianLiShiGanXiangFa(dStem, mBranch);
             if (!string.IsNullOrEmpty(shiGanQianLiDesc))
             {
-                sb.AppendLine("【盲派十干象法】");
+                sb.AppendLine("【十干象法】");
                 sb.AppendLine(shiGanQianLiDesc);
                 sb.AppendLine();
             }
