@@ -1,6 +1,6 @@
 -- 八字真經 Ch.9/10 歲運論斷（第十九~二十講）
 
-INSERT INTO "BaziJingYunShi" ("Category","Condition","Content","SortOrder") VALUES
+INSERT INTO "BaziJingYunShi" ("Category","Title","Condition","Content","SortOrder") VALUES
 
 -- ========== 共通（大運與流年共用原則）==========
 ('共通','喜用運','逢喜用神大運或流年',

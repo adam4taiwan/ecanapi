@@ -184,6 +184,11 @@ namespace Ecanapi.Models
         [Column("Category")]
         public string Category { get; set; } = "";
 
+        // 短標題 e.g. 喜用運, 忌神運, 財運
+        [Column("Title")]
+        public string? Title { get; set; }
+
+        // 詳細條件描述 e.g. 逢喜用神大運或流年
         [Column("Condition")]
         public string? Condition { get; set; }
 

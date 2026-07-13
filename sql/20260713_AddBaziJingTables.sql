@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS "BaziJingLiuQin" (
 CREATE TABLE IF NOT EXISTS "BaziJingYunShi" (
     "Id" SERIAL PRIMARY KEY,
     "Category" VARCHAR(20) NOT NULL,     -- 大運/流年/共通
-    "Condition" VARCHAR(200),
+    "Title" VARCHAR(50),                 -- 短標題 e.g. 喜用運, 忌神運
+    "Condition" VARCHAR(200),            -- 詳細條件描述
     "Content" TEXT,
     "SortOrder" INT NOT NULL DEFAULT 0
 );
