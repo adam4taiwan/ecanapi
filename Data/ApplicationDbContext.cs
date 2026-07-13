@@ -97,6 +97,15 @@ namespace Ecanapi.Data
         // 一柱論命·六十甲子日柱定數
         public DbSet<YiZhuLunMing> YiZhuLunMings { get; set; }
 
+        // 八字真經知識庫
+        public DbSet<BaziJingConfig> BaziJingConfigs { get; set; }
+        public DbSet<BaziJingCaiGuan> BaziJingCaiGuans { get; set; }
+        public DbSet<BaziJingXiang> BaziJingXiangs { get; set; }
+        public DbSet<BaziJingShenSha> BaziJingShenShas { get; set; }
+        public DbSet<BaziJingKouJue> BaziJingKouJues { get; set; }
+        public DbSet<BaziJingLiuQin> BaziJingLiuQins { get; set; }
+        public DbSet<BaziJingYunShi> BaziJingYunShis { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
