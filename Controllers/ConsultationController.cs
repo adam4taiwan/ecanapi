@@ -9021,20 +9021,60 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第四章：財官論命】");
             sb.AppendLine();
 
+            // 盲派財官體用總論（三條主線之「富貴貧賤」）
+            {
+                var wxCycleCG = new[] { "木", "火", "土", "金", "水" };
+                int dmIdxCG = Array.IndexOf(wxCycleCG, dmElem);
+                double caiStrCG  = dmIdxCG >= 0 ? wuXing.GetValueOrDefault(wxCycleCG[(dmIdxCG + 2) % 5], 0) : 0;
+                double guanStrCG = dmIdxCG >= 0 ? wuXing.GetValueOrDefault(wxCycleCG[(dmIdxCG + 3) % 5], 0) : 0;
+                string caiElemCG = dmIdxCG >= 0 ? wxCycleCG[(dmIdxCG + 2) % 5] : "";
+                string guanElemCG = dmIdxCG >= 0 ? wxCycleCG[(dmIdxCG + 3) % 5] : "";
+                string yinElemCG  = dmIdxCG >= 0 ? wxCycleCG[(dmIdxCG + 4) % 5] : "";
+
+                // 陽日干天性求財，陰日干天性求官（盲派口訣）
+                bool isYangStemCG = new[] { "甲", "丙", "戊", "庚", "壬" }.Contains(dStem);
+                string pursuitDesc = isYangStemCG
+                    ? $"陽日干{dStem}天性追求財富（{caiElemCG}·財星），財為人生主要目標，求財意念強烈。"
+                    : $"陰日干{dStem}天性追求官職地位（{guanElemCG}·官殺），求名求職為天生志向。";
+
+                // 財官承擔力評估（體弱財重為富屋貧人，體強財輕為有能無機）
+                string chengDanDesc;
+                if (bodyPct < 45 && caiStrCG > 20)
+                    chengDanDesc = $"財承擔力不足：日主{dStem}偏弱（{bodyPct:F0}%），財星（{caiElemCG}）力量{caiStrCG:F0}%過重，呈「富屋貧人」之象。" +
+                                   $"賺錢機會多但難以積累，需行印星（{yinElemCG}）或比劫大運「補體」，方能承擔財富。";
+                else if (bodyPct < 45 && guanStrCG > 15)
+                    chengDanDesc = $"官殺壓力過重：日主{dStem}偏弱（{bodyPct:F0}%），官殺（{guanElemCG}）力量{guanStrCG:F0}%過旺，職場壓力大，" +
+                                   $"需印星（{yinElemCG}）化殺護身，大運走印星則化危為機可升職得權。";
+                else if (bodyPct >= 55 && caiStrCG < 10 && guanStrCG < 10)
+                    chengDanDesc = $"有能力但機遇稍輕：日主{dStem}旺（{bodyPct:F0}%），財官均偏輕，身旺卻缺財官配合，" +
+                                   $"需行食傷（生財）或財官大運「助用」，潛能方能充分發揮。";
+                else
+                    chengDanDesc = $"財官承擔均衡：日主{dStem}（{bodyPct:F0}%）與財官力量相對均衡，命局流通順暢，逢用神方向大運則財官齊發。";
+
+                sb.AppendLine("▍盲派財官體用總論");
+                sb.AppendLine(pursuitDesc);
+                sb.AppendLine(chengDanDesc);
+                sb.AppendLine();
+            }
+
             var matchedCG = BjDetectCaiGuan(
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 dmElem, wuXing, bodyPct, pattern, yongShenElem, jiShenElem, normCount, bjCaiGuan);
-            foreach (var (cg, cgTrigger) in matchedCG)
+            if (matchedCG.Any())
             {
-                sb.AppendLine($"▍{cg.ConfigType}");
-                sb.AppendLine($"觸發依據：{cgTrigger}");
-                sb.AppendLine(cg.Content);
-                if (!string.IsNullOrEmpty(cg.AdviceText)) sb.AppendLine($"建議：{cg.AdviceText}");
-                sb.AppendLine();
+                sb.AppendLine("▍命局財官結構論斷：");
+                foreach (var (cg, cgTrigger) in matchedCG)
+                {
+                    sb.AppendLine($"【{cg.ConfigType}】");
+                    sb.AppendLine($"觸發依據：{cgTrigger}");
+                    sb.AppendLine(cg.Content);
+                    if (!string.IsNullOrEmpty(cg.AdviceText)) sb.AppendLine($"建議：{cg.AdviceText}");
+                    sb.AppendLine();
+                }
             }
-            if (!matchedCG.Any())
+            else
             {
-                sb.AppendLine("財官結構均衡，宜穩健行事，財官皆有根，按格局用神方向發展。");
+                sb.AppendLine("財官結構均衡，宜穩健行事，按格局用神方向持續發展。");
                 sb.AppendLine();
             }
 
@@ -9195,7 +9235,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第九章：大運批斷】");
             sb.AppendLine();
 
-            // 藏干表（共用）
+            // 藏干表（Ch.9 + Ch.10 共用）
             var bjBrHidMap = new Dictionary<string, string[]>
             {
                 ["子"]=new[]{"癸"}, ["丑"]=new[]{"己","癸","辛"}, ["寅"]=new[]{"甲","丙","戊"},
@@ -9206,7 +9246,7 @@ namespace Ecanapi.Controllers
             var chartBranches4 = new[] { yBranch, mBranch, dBranch, hBranch };
             var chartBrLabels4 = new[] { "年支", "月支", "日支", "時支" };
 
-            // 六沖、六合、六害、三合
+            // 六沖、六合、六害、三合（盲派：地支只論刑沖合害破，不論生剋）
             var sixChong = new HashSet<(string,string)> { ("子","午"),("丑","未"),("寅","申"),("卯","酉"),("辰","戌"),("巳","亥") };
             var sixHe    = new HashSet<(string,string)> { ("子","丑"),("寅","亥"),("卯","戌"),("辰","酉"),("巳","申"),("午","未") };
             var sixHai   = new HashSet<(string,string)> { ("子","未"),("丑","午"),("寅","巳"),("卯","辰"),("申","亥"),("酉","戌") };
@@ -9224,13 +9264,66 @@ namespace Ecanapi.Controllers
             bool IsSixHe(string a, string b)    => sixHe.Contains((a,b))    || sixHe.Contains((b,a));
             bool IsSixHai(string a, string b)   => sixHai.Contains((a,b))   || sixHai.Contains((b,a));
 
+            // 十神→五行映射（大運章用）
+            var wxCycle9 = new[] { "木", "火", "土", "金", "水" };
+            int dmIdx9 = Array.IndexOf(wxCycle9, dmElem);
+            string SSElem9(string ss) => dmIdx9 < 0 ? "" : ss switch {
+                "比" or "劫" => wxCycle9[dmIdx9 % 5],
+                "食" or "傷" => wxCycle9[(dmIdx9 + 1) % 5],
+                "財"         => wxCycle9[(dmIdx9 + 2) % 5],
+                "官" or "殺" => wxCycle9[(dmIdx9 + 3) % 5],
+                "印" or "梟" => wxCycle9[(dmIdx9 + 4) % 5],
+                _ => ""
+            };
+            double SSElemStr9(string ss) { var e = SSElem9(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
+
+            // ── 盲派體用分析（核心：富貴在八字，窮通在行運）──
+            double caiStrDy  = SSElemStr9("財");
+            double guanStrDy = SSElemStr9("官") + SSElemStr9("殺");
+            bool isWeakDy    = bodyPct < 45;
+            bool isStrongDy  = bodyPct >= 55;
+            string bodyElemPrint9  = SSElem9("印");   // 印星五行（幫體）
+            string bodyElemPrint92 = SSElem9("比");   // 比劫五行（幫體）
+            string useElemPrint9   = SSElem9("食");   // 食傷五行（生財）
+            string useElemPrint92  = SSElem9("財");   // 財星五行（助用）
+            string useElemPrint93  = SSElem9("官");   // 官殺五行（助用）
+
+            string tiYongDesc9;
+            string luckTip9;
+            if (isWeakDy && caiStrDy > 20)
+            {
+                tiYongDesc9 = $"體弱用強（身弱財旺）：{dStem}日主力量{bodyPct:F0}%偏弱，財星（{useElemPrint92}）力量{caiStrDy:F0}%過重，呈「富屋貧人」之象，有賺錢機會但難以積累持留。";
+                luckTip9    = $"發財應期法則：大運逢{bodyElemPrint9}（印星護身）或{bodyElemPrint92}（比劫幫身），「行運補體」，日主力量獲補後方能承擔財富，此類大運為此命格的黃金發財期。反之逢財官大運反而壓力加重。";
+            }
+            else if (isWeakDy && guanStrDy > 15)
+            {
+                tiYongDesc9 = $"體弱官旺（身弱殺重）：{dStem}日主力量{bodyPct:F0}%偏弱，官殺（{useElemPrint93}）力量{guanStrDy:F0}%過重，無制化則官殺攻身，職場壓力大、諸事受制。";
+                luckTip9    = $"化危應期法則：大運逢{bodyElemPrint9}（印星化殺生身），官殺力量轉化為護身之力，升職得權可期；大運逢財（{useElemPrint92}）生官殺則壓力倍增，嚴防官非是非。";
+            }
+            else if (isStrongDy && caiStrDy < 10 && guanStrDy < 10)
+            {
+                tiYongDesc9 = $"體強用弱（身旺財官輕）：{dStem}日主力量{bodyPct:F0}%旺盛，財（{caiStrDy:F0}%）官（{guanStrDy:F0}%）偏輕，有能力魄力但機遇稍不足。";
+                luckTip9    = $"發揮應期法則：大運逢{useElemPrint9}（食傷生財）或{useElemPrint92}（財星）或{useElemPrint93}（官殺），身旺有用神配合，方能大展鴻圖，事業財運同步起飛。";
+            }
+            else
+            {
+                tiYongDesc9 = $"體用均衡（身財相當）：{dStem}日主力量{bodyPct:F0}%，財官印食各有佈局，命局流通相對順暢。";
+                luckTip9    = $"喜用大運（{yongShenElem}方向）為事業財運黃金期，積極把握；忌神大運（{jiShenElem}方向）宜守成低調，蓄積力量。";
+            }
+
+            sb.AppendLine("▍盲派體用基礎分析");
+            sb.AppendLine("（盲派核心：富貴在八字，窮通在行運；歲運作用於命局；地支只論刑沖合害破）");
+            sb.AppendLine(tiYongDesc9);
+            sb.AppendLine(luckTip9);
+            sb.AppendLine();
+
             if (scored.Count > 0)
             {
                 var bestDy  = scored.OrderByDescending(s => s.score).First();
                 var worstDy = scored.OrderBy(s => s.score).First();
                 sb.AppendLine($"▍大運整體走勢");
-                sb.AppendLine($"最佳大運：{bestDy.stem}{bestDy.branch}（{bestDy.startAge}~{bestDy.endAge}歲）");
-                sb.AppendLine($"最需謹慎：{worstDy.stem}{worstDy.branch}（{worstDy.startAge}~{worstDy.endAge}歲）");
+                sb.AppendLine($"最佳大運：{bestDy.stem}{bestDy.branch}（{bestDy.startAge}~{bestDy.endAge}歲）—— 命中所需氣候全面到來，積極把握。");
+                sb.AppendLine($"最需謹慎：{worstDy.stem}{worstDy.branch}（{worstDy.startAge}~{worstDy.endAge}歲）—— 忌神氣場主導，宜守不宜攻。");
                 sb.AppendLine();
 
                 sb.AppendLine("▍逐步大運論斷：");
@@ -9243,66 +9336,87 @@ namespace Ecanapi.Controllers
                     bool stemBad    = lcElem == jiShenElem;
                     bool brGood     = lcBrElem == yongShenElem || lcBrElem == fuYiElem;
                     bool brBad      = lcBrElem == jiShenElem;
+                    bool sameQi9    = lcElem == lcBrElem;  // 干支同氣（如乙卯、甲寅），吉凶應驗特別強烈
 
-                    sb.AppendLine($"【{lc.stem}{lc.branch} {lc.startAge}~{lc.endAge}歲 {lc.level}】");
+                    sb.AppendLine($"【{lc.stem}{lc.branch} {lc.startAge}~{lc.endAge}歲 {lc.level}】{(sameQi9 ? "（干支同氣，吉凶應驗特別強烈）" : "")}");
 
                     // 天干分析
                     sb.AppendLine($"大運天干：{lc.stem}（{lcElem}·{lcStemSS}·{(stemGood?"喜用":stemBad?"忌神":"中性")}）");
 
                     // 天干合日干
-                    if (tianGanHePairs.TryGetValue((lc.stem, dStem), out var heElem))
+                    if (tianGanHePairs.TryGetValue((lc.stem, dStem), out var heElem9))
                     {
-                        bool heGood = heElem == yongShenElem || heElem == fuYiElem;
-                        sb.AppendLine($"天干合：{lc.stem}{dStem}相合，合化{heElem}（{(heGood?"喜用，合化有利":"忌神，合化不利")}）");
+                        bool heGood9 = heElem9 == yongShenElem || heElem9 == fuYiElem;
+                        sb.AppendLine($"天干合：{lc.stem}{dStem}相合，合化{heElem9}（{(heGood9?"合化喜用，日主得力有利發揮":"合化忌神，日主被合制，行動力受限")}）");
                     }
 
-                    // 地支分析：主氣 + 藏干十神
-                    if (bjBrHidMap.TryGetValue(lc.branch, out var lcHidden))
+                    // 地支分析（主氣 + 藏干十神）
+                    if (bjBrHidMap.TryGetValue(lc.branch, out var lcHidden9))
                     {
-                        var hidDesc = lcHidden.Select(hs => {
-                            string hss = LfStemShiShen(hs, dStem);
-                            string he  = KbStemToElement(hs);
-                            bool hg    = he == yongShenElem || he == fuYiElem;
-                            return $"{hs}{he}·{hss}（{(hg?"喜":"忌")}）";
+                        var hidDesc9 = lcHidden9.Select(hs => {
+                            string hss9 = LfStemShiShen(hs, dStem);
+                            string he9  = KbStemToElement(hs);
+                            bool hg9    = he9 == yongShenElem || he9 == fuYiElem;
+                            return $"{hs}{he9}·{hss9}（{(hg9?"喜":"忌")}）";
                         });
-                        sb.AppendLine($"大運地支：{lc.branch}（{lcBrElem}·{(brGood?"喜用":brBad?"忌神":"中性")}）　藏干：{string.Join("、", hidDesc)}");
+                        sb.AppendLine($"大運地支：{lc.branch}（{lcBrElem}·{(brGood?"喜用":brBad?"忌神":"中性")}）　藏干：{string.Join("、", hidDesc9)}");
                     }
 
-                    // 地支與命局四柱互動
-                    var interactions = new List<string>();
+                    // 地支與命局互動（盲派：地支只論刑沖合害破）
+                    var interactions9 = new List<string>();
                     for (int ci = 0; ci < 4; ci++)
                     {
-                        string cbr = chartBranches4[ci];
-                        string cbl = chartBrLabels4[ci];
-                        if (IsSanChong(lc.branch, cbr)) interactions.Add($"沖{cbl}{cbr}");
-                        else if (IsSixHe(lc.branch, cbr)) interactions.Add($"六合{cbl}{cbr}");
-                        else if (IsSixHai(lc.branch, cbr)) interactions.Add($"六害{cbl}{cbr}");
+                        string cbr9 = chartBranches4[ci];
+                        string cbl9 = chartBrLabels4[ci];
+                        if (IsSanChong(lc.branch, cbr9))    interactions9.Add($"六沖{cbl9}{cbr9}");
+                        else if (IsSixHe(lc.branch, cbr9))  interactions9.Add($"六合{cbl9}{cbr9}");
+                        else if (IsSixHai(lc.branch, cbr9)) interactions9.Add($"六害{cbl9}{cbr9}");
                     }
-                    // 三合局（大運地支 + 命局兩字）
-                    foreach (var (sh3, sh3Elem) in sanHe)
+                    // 三合成局（大運地支 + 命局兩字）
+                    foreach (var (sh3, sh3Elem9) in sanHe)
                     {
                         if (!sh3.Contains(lc.branch)) continue;
-                        var others = sh3.Where(x => x != lc.branch).ToArray();
-                        bool has0 = chartBranches4.Contains(others[0]);
-                        bool has1 = chartBranches4.Contains(others[1]);
-                        if (has0 && has1)
+                        var others9 = sh3.Where(x => x != lc.branch).ToArray();
+                        if (chartBranches4.Contains(others9[0]) && chartBranches4.Contains(others9[1]))
                         {
-                            bool sh3Good = sh3Elem == yongShenElem || sh3Elem == fuYiElem;
-                            interactions.Add($"三合成局（{sh3[0]}{sh3[1]}{sh3[2]}合{sh3Elem}，{(sh3Good?"喜用":"忌神")}）");
+                            bool sh3Good9 = sh3Elem9 == yongShenElem || sh3Elem9 == fuYiElem;
+                            interactions9.Add($"三合成局（{sh3[0]}{sh3[1]}{sh3[2]}→{sh3Elem9}，{(sh3Good9?"喜用大發":"忌神力倍需防")}）");
                         }
                     }
-                    if (interactions.Any())
-                        sb.AppendLine($"與命局互動：{string.Join("、", interactions)}");
+                    if (interactions9.Any())
+                        sb.AppendLine($"地支與命局互動：{string.Join("、", interactions9)}");
 
-                    // 歲運DB論斷
-                    string condKey = (stemGood && brGood) ? "人生最佳大運"
-                                   : stemGood  ? "大運天干喜"
-                                   : brGood    ? "大運地支喜"
-                                   : stemBad   ? "大運天干凶"
-                                   : brBad     ? "大運地支凶"
-                                   : "喜用運";
-                    var yunRow = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Condition == condKey);
-                    if (yunRow != null) sb.AppendLine(yunRow.Content);
+                    // 四種引動機制（盲派歲運核心判斷）
+                    bool destroyDay9    = IsSanChong(lc.branch, dBranch);
+                    bool destroyMonth9  = IsSanChong(lc.branch, mBranch);
+                    bool helpBody9      = !stemBad && !brBad &&
+                                         (lcElem == bodyElemPrint9 || lcElem == bodyElemPrint92 ||
+                                          lcBrElem == bodyElemPrint9 || lcBrElem == bodyElemPrint92);
+                    string mechanism9;
+                    if (destroyDay9 && destroyMonth9)
+                        mechanism9 = $"【破壞機制（重）】：大運地支{lc.branch}同時六沖日支{dBranch}與月支{mBranch}，日主婚姻宮及月令根氣雙受衝擊，此十年事業婚姻均面臨重大考驗，需特別謹慎。";
+                    else if (destroyDay9)
+                        mechanism9 = $"【破壞機制】：大運地支{lc.branch}六沖日支{dBranch}，婚姻宮受衝，配偶健康或婚姻關係易有動盪，自身日主根氣受損，行事易受干擾，保持心理穩定為要。";
+                    else if (destroyMonth9)
+                        mechanism9 = $"【破壞機制】：大運地支{lc.branch}六沖月支{mBranch}，月令根氣受損，命局平衡被打破，工作環境易有重大變動，事業起伏較大，需謹慎應對。";
+                    else if (stemGood && brGood)
+                        mechanism9 = $"【增力機制（大吉）】：天干地支皆為喜用（{lcElem}），命中所需氣候全面加持，十年黃金時期。宜全力把握積極進取，此段大運可創人生最佳成就。";
+                    else if (isWeakDy && helpBody9)
+                        mechanism9 = $"【流通機制（吉）】：大運帶{(lcElem == bodyElemPrint9 || lcBrElem == bodyElemPrint9 ? "印星護身" : "比劫幫身")}，「行運補體」，日主力量充實，原局財官壓力得以化解，此十年為承擔財富官職的重要發揮期。";
+                    else if (stemGood && !brBad)
+                        mechanism9 = $"【增力機制（吉）】：大運天干帶喜用（{lcElem}），上層貴人支持，方向正確，事業有利；惟地支根基稍弱，需流年配合強化才能充分發揮。";
+                    else if (!stemBad && brGood)
+                        mechanism9 = $"【增力機制（吉）】：大運地支帶喜用（{lcBrElem}），根基穩固環境配合，雖無天干喜用的大突破，但生活穩定，財運平穩，是積累實力的好時期。";
+                    else if (stemBad && brBad)
+                        mechanism9 = $"【阻滯機制（凶）】：天干地支皆帶忌神（{lcElem}），命局流通被全面阻礙，此十年諸事受阻、是非增多，宜守不宜攻，避免重大投資決策，低調蓄積力量待下一喜用運。";
+                    else if (stemBad)
+                        mechanism9 = $"【阻滯機制（凶）】：大運天干帶忌神（{lcElem}），上層阻力大，貴人難覓，事業方向受阻；地支若為喜用則根基尚穩，但天干方向偏差，凡事需多費心力。";
+                    else if (brBad)
+                        mechanism9 = $"【阻滯機制（凶）】：大運地支帶忌神（{lcBrElem}），根基不穩環境不配合，即使天干有機遇也難以落實，凡事易功敗垂成，需加倍努力才能成事。";
+                    else
+                        mechanism9 = "大運天干地支偏中性，吉凶影響相對平緩，此十年視流年干支引動命局的刑沖合害而定。逢喜用流年為好年可積極行動；逢忌神流年宜守成謹慎。";
+
+                    sb.AppendLine(mechanism9);
                     sb.AppendLine();
                 }
             }
@@ -9316,7 +9430,16 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第十章：流年批斷總則】");
             sb.AppendLine();
 
-            // 個人化：先說明此命主的用忌
+            // 盲派流年核心原理（三層互動）
+            sb.AppendLine("▍盲派流年判斷原理");
+            sb.AppendLine("流年是每年從外部引入的新五行之氣，是引動命局吉凶應期的「鑰匙」。");
+            sb.AppendLine("三層互動：流年新氣 → 作用於大運（十年氣場）→ 協同引動命局 → 具體事件發生。");
+            sb.AppendLine("• 流年與大運同為喜用：吉力雙倍，為人生重大突破年，積極行動把握機遇。");
+            sb.AppendLine("• 流年與大運同為忌神：凶力雙倍，為重大考驗年，低調守成避免衝動。");
+            sb.AppendLine("• 地支刑沖合害：沖財可得財（雖辛苦），沖官易招官非；合住用神為不利，合住忌神反為吉。");
+            sb.AppendLine();
+
+            // 個人化：此命主的用忌基準
             var wxCycleF = new[] { "木", "火", "土", "金", "水" };
             int dmIdxF = Array.IndexOf(wxCycleF, dmElem);
             string SSElemF(string ss) => dmIdxF < 0 ? "" : ss switch {
@@ -9330,18 +9453,18 @@ namespace Ecanapi.Controllers
             string bjLabel(string e) => e == yongShenElem ? "喜用" : e == fuYiElem ? "副用" : e == jiShenElem ? "忌神" : "中性";
 
             string yongDesc = (SSElemF("印") == yongShenElem) ? "印星護身"
-                            : (SSElemF("食") == yongShenElem) ? "食傷泄秀"
-                            : (SSElemF("財") == yongShenElem) ? "財星為用"
-                            : (SSElemF("官") == yongShenElem) ? "官星為用" : "比劫助身";
-            string jiDesc   = (SSElemF("官") == jiShenElem) ? "官殺克身"
-                            : (SSElemF("財") == jiShenElem) ? "財重壓身"
-                            : (SSElemF("食") == jiShenElem) ? "食傷洩身" : "對命局不利";
+                            : (SSElemF("食") == yongShenElem) ? "食傷泄秀生財"
+                            : (SSElemF("財") == yongShenElem) ? "財星直接得財"
+                            : (SSElemF("官") == yongShenElem) ? "官星求職得位" : "比劫助身補體";
+            string jiDesc   = (SSElemF("官") == jiShenElem) ? "官殺克身，職場壓力大"
+                            : (SSElemF("財") == jiShenElem) ? "財重壓身，財多耗身"
+                            : (SSElemF("食") == jiShenElem) ? "食傷洩身，體力精力受損" : "忌神損命局平衡";
             sb.AppendLine($"▍本命流年用忌基準（{dStem}{dmElem}日主，身強{bodyPct:F0}%）");
             sb.AppendLine($"喜用：{yongShenElem}（{yongDesc}）" + (string.IsNullOrEmpty(fuYiElem) ? "" : $"　副用：{fuYiElem}"));
             sb.AppendLine($"忌神：{jiShenElem}（{jiDesc}）");
             sb.AppendLine();
 
-            // 五行流年個人化分析
+            // 五行流年個人化分析（含命局根氣 + 具體事件說明）
             sb.AppendLine("▍各五行流年對此命主之影響：");
             var allFiveElems = new[] { "木", "火", "土", "金", "水" };
             string[] stemsByElem = { "甲乙", "丙丁", "戊己", "庚辛", "壬癸" };
@@ -9352,31 +9475,36 @@ namespace Ecanapi.Controllers
                 string feStems   = stemsByElem[si];
                 // 找出命局有哪些此五行的根
                 var roots = new List<string>();
-                // 天干
                 var allSt4 = new[] { yStem, mStem, dStem, hStem };
                 var stLbl4 = new[] { "年干", "月干", "日干", "時干" };
                 for (int ii = 0; ii < 4; ii++)
                     if (KbStemToElement(allSt4[ii]) == fe) roots.Add($"{stLbl4[ii]}{allSt4[ii]}");
-                // 地支藏干
                 var brLbl4 = new[] { "年支", "月支", "日支", "時支" };
                 for (int ii = 0; ii < 4; ii++)
                     if (bjBrHidMap.TryGetValue(chartBranches4[ii], out var hid))
                         foreach (var hs in hid)
                             if (KbStemToElement(hs) == fe) { roots.Add($"{brLbl4[ii]}{chartBranches4[ii]}藏{hs}"); break; }
 
-                string rootDesc = roots.Any() ? $"（命局已有根：{string.Join("、", roots)}）" : "（命局無此五行之根）";
-                sb.AppendLine($"逢{fe}年（{feStems}）：{feLabel}　十神：{feStemSS}類　{rootDesc}");
-                // 個人化建議
+                string rootDesc = roots.Any() ? $"命局已有根：{string.Join("、", roots)}" : "命局無此五行之根";
+                sb.AppendLine($"逢{fe}年（{feStems}·{feStemSS}類·{feLabel}）　{rootDesc}");
+
+                // 個人化論斷：依「喜用/忌神/比劫/中性」給出具體事件說明
                 if (fe == yongShenElem)
-                    sb.AppendLine($"  此五行為喜用，流年逢之則命中所需氣候到來，事業貴人有利，宜把握機遇積極進取。");
+                    sb.AppendLine($"  此年為命中喜用年：命中所需氣候到來，事業有貴人，財運順暢，宜積極把握機遇，大運若同為喜用則效果加倍，為人生重大突破之年。");
                 else if (fe == fuYiElem)
-                    sb.AppendLine($"  此五行為副用，流年逢之有一定助力，可穩健發展，配合主用神效果更佳。");
+                    sb.AppendLine($"  此年為副用年：有一定助力，可穩健發展，與主用神{yongShenElem}同時出現時效果更佳，宜穩中求進。");
                 else if (fe == jiShenElem)
-                    sb.AppendLine($"  此五行為忌神，流年逢之命局平衡被破，諸事易受阻，宜低調守成，避免重大決策。");
+                {
+                    string jiEvtDesc = feStemSS.Contains("財") ? "財多耗身，可能為財惹禍、財務糾紛"
+                                     : feStemSS.Contains("官") || feStemSS.Contains("殺") ? "官殺攻身，職場壓力、官非是非風險增加"
+                                     : feStemSS.Contains("食") || feStemSS.Contains("傷") ? "食傷洩身，體力精力受損"
+                                     : "忌神破壞命局平衡";
+                    sb.AppendLine($"  此年為忌神年（{jiEvtDesc}）：宜低調守成，避免重大投資決策，大運若同為忌神則凶力加倍，為最需謹慎之年。");
+                }
                 else if (fe == dmElem)
-                    sb.AppendLine($"  此五行與日主同五行（比劫），流年逢之身得助力，但財星受影響，防破財及合夥糾紛。");
+                    sb.AppendLine($"  此年與日主同五行（比劫年）：自身力量得補，但財星受影響；身弱者此年補體有利，身旺者防比劫奪財、合夥糾紛、手足爭利。");
                 else
-                    sb.AppendLine($"  此五行為中性，流年逢之影響視與用忌的連動而定，需結合大運綜合判斷。");
+                    sb.AppendLine($"  此年為中性年：影響相對平緩，視當時大運喜忌及地支刑沖合害而定，需結合大運綜合判斷具體吉凶。");
                 sb.AppendLine();
             }
 
@@ -9384,10 +9512,10 @@ namespace Ecanapi.Controllers
             var liunianRows = bjYunShi.Where(y => y.Category == "流年").OrderBy(y => y.SortOrder).ToList();
             if (liunianRows.Any())
             {
-                sb.AppendLine("▍流年特殊事件提示");
+                sb.AppendLine("▍特殊流年地支事件提示");
                 foreach (var row in liunianRows)
                 {
-                    sb.AppendLine($"• {row.Condition}：{row.Content}");
+                    sb.AppendLine($"• {row.Title}（{row.Condition}）：{row.Content}");
                 }
                 sb.AppendLine();
             }
