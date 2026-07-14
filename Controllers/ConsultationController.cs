@@ -9022,6 +9022,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             var matchedCG = BjDetectCaiGuan(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 dmElem, wuXing, bodyPct, pattern, yongShenElem, jiShenElem, normCount, bjCaiGuan);
             foreach (var (cg, cgTrigger) in matchedCG)
             {
@@ -9289,6 +9290,9 @@ namespace Ecanapi.Controllers
             };
             double SSElemStr(string ss) { var e = SSElem(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
 
+            // 追查某十神組的柱位來源（簡寫：Src）
+            string Src(string ss) => BjDescribeSSSource(ss, dStem, yStem, yBranch, mStem, mBranch, dBranch, hStem, hBranch);
+
             void Add(string configName, string trigger) {
                 var c = configs.FirstOrDefault(x => x.ConfigName == configName);
                 if (c != null) result.Add((c, trigger));
@@ -9296,45 +9300,80 @@ namespace Ecanapi.Controllers
 
             // 吉組合偵測
             if (bodyPct >= 42 && bodyPct <= 62 && HasSS("財"))
-                Add("身財兩停", $"日主{dmElem}身強{bodyPct:F0}%（均衡區間42-62%），命局財星（{SSElem("財")}）有根，身財相當");
+                Add("身財兩停",
+                    $"日主{dStem}{dmElem}身強{bodyPct:F0}%（均衡42-62%）\n" +
+                    $"財星來源：{Src("財")}　合計力量{SSElemStr("財"):F0}%");
 
             if (HasSS("官") && SSElemStr("官") > 5 && SSElemStr("印") > 5)
-                Add("官印相生", $"官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%，官生印、印護身");
+                Add("官印相生",
+                    $"日主{dStem}{dmElem}，官印並旺\n" +
+                    $"官星來源：{Src("官")}　力量{SSElemStr("官"):F0}%\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%");
 
             if (HasSS("食") && HasSS("殺") && (yongElem == SSElem("食") || yongElem == dmElem))
-                Add("食神制殺", $"命局食神（{SSElem("食")}）克制七殺（{SSElem("殺")}），食神力量{SSElemStr("食"):F0}%，制殺方向與用神一致");
+                Add("食神制殺",
+                    $"日主{dStem}{dmElem}，食制七殺\n" +
+                    $"食神來源：{Src("食")}　力量{SSElemStr("食"):F0}%\n" +
+                    $"七殺來源：{Src("殺")}　力量{SSElemStr("殺"):F0}%");
 
             if (pattern.Contains("月刃") && HasSS("殺"))
-                Add("羊刃駕殺", $"格局【{pattern}】含羊刃，月支{mBranch}為{dmElem}之刃，命局七殺（{SSElem("殺")}）力量{SSElemStr("殺"):F0}%攻身");
+                Add("羊刃駕殺",
+                    $"日主{dStem}{dmElem}，格局【{pattern}】\n" +
+                    $"月刃依據：月支{mBranch}（{Src("劫")}），為{dStem}之陽刃\n" +
+                    $"七殺來源：{Src("殺")}　力量{SSElemStr("殺"):F0}%");
 
             if (HasSS("傷") && SSElemStr("印") > 5 && bodyPct < 65)
-                Add("傷官配印", $"傷官（{SSElem("傷")}）泄秀，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%護日主，日主{dmElem}身強{bodyPct:F0}%");
+                Add("傷官配印",
+                    $"日主{dStem}{dmElem}身強{bodyPct:F0}%\n" +
+                    $"傷官來源：{Src("傷")}　力量{SSElemStr("傷"):F0}%\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%");
 
             if (HasSS("食") && SSElemStr("財") > 5 && bodyPct >= 40)
-                Add("食傷生財", $"食傷（{SSElem("食")}）力量{SSElemStr("食"):F0}%生財（{SSElem("財")}）力量{SSElemStr("財"):F0}%，食傷生財有力");
+                Add("食傷生財",
+                    $"日主{dStem}{dmElem}身強{bodyPct:F0}%\n" +
+                    $"食傷來源：{Src("食")}　力量{SSElemStr("食"):F0}%\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%");
 
             if (HasSS("食") && SSElemStr("食") > 10 && !HasSS("殺"))
-                Add("食傷泄秀", $"食神（{SSElem("食")}）力量{SSElemStr("食"):F0}%（>10%），命局無七殺，食傷純粹泄秀");
+                Add("食傷泄秀",
+                    $"日主{dStem}{dmElem}，命局無七殺\n" +
+                    $"食神來源：{Src("食")}　力量{SSElemStr("食"):F0}%（>10%）");
 
             if (HasSS("官") && HasSS("財") && SSElemStr("官") > 5 && SSElemStr("財") > 5)
-                Add("財官雙美", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%，官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，財官並旺");
+                Add("財官雙美",
+                    $"日主{dStem}{dmElem}，財官並旺\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%\n" +
+                    $"官星來源：{Src("官")}　力量{SSElemStr("官"):F0}%");
 
             // 凶組合偵測
             if (HasSS("殺") && SSElemStr("殺") > 15 && bodyPct < 45)
-                Add("七殺攻身", $"七殺（{SSElem("殺")}）力量{SSElemStr("殺"):F0}%（>15%），日主{dmElem}偏弱{bodyPct:F0}%（<45%），七殺攻身無制");
+                Add("七殺攻身",
+                    $"日主{dStem}{dmElem}偏弱{bodyPct:F0}%（<45%）\n" +
+                    $"七殺來源：{Src("殺")}　力量{SSElemStr("殺"):F0}%（>15%），七殺攻身無制");
 
             if (SSElemStr("財") > 20 && SSElemStr("印") < 5 && HasSS("印"))
-                Add("財多壞印", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），印星（{SSElem("印")}）僅{SSElemStr("印"):F0}%，財旺壞印護身力弱");
+                Add("財多壞印",
+                    $"日主{dStem}{dmElem}，財旺壞印\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（>20%）\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%（極弱，護身力不足）");
 
             if (HasSS("傷") && HasSS("官"))
-                Add("傷官見官", $"命局同含傷官（{SSElem("傷")}）與正官（{SSElem("官")}），傷官克官星，職場或婚姻易現是非");
+                Add("傷官見官",
+                    $"日主{dStem}{dmElem}，傷官克官\n" +
+                    $"傷官來源：{Src("傷")}\n" +
+                    $"正官來源：{Src("官")}");
 
             int bjTotal = normCount.GetValueOrDefault("比", 0) + normCount.GetValueOrDefault("劫", 0);
             if (bjTotal >= 3 && HasSS("財"))
-                Add("比劫奪財", $"比劫合計{bjTotal}個（閾值≥3），財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%被分散，財難聚守");
+                Add("比劫奪財",
+                    $"日主{dStem}{dmElem}，比劫{bjTotal}個\n" +
+                    $"比劫來源：{Src("劫")}\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（被比劫分奪）");
 
             if (SSElemStr("財") > 25 && bodyPct < 40)
-                Add("體弱財旺", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>25%），日主{dmElem}偏弱{bodyPct:F0}%（<40%），財重身輕");
+                Add("體弱財旺",
+                    $"日主{dStem}{dmElem}偏弱{bodyPct:F0}%（<40%）\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（>25%），財重壓身");
 
             // 去重
             return result.GroupBy(x => x.Item1.ConfigName).Select(g => g.First()).ToList();
@@ -9342,6 +9381,8 @@ namespace Ecanapi.Controllers
 
         // 偵測財官論命配置，回傳 (config, triggerDesc) tuple
         private static List<(BaziJingCaiGuan config, string triggerDesc)> BjDetectCaiGuan(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
             string dmElem, Dictionary<string, double> wuXing,
             double bodyPct, string pattern, string yongElem, string jiElem,
             Dictionary<string, int> normCount, List<BaziJingCaiGuan> bjCaiGuan)
@@ -9349,7 +9390,6 @@ namespace Ecanapi.Controllers
             var result = new List<(BaziJingCaiGuan, string)>();
             bool HasSS(string ss) => normCount.GetValueOrDefault(ss, 0) > 0;
 
-            // 正確的十神組→五行元素映射
             var wxCycle = new[] { "木", "火", "土", "金", "水" };
             int dmIdx = Array.IndexOf(wxCycle, dmElem);
             string SSElem(string ss) => dmIdx < 0 ? "" : ss switch {
@@ -9361,6 +9401,7 @@ namespace Ecanapi.Controllers
                 _ => ""
             };
             double SSElemStr(string ss) { var e = SSElem(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
+            string Src(string ss) => BjDescribeSSSource(ss, dStem, yStem, yBranch, mStem, mBranch, dBranch, hStem, hBranch);
 
             void Add(string configType, string trigger) {
                 var c = bjCaiGuan.FirstOrDefault(x => x.ConfigType == configType);
@@ -9370,30 +9411,57 @@ namespace Ecanapi.Controllers
             // 財類
             int bjCount = normCount.GetValueOrDefault("比", 0) + normCount.GetValueOrDefault("劫", 0);
             if (bjCount >= 3 && HasSS("財"))
-                Add("比劫取財", $"比劫合計{bjCount}個，財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%，比劫分財，靠勞力薪酬謀生");
+                Add("比劫取財",
+                    $"日主{dStem}{dmElem}，比劫{bjCount}個（閾值≥3）\n" +
+                    $"比劫來源：{Src("劫")}\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%");
             else if (HasSS("食") && SSElemStr("財") > 5)
-                Add("食傷生財", $"食傷（{SSElem("食")}）生財（{SSElem("財")}）力量{SSElemStr("財"):F0}%，以才藝創造力賺財");
+                Add("食傷生財",
+                    $"日主{dStem}{dmElem}\n" +
+                    $"食傷來源：{Src("食")}　力量{SSElemStr("食"):F0}%\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%");
             else if ((HasSS("印") || HasSS("梟")) && HasSS("財"))
-                Add("印梟合財", $"命局含印星（{SSElem("印")}）與財星（{SSElem("財")}），財印相沖，財印難兩全");
+                Add("印梟合財",
+                    $"日主{dStem}{dmElem}\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（財克印，印護受損）");
             else if (HasSS("財") && yongElem == SSElem("財"))
-                Add("用財取財", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%為用神，以財為用，財為事業核心");
+                Add("用財取財",
+                    $"日主{dStem}{dmElem}，以財為用神\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%");
 
             if (SSElemStr("財") > 20 && SSElemStr("印") < 3)
-                Add("財多壞印", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），印星（{SSElem("印")}）僅{SSElemStr("印"):F0}%，財旺壞印");
+                Add("財多壞印",
+                    $"日主{dStem}{dmElem}，財旺壞印\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（>20%）\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%（極弱，護身力不足）");
 
             // 官類
             if (HasSS("官") && SSElemStr("印") > 5)
-                Add("官印相生", $"官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%，官印雙透，適合公職");
+                Add("官印相生",
+                    $"日主{dStem}{dmElem}\n" +
+                    $"官星來源：{Src("官")}　力量{SSElemStr("官"):F0}%\n" +
+                    $"印星來源：{Src("印")}　力量{SSElemStr("印"):F0}%");
             else if (HasSS("食") && HasSS("殺"))
-                Add("食神制殺", $"食神（{SSElem("食")}）克七殺（{SSElem("殺")}），制殺有力，統御掌權");
+                Add("食神制殺",
+                    $"日主{dStem}{dmElem}\n" +
+                    $"食神來源：{Src("食")}　力量{SSElemStr("食"):F0}%\n" +
+                    $"七殺來源：{Src("殺")}　力量{SSElemStr("殺"):F0}%");
             else if (HasSS("傷") && HasSS("官"))
-                Add("傷官見官", $"傷官（{SSElem("傷")}）克正官（{SSElem("官")}），官星受損，職場是非多");
+                Add("傷官見官",
+                    $"日主{dStem}{dmElem}\n" +
+                    $"傷官來源：{Src("傷")}\n" +
+                    $"正官來源：{Src("官")}");
 
             // 互動類
             if (bodyPct >= 40 && bodyPct <= 65 && HasSS("財"))
-                Add("身財兩停", $"日主{dmElem}身強{bodyPct:F0}%（均衡40-65%），財星（{SSElem("財")}）有根，身財均衡");
+                Add("身財兩停",
+                    $"日主{dStem}{dmElem}身強{bodyPct:F0}%（均衡40-65%）\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%");
             else if (SSElemStr("財") > 20 && bodyPct < 40)
-                Add("體弱財旺", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），日主{dmElem}偏弱{bodyPct:F0}%（<40%），財重壓身");
+                Add("體弱財旺",
+                    $"日主{dStem}{dmElem}偏弱{bodyPct:F0}%（<40%）\n" +
+                    $"財星來源：{Src("財")}　力量{SSElemStr("財"):F0}%（>20%，財重壓身）");
 
             return result.GroupBy(x => x.Item1.ConfigType).Select(g => g.First()).ToList();
         }
@@ -9471,6 +9539,67 @@ namespace Ecanapi.Controllers
             }
 
             return result;
+        }
+
+        // 追查指定十神組在四柱中的來源（天干 + 地支藏干）
+        // 回傳如：「月干壬水（偏財）、年支亥（藏壬水·偏財）、日支卯（藏乙木·七殺）」
+        private static string BjDescribeSSSource(
+            string normSS, string dStem,
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dBranch, string hStem, string hBranch)
+        {
+            var parts = new List<string>();
+            var hidMap = new Dictionary<string, string[]>
+            {
+                ["子"]=new[]{"癸"}, ["丑"]=new[]{"己","癸","辛"}, ["寅"]=new[]{"甲","丙","戊"},
+                ["卯"]=new[]{"乙"}, ["辰"]=new[]{"戊","乙","癸"}, ["巳"]=new[]{"丙","庚","戊"},
+                ["午"]=new[]{"丁","己"}, ["未"]=new[]{"己","丁","乙"}, ["申"]=new[]{"庚","壬","戊"},
+                ["酉"]=new[]{"辛"}, ["戌"]=new[]{"戊","辛","丁"}, ["亥"]=new[]{"壬","甲"}
+            };
+            string NormSS(string ss) => ss switch {
+                "七殺"=>"殺","正官"=>"官","正財"=>"財","偏財"=>"財",
+                "正印"=>"印","偏印"=>"梟","食神"=>"食","傷官"=>"傷",
+                "比肩"=>"比","劫財"=>"劫",_=>ss
+            };
+
+            // 天干（日干只在 比/劫 才算）
+            var allStems  = new[] { yStem, mStem, dStem, hStem };
+            var stemLbls  = new[] { "年干", "月干", "日干", "時干" };
+            for (int i = 0; i < 4; i++)
+            {
+                bool isDayStem = (i == 2);
+                if (isDayStem && normSS != "比" && normSS != "劫") continue;
+                var raw = LfStemShiShen(allStems[i], dStem);
+                if (NormSS(raw) == normSS)
+                {
+                    string e = KbStemToElement(allStems[i]);
+                    parts.Add(isDayStem
+                        ? $"日干{allStems[i]}{e}（日主自身·{raw}）"
+                        : $"{stemLbls[i]}{allStems[i]}{e}（{raw}）");
+                }
+            }
+
+            // 地支藏干
+            var allBr  = new[] { yBranch, mBranch, dBranch, hBranch };
+            var brLbls = new[] { "年支", "月支", "日支", "時支" };
+            for (int i = 0; i < 4; i++)
+            {
+                if (!hidMap.TryGetValue(allBr[i], out var hidden)) continue;
+                var matched = new List<string>();
+                foreach (var hs in hidden)
+                {
+                    var raw = LfStemShiShen(hs, dStem);
+                    if (NormSS(raw) == normSS)
+                    {
+                        string e = KbStemToElement(hs);
+                        matched.Add($"藏{hs}{e}·{raw}");
+                    }
+                }
+                if (matched.Any())
+                    parts.Add($"{brLbls[i]}{allBr[i]}（{string.Join("、", matched)}）");
+            }
+
+            return parts.Any() ? string.Join("、", parts) : "命局中（力量極微）";
         }
 
         // 年月柱是否相沖
