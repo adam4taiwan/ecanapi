@@ -8961,6 +8961,13 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(fuYiElem)) sb.AppendLine($"▍副用：【{fuYiElem}】");
             sb.AppendLine($"▍忌神：【{jiShenElem}】");
             sb.AppendLine();
+            // 格局說明：傳統月令取格 vs 盲派氣勢
+            if (branchHiddenMap.TryGetValue(mBranch, out var mHidden))
+            {
+                sb.AppendLine($"取格依據：月支{mBranch}，藏干{string.Join("、", mHidden)}，依月令司令天干透出定格。");
+                sb.AppendLine("注意：此格局依傳統月令取格法（古制），八字真經盲派以命局整體五行氣勢為主，詳見第三章。");
+            }
+            sb.AppendLine();
 
             // 五行力量表
             sb.AppendLine("▍五行十神力量：");
@@ -8977,26 +8984,30 @@ namespace Ecanapi.Controllers
                 yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                 dmElem, wuXing, bodyPct, pattern, yongShenElem, jiShenElem, normCount, bjConfigs);
 
-            var jiConfigs = matchedConfigs.Where(c => c.ConfigType == "吉").ToList();
-            var xiongConfigs = matchedConfigs.Where(c => c.ConfigType == "凶").ToList();
+            var jiConfigs = matchedConfigs.Where(x => x.config.ConfigType == "吉").ToList();
+            var xiongConfigs = matchedConfigs.Where(x => x.config.ConfigType == "凶").ToList();
 
             if (jiConfigs.Any())
             {
                 sb.AppendLine("▍命局優勢格局：");
-                foreach (var c in jiConfigs)
+                foreach (var (c, trigger) in jiConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
+                    sb.AppendLine($"觸發依據：{trigger}");
                     sb.AppendLine(c.Content);
+                    if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
                 }
             }
             if (xiongConfigs.Any())
             {
                 sb.AppendLine("▍命局注意格局：");
-                foreach (var c in xiongConfigs)
+                foreach (var (c, trigger) in xiongConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
+                    sb.AppendLine($"觸發依據：{trigger}");
                     sb.AppendLine(c.Content);
+                    if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
                 }
             }
@@ -9012,10 +9023,12 @@ namespace Ecanapi.Controllers
 
             var matchedCG = BjDetectCaiGuan(
                 dmElem, wuXing, bodyPct, pattern, yongShenElem, jiShenElem, normCount, bjCaiGuan);
-            foreach (var cg in matchedCG)
+            foreach (var (cg, cgTrigger) in matchedCG)
             {
                 sb.AppendLine($"▍{cg.ConfigType}");
+                sb.AppendLine($"觸發依據：{cgTrigger}");
                 sb.AppendLine(cg.Content);
+                if (!string.IsNullOrEmpty(cg.AdviceText)) sb.AppendLine($"建議：{cg.AdviceText}");
                 sb.AppendLine();
             }
             if (!matchedCG.Any())
@@ -9063,9 +9076,10 @@ namespace Ecanapi.Controllers
                 yongShenElem, jiShenElem, bjShenSha);
             if (matchedShenSha.Any())
             {
-                foreach (var (sha, isAuspicious) in matchedShenSha)
+                foreach (var (sha, isAuspicious, foundDesc) in matchedShenSha)
                 {
                     sb.AppendLine($"▍{sha.Name}");
+                    if (!string.IsNullOrEmpty(foundDesc)) sb.AppendLine($"觸發依據：{foundDesc}");
                     sb.AppendLine(isAuspicious ? sha.AuspiciousText : sha.InauspiciousText);
                     if (!string.IsNullOrEmpty(sha.SpecialRule))
                         sb.AppendLine($"（{sha.SpecialRule}）");
@@ -9250,116 +9264,151 @@ namespace Ecanapi.Controllers
 
         // ─── 八字真經輔助方法 ───────────────────────────
 
-        // 偵測吉凶組合
-        private static List<BaziJingConfig> BjDetectConfigs(
+        // 偵測吉凶組合，回傳 (config, triggerDesc) tuple
+        private static List<(BaziJingConfig config, string triggerDesc)> BjDetectConfigs(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
             string dmElem, Dictionary<string, double> wuXing,
             double bodyPct, string pattern, string yongElem, string jiElem,
             Dictionary<string, int> normCount, List<BaziJingConfig> configs)
         {
-            var result = new List<BaziJingConfig>();
-            var allBr = new[] { yBranch, mBranch, dBranch, hBranch };
-            var allSt = new[] { yStem, mStem, dStem, hStem };
+            var result = new List<(BaziJingConfig, string)>();
 
             bool HasSS(string ss) => normCount.GetValueOrDefault(ss, 0) > 0;
-            double SSStrength(string ss) => wuXing.GetValueOrDefault(ss, 0);
+
+            // 正確的十神組→五行元素映射（依日主五行在 木火土金水 週期中的索引推算）
+            var wxCycle = new[] { "木", "火", "土", "金", "水" };
+            int dmIdx = Array.IndexOf(wxCycle, dmElem);
+            string SSElem(string ss) => dmIdx < 0 ? "" : ss switch {
+                "比" or "劫" => wxCycle[dmIdx % 5],
+                "食" or "傷" => wxCycle[(dmIdx + 1) % 5],
+                "財"         => wxCycle[(dmIdx + 2) % 5],
+                "官" or "殺" => wxCycle[(dmIdx + 3) % 5],
+                "印" or "梟" => wxCycle[(dmIdx + 4) % 5],
+                _ => ""
+            };
+            double SSElemStr(string ss) { var e = SSElem(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
+
+            void Add(string configName, string trigger) {
+                var c = configs.FirstOrDefault(x => x.ConfigName == configName);
+                if (c != null) result.Add((c, trigger));
+            }
 
             // 吉組合偵測
             if (bodyPct >= 42 && bodyPct <= 62 && HasSS("財"))
-                result.Add(configs.First(c => c.ConfigName == "身財兩停"));
+                Add("身財兩停", $"日主{dmElem}身強{bodyPct:F0}%（均衡區間42-62%），命局財星（{SSElem("財")}）有根，身財相當");
 
-            if (HasSS("官") && SSStrength("官") > 5 && SSStrength("印") > 5)
-                result.Add(configs.First(c => c.ConfigName == "官印相生"));
+            if (HasSS("官") && SSElemStr("官") > 5 && SSElemStr("印") > 5)
+                Add("官印相生", $"官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%，官生印、印護身");
 
-            if (HasSS("食") && HasSS("殺") && (yongElem == KbStemToElement("食") || yongElem == dmElem))
-                result.Add(configs.First(c => c.ConfigName == "食神制殺"));
+            if (HasSS("食") && HasSS("殺") && (yongElem == SSElem("食") || yongElem == dmElem))
+                Add("食神制殺", $"命局食神（{SSElem("食")}）克制七殺（{SSElem("殺")}），食神力量{SSElemStr("食"):F0}%，制殺方向與用神一致");
 
             if (pattern.Contains("月刃") && HasSS("殺"))
-                result.Add(configs.First(c => c.ConfigName == "羊刃駕殺"));
+                Add("羊刃駕殺", $"格局【{pattern}】含羊刃，月支{mBranch}為{dmElem}之刃，命局七殺（{SSElem("殺")}）力量{SSElemStr("殺"):F0}%攻身");
 
-            if (HasSS("傷") && SSStrength("印") > 5 && bodyPct < 65)
-                result.Add(configs.First(c => c.ConfigName == "傷官配印"));
+            if (HasSS("傷") && SSElemStr("印") > 5 && bodyPct < 65)
+                Add("傷官配印", $"傷官（{SSElem("傷")}）泄秀，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%護日主，日主{dmElem}身強{bodyPct:F0}%");
 
-            if (HasSS("食") && SSStrength("財") > 5 && bodyPct >= 40)
-                result.Add(configs.First(c => c.ConfigName == "食傷生財"));
+            if (HasSS("食") && SSElemStr("財") > 5 && bodyPct >= 40)
+                Add("食傷生財", $"食傷（{SSElem("食")}）力量{SSElemStr("食"):F0}%生財（{SSElem("財")}）力量{SSElemStr("財"):F0}%，食傷生財有力");
 
-            if (HasSS("食") && SSStrength("食") > 10 && !HasSS("殺"))
-                result.Add(configs.First(c => c.ConfigName == "食傷泄秀"));
+            if (HasSS("食") && SSElemStr("食") > 10 && !HasSS("殺"))
+                Add("食傷泄秀", $"食神（{SSElem("食")}）力量{SSElemStr("食"):F0}%（>10%），命局無七殺，食傷純粹泄秀");
 
-            if (HasSS("官") && HasSS("財") && SSStrength("官") > 5 && SSStrength("財") > 5)
-                result.Add(configs.First(c => c.ConfigName == "財官雙美"));
+            if (HasSS("官") && HasSS("財") && SSElemStr("官") > 5 && SSElemStr("財") > 5)
+                Add("財官雙美", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%，官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，財官並旺");
 
             // 凶組合偵測
-            if (HasSS("殺") && SSStrength("殺") > 15 && bodyPct < 45)
-                result.Add(configs.First(c => c.ConfigName == "七殺攻身"));
+            if (HasSS("殺") && SSElemStr("殺") > 15 && bodyPct < 45)
+                Add("七殺攻身", $"七殺（{SSElem("殺")}）力量{SSElemStr("殺"):F0}%（>15%），日主{dmElem}偏弱{bodyPct:F0}%（<45%），七殺攻身無制");
 
-            if (SSStrength("財") > 20 && SSStrength("印") < 5 && HasSS("印"))
-                result.Add(configs.First(c => c.ConfigName == "財多壞印"));
+            if (SSElemStr("財") > 20 && SSElemStr("印") < 5 && HasSS("印"))
+                Add("財多壞印", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），印星（{SSElem("印")}）僅{SSElemStr("印"):F0}%，財旺壞印護身力弱");
 
             if (HasSS("傷") && HasSS("官"))
-                result.Add(configs.First(c => c.ConfigName == "傷官見官"));
+                Add("傷官見官", $"命局同含傷官（{SSElem("傷")}）與正官（{SSElem("官")}），傷官克官星，職場或婚姻易現是非");
 
-            if ((normCount.GetValueOrDefault("比",0) + normCount.GetValueOrDefault("劫",0)) >= 3 && HasSS("財"))
-                result.Add(configs.First(c => c.ConfigName == "比劫奪財"));
+            int bjTotal = normCount.GetValueOrDefault("比", 0) + normCount.GetValueOrDefault("劫", 0);
+            if (bjTotal >= 3 && HasSS("財"))
+                Add("比劫奪財", $"比劫合計{bjTotal}個（閾值≥3），財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%被分散，財難聚守");
 
-            if (SSStrength("財") > 25 && bodyPct < 40)
-                result.Add(configs.First(c => c.ConfigName == "體弱財旺"));
+            if (SSElemStr("財") > 25 && bodyPct < 40)
+                Add("體弱財旺", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>25%），日主{dmElem}偏弱{bodyPct:F0}%（<40%），財重身輕");
 
             // 去重
-            return result.GroupBy(c => c.ConfigName).Select(g => g.First()).ToList();
+            return result.GroupBy(x => x.Item1.ConfigName).Select(g => g.First()).ToList();
         }
 
-        // 偵測財官論命配置
-        private static List<BaziJingCaiGuan> BjDetectCaiGuan(
+        // 偵測財官論命配置，回傳 (config, triggerDesc) tuple
+        private static List<(BaziJingCaiGuan config, string triggerDesc)> BjDetectCaiGuan(
             string dmElem, Dictionary<string, double> wuXing,
             double bodyPct, string pattern, string yongElem, string jiElem,
             Dictionary<string, int> normCount, List<BaziJingCaiGuan> bjCaiGuan)
         {
-            var result = new List<BaziJingCaiGuan>();
+            var result = new List<(BaziJingCaiGuan, string)>();
             bool HasSS(string ss) => normCount.GetValueOrDefault(ss, 0) > 0;
-            double SSStr(string ss) => wuXing.GetValueOrDefault(ss, 0);
+
+            // 正確的十神組→五行元素映射
+            var wxCycle = new[] { "木", "火", "土", "金", "水" };
+            int dmIdx = Array.IndexOf(wxCycle, dmElem);
+            string SSElem(string ss) => dmIdx < 0 ? "" : ss switch {
+                "比" or "劫" => wxCycle[dmIdx % 5],
+                "食" or "傷" => wxCycle[(dmIdx + 1) % 5],
+                "財"         => wxCycle[(dmIdx + 2) % 5],
+                "官" or "殺" => wxCycle[(dmIdx + 3) % 5],
+                "印" or "梟" => wxCycle[(dmIdx + 4) % 5],
+                _ => ""
+            };
+            double SSElemStr(string ss) { var e = SSElem(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
+
+            void Add(string configType, string trigger) {
+                var c = bjCaiGuan.FirstOrDefault(x => x.ConfigType == configType);
+                if (c != null) result.Add((c, trigger));
+            }
 
             // 財類
-            int bjCount = normCount.GetValueOrDefault("比",0) + normCount.GetValueOrDefault("劫",0);
+            int bjCount = normCount.GetValueOrDefault("比", 0) + normCount.GetValueOrDefault("劫", 0);
             if (bjCount >= 3 && HasSS("財"))
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "比劫取財"));
-            else if (HasSS("食") && SSStr("財") > 5)
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "食傷生財"));
+                Add("比劫取財", $"比劫合計{bjCount}個，財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%，比劫分財，靠勞力薪酬謀生");
+            else if (HasSS("食") && SSElemStr("財") > 5)
+                Add("食傷生財", $"食傷（{SSElem("食")}）生財（{SSElem("財")}）力量{SSElemStr("財"):F0}%，以才藝創造力賺財");
             else if ((HasSS("印") || HasSS("梟")) && HasSS("財"))
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "印梟合財"));
-            else if (HasSS("財") && yongElem == "財")
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "用財取財"));
+                Add("印梟合財", $"命局含印星（{SSElem("印")}）與財星（{SSElem("財")}），財印相沖，財印難兩全");
+            else if (HasSS("財") && yongElem == SSElem("財"))
+                Add("用財取財", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%為用神，以財為用，財為事業核心");
 
-            if (SSStr("財") > 20 && SSStr("印") < 3)
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "財多壞印"));
+            if (SSElemStr("財") > 20 && SSElemStr("印") < 3)
+                Add("財多壞印", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），印星（{SSElem("印")}）僅{SSElemStr("印"):F0}%，財旺壞印");
 
             // 官類
-            if (HasSS("官") && SSStr("印") > 5)
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "官印相生"));
+            if (HasSS("官") && SSElemStr("印") > 5)
+                Add("官印相生", $"官星（{SSElem("官")}）力量{SSElemStr("官"):F0}%，印星（{SSElem("印")}）力量{SSElemStr("印"):F0}%，官印雙透，適合公職");
             else if (HasSS("食") && HasSS("殺"))
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "食神制殺"));
+                Add("食神制殺", $"食神（{SSElem("食")}）克七殺（{SSElem("殺")}），制殺有力，統御掌權");
             else if (HasSS("傷") && HasSS("官"))
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "傷官見官"));
+                Add("傷官見官", $"傷官（{SSElem("傷")}）克正官（{SSElem("官")}），官星受損，職場是非多");
 
             // 互動類
             if (bodyPct >= 40 && bodyPct <= 65 && HasSS("財"))
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "身財兩停"));
-            else if (SSStr("財") > 20 && bodyPct < 40)
-                result.Add(bjCaiGuan.First(c => c.ConfigType == "體弱財旺"));
+                Add("身財兩停", $"日主{dmElem}身強{bodyPct:F0}%（均衡40-65%），財星（{SSElem("財")}）有根，身財均衡");
+            else if (SSElemStr("財") > 20 && bodyPct < 40)
+                Add("體弱財旺", $"財星（{SSElem("財")}）力量{SSElemStr("財"):F0}%（>20%），日主{dmElem}偏弱{bodyPct:F0}%（<40%），財重壓身");
 
-            return result.GroupBy(c => c.ConfigType).Select(g => g.First()).ToList();
+            return result.GroupBy(x => x.Item1.ConfigType).Select(g => g.First()).ToList();
         }
 
-        // 偵測神煞（回傳：神煞 + 是否吉用）
-        private static List<(BaziJingShenSha sha, bool isAuspicious)> BjDetectShenSha(
+        // 偵測神煞（回傳：神煞 + 是否吉用 + 觸發位置說明）
+        private static List<(BaziJingShenSha sha, bool isAuspicious, string foundDesc)> BjDetectShenSha(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
             string yongElem, string jiElem, List<BaziJingShenSha> bjShenSha)
         {
-            var result = new List<(BaziJingShenSha, bool)>();
+            var result = new List<(BaziJingShenSha, bool, string)>();
             var allBr  = new[] { yBranch, mBranch, dBranch, hBranch };
             var allSt  = new[] { yStem, mStem, dStem, hStem };
+            var pillarBrLabels = new[] { "年支", "月支", "日支", "時支" };
+            var pillarStLabels = new[] { "年干", "月干", "日干", "時干" };
 
             foreach (var sha in bjShenSha)
             {
@@ -9371,42 +9420,41 @@ namespace Ecanapi.Controllers
 
                     bool found = false;
                     string resultBrOrSt = "";
+                    string foundDesc = "";
 
                     if (sha.LookupBase == "日干")
                     {
                         if (map.TryGetValue(dStem, out var val))
                         {
-                            // val may be "丑未" (multiple) or "午"
-                            foreach (var br in allBr)
-                                if (val.Contains(br)) { found = true; resultBrOrSt = br; break; }
+                            for (int i = 0; i < allBr.Length; i++)
+                                if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"日干{dStem}查表得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
                         }
                     }
                     else if (sha.LookupBase == "年支" || sha.LookupBase == "年支或日支三合組")
                     {
                         if (map.TryGetValue(yBranch, out var val))
                         {
-                            foreach (var br in allBr)
-                                if (val.Contains(br)) { found = true; resultBrOrSt = br; break; }
+                            for (int i = 0; i < allBr.Length; i++)
+                                if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"年支{yBranch}查表得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
                         }
                     }
                     else if (sha.LookupBase == "月支")
                     {
-                        // 月支查天干（天德/月德）
                         int mIdx = "子丑寅卯辰巳午未申酉戌亥".IndexOf(mBranch) + 1;
                         string mIdxStr = mIdx.ToString();
                         if (map.TryGetValue(mIdxStr, out var val))
                         {
-                            foreach (var st in allSt)
-                                if (val == st) { found = true; resultBrOrSt = st; break; }
+                            for (int i = 0; i < allSt.Length; i++)
+                                if (val == allSt[i]) { found = true; resultBrOrSt = allSt[i]; foundDesc = $"月支{mBranch}（月序{mIdx}）查表得{allSt[i]}，{pillarStLabels[i]}{allSt[i]}符合"; break; }
                         }
                     }
                     else if (sha.LookupBase == "日支")
                     {
-                        // 陰差陽錯：直接判斷日柱
                         if (map.TryGetValue("日柱", out var val))
                         {
                             string dayPillar = dStem + dBranch;
                             found = val.Split(',').Contains(dayPillar);
+                            if (found) { resultBrOrSt = dBranch; foundDesc = $"日柱{dayPillar}屬特殊日柱範圍"; }
                         }
                     }
 
@@ -9417,7 +9465,7 @@ namespace Ecanapi.Controllers
                     if (string.IsNullOrEmpty(shaElem)) shaElem = KbStemToElement(resultBrOrSt);
                     bool isAusp = shaElem == yongElem || sha.Name == "天乙貴人" || sha.Name == "天德" || sha.Name == "月德";
 
-                    result.Add((sha, isAusp));
+                    result.Add((sha, isAusp, foundDesc));
                 }
                 catch { /* skip invalid JSON */ }
             }

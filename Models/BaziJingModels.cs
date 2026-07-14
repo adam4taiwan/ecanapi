@@ -26,6 +26,10 @@ namespace Ecanapi.Models
         [Column("Content")]
         public string? Content { get; set; }
 
+        // Practitioner-authored advice (A part of C+A display)
+        [Column("AdviceText")]
+        public string? AdviceText { get; set; }
+
         [Column("SortOrder")]
         public int SortOrder { get; set; }
     }
@@ -51,6 +55,10 @@ namespace Ecanapi.Models
 
         [Column("Content")]
         public string? Content { get; set; }
+
+        // Practitioner-authored advice (A part of C+A display)
+        [Column("AdviceText")]
+        public string? AdviceText { get; set; }
 
         [Column("SortOrder")]
         public int SortOrder { get; set; }
