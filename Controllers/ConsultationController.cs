@@ -3441,6 +3441,125 @@ namespace Ecanapi.Controllers
             }
         }
 
+        // === 八字真經命書 DOCX 匯出（Server 端生成，確保跳頁正確）===
+
+        public class BaziJingDocxRequest
+        {
+            public string? PersonName { get; set; }
+            public string? ChartImageBase64 { get; set; }
+        }
+
+        [HttpPost("export-bazijing-docx")]
+        [Authorize]
+        public async Task<IActionResult> ExportBaziJingDocx([FromBody] BaziJingDocxRequest request)
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                         ?? User.FindFirstValue(ClaimTypes.Name)
+                         ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity))
+                return Unauthorized(new { error = "請重新登入" });
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == identity || u.Email == identity);
+            if (user == null) return BadRequest(new { error = "找不到用戶" });
+
+            bool bjIsAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            if (!bjIsAdmin)
+                return StatusCode(403, new { error = "此功能僅限系統管理員使用" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            try
+            {
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                int birthYear    = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender       = user.BirthGender ?? 1;
+                string bjDocxName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "命主");
+
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var stEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                }
+
+                string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
+                string dmElem    = KbStemToElement(dStem);
+                var wuXing       = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
+                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
+
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season, siLingStem);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+
+                var luckCycles   = LfExtractLuckCycles(root);
+                var chartStems   = new[] { yStem, mStem, dStem, hStem };
+                var chartBranches = new[] { yBranch, mBranch, dBranch, hBranch };
+
+                var bjConfigs  = await _context.BaziJingConfigs.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjCaiGuan  = await _context.BaziJingCaiGuans.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjXiang    = await _context.BaziJingXiangs.ToListAsync();
+                var bjShenSha  = await _context.BaziJingShenShas.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjKouJue   = await _context.BaziJingKouJues.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjLiuQin   = await _context.BaziJingLiuQins.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjYunShi   = await _context.BaziJingYunShis.OrderBy(x => x.SortOrder).ToListAsync();
+
+                var scored = luckCycles.Select(lc => {
+                    int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
+                        dmElem, bodyPct > 50, tiaoHouElem, season, chartBranches, chartStems, dStem);
+                    return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
+                }).ToList();
+
+                string reportText = LfBuildBaZiJingReport(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    gender, birthYear, bjDocxName, bodyPct, bodyLabel, pattern,
+                    yongShenElem, fuYiElem, jiShenElem, yongReason, season,
+                    wuXing, scored,
+                    LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
+                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi);
+
+                string wwwroot    = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                string coverPath  = Path.Combine(wwwroot, "images", "cover_page.jpg");
+                string sealPath   = Path.Combine(wwwroot, "images", "玉洞子印.png");
+                byte[] coverBytes = System.IO.File.Exists(coverPath) ? await System.IO.File.ReadAllBytesAsync(coverPath) : Array.Empty<byte>();
+                byte[] sealBytes  = System.IO.File.Exists(sealPath)  ? await System.IO.File.ReadAllBytesAsync(sealPath)  : Array.Empty<byte>();
+                byte[] chartImgBytes = string.IsNullOrEmpty(request?.ChartImageBase64)
+                    ? Array.Empty<byte>()
+                    : Convert.FromBase64String(request.ChartImageBase64);
+
+                byte[] docxBytes = LfBuildYudongziDocxBytes(
+                    reportText, coverBytes, chartImgBytes, sealBytes,
+                    bjDocxName, "八字真經命書", "八字真經命書", true);
+
+                string fileName = $"{bjDocxName}_八字真經命書.docx";
+                return File(docxBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ExportBaziJingDocx失敗");
+                return StatusCode(500, new { error = "DOCX生成失敗", details = ex.Message });
+            }
+        }
+
         // === 玉洞子命書 DOCX 匯出 ===
 
         public class YudongziDocxRequest
