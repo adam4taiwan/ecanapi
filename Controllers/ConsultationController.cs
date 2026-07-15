@@ -3821,28 +3821,12 @@ namespace Ecanapi.Controllers
                 r.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
             }
 
-            // 用 IsPageBreak 段落屬性換頁：段落從新頁開始，不在前頁留空白段落
-            void AddParaWithPageBreak(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
+            // 章節標題（不帶換頁，供 Ch.1 使用 - Ch.1 前方已有封面換頁字符）
+            void AddParaH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
             {
                 var p = doc.CreateParagraph();
                 p.Alignment = align;
                 if (bold) p.SpacingBefore = 80;
-                p.IsPageBreak = true; // 段落從新頁起始，根治空白頁問題
-                var r = p.CreateRun();
-                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
-                r.FontSize = fontSize;
-                r.IsBold = bold;
-                r.SetColor(colorHex);
-                r.SetText(text ?? "");
-            }
-
-            // 章節標題（帶換頁 + 大綱層級 0，供 Word TOC \u 識別）
-            void AddParaWithPageBreakH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
-            {
-                var p = doc.CreateParagraph();
-                p.Alignment = align;
-                if (bold) p.SpacingBefore = 80;
-                p.IsPageBreak = true;
                 // 設定 outline level 0（= Heading 1）讓 Word TOC \u 識別
                 var pPr = p.GetCTP().pPr ?? p.GetCTP().AddNewPPr();
                 var ol = new NPOI.OpenXmlFormats.Wordprocessing.CT_DecimalNumber();
@@ -3854,6 +3838,14 @@ namespace Ecanapi.Controllers
                 r.IsBold = bold;
                 r.SetColor(colorHex);
                 r.SetText(text ?? "");
+            }
+
+            // 章節標題（帶明確換頁字符 + 大綱層級 0，供 Ch.2+ 使用）
+            // 使用 <w:br type="page"/> 而非 p.IsPageBreak 屬性，確保 Google Docs / macOS Preview 等所有檢視器皆支援換頁
+            void AddParaWithPageBreakH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
+            {
+                AddPageBreak(); // 明確換頁字符（<w:br type="page"/>），比 p.IsPageBreak = true 更廣泛相容
+                AddParaH1(text, fontSize, bold, colorHex, align);
             }
 
             // 插入 Word TOC 欄位（\u=大綱層級, \h=超連結, \z=隱藏Web版頁碼）
@@ -4124,7 +4116,9 @@ namespace Ecanapi.Controllers
                     {
                         string chStr = chM.Groups[1].Value;
                         int chN = int.TryParse(chStr, out var cn) ? cn : LfChineseNumToInt(chStr);
-                        if (chN >= 1)
+                        if (chN == 1)
+                            AddParaH1(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT); // Ch.1 前有封面換頁，不再加額外換頁
+                        else if (chN >= 2)
                             AddParaWithPageBreakH1(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                         else
                             AddPara(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -9311,6 +9305,29 @@ namespace Ecanapi.Controllers
                 luckTip9    = $"喜用大運（{yongShenElem}方向）為事業財運黃金期，積極把握；忌神大運（{jiShenElem}方向）宜守成低調，蓄積力量。";
             }
 
+            // 八字真經歲運通則（DB 共通 + 用神對應十神運）
+            {
+                var bjGtEntries = bjYunShi.Where(y => y.Category == "共通" &&
+                    new[] { "喜用運", "忌神運" }.Contains(y.Title)).OrderBy(y => y.SortOrder).ToList();
+                // 根據用神五行找出對應十神運
+                string ySS9 = SSElem9("財") == yongShenElem ? "財運"
+                            : (SSElem9("官") == yongShenElem || SSElem9("殺") == yongShenElem) ? "官運"
+                            : (SSElem9("印") == yongShenElem || SSElem9("梟") == yongShenElem) ? "印運"
+                            : (SSElem9("食") == yongShenElem || SSElem9("傷") == yongShenElem) ? "食傷運"
+                            : "比劫運";
+                var ySS9Row = bjYunShi.FirstOrDefault(y => y.Category == "共通" && y.Title == ySS9);
+                if (ySS9Row != null) bjGtEntries = bjGtEntries.Append(ySS9Row).ToList();
+                if (bjGtEntries.Any())
+                {
+                    sb.AppendLine("▍八字真經歲運通則");
+                    foreach (var g in bjGtEntries)
+                    {
+                        sb.AppendLine($"【{g.Title}】{g.Content}");
+                    }
+                    sb.AppendLine();
+                }
+            }
+
             sb.AppendLine("▍盲派體用基礎分析");
             sb.AppendLine("（盲派核心：富貴在八字，窮通在行運；歲運作用於命局；地支只論刑沖合害破）");
             sb.AppendLine(tiYongDesc9);
@@ -9417,6 +9434,39 @@ namespace Ecanapi.Controllers
                         mechanism9 = "大運天干地支偏中性，吉凶影響相對平緩，此十年視流年干支引動命局的刑沖合害而定。逢喜用流年為好年可積極行動；逢忌神流年宜守成謹慎。";
 
                     sb.AppendLine(mechanism9);
+
+                    // 八字真經 DB 大運批斷
+                    {
+                        string bjTitle9 = (stemGood && brGood) ? "人生最佳大運"
+                                        : (stemGood && !brBad) ? "大運天干喜"
+                                        : (!stemBad && brGood) ? "大運地支喜"
+                                        : stemBad ? "大運天干凶"
+                                        : brBad ? "大運地支凶" : "";
+                        var bjRow9 = !string.IsNullOrEmpty(bjTitle9)
+                            ? bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == bjTitle9) : null;
+                        if (bjRow9 != null) sb.AppendLine($"八字真經：{bjRow9.Content}");
+                        // 天干凶 + 地支凶同時成立時分別顯示
+                        if (stemBad && brBad)
+                        {
+                            var r1 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運地支凶");
+                            if (r1 != null) sb.AppendLine($"八字真經（地支）：{r1.Content}");
+                        }
+                        if (IsSanChong(lc.branch, dBranch))
+                        {
+                            var chongRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運沖日柱");
+                            if (chongRow9 != null) sb.AppendLine($"八字真經（沖日柱）：{chongRow9.Content}");
+                        }
+                        if (tianGanHePairs.ContainsKey((lc.stem, dStem)))
+                        {
+                            var heRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運合日干");
+                            if (heRow9 != null) sb.AppendLine($"八字真經（合日干）：{heRow9.Content}");
+                        }
+                        if (lc.startAge <= 11) // 第一大運
+                        {
+                            var firstRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "第一大運");
+                            if (firstRow9 != null) sb.AppendLine($"八字真經（初運）：{firstRow9.Content}");
+                        }
+                    }
                     sb.AppendLine();
                 }
             }
@@ -9508,12 +9558,15 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
-            // 特殊流年提醒（DB資料）
+            // 特殊流年提醒（DB資料：共通流年相關 + 流年專屬）
+            var liunianCommonRows = bjYunShi.Where(y => y.Category == "共通" &&
+                new[] { "空亡年", "太歲年", "沖太歲" }.Contains(y.Title)).OrderBy(y => y.SortOrder).ToList();
             var liunianRows = bjYunShi.Where(y => y.Category == "流年").OrderBy(y => y.SortOrder).ToList();
-            if (liunianRows.Any())
+            var allLiunianRows = liunianCommonRows.Concat(liunianRows).ToList();
+            if (allLiunianRows.Any())
             {
                 sb.AppendLine("▍特殊流年地支事件提示");
-                foreach (var row in liunianRows)
+                foreach (var row in allLiunianRows)
                 {
                     sb.AppendLine($"• {row.Title}（{row.Condition}）：{row.Content}");
                 }
