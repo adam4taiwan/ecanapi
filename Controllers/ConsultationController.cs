@@ -3959,12 +3959,25 @@ namespace Ecanapi.Controllers
                 r.SetText(text ?? "");
             }
 
-            // 章節標題（帶明確換頁字符 + 大綱層級 0，供 Ch.2+ 使用）
-            // 使用 <w:br type="page"/> 而非 p.IsPageBreak 屬性，確保 Google Docs / macOS Preview 等所有檢視器皆支援換頁
+            // 章節標題（帶換頁 + 大綱層級 0，供 Ch.2+ 使用）
+            // 使用 p.IsPageBreak = true（<w:pageBreakBefore>）在 Word 正常運作
             void AddParaWithPageBreakH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
             {
-                AddPageBreak(); // 明確換頁字符（<w:br type="page"/>），比 p.IsPageBreak = true 更廣泛相容
-                AddParaH1(text, fontSize, bold, colorHex, align);
+                var p = doc.CreateParagraph();
+                p.Alignment = align;
+                if (bold) p.SpacingBefore = 80;
+                p.IsPageBreak = true; // 段落從新頁起始，Word 完整支援
+                // 設定 outline level 0（= Heading 1）讓 Word TOC \u 識別
+                var pPr = p.GetCTP().pPr ?? p.GetCTP().AddNewPPr();
+                var ol = new NPOI.OpenXmlFormats.Wordprocessing.CT_DecimalNumber();
+                ol.val = "0";
+                pPr.outlineLvl = ol;
+                var r = p.CreateRun();
+                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r.FontSize = fontSize;
+                r.IsBold = bold;
+                r.SetColor(colorHex);
+                r.SetText(text ?? "");
             }
 
             // 插入 Word TOC 欄位（\u=大綱層級, \h=超連結, \z=隱藏Web版頁碼）
