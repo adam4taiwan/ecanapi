@@ -149,6 +149,21 @@ namespace Ecanapi.Helpers
                     }
 
                     mainPart.Document.Save();
+
+                    // 加入 compatibilityMode=15，避免 Word 以「相容模式」開啟
+                    var settingsPart = mainPart.DocumentSettingsPart;
+                    if (settingsPart != null)
+                    {
+                        var compat = settingsPart.Settings.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Compatibility>()
+                                     ?? settingsPart.Settings.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Compatibility());
+                        // 用 raw XML 插入 compatibilityMode 設定（Name 欄位為 enum，不含此值）
+                        var cs = new DocumentFormat.OpenXml.OpenXmlUnknownElement("w:compatSetting");
+                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:name", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "compatibilityMode"));
+                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:uri", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "http://schemas.microsoft.com/office/word"));
+                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:val", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "15"));
+                        compat.AppendChild(cs);
+                        settingsPart.Settings.Save();
+                    }
                 }
 
                 return ms.ToArray();

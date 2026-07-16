@@ -3960,18 +3960,21 @@ namespace Ecanapi.Controllers
             }
 
             // 章節標題（帶換頁 + 大綱層級 0，供 Ch.2+ 使用）
-            // 使用 p.IsPageBreak = true（<w:pageBreakBefore>）在 Word 正常運作
+            // 在同一段落的第一個 run 放 <w:br type="page"/>，相容模式與所有檢視器皆適用
             void AddParaWithPageBreakH1(string text, int fontSize, bool bold, string colorHex, NPOI.XWPF.UserModel.ParagraphAlignment align)
             {
                 var p = doc.CreateParagraph();
                 p.Alignment = align;
                 if (bold) p.SpacingBefore = 80;
-                p.IsPageBreak = true; // 段落從新頁起始，Word 完整支援
                 // 設定 outline level 0（= Heading 1）讓 Word TOC \u 識別
                 var pPr = p.GetCTP().pPr ?? p.GetCTP().AddNewPPr();
                 var ol = new NPOI.OpenXmlFormats.Wordprocessing.CT_DecimalNumber();
                 ol.val = "0";
                 pPr.outlineLvl = ol;
+                // 第一個 run：換頁字符（<w:br type="page"/>），換頁後接著顯示標題文字
+                var rBreak = p.CreateRun();
+                rBreak.AddBreak(NPOI.XWPF.UserModel.BreakType.PAGE);
+                // 第二個 run：標題文字
                 var r = p.CreateRun();
                 r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
                 r.FontSize = fontSize;
