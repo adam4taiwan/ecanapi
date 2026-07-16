@@ -9122,6 +9122,7 @@ namespace Ecanapi.Controllers
                 foreach (var (c, trigger) in jiConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
+                    if (!string.IsNullOrEmpty(trigger)) sb.AppendLine(trigger);
                     sb.AppendLine(c.Content);
                     if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
@@ -9133,6 +9134,7 @@ namespace Ecanapi.Controllers
                 foreach (var (c, trigger) in xiongConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
+                    if (!string.IsNullOrEmpty(trigger)) sb.AppendLine(trigger);
                     sb.AppendLine(c.Content);
                     if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
@@ -9193,6 +9195,7 @@ namespace Ecanapi.Controllers
                 foreach (var (cg, cgTrigger) in matchedCG)
                 {
                     sb.AppendLine($"【{cg.ConfigType}】");
+                    if (!string.IsNullOrEmpty(cgTrigger)) sb.AppendLine(cgTrigger);
                     sb.AppendLine(cg.Content);
                     if (!string.IsNullOrEmpty(cg.AdviceText)) sb.AppendLine($"建議：{cg.AdviceText}");
                     sb.AppendLine();
@@ -9246,6 +9249,7 @@ namespace Ecanapi.Controllers
                 foreach (var (sha, isAuspicious, foundDesc) in matchedShenSha)
                 {
                     sb.AppendLine($"▍{sha.Name}");
+                    if (!string.IsNullOrEmpty(foundDesc)) sb.AppendLine(foundDesc);
                     sb.AppendLine(isAuspicious ? sha.AuspiciousText : sha.InauspiciousText);
                     if (!string.IsNullOrEmpty(sha.SpecialRule))
                         sb.AppendLine($"（{sha.SpecialRule}）");
