@@ -9122,7 +9122,6 @@ namespace Ecanapi.Controllers
                 foreach (var (c, trigger) in jiConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
-                    sb.AppendLine($"觸發依據：{trigger}");
                     sb.AppendLine(c.Content);
                     if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
@@ -9134,7 +9133,6 @@ namespace Ecanapi.Controllers
                 foreach (var (c, trigger) in xiongConfigs)
                 {
                     sb.AppendLine($"【{c.ConfigName}】");
-                    sb.AppendLine($"觸發依據：{trigger}");
                     sb.AppendLine(c.Content);
                     if (!string.IsNullOrEmpty(c.AdviceText)) sb.AppendLine($"建議：{c.AdviceText}");
                     sb.AppendLine();
@@ -9180,7 +9178,7 @@ namespace Ecanapi.Controllers
                 else
                     chengDanDesc = $"財官承擔均衡：日主{dStem}（{bodyPct:F0}%）與財官力量相對均衡，命局流通順暢，逢用神方向大運則財官齊發。";
 
-                sb.AppendLine("▍盲派財官體用總論");
+                sb.AppendLine("▍財官格局論斷");
                 sb.AppendLine(pursuitDesc);
                 sb.AppendLine(chengDanDesc);
                 sb.AppendLine();
@@ -9195,7 +9193,6 @@ namespace Ecanapi.Controllers
                 foreach (var (cg, cgTrigger) in matchedCG)
                 {
                     sb.AppendLine($"【{cg.ConfigType}】");
-                    sb.AppendLine($"觸發依據：{cgTrigger}");
                     sb.AppendLine(cg.Content);
                     if (!string.IsNullOrEmpty(cg.AdviceText)) sb.AppendLine($"建議：{cg.AdviceText}");
                     sb.AppendLine();
@@ -9249,7 +9246,6 @@ namespace Ecanapi.Controllers
                 foreach (var (sha, isAuspicious, foundDesc) in matchedShenSha)
                 {
                     sb.AppendLine($"▍{sha.Name}");
-                    if (!string.IsNullOrEmpty(foundDesc)) sb.AppendLine($"觸發依據：{foundDesc}");
                     sb.AppendLine(isAuspicious ? sha.AuspiciousText : sha.InauspiciousText);
                     if (!string.IsNullOrEmpty(sha.SpecialRule))
                         sb.AppendLine($"（{sha.SpecialRule}）");
@@ -9323,48 +9319,7 @@ namespace Ecanapi.Controllers
                 foreach (var l in twoGodMatched) { sb.AppendLine(l); sb.AppendLine(); }
             }
 
-            // ===== Ch.8 六親緣分 =====
-            sb.AppendLine("【第八章：六親緣分】");
-            sb.AppendLine();
-
-            // 父母
-            var fatherRows = bjLiuQin.Where(x => x.LiuQinType == "父").ToList();
-            var motherRows = bjLiuQin.Where(x => x.LiuQinType == "母").ToList();
-            sb.AppendLine("▍父親緣分");
-            foreach (var r in fatherRows)
-            {
-                bool show = r.Category == "星位" || (r.Category == "克損" && BjBranchSanChong(yBranch, mBranch));
-                if (show) { sb.AppendLine(r.Content); sb.AppendLine(); }
-            }
-            sb.AppendLine("▍母親緣分");
-            foreach (var r in motherRows)
-            {
-                bool show = r.Category == "星位" || r.Category == "恩深";
-                if (show) { sb.AppendLine(r.Content); sb.AppendLine(); }
-            }
-
-            // 配偶
-            sb.AppendLine(gender == 1 ? "▍妻緣（財星論妻）" : "▍夫緣（官殺論夫）");
-            string spouseStarCategory = gender == 1 ? "男命妻星" : "女命夫星";
-            var spouseRows = bjLiuQin.Where(x => x.LiuQinType == "配偶" && (x.Category == spouseStarCategory || x.Category == "婚姻吉" || x.Category == "婚姻凶")).ToList();
-            foreach (var r in spouseRows)
-            {
-                if (r.Category == "婚姻凶" && !BjDaySupportSanChong(dBranch)) continue;
-                sb.AppendLine(r.Content);
-                sb.AppendLine();
-            }
-
-            // 子女
-            sb.AppendLine("▍子女緣分");
-            string childStarCategory = gender == 1 ? "男命子女星" : "女命子女星";
-            var childRows = bjLiuQin.Where(x => x.LiuQinType == "子女" && (x.Category == childStarCategory || x.Category == "個數計算" || x.Category == "子女賢孝")).ToList();
-            foreach (var r in childRows) { sb.AppendLine(r.Content); sb.AppendLine(); }
-
-            // ===== Ch.9 大運批斷 =====
-            sb.AppendLine("【第九章：大運批斷】");
-            sb.AppendLine();
-
-            // 藏干表（Ch.9 + Ch.10 共用）
+            // ===== Ch.8~10 共用：十神→五行映射 + 藏干表 =====
             var bjBrHidMap = new Dictionary<string, string[]>
             {
                 ["子"]=new[]{"癸"}, ["丑"]=new[]{"己","癸","辛"}, ["寅"]=new[]{"甲","丙","戊"},
@@ -9373,9 +9328,171 @@ namespace Ecanapi.Controllers
                 ["酉"]=new[]{"辛"}, ["戌"]=new[]{"戊","辛","丁"}, ["亥"]=new[]{"壬","甲"}
             };
             var chartBranches4 = new[] { yBranch, mBranch, dBranch, hBranch };
+            var wxCycle9 = new[] { "木", "火", "土", "金", "水" };
+            int dmIdx9 = Array.IndexOf(wxCycle9, dmElem);
+            string SSElem9(string ss) => dmIdx9 < 0 ? "" : ss switch {
+                "比" or "劫" => wxCycle9[dmIdx9 % 5],
+                "食" or "傷" => wxCycle9[(dmIdx9 + 1) % 5],
+                "財"         => wxCycle9[(dmIdx9 + 2) % 5],
+                "官" or "殺" => wxCycle9[(dmIdx9 + 3) % 5],
+                "印" or "梟" => wxCycle9[(dmIdx9 + 4) % 5],
+                _ => ""
+            };
+            double SSElemStr9(string ss) { var e = SSElem9(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
+
+            // ===== Ch.8 六親緣分 =====
+            sb.AppendLine("【第八章：六親緣分】");
+            sb.AppendLine();
+
+            // 父親（偏財論父）
+            {
+                double fStr8 = SSElemStr9("財");
+                bool yearMonthClash8 = BjBranchSanChong(yBranch, mBranch);
+                bool hasFatherStar = normCount.GetValueOrDefault("財", 0) > 0;
+                string fatherDesc8;
+                if (!hasFatherStar)
+                    fatherDesc8 = $"命局財星（父星）缺位，與父親緣分較淡，父親給予的支持有限，人生宜靠自身努力立命。";
+                else if (fStr8 > 15)
+                    fatherDesc8 = $"命局財星（父星）力量{fStr8:F0}%充足，父親有魄力能力，早年家庭支援到位，父緣深厚。";
+                else if (fStr8 > 5)
+                    fatherDesc8 = $"命局財星（父星）力量{fStr8:F0}%，父親緣分普通，父親盡力給予支持，但資源有限。";
+                else
+                    fatherDesc8 = $"命局財星（父星）力量偏弱，父親對命主影響力有限，宜早自立，勿過度依賴父親資源。";
+
+                sb.AppendLine("▍父親緣分");
+                sb.AppendLine(fatherDesc8);
+                if (yearMonthClash8)
+                    sb.AppendLine($"年支{yBranch}與月支{mBranch}相沖，早年家庭多波折，父母感情有起伏，成長環境不算安定。");
+                sb.AppendLine();
+                foreach (var r in bjLiuQin.Where(x => x.LiuQinType == "父"))
+                {
+                    bool show = r.Category == "星位" || (r.Category == "克損" && yearMonthClash8);
+                    if (show) { sb.AppendLine(r.Content); sb.AppendLine(); }
+                }
+            }
+
+            // 母親（正印論母）
+            {
+                double mStr8 = SSElemStr9("印") + SSElemStr9("梟");
+                bool hasMotherStar = normCount.GetValueOrDefault("印", 0) + normCount.GetValueOrDefault("梟", 0) > 0;
+                string motherDesc8;
+                if (!hasMotherStar)
+                    motherDesc8 = $"命局印星（母星）缺位，與母親緣分較淡，成長中母親關愛有限，需培養獨立性格。";
+                else if (mStr8 > 15)
+                    motherDesc8 = $"命局印星（母星）力量{mStr8:F0}%充足，母親緣分深厚，母親對命主關愛有加，早年受母親庇護，是人生重要的精神依靠。";
+                else
+                    motherDesc8 = $"命局印星（母星）力量{mStr8:F0}%，與母親有緣，母親溫柔慈愛，給予命主適度支持與關懷。";
+
+                sb.AppendLine("▍母親緣分");
+                sb.AppendLine(motherDesc8);
+                sb.AppendLine();
+                foreach (var r in bjLiuQin.Where(x => x.LiuQinType == "母"))
+                {
+                    bool show = r.Category == "星位" || r.Category == "恩深";
+                    if (show) { sb.AppendLine(r.Content); sb.AppendLine(); }
+                }
+            }
+
+            // 配偶（男命財星論妻，女命官殺論夫）
+            {
+                double pStr8 = (gender == 1)
+                    ? SSElemStr9("財")
+                    : SSElemStr9("官") + SSElemStr9("殺");
+                int pCount8 = (gender == 1)
+                    ? normCount.GetValueOrDefault("財", 0)
+                    : normCount.GetValueOrDefault("官", 0) + normCount.GetValueOrDefault("殺", 0);
+
+                // 日支為配偶宮：判斷是否藏有配偶星
+                bool spouseInDayBranch8 = branchHiddenMap.TryGetValue(dBranch, out var dHid8) &&
+                    dHid8.Any(hs => {
+                        var hss8 = LfStemShiShen(hs, dStem);
+                        return gender == 1
+                            ? (hss8 == "正財" || hss8 == "偏財")
+                            : (hss8 == "正官" || hss8 == "七殺");
+                    });
+
+                string spouseDesc8;
+                if (pCount8 == 0)
+                    spouseDesc8 = gender == 1
+                        ? "命局財星（妻星）缺位，感情緣分較淡，婚姻需後天用心經營，勿輕率行事。"
+                        : "命局官殺（夫星）缺位，感情緣分較薄，婚緣需耐心等待，勿急於求成。";
+                else if (pStr8 > 15 && bodyPct >= 45)
+                    spouseDesc8 = gender == 1
+                        ? $"財星力量{pStr8:F0}%充足且日主能承擔，配偶能幹積極，感情基礎穩固，婚姻生活有質量。"
+                        : $"官殺力量{pStr8:F0}%充足，丈夫有能力氣場，感情主動，婚姻有助力。";
+                else if (pStr8 > 15 && bodyPct < 45)
+                    spouseDesc8 = gender == 1
+                        ? $"財星力量{pStr8:F0}%過旺但日主偏弱，婚後可能為財所累，或配偶主導性強，需注意感情中的主導權平衡。"
+                        : $"官殺力量{pStr8:F0}%較旺但日主偏弱，感情中對方強勢，婚姻壓力較大，宜選擇包容理解自己的另一半。";
+                else
+                    spouseDesc8 = gender == 1
+                        ? $"財星力量{pStr8:F0}%，配偶緣分普通，婚姻以平和為主，宜彼此扶持共同經營。"
+                        : $"官殺力量{pStr8:F0}%，夫緣普通，丈夫踏實可靠，婚姻生活平實，宜重視日常相處的點滴。";
+
+                sb.AppendLine(gender == 1 ? "▍妻緣（財星論妻）" : "▍夫緣（官殺論夫）");
+                sb.AppendLine(spouseDesc8);
+                if (spouseInDayBranch8)
+                    sb.AppendLine($"日支{dBranch}藏有配偶星，配偶宮有星力，感情上有自然緣分，容易在生活環境中自然遇到合適對象。");
+                sb.AppendLine();
+                string spouseStarCategory = gender == 1 ? "男命妻星" : "女命夫星";
+                foreach (var r in bjLiuQin.Where(x => x.LiuQinType == "配偶"))
+                {
+                    if (r.Category != spouseStarCategory && r.Category != "婚姻吉" && r.Category != "婚姻凶") continue;
+                    // 婚姻凶：財/官殺特別旺才顯示
+                    if (r.Category == "婚姻凶" && pStr8 < 20) continue;
+                    sb.AppendLine(r.Content);
+                    sb.AppendLine();
+                }
+            }
+
+            // 子女（男命食傷論子女，女命官殺論子女）
+            {
+                double cStr8 = (gender == 1)
+                    ? SSElemStr9("食") + SSElemStr9("傷")
+                    : SSElemStr9("官") + SSElemStr9("殺");
+                int cCount8 = (gender == 1)
+                    ? normCount.GetValueOrDefault("食", 0) + normCount.GetValueOrDefault("傷", 0)
+                    : normCount.GetValueOrDefault("官", 0) + normCount.GetValueOrDefault("殺", 0);
+                string cStarName8 = gender == 1 ? "食傷（子女星）" : "官殺（子女星）";
+
+                // 時支為子女宮
+                bool childInHourBranch8 = branchHiddenMap.TryGetValue(hBranch, out var hHid8) &&
+                    hHid8.Any(hs => {
+                        var hss8 = LfStemShiShen(hs, dStem);
+                        return gender == 1
+                            ? (hss8 == "食神" || hss8 == "傷官")
+                            : (hss8 == "正官" || hss8 == "七殺");
+                    });
+
+                string childDesc8;
+                if (cCount8 == 0)
+                    childDesc8 = $"命局{cStarName8}缺位，子女緣分較薄，可能晚得子女或子女緣淡，宜重視親子關係的培養。";
+                else if (cStr8 > 15)
+                    childDesc8 = $"命局{cStarName8}力量{cStr8:F0}%充足，子女緣分豐厚，子女聰明活潑，親子關係融洽，為人生重要的快樂來源。";
+                else
+                    childDesc8 = $"命局{cStarName8}力量{cStr8:F0}%，有子女之緣，子女乖巧懂事，宜多用心陪伴，親子情深。";
+
+                sb.AppendLine("▍子女緣分");
+                sb.AppendLine(childDesc8);
+                if (childInHourBranch8)
+                    sb.AppendLine($"時支{hBranch}藏有子女星，子女宮有星力，與子女感情親近，晚年子女孝順可期。");
+                sb.AppendLine();
+                string childStarCategory = gender == 1 ? "男命子女星" : "女命子女星";
+                foreach (var r in bjLiuQin.Where(x => x.LiuQinType == "子女"))
+                {
+                    if (r.Category != childStarCategory && r.Category != "個數計算" && r.Category != "子女賢孝") continue;
+                    sb.AppendLine(r.Content);
+                    sb.AppendLine();
+                }
+            }
+
+            // ===== Ch.9 大運批斷 =====
+            sb.AppendLine("【第九章：大運批斷】");
+            sb.AppendLine();
+
             var chartBrLabels4 = new[] { "年支", "月支", "日支", "時支" };
 
-            // 六沖、六合、六害、三合（盲派：地支只論刑沖合害破，不論生剋）
+            // 六沖、六合、六害、三合（地支只論刑沖合害破）
             var sixChong = new HashSet<(string,string)> { ("子","午"),("丑","未"),("寅","申"),("卯","酉"),("辰","戌"),("巳","亥") };
             var sixHe    = new HashSet<(string,string)> { ("子","丑"),("寅","亥"),("卯","戌"),("辰","酉"),("巳","申"),("午","未") };
             var sixHai   = new HashSet<(string,string)> { ("子","未"),("丑","午"),("寅","巳"),("卯","辰"),("申","亥"),("酉","戌") };
@@ -9393,20 +9510,7 @@ namespace Ecanapi.Controllers
             bool IsSixHe(string a, string b)    => sixHe.Contains((a,b))    || sixHe.Contains((b,a));
             bool IsSixHai(string a, string b)   => sixHai.Contains((a,b))   || sixHai.Contains((b,a));
 
-            // 十神→五行映射（大運章用）
-            var wxCycle9 = new[] { "木", "火", "土", "金", "水" };
-            int dmIdx9 = Array.IndexOf(wxCycle9, dmElem);
-            string SSElem9(string ss) => dmIdx9 < 0 ? "" : ss switch {
-                "比" or "劫" => wxCycle9[dmIdx9 % 5],
-                "食" or "傷" => wxCycle9[(dmIdx9 + 1) % 5],
-                "財"         => wxCycle9[(dmIdx9 + 2) % 5],
-                "官" or "殺" => wxCycle9[(dmIdx9 + 3) % 5],
-                "印" or "梟" => wxCycle9[(dmIdx9 + 4) % 5],
-                _ => ""
-            };
-            double SSElemStr9(string ss) { var e = SSElem9(ss); return string.IsNullOrEmpty(e) ? 0 : wuXing.GetValueOrDefault(e, 0); }
-
-            // ── 盲派體用分析（核心：富貴在八字，窮通在行運）──
+            // ── 體用分析 ──
             double caiStrDy  = SSElemStr9("財");
             double guanStrDy = SSElemStr9("官") + SSElemStr9("殺");
             bool isWeakDy    = bodyPct < 45;
@@ -9454,7 +9558,7 @@ namespace Ecanapi.Controllers
                 if (ySS9Row != null) bjGtEntries = bjGtEntries.Append(ySS9Row).ToList();
                 if (bjGtEntries.Any())
                 {
-                    sb.AppendLine("▍八字真經歲運通則");
+                    sb.AppendLine("▍歲運通則");
                     foreach (var g in bjGtEntries)
                     {
                         sb.AppendLine($"【{g.Title}】{g.Content}");
@@ -9463,8 +9567,7 @@ namespace Ecanapi.Controllers
                 }
             }
 
-            sb.AppendLine("▍盲派體用基礎分析");
-            sb.AppendLine("（盲派核心：富貴在八字，窮通在行運；歲運作用於命局；地支只論刑沖合害破）");
+            sb.AppendLine("▍體用格局分析");
             sb.AppendLine(tiYongDesc9);
             sb.AppendLine(luckTip9);
             sb.AppendLine();
@@ -9579,27 +9682,27 @@ namespace Ecanapi.Controllers
                                         : brBad ? "大運地支凶" : "";
                         var bjRow9 = !string.IsNullOrEmpty(bjTitle9)
                             ? bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == bjTitle9) : null;
-                        if (bjRow9 != null) sb.AppendLine($"八字真經：{bjRow9.Content}");
+                        if (bjRow9 != null) sb.AppendLine(bjRow9.Content);
                         // 天干凶 + 地支凶同時成立時分別顯示
                         if (stemBad && brBad)
                         {
                             var r1 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運地支凶");
-                            if (r1 != null) sb.AppendLine($"八字真經（地支）：{r1.Content}");
+                            if (r1 != null) sb.AppendLine(r1.Content);
                         }
                         if (IsSanChong(lc.branch, dBranch))
                         {
                             var chongRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運沖日柱");
-                            if (chongRow9 != null) sb.AppendLine($"八字真經（沖日柱）：{chongRow9.Content}");
+                            if (chongRow9 != null) sb.AppendLine(chongRow9.Content);
                         }
                         if (tianGanHePairs.ContainsKey((lc.stem, dStem)))
                         {
                             var heRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "大運合日干");
-                            if (heRow9 != null) sb.AppendLine($"八字真經（合日干）：{heRow9.Content}");
+                            if (heRow9 != null) sb.AppendLine(heRow9.Content);
                         }
                         if (lc.startAge <= 11) // 第一大運
                         {
                             var firstRow9 = bjYunShi.FirstOrDefault(y => y.Category == "大運" && y.Title == "第一大運");
-                            if (firstRow9 != null) sb.AppendLine($"八字真經（初運）：{firstRow9.Content}");
+                            if (firstRow9 != null) sb.AppendLine(firstRow9.Content);
                         }
                     }
                     sb.AppendLine();
@@ -9616,7 +9719,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine();
 
             // 盲派流年核心原理（三層互動）
-            sb.AppendLine("▍盲派流年判斷原理");
+            sb.AppendLine("▍流年行運判斷原理");
             sb.AppendLine("流年是每年從外部引入的新五行之氣，是引動命局吉凶應期的「鑰匙」。");
             sb.AppendLine("三層互動：流年新氣 → 作用於大運（十年氣場）→ 協同引動命局 → 具體事件發生。");
             sb.AppendLine("• 流年與大運同為喜用：吉力雙倍，為人生重大突破年，積極行動把握機遇。");
@@ -9700,10 +9803,35 @@ namespace Ecanapi.Controllers
             var allLiunianRows = liunianCommonRows.Concat(liunianRows).ToList();
             if (allLiunianRows.Any())
             {
-                sb.AppendLine("▍特殊流年地支事件提示");
+                // 計算未來20年的空亡年、太歲年、沖太歲年份
+                var branches12F = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                var dayEmptyF = LfCalcDayEmpty(dStem, dBranch);
+                int yBranchIdxF = Array.IndexOf(branches12F, yBranch);
+                string chongYBrF = yBranchIdxF >= 0 ? branches12F[(yBranchIdxF + 6) % 12] : "";
+                int curYrF = DateTime.Today.Year;
+                var kongWangYrsF  = new List<int>();
+                var taiSuiYrsF    = new List<int>();
+                var chongTaiSuiYrsF = new List<int>();
+                for (int yr = curYrF; yr <= curYrF + 20; yr++)
+                {
+                    int brIdx = ((yr - 4) % 12 + 12) % 12;
+                    string yrBr = branches12F[brIdx];
+                    if (dayEmptyF.Contains(yrBr))  kongWangYrsF.Add(yr);
+                    if (yrBr == yBranch)            taiSuiYrsF.Add(yr);
+                    if (yrBr == chongYBrF)          chongTaiSuiYrsF.Add(yr);
+                }
+
+                sb.AppendLine("▍特殊流年提示");
                 foreach (var row in allLiunianRows)
                 {
-                    sb.AppendLine($"• {row.Title}（{row.Condition}）：{row.Content}");
+                    string yearHintF = "";
+                    if (row.Title == "空亡年" && kongWangYrsF.Any())
+                        yearHintF = $"（{curYrF}~{curYrF+20}年中空亡年：{string.Join("、", kongWangYrsF)}年）";
+                    else if (row.Title == "太歲年" && taiSuiYrsF.Any())
+                        yearHintF = $"（{curYrF}~{curYrF+20}年中本命太歲：{string.Join("、", taiSuiYrsF)}年）";
+                    else if (row.Title == "沖太歲" && chongTaiSuiYrsF.Any())
+                        yearHintF = $"（{curYrF}~{curYrF+20}年中沖太歲：{string.Join("、", chongTaiSuiYrsF)}年）";
+                    sb.AppendLine($"• {row.Title}{yearHintF}：{row.Content}");
                 }
                 sb.AppendLine();
             }
