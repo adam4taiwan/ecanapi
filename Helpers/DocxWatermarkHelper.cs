@@ -1,5 +1,6 @@
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using System.IO.Compression;
 using System.Text;
 
 namespace Ecanapi.Helpers
@@ -150,27 +151,62 @@ namespace Ecanapi.Helpers
 
                     mainPart.Document.Save();
 
-                    // 加入 compatibilityMode=15，避免 Word 以「相容模式」開啟
-                    var settingsPart = mainPart.DocumentSettingsPart;
-                    if (settingsPart != null)
-                    {
-                        var compat = settingsPart.Settings.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Compatibility>()
-                                     ?? settingsPart.Settings.AppendChild(new DocumentFormat.OpenXml.Wordprocessing.Compatibility());
-                        // 用 raw XML 插入 compatibilityMode 設定（Name 欄位為 enum，不含此值）
-                        var cs = new DocumentFormat.OpenXml.OpenXmlUnknownElement("w:compatSetting");
-                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:name", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "compatibilityMode"));
-                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:uri", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "http://schemas.microsoft.com/office/word"));
-                        cs.SetAttribute(new DocumentFormat.OpenXml.OpenXmlAttribute("w:val", "http://schemas.openxmlformats.org/wordprocessingml/2006/main", "15"));
-                        compat.AppendChild(cs);
-                        settingsPart.Settings.Save();
-                    }
                 }
 
-                return ms.ToArray();
+                var result = ms.ToArray();
+                // 直接修改 ZIP 中的 settings.xml，插入 compatibilityMode=15
+                result = PatchSettingsCompatibilityMode(result);
+                return result;
             }
             catch
             {
                 // Fallback: return original bytes if watermark fails
+                return docxBytes;
+            }
+        }
+
+        // Patch word/settings.xml inside the DOCX ZIP to add compatibilityMode=15,
+        // which prevents Word from opening the file in [Compatibility Mode].
+        private static byte[] PatchSettingsCompatibilityMode(byte[] docxBytes)
+        {
+            try
+            {
+                var ms = new MemoryStream();
+                ms.Write(docxBytes, 0, docxBytes.Length);
+
+                using (var archive = new ZipArchive(ms, ZipArchiveMode.Update, leaveOpen: true))
+                {
+                    var settingsEntry = archive.GetEntry("word/settings.xml");
+                    if (settingsEntry == null) return docxBytes;
+
+                    string xml;
+                    using (var reader = new StreamReader(settingsEntry.Open(), Encoding.UTF8))
+                        xml = reader.ReadToEnd();
+
+                    // Already patched
+                    if (xml.Contains("compatibilityMode")) return docxBytes;
+
+                    const string compatSetting =
+                        "<w:compatSetting w:name=\"compatibilityMode\" " +
+                        "w:uri=\"http://schemas.microsoft.com/office/word\" " +
+                        "w:val=\"15\"/>";
+
+                    // Insert into existing <w:compat> if present, else add new block
+                    if (xml.Contains("</w:compat>"))
+                        xml = xml.Replace("</w:compat>", compatSetting + "</w:compat>");
+                    else
+                        xml = xml.Replace("</w:settings>", "<w:compat>" + compatSetting + "</w:compat></w:settings>");
+
+                    settingsEntry.Delete();
+                    var newEntry = archive.CreateEntry("word/settings.xml");
+                    using (var sw = new StreamWriter(newEntry.Open(), new UTF8Encoding(false)))
+                        sw.Write(xml);
+                }
+                // Archive disposed — changes flushed to ms
+                return ms.ToArray();
+            }
+            catch
+            {
                 return docxBytes;
             }
         }
