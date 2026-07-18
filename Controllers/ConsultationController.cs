@@ -9233,13 +9233,27 @@ namespace Ecanapi.Controllers
                 }
                 sb.AppendLine();
 
-                // 旺衰論斷
+                // 旺衰論斷（需交叉五行力量表做修正）
                 sb.AppendLine("【旺衰論斷】");
-                sb.AppendLine(bjDmE >= 45 ? "日主能量極強，命局需官殺制化或財星消耗方顯富貴，純粹扶身反而過旺洩秀。" :
-                              bjDmE >= 25 ? "日主能量旺，命局以制化為要，財官皆可取用，宜見財見官。" :
-                              bjDmE >= 10 ? "日主能量中等，喜印星生扶、比劫助身，忌財官太旺同時剋泄。" :
-                              bjDmE >= 3  ? "日主能量弱，須印星護身、比劫幫扶，財官太旺則剋泄交加，壓力倍增。" :
-                                           "日主虛透無根，命局能量懸空，最需印星或比劫大力扶助方可立命。");
+                double bjWxDmPct = wuXing.GetValueOrDefault(dmElem, 0);
+                double bjWxMax   = wuXing.Values.Max();
+                // 盲派地支宮位能量 vs 五行力量表交叉驗證
+                // 當盲派顯示旺/極旺，但五行力量表日主元素佔比顯著偏低時，
+                // 代表月干強克（或整體環境對日主不利）導致宮位優勢被壓縮
+                bool bjPositionStrongButWxWeak = bjDmE >= 30 && bjWxDmPct < bjWxMax * 0.6;
+                if (bjPositionStrongButWxWeak) {
+                    sb.AppendLine($"注意：日主宮位能量{bjDmE:F1}%（月支有根），但五行力量表{dmElem}僅{bjWxDmPct:F1}%，" +
+                                  $"最強五行達{bjWxMax:F1}%。月干或整體環境對日主有明顯壓制，宮位優勢被折損，" +
+                                  $"實際承壓程度應以五行力量表為準。");
+                    sb.AppendLine(bjWxDmPct < 20 ? $"日主雖有根基，但整體環境強剋，偏弱之命，喜印星生扶與比劫助身。" :
+                                                    $"日主根基受環境壓制，中等偏弱，需印比扶助方可承財官之重。");
+                } else {
+                    sb.AppendLine(bjDmE >= 45 ? "日主能量極強，命局需官殺制化或財星消耗方顯富貴，純粹扶身反而過旺洩秀。" :
+                                  bjDmE >= 25 ? "日主能量旺，命局以制化為要，財官皆可取用，宜見財見官。" :
+                                  bjDmE >= 10 ? "日主能量中等，喜印星生扶、比劫助身，忌財官太旺同時剋泄。" :
+                                  bjDmE >= 3  ? "日主能量弱，須印星護身、比劫幫扶，財官太旺則剋泄交加，壓力倍增。" :
+                                               "日主虛透無根，命局能量懸空，最需印星或比劫大力扶助方可立命。");
+                }
                 if (bjCaiE > 30 && bjDmE < 15)
                     sb.AppendLine("財星旺而身弱，財多身弱之命，錢財易成禍根，需比劫或印星扶助方可承受財氣。");
                 else if (bjCaiE < 3)
@@ -9274,6 +9288,13 @@ namespace Ecanapi.Controllers
 
                 sb.AppendLine($"一、月令判斷（{mStem}{mBranch}）");
                 sb.AppendLine($"  日主{dmElem}生於{mBranch}月 → {bjMonthStatus}");
+                // 月干對日主的天干克制補充說明
+                string bjMStemElem = KbStemToElement(mStem);
+                if (!string.IsNullOrEmpty(bjMStemElem) &&
+                    LfElemOvercomeBy.GetValueOrDefault(dmElem,"") == bjMStemElem) {
+                    sb.AppendLine($"  補充：月干{mStem}（{bjMStemElem}）直接克制日主{dStem}（{dmElem}），" +
+                                  $"月干天干克制折損月支所賦予的宮位優勢，實際月令加成大幅縮減。");
+                }
                 sb.AppendLine();
 
                 // Part 2: 四柱根基分析（地支藏干中含同五行的位置）
@@ -9333,8 +9354,12 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"  體能量（比劫+食傷）：{bjTiE:F1}%");
                 sb.AppendLine($"  用能量（財星+官殺）：{bjYongE:F1}%");
                 string bjBearDesc;
-                if (bjTiE >= bjYongE * 1.2)
-                    bjBearDesc = "體強於用，承載有餘，可積極拓展財官。";
+                if (bjYongE < 5) {
+                    // 用能量極低：有體無用，才能有餘但無施展目標
+                    bjBearDesc = $"財官能量極弱（{bjYongE:F1}%），雖有實力但缺乏財官機會與平臺，" +
+                                 "如刀利卻無物可割，宜靜待財官運到來，切勿強行擴張。";
+                } else if (bjTiE >= bjYongE * 1.5)
+                    bjBearDesc = "體遠強於用，承載有餘，可適度拓展財官，但財官機會仍需靠行運開啟。";
                 else if (bjTiE >= bjYongE * 0.8)
                     bjBearDesc = "體用相當，承載平衡，穩健經營為宜。";
                 else if (bjTiE >= bjYongE * 0.5)
