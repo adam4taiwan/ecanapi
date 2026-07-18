@@ -9094,7 +9094,7 @@ namespace Ecanapi.Controllers
             if (branchHiddenMap.TryGetValue(mBranch, out var mHidden))
             {
                 sb.AppendLine($"取格依據：月支{mBranch}，藏干{string.Join("、", mHidden)}，依月令司令天干透出定格。");
-                sb.AppendLine("注意：此格局依傳統月令取格法（古制），八字真經盲派以命局整體五行氣勢為主，詳見第三章。");
+                sb.AppendLine("注意：此格局依傳統月令取格法（古制），八字真經以命局整體五行氣勢為主，詳見第三章。");
             }
             sb.AppendLine();
 
@@ -9143,8 +9143,10 @@ namespace Ecanapi.Controllers
                         && hq2.Any(h => KbStemToElement(h.s) == el));
                 }
 
-                // 計算各十神能量（地支宮位 + 天干虛透）
+                // 計算各十神能量：地支宮位 + 天干透出加成
                 var bjEd = new Dictionary<string, double>(); // 細分正偏
+
+                // Step 1: 地支宮位能量（月支50%/日支48%/年時各1%）
                 for (int bi = 0; bi < 4; bi++) {
                     if (!bjHdQi.TryGetValue(bjBrs[bi], out var hqBr)) continue;
                     foreach (var (hs, fac, _) in hqBr) {
@@ -9153,13 +9155,19 @@ namespace Ecanapi.Controllers
                             bjEd[ss] = bjEd.GetValueOrDefault(ss, 0) + bjBrWts[bi] * fac;
                     }
                 }
-                foreach (var stBj in bjSts) {
-                    if (string.IsNullOrEmpty(stBj)) continue;
-                    if (!BjHasRoot(stBj)) {
-                        string ssSt = LfStemShiShen(stBj, dStem);
-                        if (string.IsNullOrEmpty(ssSt)) ssSt = "比肩"; // dStem自身
-                        bjEd[ssSt] = bjEd.GetValueOrDefault(ssSt, 0) + 0.4;
-                    }
+
+                // Step 2: 天干透出加成
+                // 有根透出：月干+3%，年干/時干+1%（透出代表此十神在命局中顯現活躍）
+                // 虛透無根：+0.4%（飄浮不穩）
+                // 日干（index=2）不計，已含在日支地支能量中
+                double[] bjStemBonus = { 1.0, 3.0, 0.0, 1.0 }; // 年/月/日/時干透出bonus
+                for (int si = 0; si < 4; si++) {
+                    string stBj = bjSts[si];
+                    if (string.IsNullOrEmpty(stBj) || si == 2) continue; // 跳過日干
+                    string ssSt = LfStemShiShen(stBj, dStem);
+                    if (string.IsNullOrEmpty(ssSt)) continue;
+                    double bonus = BjHasRoot(stBj) ? bjStemBonus[si] : 0.4;
+                    bjEd[ssSt] = bjEd.GetValueOrDefault(ssSt, 0) + bonus;
                 }
 
                 // 合併正偏同類
@@ -9173,7 +9181,19 @@ namespace Ecanapi.Controllers
                 double bjYinE = bjE.GetValueOrDefault("印", 0) + bjE.GetValueOrDefault("梟", 0);
                 double bjShiE = bjE.GetValueOrDefault("食", 0) + bjE.GetValueOrDefault("傷", 0);
 
-                string BjLbl(double e) => e >= 45 ? "極旺" : e >= 25 ? "旺" : e >= 10 ? "中" : e >= 3 ? "弱" : "虛透";
+                // 判斷某五行在地支是否有根
+                bool BjElemHasRoot(string elem) =>
+                    bjBrs.Any(br => bjHdQi.TryGetValue(br, out var hqR) && hqR.Any(h => KbStemToElement(h.s) == elem));
+
+                // 能量強弱標籤（根淺 = 有根但低位置；虛透 = 完全無根）
+                string BjLbl(double e, string elem = "") {
+                    if (e >= 45) return "極旺";
+                    if (e >= 25) return "旺";
+                    if (e >= 10) return "中";
+                    if (e >= 3)  return "弱";
+                    // 低能量時區分：有根（根淺）vs 無根（虛透）
+                    return (!string.IsNullOrEmpty(elem) && BjElemHasRoot(elem)) ? "根淺" : "虛透";
+                }
 
                 // 月支本氣對應十神
                 string bjMNorm = "";
@@ -9182,9 +9202,9 @@ namespace Ecanapi.Controllers
                     if (!string.IsNullOrEmpty(mMSS)) bjMNorm = NormSS(mMSS);
                 }
 
-                // --- Section A: 盲派十神能量分析 ---
-                sb.AppendLine("▍【盲派十神能量分析】");
-                sb.AppendLine("計算基準：月令50% · 日支48% · 年支1% · 時支1% · 天干虛透0.4%");
+                // --- Section A: 八字真經十神能量分析 ---
+                sb.AppendLine("▍【八字真經十神能量分析】");
+                sb.AppendLine("計算基準：月令50% · 日支48% · 年支1% · 時支1% · 天干有根透出（月干+3%/年時干+1%）· 虛透0.4%");
                 sb.AppendLine();
 
                 // 日主能量 + 根基
@@ -9201,7 +9221,7 @@ namespace Ecanapi.Controllers
                 }
                 if (!BjHasRoot(dStem)) bjDmRoots.Add($"日干{dStem}虛透（+0.4%）");
 
-                sb.AppendLine($"日主（{dStem}/{dmElem}）能量：{bjDmE:F1}%【{BjLbl(bjDmE)}】");
+                sb.AppendLine($"日主（{dStem}/{dmElem}）能量：{bjDmE:F1}%【{BjLbl(bjDmE, dmElem)}】");
                 sb.AppendLine(bjDmRoots.Count > 0
                     ? $"  根基：{string.Join("、", bjDmRoots)}"
                     : $"  日主五行（{dmElem}）四柱無根。");
@@ -9229,7 +9249,7 @@ namespace Ecanapi.Controllers
                         && dhq3.Any(h3 => NormSS(LfStemShiShen(h3.s, dStem) ?? "") == norm3))
                         src3 = "  得日支";
                     if (string.IsNullOrEmpty(src3) && e3 < 3) src3 = "  根基薄弱";
-                    sb.AppendLine($"  {lbl3}（{el3}）：{e3:F1}%【{BjLbl(e3)}】{src3}");
+                    sb.AppendLine($"  {lbl3}（{el3}）：{e3:F1}%【{BjLbl(e3, el3)}】{src3}");
                 }
                 sb.AppendLine();
 
@@ -9237,8 +9257,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("【旺衰論斷】");
                 double bjWxDmPct = wuXing.GetValueOrDefault(dmElem, 0);
                 double bjWxMax   = wuXing.Values.Max();
-                // 盲派地支宮位能量 vs 五行力量表交叉驗證
-                // 當盲派顯示旺/極旺，但五行力量表日主元素佔比顯著偏低時，
+                // 八字真經地支宮位能量 vs 五行力量表交叉驗證
+                // 當八字真經顯示旺/極旺，但五行力量表日主元素佔比顯著偏低時，
                 // 代表月干強克（或整體環境對日主不利）導致宮位優勢被壓縮
                 bool bjPositionStrongButWxWeak = bjDmE >= 30 && bjWxDmPct < bjWxMax * 0.6;
                 if (bjPositionStrongButWxWeak) {
