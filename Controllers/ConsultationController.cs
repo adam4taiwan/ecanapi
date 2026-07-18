@@ -9104,6 +9104,321 @@ namespace Ecanapi.Controllers
                 if (kv.Value > 0) sb.AppendLine($"  {kv.Key}：{kv.Value:F1}%");
             sb.AppendLine();
 
+            // ===== 盲派十神能量 + 日主旺弱承載能力 =====
+            {
+                // 盲派藏干氣口（本/中/餘氣 factor）
+                var bjHdQi = new Dictionary<string, List<(string s, double f, string qt)>>
+                {
+                    {"子", new(){("癸",1.0,"本")}},
+                    {"丑", new(){("己",1.0,"本"),("癸",0.5,"中"),("辛",0.25,"餘")}},
+                    {"寅", new(){("甲",1.0,"本"),("丙",0.5,"中"),("戊",0.25,"餘")}},
+                    {"卯", new(){("乙",1.0,"本")}},
+                    {"辰", new(){("戊",1.0,"本"),("乙",0.5,"中"),("癸",0.25,"餘")}},
+                    {"巳", new(){("丙",1.0,"本"),("庚",0.5,"中"),("戊",0.25,"餘")}},
+                    {"午", new(){("丁",1.0,"本"),("己",0.5,"中")}},
+                    {"未", new(){("己",1.0,"本"),("丁",0.5,"中"),("乙",0.25,"餘")}},
+                    {"申", new(){("庚",1.0,"本"),("壬",0.5,"中"),("戊",0.25,"餘")}},
+                    {"酉", new(){("辛",1.0,"本")}},
+                    {"戌", new(){("戊",1.0,"本"),("辛",0.5,"中"),("丁",0.25,"餘")}},
+                    {"亥", new(){("壬",1.0,"本"),("甲",0.5,"中")}}
+                };
+
+                // 地支宮位能量權重（盲派：月令50，日支48，年時各1）
+                var bjBrWts = new double[] { 1.0, 50.0, 48.0, 1.0 };
+                var bjBrs = new[] { yBranch, mBranch, dBranch, hBranch };
+                var bjSts = new[] { yStem, mStem, dStem, hStem };
+                string[] bjPos = { "年支", "月支", "日支", "時支" };
+
+                // 六沖
+                var bjSixClash = new Dictionary<string,string>
+                { {"子","午"},{"午","子"},{"丑","未"},{"未","丑"},
+                  {"寅","申"},{"申","寅"},{"卯","酉"},{"酉","卯"},
+                  {"辰","戌"},{"戌","辰"},{"巳","亥"},{"亥","巳"} };
+
+                // 判斷天干是否有根（任何地支藏干中存在同五行）
+                bool BjHasRoot(string stem) {
+                    string el = KbStemToElement(stem);
+                    if (string.IsNullOrEmpty(el)) return false;
+                    return bjBrs.Any(br => bjHdQi.TryGetValue(br, out var hq2)
+                        && hq2.Any(h => KbStemToElement(h.s) == el));
+                }
+
+                // 計算各十神能量（地支宮位 + 天干虛透）
+                var bjEd = new Dictionary<string, double>(); // 細分正偏
+                for (int bi = 0; bi < 4; bi++) {
+                    if (!bjHdQi.TryGetValue(bjBrs[bi], out var hqBr)) continue;
+                    foreach (var (hs, fac, _) in hqBr) {
+                        string ss = LfStemShiShen(hs, dStem);
+                        if (!string.IsNullOrEmpty(ss))
+                            bjEd[ss] = bjEd.GetValueOrDefault(ss, 0) + bjBrWts[bi] * fac;
+                    }
+                }
+                foreach (var stBj in bjSts) {
+                    if (string.IsNullOrEmpty(stBj)) continue;
+                    if (!BjHasRoot(stBj)) {
+                        string ssSt = LfStemShiShen(stBj, dStem);
+                        if (string.IsNullOrEmpty(ssSt)) ssSt = "比肩"; // dStem自身
+                        bjEd[ssSt] = bjEd.GetValueOrDefault(ssSt, 0) + 0.4;
+                    }
+                }
+
+                // 合併正偏同類
+                var bjE = new Dictionary<string, double>();
+                foreach (var kv3 in bjEd)
+                    bjE[NormSS(kv3.Key)] = bjE.GetValueOrDefault(NormSS(kv3.Key), 0) + kv3.Value;
+
+                double bjDmE  = bjE.GetValueOrDefault("比", 0) + bjE.GetValueOrDefault("劫", 0);
+                double bjCaiE = bjE.GetValueOrDefault("財", 0);
+                double bjGuanE= bjE.GetValueOrDefault("官", 0);
+                double bjYinE = bjE.GetValueOrDefault("印", 0) + bjE.GetValueOrDefault("梟", 0);
+                double bjShiE = bjE.GetValueOrDefault("食", 0) + bjE.GetValueOrDefault("傷", 0);
+
+                string BjLbl(double e) => e >= 45 ? "極旺" : e >= 25 ? "旺" : e >= 10 ? "中" : e >= 3 ? "弱" : "虛透";
+
+                // 月支本氣對應十神
+                string bjMNorm = "";
+                if (bjHdQi.TryGetValue(mBranch, out var mMHq) && mMHq.Count > 0) {
+                    string mMSS = LfStemShiShen(mMHq[0].s, dStem);
+                    if (!string.IsNullOrEmpty(mMSS)) bjMNorm = NormSS(mMSS);
+                }
+
+                // --- Section A: 盲派十神能量分析 ---
+                sb.AppendLine("▍【盲派十神能量分析】");
+                sb.AppendLine("計算基準：月令50% · 日支48% · 年支1% · 時支1% · 天干虛透0.4%");
+                sb.AppendLine();
+
+                // 日主能量 + 根基
+                var bjDmRoots = new List<string>();
+                for (int bi2 = 0; bi2 < 4; bi2++) {
+                    if (!bjHdQi.TryGetValue(bjBrs[bi2], out var hqBr2)) continue;
+                    foreach (var (hs2, fac2, qt2) in hqBr2) {
+                        string n2 = NormSS(LfStemShiShen(hs2, dStem) ?? "");
+                        if (n2 == "比" || n2 == "劫") {
+                            bjDmRoots.Add($"{bjPos[bi2]}{bjBrs[bi2]}（{qt2}氣 +{bjBrWts[bi2]*fac2:F1}%）");
+                            break;
+                        }
+                    }
+                }
+                if (!BjHasRoot(dStem)) bjDmRoots.Add($"日干{dStem}虛透（+0.4%）");
+
+                sb.AppendLine($"日主（{dStem}/{dmElem}）能量：{bjDmE:F1}%【{BjLbl(bjDmE)}】");
+                sb.AppendLine(bjDmRoots.Count > 0
+                    ? $"  根基：{string.Join("、", bjDmRoots)}"
+                    : $"  日主五行（{dmElem}）四柱無根。");
+                sb.AppendLine();
+
+                // 各十神能量（財/官/印/食傷）
+                var wxC = new[] { "木","火","土","金","水" };
+                int dmIdxC = Array.IndexOf(wxC, dmElem);
+                var bjSSGroups = new (string norm, string lbl, double e)[]
+                {
+                    ("財", "財星", bjCaiE), ("官", "官殺", bjGuanE),
+                    ("印", "印星（含偏印）", bjYinE), ("食", "食傷", bjShiE)
+                };
+                foreach (var (norm3, lbl3, e3) in bjSSGroups) {
+                    if (e3 < 0.3) continue;
+                    string el3 = norm3 switch {
+                        "財" => dmIdxC >= 0 ? wxC[(dmIdxC+2)%5] : "",
+                        "官" => dmIdxC >= 0 ? wxC[(dmIdxC+3)%5] : "",
+                        "印" => dmIdxC >= 0 ? wxC[(dmIdxC+4)%5] : "",
+                        "食" => dmIdxC >= 0 ? wxC[(dmIdxC+1)%5] : "",
+                        _ => ""
+                    };
+                    string src3 = norm3 == bjMNorm ? "  得月令" : "";
+                    if (string.IsNullOrEmpty(src3) && bjHdQi.TryGetValue(dBranch, out var dhq3)
+                        && dhq3.Any(h3 => NormSS(LfStemShiShen(h3.s, dStem) ?? "") == norm3))
+                        src3 = "  得日支";
+                    if (string.IsNullOrEmpty(src3) && e3 < 3) src3 = "  根基薄弱";
+                    sb.AppendLine($"  {lbl3}（{el3}）：{e3:F1}%【{BjLbl(e3)}】{src3}");
+                }
+                sb.AppendLine();
+
+                // 旺衰論斷
+                sb.AppendLine("【旺衰論斷】");
+                sb.AppendLine(bjDmE >= 45 ? "日主能量極強，命局需官殺制化或財星消耗方顯富貴，純粹扶身反而過旺洩秀。" :
+                              bjDmE >= 25 ? "日主能量旺，命局以制化為要，財官皆可取用，宜見財見官。" :
+                              bjDmE >= 10 ? "日主能量中等，喜印星生扶、比劫助身，忌財官太旺同時剋泄。" :
+                              bjDmE >= 3  ? "日主能量弱，須印星護身、比劫幫扶，財官太旺則剋泄交加，壓力倍增。" :
+                                           "日主虛透無根，命局能量懸空，最需印星或比劫大力扶助方可立命。");
+                if (bjCaiE > 30 && bjDmE < 15)
+                    sb.AppendLine("財星旺而身弱，財多身弱之命，錢財易成禍根，需比劫或印星扶助方可承受財氣。");
+                else if (bjCaiE < 3)
+                    sb.AppendLine("財星虛透無根，財氣不穩，錢財易被劫奪，宜存財藏庫，謹慎投資外借。");
+                if (bjGuanE > 30 && bjDmE < 15)
+                    sb.AppendLine("官殺旺而身弱，壓力重束縛多，須印星化殺護身或比劫幫扶，否則職場易受打壓。");
+                else if (bjGuanE > 30 && bjDmE >= 25)
+                    sb.AppendLine("官殺旺而日主有力，有官威有擔當，適合管理或公職發展。");
+                if (bjShiE >= 45)
+                    sb.AppendLine($"食傷能量極旺（{bjShiE:F0}%），才藝出眾，但須財星或官星提供平臺，否則有才無處施展。");
+                else if (bjShiE >= 25 && bjGuanE < 5)
+                    sb.AppendLine("食傷旺而官殺弱，才藝能力強但平臺不足，宜行財官運才能充分發揮所長。");
+                if (bjYinE > 40 && bjDmE > 40)
+                    sb.AppendLine("印星與日主雙旺，守成思維較重，宜以財星或食傷破印啟動，展現才能。");
+                sb.AppendLine();
+
+                // --- Section B: 日主旺弱與承載能力 ---
+                sb.AppendLine("▍【日主旺弱與承載能力】");
+                sb.AppendLine();
+
+                // Part 1: 月令五行狀態（旺相休囚死）
+                string bjMElem = bjHdQi.TryGetValue(mBranch, out var mE2) && mE2.Count > 0
+                    ? KbStemToElement(mE2[0].s) : "";
+                string bjMonthStatus;
+                if (!string.IsNullOrEmpty(bjMElem)) {
+                    if (bjMElem == dmElem) bjMonthStatus = "旺（得令，月令同行五行，能量最強）";
+                    else if (bjMElem == LfGenByElem.GetValueOrDefault(dmElem, "")) bjMonthStatus = "相（印星當令，月令生扶日主）";
+                    else if (bjMElem == LfElemGen.GetValueOrDefault(dmElem, ""))   bjMonthStatus = "休（食傷當令，日主洩氣於月令）";
+                    else if (bjMElem == LfElemOvercome.GetValueOrDefault(dmElem,"")) bjMonthStatus = "囚（財星當令，日主耗力克制月令）";
+                    else bjMonthStatus = "死（官殺當令，月令直接克制日主，能量最弱）";
+                } else bjMonthStatus = "（月支五行不明）";
+
+                sb.AppendLine($"一、月令判斷（{mStem}{mBranch}）");
+                sb.AppendLine($"  日主{dmElem}生於{mBranch}月 → {bjMonthStatus}");
+                sb.AppendLine();
+
+                // Part 2: 四柱根基分析（地支藏干中含同五行的位置）
+                sb.AppendLine("二、四柱根基分析");
+                var bjRootParts2 = new List<string>();
+                for (int bi3 = 0; bi3 < 4; bi3++) {
+                    if (!bjHdQi.TryGetValue(bjBrs[bi3], out var hq3)) continue;
+                    foreach (var (hs3, fac3, qt3) in hq3) {
+                        if (KbStemToElement(hs3) == dmElem) {
+                            bjRootParts2.Add($"{bjPos[bi3]}{bjBrs[bi3]}（{qt3}氣，+{bjBrWts[bi3]*fac3:F1}%）");
+                            break;
+                        }
+                    }
+                }
+                if (bjRootParts2.Count == 0) {
+                    sb.AppendLine($"  四柱地支無{dmElem}根基，日主純靠天干同伴或印星生扶。");
+                } else {
+                    sb.AppendLine($"  {dmElem}根基位置：{string.Join("、", bjRootParts2)}");
+                }
+                sb.AppendLine();
+
+                // Part 3: 貼身環境（月支、時支對日支的生克沖）
+                sb.AppendLine("三、貼身環境（日支宮位左右夾制）");
+                string bjDbrElem = bjHdQi.TryGetValue(dBranch, out var dBrHq3) && dBrHq3.Count > 0
+                    ? KbStemToElement(dBrHq3[0].s) : dmElem;
+                // 月支 vs 日支
+                string bjMbrElem3 = bjHdQi.TryGetValue(mBranch, out var mBrHq3) && mBrHq3.Count > 0
+                    ? KbStemToElement(mBrHq3[0].s) : "";
+                // 時支 vs 日支
+                string bjHbrElem3 = bjHdQi.TryGetValue(hBranch, out var hBrHq3) && hBrHq3.Count > 0
+                    ? KbStemToElement(hBrHq3[0].s) : "";
+
+                string BjBrRel(string fromElem, string toElem) {
+                    if (string.IsNullOrEmpty(fromElem) || string.IsNullOrEmpty(toElem)) return "不明";
+                    if (fromElem == toElem) return "比和（同五行）";
+                    if (LfElemGen.GetValueOrDefault(fromElem,"") == toElem) return "生助（生日支）";
+                    if (LfElemOvercome.GetValueOrDefault(fromElem,"") == toElem) return "克制（克日支）";
+                    if (LfGenByElem.GetValueOrDefault(fromElem,"") == toElem) return "洩耗（日支生此）";
+                    return "無直接生克";
+                }
+                bool bjMClash = bjSixClash.TryGetValue(mBranch, out var mc3) && mc3 == dBranch;
+                bool bjHClash = bjSixClash.TryGetValue(hBranch, out var hc3) && hc3 == dBranch;
+                string bjMRelDesc = (bjMClash ? "六沖（沖破根基）" : BjBrRel(bjMbrElem3, bjDbrElem));
+                string bjHRelDesc = (bjHClash ? "六沖（沖破根基）" : BjBrRel(bjHbrElem3, bjDbrElem));
+                sb.AppendLine($"  月支{mBranch}（左）→ 日支{dBranch}：{bjMRelDesc}");
+                sb.AppendLine($"  時支{hBranch}（右）→ 日支{dBranch}：{bjHRelDesc}");
+                bool bjDayRootUnderPressure = (bjMRelDesc.Contains("克") || bjMClash) && (bjHRelDesc.Contains("克") || bjHClash);
+                if (bjDayRootUnderPressure)
+                    sb.AppendLine($"  日支{dBranch}遭左右夾制，根基受損，日主承壓倍增。");
+                sb.AppendLine();
+
+                // Part 4: 承載能力（體 vs 用）
+                // 體 = 比劫 + 食傷；用 = 財 + 官殺
+                double bjTiE = bjDmE + bjShiE;
+                double bjYongE = bjCaiE + bjGuanE;
+                sb.AppendLine("四、承載能力（體用對比）");
+                sb.AppendLine($"  體能量（比劫+食傷）：{bjTiE:F1}%");
+                sb.AppendLine($"  用能量（財星+官殺）：{bjYongE:F1}%");
+                string bjBearDesc;
+                if (bjTiE >= bjYongE * 1.2)
+                    bjBearDesc = "體強於用，承載有餘，可積極拓展財官。";
+                else if (bjTiE >= bjYongE * 0.8)
+                    bjBearDesc = "體用相當，承載平衡，穩健經營為宜。";
+                else if (bjTiE >= bjYongE * 0.5)
+                    bjBearDesc = "體弱於用，承載偏緊，財官壓力較重，需量力而行。";
+                else
+                    bjBearDesc = "體遠弱於用，財多身弱，如小船重載，易因財官超過承載而翻覆，慎勿過度擴張。";
+                sb.AppendLine($"  結論：{bjBearDesc}");
+                sb.AppendLine();
+
+                // --- Section C: 整體陰陽觀 ---
+                sb.AppendLine("▍【整體陰陽觀】");
+                sb.AppendLine();
+
+                // Part 1: 全域陰陽平衡
+                double bjYangPct = wuXing.GetValueOrDefault("木",0) + wuXing.GetValueOrDefault("火",0);
+                double bjYinPct  = wuXing.GetValueOrDefault("金",0) + wuXing.GetValueOrDefault("水",0);
+                double bjTuPct   = wuXing.GetValueOrDefault("土",0);
+                double bjTotal2  = bjYangPct + bjYinPct + bjTuPct;
+                sb.AppendLine("一、全域陰陽平衡");
+                sb.AppendLine($"  陽性（木+火）：{bjYangPct:F1}%  陰性（金+水）：{bjYinPct:F1}%  土（中性）：{bjTuPct:F1}%");
+                string bjYinYangDesc;
+                double bjRatio = (bjYangPct + bjYinPct) > 0 ? bjYangPct / (bjYangPct + bjYinPct) : 0.5;
+                if (bjRatio >= 0.70)
+                    bjYinYangDesc = "陽盛陰衰，木火旺盛，性格積極進取，但易躁動衝動，需陰性（金水）調和。";
+                else if (bjRatio <= 0.30)
+                    bjYinYangDesc = "陰盛陽衰，金水旺盛，思慮深沉，但易陰冷保守，行動力偏弱，需陽性（木火）引動。";
+                else
+                    bjYinYangDesc = "陰陽大致均衡，命局整體穩健，有進有守。";
+                sb.AppendLine($"  {bjYinYangDesc}");
+                sb.AppendLine();
+
+                // Part 2: 獨陰獨陽（太極點）
+                var bjYangPresent = new[] {"木","火"}.Where(e => wuXing.GetValueOrDefault(e,0) >= 3).ToList();
+                var bjYinPresent  = new[] {"金","水"}.Where(e => wuXing.GetValueOrDefault(e,0) >= 3).ToList();
+                bool bjIsDuYang = bjYangPresent.Count == 1;
+                bool bjIsDuYin  = bjYinPresent.Count == 1;
+                if (bjIsDuYang || bjIsDuYin) {
+                    sb.AppendLine("二、獨陰獨陽（太極點保護）");
+                    if (bjIsDuYang) {
+                        string duYangEl = bjYangPresent[0];
+                        sb.AppendLine($"  命局獨陽：{duYangEl}（能量{wuXing.GetValueOrDefault(duYangEl,0):F1}%）");
+                        sb.AppendLine($"  此為全局唯一陽性火種，如太極圖中魚眼，若受沖克則陰陽失衡，命局動盪。");
+                        sb.AppendLine($"  重點保護：行運流年不宜見克{duYangEl}之五行，以免引發健康或精神問題。");
+                    }
+                    if (bjIsDuYin) {
+                        string duYinEl = bjYinPresent[0];
+                        sb.AppendLine($"  命局獨陰：{duYinEl}（能量{wuXing.GetValueOrDefault(duYinEl,0):F1}%）");
+                        sb.AppendLine($"  此為全局唯一陰性潤澤，若受耗散則命局燥烈難收。");
+                    }
+                    sb.AppendLine();
+                }
+
+                // Part 3: 清濁判斷
+                sb.AppendLine("三、清濁判斷");
+                var bjPresElems = wuXing.Where(kv4 => kv4.Value >= 3).Select(kv4 => kv4.Key).ToList();
+                double bjMaxPct = wuXing.Values.Max();
+                string bjQingZhuo;
+                if (bjPresElems.Count <= 2 || bjMaxPct >= 55)
+                    bjQingZhuo = $"命局偏清（主力五行{bjPresElems.Count}種，最強{bjMaxPct:F0}%），五行純粹，性格較為單純直接，命運脈絡清晰易斷。";
+                else if (bjPresElems.Count >= 4 && bjMaxPct < 40)
+                    bjQingZhuo = $"命局偏濁（五行{bjPresElems.Count}種混雜，最強僅{bjMaxPct:F0}%），五行交戰，性格複雜多面，命運波折起伏較大。";
+                else
+                    bjQingZhuo = $"命局清濁適中（五行{bjPresElems.Count}種，最強{bjMaxPct:F0}%），個性有主有輔，命運有跡可循。";
+                sb.AppendLine($"  {bjQingZhuo}");
+                sb.AppendLine();
+
+                // Part 4: 燥熱寒濕
+                sb.AppendLine("四、燥熱寒濕");
+                bool bjDryMonth = new[]{"巳","午","未","戌"}.Contains(mBranch);
+                bool bjWetMonth = new[]{"亥","子","丑","辰"}.Contains(mBranch);
+                double bjHotSide  = bjYangPct + (bjDryMonth ? bjTuPct * 0.5 : bjWetMonth ? 0 : bjTuPct * 0.3);
+                double bjColdSide = bjYinPct  + (bjWetMonth ? bjTuPct * 0.5 : bjDryMonth ? 0 : bjTuPct * 0.3);
+                string bjZhaoHan  = bjHotSide > bjColdSide + 20 ? "燥熱" :
+                                    bjColdSide > bjHotSide + 20 ? "寒濕" : "溫和";
+                string bjZhaoHanDesc = bjZhaoHan switch {
+                    "燥熱" => "命局燥熱偏旺，木火土（陽）強盛，性情易急躁，需金水調候潤澤，行水運或取名帶水義可調和。",
+                    "寒濕" => "命局寒濕偏重，金水（陰）強盛，性情易保守消沉，行動力弱，需木火溫暖，行火運或補陽可改善。",
+                    _      => "命局寒溫適中，燥濕相濟，整體溫和，五行調候較佳。"
+                };
+                sb.AppendLine($"  {bjZhaoHan}：{bjZhaoHanDesc}");
+                sb.AppendLine();
+            }
+            // ===== end Ch.2 盲派分析 =====
+
             // ===== Ch.3 命局氣勢·格局高低 =====
             sb.AppendLine("【第三章：命局氣勢·格局高低】");
             sb.AppendLine();
