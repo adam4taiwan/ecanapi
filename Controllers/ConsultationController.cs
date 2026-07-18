@@ -9235,6 +9235,8 @@ namespace Ecanapi.Controllers
                     ("財", "財星", bjCaiE), ("官", "官殺", bjGuanE),
                     ("印", "印星（含偏印）", bjYinE), ("食", "食傷", bjShiE)
                 };
+                string[] bjStemPosName = { "年干", "月干", "時干" };
+                int[]    bjStemPosIdx  = { 0, 1, 3 }; // 排除日干(index=2)
                 foreach (var (norm3, lbl3, e3) in bjSSGroups) {
                     if (e3 < 0.3) continue;
                     string el3 = norm3 switch {
@@ -9244,12 +9246,41 @@ namespace Ecanapi.Controllers
                         "食" => dmIdxC >= 0 ? wxC[(dmIdxC+1)%5] : "",
                         _ => ""
                     };
-                    string src3 = norm3 == bjMNorm ? "  得月令" : "";
-                    if (string.IsNullOrEmpty(src3) && bjHdQi.TryGetValue(dBranch, out var dhq3)
-                        && dhq3.Any(h3 => NormSS(LfStemShiShen(h3.s, dStem) ?? "") == norm3))
-                        src3 = "  得日支";
-                    if (string.IsNullOrEmpty(src3) && e3 < 3) src3 = "  根基薄弱";
-                    sb.AppendLine($"  {lbl3}（{el3}）：{e3:F1}%【{BjLbl(e3, el3)}】{src3}");
+                    if (string.IsNullOrEmpty(el3)) { sb.AppendLine($"  {lbl3}：{e3:F1}%"); continue; }
+
+                    // 分析天干透出位置
+                    var bjStmParts = new List<string>();
+                    for (int pi = 0; pi < 3; pi++) {
+                        int idx = bjStemPosIdx[pi];
+                        if (KbStemToElement(bjSts[idx]) == el3)
+                            bjStmParts.Add($"{bjStemPosName[pi]}{bjSts[idx]}");
+                    }
+                    // 分析地支根基位置
+                    var bjBrParts = new List<string>();
+                    for (int bi4 = 0; bi4 < 4; bi4++) {
+                        if (!bjHdQi.TryGetValue(bjBrs[bi4], out var hqBi4)) continue;
+                        foreach (var (hsBi4, _, qtBi4) in hqBi4) {
+                            if (KbStemToElement(hsBi4) == el3) {
+                                bjBrParts.Add($"{bjPos[bi4]}{bjBrs[bi4]}（{qtBi4}氣）");
+                                break;
+                            }
+                        }
+                    }
+                    // 生成完整根基狀態描述
+                    bool hasStem3 = bjStmParts.Count > 0;
+                    bool hasRoot3 = bjBrParts.Count > 0;
+                    string rootDesc3;
+                    if (hasStem3 && hasRoot3)
+                        rootDesc3 = $"干透有根：{string.Join("、", bjStmParts)}透出，地支根基{string.Join("、", bjBrParts)}";
+                    else if (hasRoot3)
+                        rootDesc3 = $"地支有根未透干：根基{string.Join("、", bjBrParts)}，天干無此五行透出";
+                    else if (hasStem3)
+                        rootDesc3 = $"有干無根（虛透）：{string.Join("、", bjStmParts)}透出但無地支根基，能量飄浮";
+                    else
+                        rootDesc3 = "無根無透，能量來自相鄰地支藏干";
+
+                    sb.AppendLine($"  {lbl3}（{el3}）：{e3:F1}%【{BjLbl(e3, el3)}】");
+                    sb.AppendLine($"    {rootDesc3}");
                 }
                 sb.AppendLine();
 
