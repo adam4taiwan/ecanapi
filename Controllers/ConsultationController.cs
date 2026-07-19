@@ -10375,53 +10375,112 @@ namespace Ecanapi.Controllers
             {
                 sb.AppendLine("（四）巧用神煞");
                 if (matchedShenSha.Any())
-                    foreach (var (sha11, isAu11, _) in matchedShenSha)
-                        sb.AppendLine($"• {sha11.Name}（{(isAu11 ? "吉" : "凶")}）：{(isAu11 ? sha11.AuspiciousText : sha11.InauspiciousText).Split('\n').FirstOrDefault()?.Trim()}");
+                {
+                    foreach (var (sha11, isAu11, foundDesc11) in matchedShenSha)
+                    {
+                        sb.AppendLine($"▍{sha11.Name}（{(isAu11 ? "吉神" : "凶煞")}）");
+                        if (!string.IsNullOrEmpty(foundDesc11)) sb.AppendLine(foundDesc11);
+                        sb.AppendLine(isAu11 ? sha11.AuspiciousText : sha11.InauspiciousText);
+                        if (!string.IsNullOrEmpty(sha11.SpecialRule))
+                            sb.AppendLine($"（{sha11.SpecialRule}）");
+                        sb.AppendLine();
+                    }
+                }
                 else
-                    sb.AppendLine("• 命局神煞平和，無特別強烈之神煞。");
-                sb.AppendLine();
+                {
+                    sb.AppendLine("命局神煞平和，無特別強烈之神煞。");
+                    sb.AppendLine();
+                }
             }
 
             // （五）盲派口訣·鐵口直斷
             {
                 sb.AppendLine("（五）盲派口訣·鐵口直斷");
-                foreach (var kv11 in normCount.Where(x => x.Value > 0).OrderByDescending(x => x.Value).Take(3))
+
+                // 四柱干支口訣（年月日時逐柱）
+                string[] colLbl11 = { "年", "月", "日", "時" };
+                string[] colSt11  = { yStem, mStem, dStem, hStem };
+                string[] colBr11  = { yBranch, mBranch, dBranch, hBranch };
+                string[] catPfx11 = { "年柱", "月柱", "日柱", "時柱" };
+                for (int i = 0; i < 4; i++)
+                {
+                    var stRow11 = bjKouJue.FirstOrDefault(k => k.Category == catPfx11[i]
+                                  && k.Condition == $"{catPfx11[i].Replace("柱","")}干={colSt11[i]}");
+                    var brRow11 = bjKouJue.FirstOrDefault(k => k.Category == catPfx11[i]
+                                  && k.Condition == $"{catPfx11[i].Replace("柱","")}支={colBr11[i]}");
+                    if (stRow11 != null || brRow11 != null)
+                    {
+                        sb.AppendLine($"▍{colLbl11[i]}柱（{colSt11[i]}{colBr11[i]}）");
+                        if (stRow11 != null) sb.AppendLine(stRow11.Content);
+                        if (brRow11 != null) sb.AppendLine(brRow11.Content);
+                        sb.AppendLine();
+                    }
+                }
+
+                // 十排歌（全部有值之十神）
+                var rankLines11 = new List<string>();
+                foreach (var kv11 in normCount.Where(x => x.Value > 0))
                 {
                     int cnt11 = Math.Min(kv11.Value, 7);
                     var row11 = bjKouJue.FirstOrDefault(k => k.Category == "十排歌" && k.Condition == $"{kv11.Key}={cnt11}");
-                    if (row11 != null)
-                    {
-                        var fl11 = row11.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
-                        if (!string.IsNullOrEmpty(fl11)) sb.AppendLine($"• {kv11.Key}×{cnt11}訣：{fl11}");
-                    }
+                    if (row11 != null) rankLines11.Add($"【{kv11.Key}×{cnt11}】{row11.Content}");
                 }
-                var dayKJ11 = bjKouJue.FirstOrDefault(k => k.Category == "日柱" && k.Condition == $"日干={dStem}");
-                if (dayKJ11 != null)
+                if (rankLines11.Any())
                 {
-                    var fl11 = dayKJ11.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
-                    if (!string.IsNullOrEmpty(fl11)) sb.AppendLine($"• 日干{dStem}訣：{fl11}");
+                    sb.AppendLine("▍十排歌論命");
+                    foreach (var l11 in rankLines11) { sb.AppendLine(l11); sb.AppendLine(); }
                 }
-                sb.AppendLine();
+
+                // 兩神組合
+                var twoGodRows11 = bjKouJue.Where(k => k.Category == "兩神組合").ToList();
+                var twoGodMatched11 = new List<string>();
+                foreach (var r11 in twoGodRows11)
+                {
+                    if (r11.Condition == "兩才抬身" && normCount.GetValueOrDefault("財",0) >= 2) twoGodMatched11.Add(r11.Content);
+                    else if (r11.Condition == "兩傷抬身" && normCount.GetValueOrDefault("傷",0) >= 2) twoGodMatched11.Add(r11.Content);
+                    else if (r11.Condition == "兩食抬身" && normCount.GetValueOrDefault("食",0) >= 2) twoGodMatched11.Add(r11.Content);
+                    else if (r11.Condition == "兩印抬身" && normCount.GetValueOrDefault("印",0) >= 2) twoGodMatched11.Add(r11.Content);
+                    else if (r11.Condition == "兩劫抬身" && normCount.GetValueOrDefault("劫",0) >= 2) twoGodMatched11.Add(r11.Content);
+                    else if (r11.Condition == "兩殺抬身" && normCount.GetValueOrDefault("殺",0) >= 2) twoGodMatched11.Add(r11.Content);
+                }
+                if (twoGodMatched11.Any())
+                {
+                    sb.AppendLine("▍兩神組合論斷");
+                    foreach (var l11 in twoGodMatched11) { sb.AppendLine(l11); sb.AppendLine(); }
+                }
             }
 
             // （六）江湖絕招·一通百通
             {
                 sb.AppendLine("（六）江湖絕招·一通百通");
-                var topJi11    = jiConfigs.FirstOrDefault();
-                var topXiong11 = xiongConfigs.FirstOrDefault();
-                if (topJi11.config != null)
+                if (jiConfigs.Any())
                 {
-                    var fl11 = topJi11.config.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
-                    sb.AppendLine($"• 優勢：【{topJi11.config.ConfigName}】{fl11}");
+                    sb.AppendLine("▍命局優勢格局");
+                    foreach (var (c11, _) in jiConfigs)
+                    {
+                        sb.AppendLine($"【{c11.ConfigName}】");
+                        sb.AppendLine(c11.Content);
+                        if (!string.IsNullOrEmpty(c11.AdviceText)) sb.AppendLine($"建議：{c11.AdviceText}");
+                        sb.AppendLine();
+                    }
                 }
-                if (topXiong11.config != null)
+                if (xiongConfigs.Any())
                 {
-                    var fl11 = topXiong11.config.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
-                    sb.AppendLine($"• 注意：【{topXiong11.config.ConfigName}】{fl11}");
+                    sb.AppendLine("▍命局注意格局");
+                    foreach (var (c11, _) in xiongConfigs)
+                    {
+                        sb.AppendLine($"【{c11.ConfigName}】");
+                        sb.AppendLine(c11.Content);
+                        if (!string.IsNullOrEmpty(c11.AdviceText)) sb.AppendLine($"建議：{c11.AdviceText}");
+                        sb.AppendLine();
+                    }
                 }
                 if (!matchedConfigs.Any())
-                    sb.AppendLine("• 命局五行流通均衡，無明顯優劣格局，順水推舟即可。");
-                sb.AppendLine($"• 核心訣竅：{genderLabel}逢{yongShenElem}年運大吉，逢{jiShenElem}年運宜守。");
+                {
+                    sb.AppendLine("命局五行流通均衡，無明顯優劣格局，順水推舟即可。");
+                    sb.AppendLine();
+                }
+                sb.AppendLine($"核心訣竅：{genderLabel}逢{yongShenElem}年運大吉，逢{jiShenElem}年運宜守。");
                 sb.AppendLine();
             }
 
