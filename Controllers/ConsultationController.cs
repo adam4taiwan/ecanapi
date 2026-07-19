@@ -10231,6 +10231,553 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
+            // ===== Ch.11 玉洞子命評 =====
+            sb.AppendLine();
+            sb.AppendLine("【第十一章：玉洞子命評】");
+            sb.AppendLine();
+
+            // 重用已計算之元素映射（suffix _11 避免衝突）
+            var wxC11   = new[] { "木","火","土","金","水" };
+            int dmI11   = Array.IndexOf(wxC11, dmElem);
+            string caiE11  = dmI11 >= 0 ? wxC11[(dmI11+2)%5] : "";
+            string guanE11 = dmI11 >= 0 ? wxC11[(dmI11+3)%5] : "";
+            string yinE11  = dmI11 >= 0 ? wxC11[(dmI11+4)%5] : "";
+            string shiE11  = dmI11 >= 0 ? wxC11[(dmI11+1)%5] : "";
+            double caiS11  = wuXing.GetValueOrDefault(caiE11, 0);
+            double guanS11 = wuXing.GetValueOrDefault(guanE11, 0);
+            double yinS11  = wuXing.GetValueOrDefault(yinE11, 0);
+            double shiS11  = wuXing.GetValueOrDefault(shiE11, 0);
+            int guanCnt11  = normCount.GetValueOrDefault("官",0) + normCount.GetValueOrDefault("殺",0);
+            int caiCnt11   = normCount.GetValueOrDefault("財",0);
+            int yinCnt11   = normCount.GetValueOrDefault("印",0) + normCount.GetValueOrDefault("梟",0);
+            int shiCnt11   = normCount.GetValueOrDefault("食",0) + normCount.GetValueOrDefault("傷",0);
+            int bijiCnt11  = normCount.GetValueOrDefault("比",0) + normCount.GetValueOrDefault("劫",0);
+            int shaCnt11   = normCount.GetValueOrDefault("殺",0);
+            bool isYang11  = new[]{"甲","丙","戊","庚","壬"}.Contains(dStem);
+            string spouseE11 = gender == 1 ? caiE11 : guanE11;
+
+            string orgByElem11(string e) => e switch {
+                "木" => "肝膽", "火" => "心臟/血壓", "土" => "脾胃/腸道",
+                "金" => "肺/支氣管", "水" => "腎臟/泌尿", _ => ""
+            };
+
+            // ─── 一、八字真經命理體系結論 ───
+            sb.AppendLine("一、八字真經命理體系結論");
+            sb.AppendLine();
+
+            // （一）組合配置
+            {
+                var emptyE11 = wxC11.Where(e => wuXing.GetValueOrDefault(e,0) < 1).ToList();
+                var topSS11  = normCount.Where(x => x.Value > 0)
+                                        .OrderByDescending(x => x.Value)
+                                        .Select(x => $"{x.Key}×{x.Value}").Take(5);
+                string pianjuDesc11 = emptyE11.Any()
+                    ? $"命局缺{string.Join("、", emptyE11)}，偏枯"
+                    : "五行俱全，不偏枯";
+                string zaoshi11;
+                if (wuXing.GetValueOrDefault("火",0) > 25 && wuXing.GetValueOrDefault("水",0) < 5)
+                    zaoshi11 = "偏燥（火旺水輕）";
+                else if (wuXing.GetValueOrDefault("水",0) > 25 && wuXing.GetValueOrDefault("火",0) < 5)
+                    zaoshi11 = "偏濕（水旺火輕）";
+                else if (new[]{"寅","午","戌","巳","未"}.Contains(mBranch) && wuXing.GetValueOrDefault("水",0) < 8)
+                    zaoshi11 = "季節偏暖（需水調候）";
+                else if (new[]{"申","子","辰","亥","丑"}.Contains(mBranch) && wuXing.GetValueOrDefault("火",0) < 8)
+                    zaoshi11 = "季節偏寒（需火調候）";
+                else
+                    zaoshi11 = "燥濕均衡";
+
+                sb.AppendLine("（一）組合配置");
+                sb.AppendLine($"干支：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}　{genderLabel}");
+                sb.AppendLine($"十神：{string.Join("　", topSS11)}");
+                sb.AppendLine($"燥濕寒暖：{zaoshi11}　偏枯：{pianjuDesc11}");
+                sb.AppendLine($"病：{jiShenElem}（忌神）　藥：{yongShenElem}（用神）");
+                sb.AppendLine($"喜忌：喜{yongShenElem}{(!string.IsNullOrEmpty(fuYiElem) ? "（副用："+fuYiElem+"）" : "")}　忌{jiShenElem}");
+                sb.AppendLine($"格局：【{pattern}】　層次：{bodyLabel}（{bodyPct:F0}%）");
+                sb.AppendLine();
+            }
+
+            // （二）財官論命
+            {
+                var stLbl11 = new[] { "年干","月干","日干","時干" };
+                var brLbl11 = new[] { "年支","月支","日支","時支" };
+                var allSt11 = new[] { yStem, mStem, dStem, hStem };
+                var allBr11 = new[] { yBranch, mBranch, dBranch, hBranch };
+                var caiPos11  = new List<string>();
+                var guanPos11 = new List<string>();
+                for (int ii = 0; ii < 4; ii++)
+                {
+                    var ss11 = LfStemShiShen(allSt11[ii], dStem);
+                    if (ss11 == "正財" || ss11 == "偏財") caiPos11.Add(stLbl11[ii]);
+                    if (ss11 == "正官" || ss11 == "七殺") guanPos11.Add(stLbl11[ii]);
+                    if (branchHiddenMap.TryGetValue(allBr11[ii], out var hid11))
+                        foreach (var hs11 in hid11)
+                        {
+                            var hss11 = LfStemShiShen(hs11, dStem);
+                            if ((hss11=="正財"||hss11=="偏財") && !caiPos11.Contains(brLbl11[ii]))  caiPos11.Add(brLbl11[ii]);
+                            if ((hss11=="正官"||hss11=="七殺") && !guanPos11.Contains(brLbl11[ii])) guanPos11.Add(brLbl11[ii]);
+                        }
+                }
+                string caiPosDesc11  = caiPos11.Any()  ? string.Join("、", caiPos11)  : "命局無根";
+                string guanPosDesc11 = guanPos11.Any() ? string.Join("、", guanPos11) : "命局無根";
+
+                string fuGuiDesc11;
+                if      (bodyPct >= 50 && caiS11 > 15 && guanS11 > 10) fuGuiDesc11 = "財官俱足，富貴之象";
+                else if (bodyPct >= 50 && caiS11 > 15)                  fuGuiDesc11 = "財星有力，以財富見長";
+                else if (bodyPct >= 50 && guanS11 > 10)                 fuGuiDesc11 = "官星有根，以功名職位見長";
+                else if (bodyPct < 40  && caiS11 > 20)                  fuGuiDesc11 = "財重身輕，富屋貧人，財來財去";
+                else if (caiS11 < 5   && guanS11 < 5)                   fuGuiDesc11 = "財官皆輕，以平實穩健為主";
+                else                                                     fuGuiDesc11 = "財官中等，成敗繫於大運走向";
+
+                string useWayDesc11 = yongShenElem == caiE11  ? "以財為用（直接取財）"
+                                    : yongShenElem == guanE11 ? "以官為用（求功名職位）"
+                                    : yongShenElem == yinE11  ? "以印護身（化殺生身，取學術官職）"
+                                    : yongShenElem == shiE11  ? "以食傷泄秀（生財才藝立命）"
+                                    : "以比劫助身（補體方能承擔）";
+
+                sb.AppendLine("（二）財官論命");
+                sb.AppendLine($"財星（{caiE11}·{caiS11:F0}%）位置：{caiPosDesc11}");
+                sb.AppendLine($"官星（{guanE11}·{guanS11:F0}%）位置：{guanPosDesc11}");
+                sb.AppendLine($"取用方式：{useWayDesc11}");
+                sb.AppendLine($"能力大小：{bodyLabel}（{bodyPct:F0}%）— {(bodyPct >= 55 ? "承擔力強，適合開創" : bodyPct >= 45 ? "承擔力中等，穩健可靠" : "承擔力偏弱，宜輔助守成")}");
+                sb.AppendLine($"富貴貧賤：{fuGuiDesc11}");
+                if (matchedCG.Any())
+                {
+                    var topCG11 = matchedCG.First();
+                    var topCGLine11 = topCG11.config.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                    if (!string.IsNullOrEmpty(topCGLine11)) sb.AppendLine($"財官特徵：【{topCG11.config.ConfigType}】{topCGLine11}");
+                }
+                sb.AppendLine();
+            }
+
+            // （三）象法精華
+            {
+                sb.AppendLine("（三）象法精華");
+                string ql11 = LfQianLiShiGanXiangFa(dStem, mBranch);
+                if (!string.IsNullOrEmpty(ql11))
+                {
+                    var fl11 = ql11.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                    if (!string.IsNullOrEmpty(fl11)) sb.AppendLine($"日干{dStem}象：{fl11}");
+                }
+                var br4_11   = new[] { yBranch, mBranch, dBranch, hBranch };
+                var brLb4_11 = new[] { "年支","月支","日支","時支" };
+                for (int i = 0; i < 4; i++)
+                {
+                    var xr11 = bjXiang.FirstOrDefault(x => x.XiangType == "地支" && x.Key == br4_11[i]);
+                    if (xr11 != null && !string.IsNullOrEmpty(xr11.CareerImage))
+                        sb.AppendLine($"{brLb4_11[i]}{br4_11[i]}象：{xr11.CareerImage}");
+                }
+                if (matchedConfigs.Any())
+                    sb.AppendLine($"組合之象：{string.Join("、", matchedConfigs.Select(x => x.config.ConfigName))}");
+                sb.AppendLine();
+            }
+
+            // （四）巧用神煞
+            {
+                sb.AppendLine("（四）巧用神煞");
+                if (matchedShenSha.Any())
+                    foreach (var (sha11, isAu11, _) in matchedShenSha)
+                        sb.AppendLine($"• {sha11.Name}（{(isAu11 ? "吉" : "凶")}）：{(isAu11 ? sha11.AuspiciousText : sha11.InauspiciousText).Split('\n').FirstOrDefault()?.Trim()}");
+                else
+                    sb.AppendLine("• 命局神煞平和，無特別強烈之神煞。");
+                sb.AppendLine();
+            }
+
+            // （五）盲派口訣·鐵口直斷
+            {
+                sb.AppendLine("（五）盲派口訣·鐵口直斷");
+                foreach (var kv11 in normCount.Where(x => x.Value > 0).OrderByDescending(x => x.Value).Take(3))
+                {
+                    int cnt11 = Math.Min(kv11.Value, 7);
+                    var row11 = bjKouJue.FirstOrDefault(k => k.Category == "十排歌" && k.Condition == $"{kv11.Key}={cnt11}");
+                    if (row11 != null)
+                    {
+                        var fl11 = row11.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                        if (!string.IsNullOrEmpty(fl11)) sb.AppendLine($"• {kv11.Key}×{cnt11}訣：{fl11}");
+                    }
+                }
+                var dayKJ11 = bjKouJue.FirstOrDefault(k => k.Category == "日柱" && k.Condition == $"日干={dStem}");
+                if (dayKJ11 != null)
+                {
+                    var fl11 = dayKJ11.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                    if (!string.IsNullOrEmpty(fl11)) sb.AppendLine($"• 日干{dStem}訣：{fl11}");
+                }
+                sb.AppendLine();
+            }
+
+            // （六）江湖絕招·一通百通
+            {
+                sb.AppendLine("（六）江湖絕招·一通百通");
+                var topJi11    = jiConfigs.FirstOrDefault();
+                var topXiong11 = xiongConfigs.FirstOrDefault();
+                if (topJi11.config != null)
+                {
+                    var fl11 = topJi11.config.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                    sb.AppendLine($"• 優勢：【{topJi11.config.ConfigName}】{fl11}");
+                }
+                if (topXiong11.config != null)
+                {
+                    var fl11 = topXiong11.config.Content.Split('\n').FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+                    sb.AppendLine($"• 注意：【{topXiong11.config.ConfigName}】{fl11}");
+                }
+                if (!matchedConfigs.Any())
+                    sb.AppendLine("• 命局五行流通均衡，無明顯優劣格局，順水推舟即可。");
+                sb.AppendLine($"• 核心訣竅：{genderLabel}逢{yongShenElem}年運大吉，逢{jiShenElem}年運宜守。");
+                sb.AppendLine();
+            }
+
+            // ─── 二、民間盲派八字批命方法與步驟 ───
+            sb.AppendLine("二、民間盲派八字批命方法與步驟");
+            sb.AppendLine();
+
+            // （一）命局透析
+            {
+                sb.AppendLine("（一）命局透析");
+                sb.AppendLine($"格局：【{pattern}】　身{(bodyPct >= 50 ? "強" : "弱")}（{bodyPct:F0}%）");
+                sb.AppendLine($"用神：{yongShenElem}（{yongReason}）" + (!string.IsNullOrEmpty(fuYiElem) ? $"　副用：{fuYiElem}" : ""));
+                sb.AppendLine($"忌神：{jiShenElem}");
+                var top2E11 = wuXing.OrderByDescending(x => x.Value).Take(2);
+                sb.AppendLine($"五行主軸：{string.Join("、", top2E11.Select(x => $"{x.Key}（{x.Value:F0}%）"))}最旺");
+                sb.AppendLine();
+            }
+
+            // （二）大運吉凶
+            {
+                sb.AppendLine("（二）大運吉凶");
+                if (scored != null && scored.Any())
+                {
+                    var jiYuns11    = scored.Where(x => x.score >= 70).ToList();
+                    var zhongYuns11 = scored.Where(x => x.score >= 45 && x.score < 70).ToList();
+                    var xiongYuns11 = scored.Where(x => x.score < 45).ToList();
+                    if (jiYuns11.Any())
+                        sb.AppendLine($"吉運：{string.Join("　", jiYuns11.Select(x => $"{x.startAge}-{x.endAge}歲{x.stem}{x.branch}（{x.level}·{x.score}分）"))}");
+                    if (zhongYuns11.Any())
+                        sb.AppendLine($"平運：{string.Join("　", zhongYuns11.Select(x => $"{x.startAge}-{x.endAge}歲{x.stem}{x.branch}（{x.level}·{x.score}分）"))}");
+                    if (xiongYuns11.Any())
+                        sb.AppendLine($"凶運：{string.Join("　", xiongYuns11.Select(x => $"{x.startAge}-{x.endAge}歲{x.stem}{x.branch}（{x.level}·{x.score}分）"))}");
+                }
+                else
+                {
+                    sb.AppendLine("大運資料未提供。");
+                }
+                sb.AppendLine();
+            }
+
+            // （三）流年應期
+            {
+                sb.AppendLine("（三）流年應期");
+                sb.AppendLine($"逢{yongShenElem}年（用神）：吉，命中所需之氣到來，宜積極把握機遇。");
+                if (!string.IsNullOrEmpty(fuYiElem)) sb.AppendLine($"逢{fuYiElem}年（副用）：小吉，穩健發展。");
+                sb.AppendLine($"逢{jiShenElem}年（忌神）：凶，低調守成，避免重大決策。");
+                sb.AppendLine($"逢{dmElem}年（比劫）：{(bodyPct < 45 ? "補體有利，精力回升。" : "防比劫奪財、合夥糾紛。")}");
+                sb.AppendLine();
+            }
+
+            // ─── 三、民間盲派八字命理實戰 ───
+            sb.AppendLine("三、民間盲派八字命理實戰");
+            sb.AppendLine();
+
+            // （一）學歷
+            {
+                sb.AppendLine("（一）學歷");
+                string eduDesc11;
+                if (yinS11 > 15 && bodyPct >= 45)
+                    eduDesc11 = $"印星（{yinE11}·{yinS11:F0}%）有力，好學有恆，正規學歷高，宜走學術或專業資格路線。";
+                else if (yinS11 > 10)
+                    eduDesc11 = $"印星（{yinE11}·{yinS11:F0}%）中等，學習能力尚可，學歷普通至中等。";
+                else if (shiS11 > 15)
+                    eduDesc11 = $"食傷（{shiE11}·{shiS11:F0}%）旺，才藝天分突出，不一定靠高學歷，以技藝才能立身更為有效。";
+                else if (caiS11 > 20 && bodyPct < 45)
+                    eduDesc11 = "財重身輕，早年注重實務賺錢，學歷普通，靠實際能力立身。";
+                else
+                    eduDesc11 = "學業平順，學歷普通，靠後天努力可有所進展。";
+                sb.AppendLine(eduDesc11);
+                sb.AppendLine();
+            }
+
+            // （二）職業
+            {
+                sb.AppendLine("（二）職業");
+                bool guanYong11 = yongShenElem == guanE11;
+                bool hasCai11   = caiCnt11 > 0 && caiS11 > 8;
+                bool hasGuan11  = guanCnt11 > 0 && guanS11 > 5;
+                bool hasYin11   = yinCnt11 > 0 && yinS11 > 8;
+                bool hasShi11   = shiCnt11 > 0 && shiS11 > 8;
+
+                sb.Append("1、公務員（行政/公檢法）：");
+                if (guanYong11 && guanS11 > 8)
+                    sb.AppendLine($"官星有用（{guanE11}·{guanS11:F0}%），有公職機緣，逢{guanE11}大運可望提職。");
+                else if (guanS11 > 15 && bodyPct < 40)
+                    sb.AppendLine("官殺重壓日主，公職雖有機會但壓力大，需印星化殺方能勝任。");
+                else
+                    sb.AppendLine($"官星力量（{guanE11}·{guanS11:F0}%）不足，公職緣分淺，非主要發展方向。");
+
+                sb.Append("2、事業編（文教/科研）：");
+                if (hasYin11 && hasShi11)
+                    sb.AppendLine("印星與食傷並重，適合文教科研或專業技術路線。");
+                else if (hasYin11)
+                    sb.AppendLine($"印星有力（{yinE11}·{yinS11:F0}%），適合文教、行政、研究等穩定職位。");
+                else
+                    sb.AppendLine("印星薄弱，文教科研路線非命中優勢，靠實務能力更為有效。");
+
+                sb.Append("3、軍人：");
+                if (shaCnt11 >= 2 && bodyPct >= 50)
+                    sb.AppendLine($"七殺重且日主強，有膽識魄力，適合軍警紀律部隊，逢{guanE11}運可升職。");
+                else if (shaCnt11 >= 1 && bodyPct >= 45)
+                    sb.AppendLine("有七殺，可勝任紀律部隊，但非命中主要發展路線。");
+                else
+                    sb.AppendLine("七殺力量不足，軍旅緣分淺。");
+
+                sb.Append("4、大中型企業（上班族）：");
+                if (bodyPct >= 45 && hasCai11 && hasGuan11)
+                    sb.AppendLine("財官齊備，適合大企業管理職，可穩步晉升。");
+                else if (bodyPct >= 45 && hasYin11)
+                    sb.AppendLine("印星護身，適合大機構穩定職位，以專業技術見長。");
+                else
+                    sb.AppendLine("可在大中型企業任職，以基層或技術崗位為宜。");
+
+                sb.Append("5、小型私人企業（打工族）：");
+                if (bodyPct < 45 && hasCai11)
+                    sb.AppendLine("身弱財有根，適合在小型企業擔任骨幹管理或技術人員，收入穩定。");
+                else if (!isYang11 && hasCai11)
+                    sb.AppendLine("陰日干有財根，在穩定的小型企業任職，踏實工作可累積資源。");
+                else
+                    sb.AppendLine("靠技術和努力獲取穩定報酬即可。");
+
+                sb.Append("6、自創業（老闆）：");
+                if (bodyPct >= 55 && caiS11 > 15 && isYang11)
+                    sb.AppendLine($"身強財旺（{caiE11}·{caiS11:F0}%），陽日干敢於冒險，創業潛能高，逢財官大運可大展鴻圖。");
+                else if (bodyPct >= 50 && caiS11 > 10)
+                    sb.AppendLine("日主有力且有財根，可考慮自創業，以中小型規模量力而行。");
+                else if (bodyPct < 45 && caiS11 > 20)
+                    sb.AppendLine("財重身輕，雖有創業念頭但承擔力不足，宜補體後再考慮。");
+                else
+                    sb.AppendLine("創業潛能一般，宜先積累資源，時機成熟再考慮自立門戶。");
+
+                sb.Append("7、自由業（服務/餐飲/手工藝）：");
+                if (hasShi11 && !hasGuan11)
+                    sb.AppendLine($"食傷有力（{shiE11}·{shiS11:F0}%）且官星弱，適合自由業、服務業、創作、技藝類工作，靠才能立命。");
+                else if (hasShi11)
+                    sb.AppendLine("食傷有根，有才藝天分，可兼顧專業技藝類副業或自由工作。");
+                else
+                    sb.AppendLine("自由業非命中主要方向，以穩定職位更能發揮潛能。");
+                sb.AppendLine();
+            }
+
+            // （三）六親
+            {
+                sb.AppendLine("（三）六親");
+
+                sb.Append("1、父母：");
+                if (caiS11 > 10 && yinS11 > 10)
+                    sb.AppendLine($"父（財星{caiE11}·{caiS11:F0}%）緣深，父親能力強；母（印星{yinE11}·{yinS11:F0}%）緣深，母親關愛有加；父母健全。");
+                else if (caiS11 > 10)
+                    sb.AppendLine($"父（財星{caiE11}·{caiS11:F0}%）緣較深，父親有能力；母緣（印星{yinE11}·{yinS11:F0}%）稍淡。");
+                else if (yinS11 > 10)
+                    sb.AppendLine($"母（印星{yinE11}·{yinS11:F0}%）緣深，母親關愛有加；父緣（財星{caiE11}·{caiS11:F0}%）稍薄。");
+                else
+                    sb.AppendLine("父（財星）母（印星）緣分均薄，宜早自立，自力更生。");
+
+                sb.Append("2、兄弟姐妹：");
+                if (bijiCnt11 >= 3)
+                    sb.AppendLine($"比劫多（×{bijiCnt11}），手足眾多，但有競爭奪財之象，手足間助益有限，需防合夥糾紛。");
+                else if (bijiCnt11 >= 1)
+                    sb.AppendLine($"有比劫（×{bijiCnt11}），有手足，感情尚可，偶有助力。");
+                else
+                    sb.AppendLine("命局無比劫，手足緣淺，宜獨立奮鬥。");
+
+                double cStrKid11 = gender == 1 ? shiS11 : guanS11;
+                int cCntKid11    = gender == 1 ? shiCnt11 : guanCnt11;
+                string cStarName11 = gender == 1 ? $"食傷（{shiE11}）" : $"官殺（{guanE11}）";
+                sb.Append("3、子女：");
+                if (cCntKid11 == 0)
+                    sb.AppendLine($"{cStarName11}缺位，子女緣淺，可能晚得或子女孝順程度有限。");
+                else if (cStrKid11 > 15)
+                    sb.AppendLine($"{cStarName11}力量{cStrKid11:F0}%充足，子女緣佳，子女聰明有為，晚年有依靠。");
+                else
+                    sb.AppendLine($"{cStarName11}力量{cStrKid11:F0}%，子女緣普通，與子女感情平和。");
+                sb.AppendLine();
+            }
+
+            // （四）婚姻
+            {
+                sb.AppendLine("（四）婚姻");
+                double pStr11 = gender == 1 ? caiS11 : guanS11;
+                int pCnt11    = gender == 1 ? caiCnt11 : guanCnt11;
+                string spouseStarDesc11 = gender == 1
+                    ? $"財星（{caiE11}·{pStr11:F0}%）"
+                    : $"官殺（{guanE11}·{pStr11:F0}%）";
+
+                sb.Append("1、婚期：");
+                if (scored != null)
+                {
+                    var md11 = scored.FirstOrDefault(s => KbStemToElement(s.stem) == spouseE11 && s.startAge >= 18);
+                    if (!string.IsNullOrEmpty(md11.stem))
+                        sb.AppendLine($"配偶星（{spouseE11}）大運最早為{md11.startAge}-{md11.endAge}歲，此運期婚緣最旺。");
+                    else
+                        sb.AppendLine($"配偶星大運不顯著，婚緣靠流年引動，留意{spouseE11}流年。");
+                }
+                else
+                {
+                    sb.AppendLine($"留意{spouseE11}流年引動婚緣。");
+                }
+
+                bool spouseInDay11 = branchHiddenMap.TryGetValue(dBranch, out var dHid11) &&
+                    dHid11.Any(hs => {
+                        var hss11c = LfStemShiShen(hs, dStem);
+                        return gender == 1 ? (hss11c=="正財"||hss11c=="偏財") : (hss11c=="正官"||hss11c=="七殺");
+                    });
+                sb.AppendLine($"2、合婚：日支{dBranch}配偶宮{(spouseInDay11 ? "藏有配偶星，自然緣分佳" : "未藏配偶星，緣分需流年引動")}。配偶屬相宜選與{spouseE11}五行相合者。");
+
+                sb.Append("3、好壞：");
+                if (pStr11 > 15 && bodyPct >= 45)
+                    sb.AppendLine($"{spouseStarDesc11}有力且日主能承擔，婚姻品質佳，配偶能幹，感情穩固。");
+                else if (pStr11 > 15 && bodyPct < 45)
+                    sb.AppendLine($"{spouseStarDesc11}較旺但日主偏弱，配偶主導性強，感情中有壓力，宜補體。");
+                else if (pCnt11 == 0)
+                    sb.AppendLine("配偶星缺位，婚姻緣分較淡，需後天積極經營。");
+                else
+                    sb.AppendLine("婚姻中等，感情平穩，需雙方共同用心維繫。");
+
+                sb.Append("4、幾婚：");
+                bool multiM11 = (gender == 1 && caiCnt11 >= 3)
+                             || (gender == 1 && normCount.GetValueOrDefault("劫",0) >= 2 && pStr11 > 10)
+                             || (gender == 0 && shaCnt11 >= 2 && bodyPct < 45);
+                sb.AppendLine(multiM11
+                    ? "命局配偶星多或劫財重，有二婚或感情波折之象，需謹慎經營感情。"
+                    : "命局配偶星格局穩定，一婚為主。");
+
+                sb.Append("5、配偶：");
+                var spouseXr11 = bjXiang.FirstOrDefault(x => x.XiangType == "地支" && x.Key == dBranch);
+                if (spouseXr11 != null && !string.IsNullOrEmpty(spouseXr11.PersonImage))
+                    sb.AppendLine($"日支{dBranch}配偶宮象：{spouseXr11.PersonImage}");
+                else
+                {
+                    string wxChar11 = spouseE11 switch {
+                        "木" => "仁厚積極", "火" => "熱情奔放", "土" => "穩重踏實",
+                        "金" => "果斷嚴謹", "水" => "靈活圓融", _ => ""
+                    };
+                    sb.AppendLine($"配偶星五行{spouseE11}，配偶性格傾向{wxChar11}。");
+                }
+                sb.AppendLine();
+            }
+
+            // （五）壽元
+            {
+                sb.AppendLine("（五）壽元");
+                var emptyE11s = wxC11.Where(e => wuXing.GetValueOrDefault(e,0) < 1).ToList();
+                string shouDesc11;
+                if (bodyPct >= 55 && !emptyE11s.Any())
+                    shouDesc11 = $"日主強健（{bodyPct:F0}%），五行俱全，先天體質佳，宜長壽。";
+                else if (bodyPct >= 45 && emptyE11s.Count <= 1)
+                    shouDesc11 = $"日主中等（{bodyPct:F0}%），養生得宜可享中壽，宜留意{yinE11}（印星）方向保養。";
+                else
+                    shouDesc11 = $"日主偏弱（{bodyPct:F0}%），先天體質較薄，宜注重飲食起居，以補{yongShenElem}方向調養為要。";
+                sb.AppendLine(shouDesc11);
+                sb.AppendLine();
+            }
+
+            // （六）疾病
+            {
+                sb.AppendLine("（六）疾病");
+                var maxE11 = wuXing.OrderByDescending(x => x.Value).First();
+                var minE11 = wuXing.Where(x => x.Value > 0).OrderBy(x => x.Value).FirstOrDefault();
+                var zeroE11 = wxC11.Where(e => wuXing.GetValueOrDefault(e,0) < 0.5).ToList();
+                var diseaseDesc11 = new System.Text.StringBuilder();
+                diseaseDesc11.Append($"五行偏旺：{maxE11.Key}（{maxE11.Value:F0}%），留意{orgByElem11(maxE11.Key)}方面健康。");
+                if (minE11.Value > 0 && minE11.Value < 5)
+                    diseaseDesc11.Append($" 最弱：{minE11.Key}（{minE11.Value:F0}%），{orgByElem11(minE11.Key)}功能稍弱。");
+                if (zeroE11.Any())
+                    diseaseDesc11.Append($" 命局缺{string.Join("、", zeroE11)}，相應臟腑（{string.Join("、", zeroE11.Select(e => orgByElem11(e)))}）為先天弱項。");
+                sb.AppendLine(diseaseDesc11.ToString());
+                sb.AppendLine();
+            }
+
+            // （七）官災
+            {
+                sb.AppendLine("（七）官災");
+                bool guanKeShen11  = guanS11 > 15 && bodyPct < 40;
+                bool hasXiongSha11 = matchedShenSha.Any(x => !x.isAuspicious);
+                string guanzai11;
+                if (guanKeShen11)
+                    guanzai11 = $"官殺重（{guanE11}·{guanS11:F0}%）且日主弱，行忌神大運易有官非是非，逢{guanE11}流年特別注意，宜低調守法。";
+                else if (hasXiongSha11)
+                    guanzai11 = $"有凶煞（{string.Join("、", matchedShenSha.Where(x=>!x.isAuspicious).Select(x=>x.sha.Name))}）入命，行凶運時宜防官非糾紛。";
+                else
+                    guanzai11 = $"無明顯官災傾向，行{jiShenElem}忌神運時仍需謹慎守法。";
+                sb.AppendLine(guanzai11);
+                sb.AppendLine();
+            }
+
+            // （八）破財
+            {
+                sb.AppendLine("（八）破財");
+                int lajiCnt11 = normCount.GetValueOrDefault("劫",0);
+                bool caiJi11  = jiShenElem == caiE11;
+                string pocai11;
+                if (lajiCnt11 >= 3)
+                    pocai11 = $"劫財多（×{lajiCnt11}），破財之象顯著，合夥糾紛、財務糾紛風險高，宜獨資經營，避免大額借貸。";
+                else if (caiJi11)
+                    pocai11 = $"財星（{caiE11}）為忌神，多財反為禍，逢財運財年易有意外破財，宜儉樸守財。";
+                else if (bodyPct < 40 && caiS11 > 20)
+                    pocai11 = "財重身輕，財來財去難以積累，宜量入為出。";
+                else
+                    pocai11 = $"破財風險不大，逢{jiShenElem}忌神年運時酌情守財，避免投機冒進。";
+                sb.AppendLine(pocai11);
+                sb.AppendLine();
+            }
+
+            // （九）凶災
+            {
+                sb.AppendLine("（九）凶災");
+                var xiongSha11   = matchedShenSha.Where(x => !x.isAuspicious).ToList();
+                bool hasXiongCfg11 = xiongConfigs.Any();
+                string xiong11;
+                if (hasXiongCfg11 && xiongSha11.Any())
+                    xiong11 = $"命局有凶格（{string.Join("、", xiongConfigs.Select(x => x.config.ConfigName))}）及凶煞（{string.Join("、", xiongSha11.Select(x => x.sha.Name))}），行忌神運流年時加強防範意外。";
+                else if (hasXiongCfg11)
+                    xiong11 = $"命局有凶格（{string.Join("、", xiongConfigs.Select(x => x.config.ConfigName))}），行忌神運流年時注意安全。";
+                else if (xiongSha11.Any())
+                    xiong11 = $"有凶煞（{string.Join("、", xiongSha11.Select(x => x.sha.Name))}）入命，行凶運時注意意外傷害。";
+                else
+                    xiong11 = $"無明顯凶格凶煞，凶災屬一般水平，行{jiShenElem}忌神運時仍宜謹慎。";
+                sb.AppendLine(xiong11);
+                sb.AppendLine();
+            }
+
+            // （十）牢獄
+            {
+                sb.AppendLine("（十）牢獄");
+                string laoyu11;
+                if (shaCnt11 >= 3 && bodyPct < 40)
+                    laoyu11 = "七殺叢身且日主弱，行凶運時嚴防刑事糾紛，切勿違規違法。";
+                else if (xiongConfigs.Count >= 2 && bodyPct < 40)
+                    laoyu11 = "凶格多且日主弱，行忌神大運流年需嚴守法律，防牢獄之災。";
+                else
+                    laoyu11 = "無明顯牢獄象，守法本分即可。";
+                sb.AppendLine(laoyu11);
+                sb.AppendLine();
+            }
+
+            // （十一）其他：時辰確認
+            {
+                sb.AppendLine("（十一）其他：時辰確認");
+                var hStemSS11 = LfStemShiShen(hStem, dStem);
+                string[] hBrHid11  = branchHiddenMap.TryGetValue(hBranch, out var hHidVal11) ? hHidVal11 : Array.Empty<string>();
+                string hBrMainSS11 = hBrHid11.Length > 0 ? LfStemShiShen(hBrHid11[0], dStem) : "（無藏干）";
+                bool hYong11 = KbStemToElement(hStem) == yongShenElem
+                            || (hBrHid11.Length > 0 && KbStemToElement(hBrHid11[0]) == yongShenElem);
+                bool hJi11   = KbStemToElement(hStem) == jiShenElem
+                            || (hBrHid11.Length > 0 && KbStemToElement(hBrHid11[0]) == jiShenElem);
+                sb.AppendLine($"時柱（{hStem}{hBranch}）：時干十神【{hStemSS11}】，時支主氣十神【{hBrMainSS11}】。");
+                if (hYong11)
+                    sb.AppendLine($"時柱含用神{yongShenElem}，強化晚年及子女方向，時辰與命局協調一致。");
+                else if (hJi11)
+                    sb.AppendLine($"時柱含忌神{jiShenElem}，晚年及子女方向有壓力，時辰記錄與命局壓力源吻合。");
+                else
+                    sb.AppendLine("時柱五行對命局影響中性。如對時辰存疑，可比對重大人生事件（婚姻、事業轉折）校正時辰。");
+                sb.AppendLine();
+            }
+
             return sb.ToString().TrimEnd();
         }
 
