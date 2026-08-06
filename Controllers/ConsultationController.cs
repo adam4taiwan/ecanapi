@@ -4999,12 +4999,12 @@ namespace Ecanapi.Controllers
 
         private static double LfSeasonMult(string element, string season) => (element, season) switch
         {
-            // 旺=1.6, 相=1.2, 休=1.0, 囚=0.5, 死=0.5
-            ("木","春") => 1.6, ("木","夏") => 1.0, ("木","秋") => 0.5, ("木","冬") => 1.2, ("木","四季") => 0.5,
-            ("火","春") => 1.2, ("火","夏") => 1.6, ("火","秋") => 0.5, ("火","冬") => 0.5, ("火","四季") => 1.0,
-            ("土","春") => 0.5, ("土","夏") => 1.2, ("土","秋") => 1.0, ("土","冬") => 0.5, ("土","四季") => 1.6,
-            ("金","春") => 0.5, ("金","夏") => 0.5, ("金","秋") => 1.6, ("金","冬") => 1.0, ("金","四季") => 1.2,
-            ("水","春") => 1.0, ("水","夏") => 0.5, ("水","秋") => 1.2, ("水","冬") => 1.6, ("水","四季") => 0.5,
+            // 旺=1.6, 相=1.2, 休=1.0, 囚=0.5（克我之季）, 死=0.3（我克彼而彼旺之季）
+            ("木","春") => 1.6, ("木","夏") => 1.0, ("木","秋") => 0.5, ("木","冬") => 1.2, ("木","四季") => 0.3,
+            ("火","春") => 1.2, ("火","夏") => 1.6, ("火","秋") => 0.3, ("火","冬") => 0.5, ("火","四季") => 1.0,
+            ("土","春") => 0.5, ("土","夏") => 1.2, ("土","秋") => 1.0, ("土","冬") => 0.3, ("土","四季") => 1.6,
+            ("金","春") => 0.3, ("金","夏") => 0.5, ("金","秋") => 1.6, ("金","冬") => 1.0, ("金","四季") => 1.2,
+            ("水","春") => 1.0, ("水","夏") => 0.3, ("水","秋") => 1.2, ("水","冬") => 1.6, ("水","四季") => 0.5,
             _ => 1.0
         };
 
@@ -5137,30 +5137,31 @@ namespace Ecanapi.Controllers
         private static double LfGetBranchMult(string branch, string[] allBranches)
         {
             double m = 1.0;
-            // 三會 highest priority
+            // 三會/三合 擇一取最強，不疊加（三會優先，否則查三合）
+            bool hasSanHui = false;
             foreach (var (brs, _) in LfSanHui)
-                if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 2.5; break; }
-            // 三合
-            foreach (var (brs, _) in LfSanHe)
-                if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 2.0; break; }
-            // 六合
+                if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 2.0; hasSanHui = true; break; }
+            if (!hasSanHui)
+            {
+                foreach (var (brs, _) in LfSanHe)
+                    if (brs.Contains(branch) && brs.All(b => allBranches.Contains(b))) { m *= 1.5; break; }
+            }
+            // 六合（小幅加成，可與三會/三合並存）
             if (LfHe.TryGetValue(branch, out var heI) && allBranches.Contains(heI.partner)) m *= 1.10;
-            // 六沖
+            // 沖刑害破（疊加但設下限 0.3）
             if (allBranches.Where(b => b != branch).Any(b => LfChong.Contains(branch + b))) m *= 0.50;
-            // 三刑
             foreach (var xg in LfXing)
                 if (xg.Contains(branch) && xg.Count(x => allBranches.Contains(x)) >= 2) { m *= 0.60; break; }
-            // 六害
             if (allBranches.Where(b => b != branch).Any(b => LfHai.Contains(branch + b))) m *= 0.70;
-            // 六破
             if (allBranches.Where(b => b != branch).Any(b => LfPo.Contains(branch + b))) m *= 0.75;
-            return m;
+            return Math.Max(m, 0.3); // 下限 0.3，防止沖刑害破疊加過嚴
         }
 
-        // 天干通根乘數：本氣(主氣)通根1.5，中氣/餘氣通根1.3，無根1.0
+        // 天干通根乘數：本氣+0.5，中/餘氣+0.3，多根累積打四折，上限2.0
         private static double LfGetStemRootMult(string stemElem, string[] branches)
         {
-            double best = 1.0;
+            double total = 1.0;
+            bool hasRoot = false;
             foreach (var branch in branches)
             {
                 if (!LfBranchHiddenRatio.TryGetValue(branch, out var hidden)) continue;
@@ -5168,13 +5169,14 @@ namespace Ecanapi.Controllers
                 {
                     if (KbStemToElement(hidden[i].stem) == stemElem)
                     {
-                        double m = i == 0 ? 1.5 : 1.3; // 本氣1.5，中氣/餘氣1.3
-                        if (m > best) best = m;
+                        double bonus = i == 0 ? 0.5 : 0.3; // 本氣+0.5, 中/餘氣+0.3
+                        if (!hasRoot) { total += bonus; hasRoot = true; }
+                        else { total += bonus * 0.4; } // 第二根起打四折疊加
                         break;
                     }
                 }
             }
-            return best;
+            return Math.Min(total, 2.0);
         }
 
         private static Dictionary<string, double> LfCalcWuXingMatrix(
@@ -5512,9 +5514,15 @@ namespace Ecanapi.Controllers
         {
             // Count how many branches from a given set appear in the chart
             int CountBranches(string[] set) => branches.Count(b => set.Contains(b));
-            // Check if any forbidden stem or branch-element appears in the chart
+            // Check if any forbidden stem appears as a hidden stem (藏干) in any branch
+            bool HasForbiddenHidden(string[] fStems) =>
+                branches.Any(b => LfBranchHiddenRatio.TryGetValue(b, out var h)
+                               && h.Any(hh => fStems.Contains(hh.stem)));
+            // Check if any forbidden stem/branch appears in the chart (including hidden stems)
             bool HasForbidden(string[] fStems, string[] fBranches) =>
-                stems.Any(s => fStems.Contains(s)) || branches.Any(b => fBranches.Contains(b));
+                stems.Any(s => fStems.Contains(s))
+                || branches.Any(b => fBranches.Contains(b))
+                || HasForbiddenHidden(fStems);
 
             return dmElem switch
             {
@@ -5724,17 +5732,25 @@ namespace Ecanapi.Controllers
                 return (huaPattern, huaElem, huaFuYi, $"{huaPattern}（{dStem}化{huaElem}，順化神旺勢）", "");
             }
 
-            // Step 1: 外格判定（優先，一旦成立直接使用，跳過內格）
+            // Step 0.5: 建祿月旗標（月支本氣為比劫）
+            // 建祿/月刃月的日主有月令根，不可落入從格/從旺格
+            bool isJianLuMonth =
+                (LfYueLanBranch.TryGetValue(dStem, out var ylbJ) && ylbJ == mBranch)
+                || (LfJianLuBranch.TryGetValue(dStem, out var jlbJ) && jlbJ == mBranch)
+                || (LfBranchHiddenRatio.TryGetValue(mBranch, out var mHJ) && mHJ.Count > 0
+                    && LfStemShiShen(mHJ[0].stem, dStem) is "比肩" or "劫財");
+
+            // Step 1: 外格判定（五行從旺外格含藏干嚴格條件，可覆蓋建祿格；從格/從旺格僅在非建祿月成立）
             string pattern = "";
 
-            // 五行從旺外格
+            // 五行從旺外格（含藏干嚴格條件）
             string wuXingGeJu = LfDetectWuXingGeJu(
                 dmElem, mBranch, allHeavenStems, new[] { yBranch, mBranch, dBranch, hBranch });
             if (!string.IsNullOrEmpty(wuXingGeJu))
                 pattern = wuXingGeJu;
 
-            // 從格/從旺格
-            if (string.IsNullOrEmpty(pattern) && bodyPct <= 20)
+            // 從格/從旺格（建祿月日主有根，不適用）
+            if (string.IsNullOrEmpty(pattern) && !isJianLuMonth && bodyPct <= 20)
             {
                 // 従格前置條件：日主在四柱地支中無比印通根（完全無根才能從）
                 bool dayMasterHasRoot = allBranches.Any(b =>
@@ -5758,7 +5774,7 @@ namespace Ecanapi.Controllers
                     }
                 }
             }
-            if (string.IsNullOrEmpty(pattern) && bodyPct >= 80)
+            if (string.IsNullOrEmpty(pattern) && !isJianLuMonth && bodyPct >= 80)
             {
                 double sameElem = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
                 if (sameElem >= 75) pattern = "從旺格";
