@@ -1343,6 +1343,14 @@ namespace Ecanapi.Controllers
         // --- KB Helper: 過濾 ziwei 宮位內容，只保留命盤實際有的星才顯示的段落 ---
         // palaceStars: 該宮位自己的星（用於「同宮」類型檢查）
         // allChartStars: 整個命盤的星（用於「會照」「相夾」等跨宮檢查）
+        // 命書禁用詞：技術標注、內部術語、不雅詞彙，不得出現在命書正文
+        private static readonly string[] KbForbiddenPhrases = new[]
+        {
+            "性生活", "對性生活", "性需求", "床笫", "奉子命結婚", "先上車後補票",
+            "代溝之象", "代溝", "聽話", "不聽話", "很可惜", "逢沖破", "不主財", "不主貴",
+            "在財宮不能說", "最好該宮", "喜與命身相合", "影響一個人的相貌", "人生大半忙碌",
+        };
+
         private static string KbFilterZiweiContent(string content, HashSet<string> palaceStars, HashSet<string> allChartStars)
         {
             if (string.IsNullOrEmpty(content)) return content;
@@ -1411,6 +1419,9 @@ namespace Ecanapi.Controllers
                         if (!inConditional) skipUntilBlank = true;
                         continue;
                     }
+                    // 過濾命書禁用詞（技術標注、不雅詞彙）
+                    if (KbForbiddenPhrases.Any(p => line.Contains(p)))
+                        continue;
                     result.AppendLine(line);
                 }
             }
@@ -7222,6 +7233,14 @@ namespace Ecanapi.Controllers
         }
 
         // 建立天干地支喜忌對照表（第四章用，pipe table 格式）
+        // 用神極弱警示：若用神在命局佔比<10%，提示需行運配合
+        private static string LfYongShenWeakNote(string yongShenElem, Dictionary<string, double> wuXing)
+        {
+            double pct = wuXing.GetValueOrDefault(yongShenElem, 0);
+            if (pct >= 10.0) return "";
+            return $"  【注意】用神{yongShenElem}在命局佔比僅{pct:F0}%，先天力量偏弱，需行{yongShenElem}大運或流年方能顯效。";
+        }
+
         private static string LfBuildYongJiTable(
             string yongShenElem, string fuYiElem, string jiShenElem, string tuneElem,
             string dStem, string[] chartBranches)
@@ -7657,6 +7676,17 @@ namespace Ecanapi.Controllers
                 AppKbCh3("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
                 AppKbCh3(gender == 1 ? "男命論斷" : "女命論斷",
                     LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
+                // 女命：若正官(官殺)屬忌神且日支空亡，KB 通論可能美化婚姻，需加注提醒
+                if (gender == 2)
+                {
+                    string guanElemF = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                    if (guanElemF == jiShenElem)
+                    {
+                        var kongWangF = LfCalcDayEmpty(dStem, dBranch);
+                        if (kongWangF.Contains(dBranch))
+                            sb.AppendLine("【婚姻提醒】日支空亡且官殺屬忌神，感情婚姻易遇波折，宜謹慎評估對象，等待大運/流年官殺喜化時再定終身。");
+                    }
+                }
             }
             string ch3ShiGanXiang = LfShiGanXiangFa(dStem, mBranch);
             if (!string.IsNullOrEmpty(ch3ShiGanXiang))
@@ -7697,6 +7727,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第四章：格局與用神判定】");
             sb.AppendLine($"格局：【{pattern}】");
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
+            string yongWeakNote4 = LfYongShenWeakNote(yongShenElem, wuXing);
+            if (!string.IsNullOrEmpty(yongWeakNote4)) sb.AppendLine(yongWeakNote4);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
                 sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
@@ -7713,6 +7745,15 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
             {
                 sb.AppendLine("【格局論】");
+                // 若格局引文與判定格局衝突（如判定建祿格但引文來自外格），加注說明
+                bool geJuTextMismatch4 = (pattern is "建祿格" or "月刃格")
+                    && (astroDescGeJu.Contains("從革格") || astroDescGeJu.Contains("炎上格")
+                        || astroDescGeJu.Contains("曲直格") || astroDescGeJu.Contains("稼穡格")
+                        || astroDescGeJu.Contains("潤下格") || astroDescGeJu.Contains("從財格")
+                        || astroDescGeJu.Contains("從官格") || astroDescGeJu.Contains("從殺格")
+                        || astroDescGeJu.Contains("從兒格"));
+                if (geJuTextMismatch4)
+                    sb.AppendLine($"（以下文字為知識庫參考文，命主格局為【{pattern}】，仍以上方判定為準）");
                 sb.AppendLine(astroDescGeJu);
                 sb.AppendLine();
             }
@@ -11941,6 +11982,17 @@ namespace Ecanapi.Controllers
                     : "申酉戌".Contains(mBranch) ? "秋" : "冬";
                 AppKb("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
                 AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
+                // 女命：若正官(官殺)屬忌神且日支空亡，KB 通論可能美化婚姻，需加注提醒
+                if (gender == 2)
+                {
+                    string guanElemV2F = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                    if (guanElemV2F == jiShenElem)
+                    {
+                        var kongWangV2F = LfCalcDayEmpty(dStem, dBranch);
+                        if (kongWangV2F.Contains(dBranch))
+                            sb.AppendLine("【婚姻提醒】日支空亡且官殺屬忌神，感情婚姻易遇波折，宜謹慎評估對象，等待大運/流年官殺喜化時再定終身。");
+                    }
+                }
                 AppKb("最佳時辰", kb.SpecialHours);
             }
             // === 十干象法（千里課堂盲派）===
@@ -12116,6 +12168,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第五章：用神喜忌】");
             sb.AppendLine();
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
+            string yongWeakNote5 = LfYongShenWeakNote(yongShenElem, wuXing);
+            if (!string.IsNullOrEmpty(yongWeakNote5)) sb.AppendLine(yongWeakNote5);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
                 sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
@@ -16165,6 +16219,25 @@ namespace Ecanapi.Controllers
 
 
         // ─── 一柱論命：日柱定數（六十甲子） ────────────────────────────────────
+        // 過濾一柱論命中"喜行XX運"/"忌行XX運"等建議行
+        // 這類文字是依單日柱判斷，可能與格局用神衝突；喜忌以Ch.4/5格局用神為準
+        private static string LfYiZhuFilterXiJiHang(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            var lines = text.Split('\n');
+            var result = new List<string>();
+            foreach (var line in lines)
+            {
+                string t = line.Trim();
+                // 過濾含有"喜行"/"忌行"/"喜走"/"忌走"等運程建議的行
+                if (t.Contains("喜行") || t.Contains("忌行") || t.Contains("喜走") || t.Contains("忌走")
+                    || t.Contains("宜行") || t.Contains("不宜行"))
+                    continue;
+                result.Add(line);
+            }
+            return string.Join("\n", result);
+        }
+
         private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch, int gender = 1)
         {
             if (data == null) return "";
@@ -16173,7 +16246,7 @@ namespace Ecanapi.Controllers
             // 1. 五行象義（點竅，依性別過濾）
             if (!string.IsNullOrWhiteSpace(data.VoidAnalysis))
             {
-                string filtered = LfYiZhuFilterByGender(data.VoidAnalysis, gender);
+                string filtered = LfYiZhuFilterXiJiHang(LfYiZhuFilterByGender(data.VoidAnalysis, gender));
                 if (!string.IsNullOrWhiteSpace(filtered))
                 {
                     sb.AppendLine("▍五行象義");
@@ -16185,7 +16258,7 @@ namespace Ecanapi.Controllers
             // 2. 性格特質（依性別過濾）
             if (!string.IsNullOrWhiteSpace(data.Personality))
             {
-                string filtered = LfYiZhuFilterByGender(data.Personality, gender);
+                string filtered = LfYiZhuFilterXiJiHang(LfYiZhuFilterByGender(data.Personality, gender));
                 if (!string.IsNullOrWhiteSpace(filtered))
                 {
                     sb.AppendLine("▍性格特質");
@@ -18006,6 +18079,8 @@ namespace Ecanapi.Controllers
             string v2JiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
             sb.AppendLine($"格局：【{pattern}】");
             sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）");
+            string yongWeakNoteDy2 = LfYongShenWeakNote(yongShenElem, wuXing);
+            if (!string.IsNullOrEmpty(yongWeakNoteDy2)) sb.AppendLine(yongWeakNoteDy2);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
                 sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
@@ -18472,18 +18547,7 @@ namespace Ecanapi.Controllers
                         && !p.StartsWith("最好")
                         && !p.StartsWith("如格局")
                         && !p.StartsWith("如")
-                        && !p.Contains("逢沖破")
-                        && !p.Contains("最好該宮")
-                        && !p.Contains("不主財")
-                        && !p.Contains("不主貴")
-                        && !p.Contains("在財宮不能說")
-                        && !p.Contains("很可惜")
-                        && !p.Contains("喜與命身相合")
-                        && !p.Contains("影響一個人的相貌")
-                        && !p.Contains("奉子命結婚")
-                        && !p.Contains("代溝之象")
-                        && !p.Contains("對性生活需求量較重")
-                        && !p.Contains("人生大半忙碌"))
+                        && !KbForbiddenPhrases.Any(f => p.Contains(f)))
                     .Take(2)
                     .ToList();
                 return kept.Count == 0 ? "" : string.Join("。", kept) + "。";
@@ -18757,6 +18821,8 @@ namespace Ecanapi.Controllers
             string v3JiYongElem = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
             sb.AppendLine($"格局：【{pattern}】");
             sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）");
+            string yongWeakNoteDy3 = LfYongShenWeakNote(yongShenElem, wuXing);
+            if (!string.IsNullOrEmpty(yongWeakNoteDy3)) sb.AppendLine(yongWeakNoteDy3);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
                 sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
