@@ -12043,6 +12043,52 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
             sb.AppendLine();
 
+            // 格局 + 五神格局分析表（官殺/財/傷食/比劫/印 × 五行/五常/力量/旺衰/取用神）
+            {
+                string[] wxC5 = { "木", "火", "土", "金", "水" };
+                int dmIdx5 = Array.IndexOf(wxC5, dmElem);
+                string guanShaEl5  = wxC5[(dmIdx5 + 3) % 5];
+                string caiEl5      = wxC5[(dmIdx5 + 2) % 5];
+                string shiSangEl5  = wxC5[(dmIdx5 + 1) % 5];
+                string biJieEl5    = dmElem;
+                string yinEl5      = wxC5[(dmIdx5 + 4) % 5];
+
+                var wuChangMap5 = new Dictionary<string, string>
+                    { {"木","仁"}, {"火","禮"}, {"土","信"}, {"金","義"}, {"水","智"} };
+
+                var (wangYdz, xiangYdz, xiuYdz, qiuYdz, siYdz) = LfGetWangXiang(mBranch);
+                var wxStat5 = new Dictionary<string, string>
+                    { {wangYdz,"旺"}, {xiangYdz,"相"}, {xiuYdz,"休"}, {qiuYdz,"囚"}, {siYdz,"死"} };
+
+                int yongIdx5 = Array.IndexOf(wxC5, yongShenElem);
+                int jiIdx5   = Array.IndexOf(wxC5, jiShenElem);
+                string xiShenEl5   = wxC5[(yongIdx5 + 4) % 5];
+                string bingShenEl5 = wxC5[(jiIdx5 + 4) % 5];
+                string chouShenEl5 = wxC5[(Array.IndexOf(wxC5, bingShenEl5) + 4) % 5];
+
+                var wuShenMap5 = new Dictionary<string, string>();
+                void SetWS5(string el, string lbl)
+                { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
+                SetWS5(yongShenElem, "用神"); SetWS5(xiShenEl5,   "喜神");
+                SetWS5(jiShenElem,  "忌神"); SetWS5(bingShenEl5, "病神");
+                SetWS5(chouShenEl5, "仇神");
+
+                var cols5 = new[] {
+                    ("官殺", guanShaEl5), ("財", caiEl5), ("傷食", shiSangEl5),
+                    ("比劫", biJieEl5),   ("印", yinEl5)
+                };
+
+                sb.AppendLine($"格局：【{pattern}】（{bodyLabel} {bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
+                sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
+                sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
+                sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
+                sb.AppendLine("| 五常 | " + string.Join(" | ", cols5.Select(c => wuChangMap5.GetValueOrDefault(c.Item2, ""))) + " |");
+                sb.AppendLine("| 力量 | " + string.Join(" | ", cols5.Select(c => $"{wuXing.GetValueOrDefault(c.Item2, 0):F0}%")) + " |");
+                sb.AppendLine("| 旺衰 | " + string.Join(" | ", cols5.Select(c => wxStat5.GetValueOrDefault(c.Item2, ""))) + " |");
+                sb.AppendLine("| 用忌 | " + string.Join(" | ", cols5.Select(c => wuShenMap5.GetValueOrDefault(c.Item2, ""))) + " |");
+            }
+            sb.AppendLine();
+
             // === 命宮 · 身宮 · 胎元 ===
             string mingShenTaiYuanYdz = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStarList);
             if (!string.IsNullOrEmpty(mingShenTaiYuanYdz))
