@@ -3900,7 +3900,7 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(heluoDocx)) reportText += heluoDocx;
 
                 string personName = !string.IsNullOrEmpty(request.PersonName) ? request.PersonName : (user.Name ?? "命主");
-                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典");
+                byte[] docxBytes = LfBuildYudongziDocxBytes(reportText, coverBytes, chartImgBytes, sealBytes, personName, "玉 洞 子 傳 家 寶 典", useTwoColumnCh1: true);
 
                 string fileName = $"{personName}_玉洞子傳家寶典.docx";
                 return File(docxBytes,
@@ -3914,7 +3914,7 @@ namespace Ecanapi.Controllers
             }
         }
 
-        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 傳 家 寶 典", string? skipTitle = null, bool addWatermark = true)
+        private static byte[] LfBuildYudongziDocxBytes(string reportText, byte[] coverBytes, byte[] chartImgBytes, byte[] sealBytes, string personName, string bookTitle = "玉 洞 子 傳 家 寶 典", string? skipTitle = null, bool addWatermark = true, bool useTwoColumnCh1 = false)
         {
             using var ms = new MemoryStream();
             using var doc = new NPOI.XWPF.UserModel.XWPFDocument();
@@ -4214,6 +4214,24 @@ namespace Ecanapi.Controllers
                 filteredLines.Add(lt);
             }
 
+            // If two-column Ch.1, extract Ch.1 content before the main loop
+            List<string>? ch1ExtractedLines = null;
+            if (useTwoColumnCh1)
+            {
+                int ch1FIdx = -1, ch2FIdx = filteredLines.Count;
+                for (int fi = 0; fi < filteredLines.Count; fi++)
+                {
+                    if (filteredLines[fi] == "【第一章：先天八字依古制定】") { ch1FIdx = fi; }
+                    else if (ch1FIdx >= 0 && filteredLines[fi].StartsWith("【第") && filteredLines[fi].EndsWith("】"))
+                    { ch2FIdx = fi; break; }
+                }
+                if (ch1FIdx >= 0 && ch2FIdx > ch1FIdx + 1)
+                {
+                    ch1ExtractedLines = filteredLines.GetRange(ch1FIdx + 1, ch2FIdx - ch1FIdx - 1);
+                    filteredLines.RemoveRange(ch1FIdx + 1, ch2FIdx - ch1FIdx - 1);
+                }
+            }
+
             foreach (var line in filteredLines)
             {
 
@@ -4244,6 +4262,15 @@ namespace Ecanapi.Controllers
 
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
+
+                // Two-column Ch.1 handling (new rendering path)
+                if (useTwoColumnCh1 && line == "【第一章：先天八字依古制定】" && ch1ExtractedLines != null)
+                {
+                    curTableFontSize = 10;
+                    AddParaWithPageBreakH1(line, 14, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
+                    LfRenderCh1TwoColumn(doc, ch1ExtractedLines);
+                    continue;
+                }
 
                 if (line == "【第一章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
                     line == "【第四章：命格判定】" || line == "【第五章：用神喜忌】" ||
@@ -4341,6 +4368,191 @@ namespace Ecanapi.Controllers
             doc.Write(ms);
             var rawBytes = ms.ToArray();
             return addWatermark ? DocxWatermarkHelper.AddWatermark(rawBytes, sealBytes) : rawBytes;
+        }
+
+        // Ch.1 two-column layout renderer for 玉洞子命書
+        private static void LfRenderCh1TwoColumn(
+            NPOI.XWPF.UserModel.XWPFDocument doc,
+            List<string> ch1Lines)
+        {
+            const int FS_HEADER = 9;
+            const int FS_TABLE  = 8;
+            const int FS_TEXT   = 8;
+            const int LEFT_W    = 7800;  // dxa ~13.8cm
+            const int RIGHT_W   = 5200;  // dxa ~9.2cm
+
+            // ── 1. Parse lines into section buckets ──────────────────────────────
+            var rootsTableLines  = new List<string>();
+            var stemsTableLines  = new List<string>();
+            var branchTableLines = new List<string>();
+            string biJiLine      = "";
+            string geJuLine      = "";
+            var geJuTableLines   = new List<string>();
+            var mingShenLines    = new List<string>();
+            string dayunAgeLine  = "";
+            var dayunTableLines  = new List<string>();
+
+            string sect = "";
+            foreach (var raw in ch1Lines)
+            {
+                string ln = raw.TrimEnd();
+                if (ln == "一、根苗花果")         { sect = "roots";    continue; }
+                if (ln == "二、天干十神")          { sect = "stems";    continue; }
+                if (ln == "三、地支藏神十神")      { sect = "branches"; continue; }
+                if (ln.StartsWith("比印陣計分：")) { biJiLine = ln; sect = ""; continue; }
+                if (ln.StartsWith("格局："))       { geJuLine = ln; sect = "geju"; continue; }
+                if (ln == "四、大運排列")          { sect = "dayun";   continue; }
+                if (sect == "dayun" && ln.StartsWith("出生後")) { dayunAgeLine = ln; continue; }
+                if (string.IsNullOrWhiteSpace(ln)) continue;
+
+                bool isPipe = ln.TrimStart().StartsWith("|");
+                switch (sect)
+                {
+                    case "roots":    if (isPipe) rootsTableLines.Add(ln);   break;
+                    case "stems":    if (isPipe) stemsTableLines.Add(ln);   break;
+                    case "branches": if (isPipe) branchTableLines.Add(ln);  break;
+                    case "geju":
+                        if (isPipe) geJuTableLines.Add(ln);
+                        else        mingShenLines.Add(ln);
+                        break;
+                    case "dayun":    dayunTableLines.Add(ln);               break;
+                }
+            }
+
+            // ── 2. Parse pipe lines to data matrices ─────────────────────────────
+            List<List<string>> ParsePipe(List<string> lines)
+            {
+                var res = new List<List<string>>();
+                foreach (var pl in lines)
+                {
+                    if (pl.Replace("|","").Replace("-","").Replace(":","").Trim() == "") continue;
+                    var parts = pl.Split('|').Skip(1).ToList();
+                    if (parts.Count > 0 && parts.Last().Trim() == "") parts.RemoveAt(parts.Count - 1);
+                    var cells = parts.Select(s => s.Trim()).ToList();
+                    if (cells.Count > 0) res.Add(cells);
+                }
+                return res;
+            }
+
+            var rootsData  = ParsePipe(rootsTableLines);
+            var stemsData  = ParsePipe(stemsTableLines);
+            var rawBranch  = ParsePipe(branchTableLines);
+            var geJuData   = ParsePipe(geJuTableLines);
+            var dayunData  = ParsePipe(dayunTableLines.Where(l => l.TrimStart().StartsWith("|")).ToList());
+
+            // Transpose 地支藏神: 2 rows × 13 cols → 13 rows × 2 cols
+            var branchDataT = new List<List<string>>();
+            if (rawBranch.Count >= 2)
+            {
+                branchDataT.Add(new List<string> { "地支", "藏神十神" });
+                var bHdr = rawBranch[0]; // ["項目","子","丑",...,"亥"]
+                var bDat = rawBranch[1]; // ["藏神","比壬",...]
+                for (int bi = 1; bi < bHdr.Count && bi < bDat.Count; bi++)
+                    branchDataT.Add(new List<string> { bHdr[bi], bDat[bi] });
+            }
+            else branchDataT = rawBranch;
+
+            // ── 3. NPOI helpers ─────────────────────────────────────────────────
+            void SetCellW(NPOI.XWPF.UserModel.XWPFTableCell c, int dxa)
+            {
+                var tcPr = c.GetCTTc().tcPr ?? c.GetCTTc().AddNewTcPr();
+                var tcW  = tcPr.tcW  ?? tcPr.AddNewTcW();
+                tcW.type = NPOI.OpenXmlFormats.Wordprocessing.ST_TblWidth.dxa;
+                tcW.w    = dxa.ToString();
+                var va   = tcPr.vAlign ?? tcPr.AddNewVAlign();
+                va.val   = NPOI.OpenXmlFormats.Wordprocessing.ST_VerticalJc.top;
+            }
+
+            void AddCellPara(NPOI.XWPF.UserModel.XWPFTableCell c, string text, int fs, bool bold, string color)
+            {
+                var p = c.AddParagraph();
+                p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.LEFT;
+                var r = p.CreateRun();
+                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r.FontSize = fs; r.IsBold = bold; r.SetColor(color);
+                r.SetText(text);
+            }
+
+            void AddNestedTable(NPOI.XWPF.UserModel.XWPFTableCell c, List<List<string>> data, int fs)
+            {
+                if (data.Count == 0) return;
+                int cols = data.Max(r => r.Count);
+                var ctNestedTbl = c.GetCTTc().AddNewTbl();
+                var tbl = new NPOI.XWPF.UserModel.XWPFTable(ctNestedTbl, c);
+                for (int ri = 0; ri < data.Count; ri++)
+                {
+                    var trow = tbl.CreateRow();
+                    while (trow.GetTableCells().Count < data[ri].Count)
+                        trow.CreateCell();
+                    for (int ci = 0; ci < data[ri].Count; ci++)
+                    {
+                        var tc = trow.GetCell(ci);
+                        var p  = tc.Paragraphs.Count > 0 ? tc.Paragraphs[0] : tc.AddParagraph();
+                        p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                        var r  = p.CreateRun();
+                        r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                        r.FontSize = fs;
+                        if (ri == 0) r.IsBold = true;
+                        r.SetText(data[ri][ci]);
+                    }
+                }
+                c.AddParagraph(); // required blank para after nested table in Word
+            }
+
+            // ── 4. Create outer 1x2 layout table (no visible borders) ───────────
+            var outerTbl = doc.CreateTable(1, 2);
+            {
+                var ctTblPr = outerTbl.GetCTTbl().tblPr ?? outerTbl.GetCTTbl().AddNewTblPr();
+                var ctBrd   = ctTblPr.tblBorders ?? ctTblPr.AddNewTblBorders();
+                void NB(NPOI.OpenXmlFormats.Wordprocessing.CT_Border b)
+                { b.val = NPOI.OpenXmlFormats.Wordprocessing.ST_Border.none; b.sz = 0; b.space = 0; b.color = "auto"; }
+                NB(ctBrd.AddNewTop()); NB(ctBrd.AddNewBottom());
+                NB(ctBrd.AddNewLeft()); NB(ctBrd.AddNewRight());
+                NB(ctBrd.AddNewInsideH()); NB(ctBrd.AddNewInsideV());
+            }
+            var leftCell  = outerTbl.GetRow(0).GetCell(0);
+            var rightCell = outerTbl.GetRow(0).GetCell(1);
+            SetCellW(leftCell,  LEFT_W);
+            SetCellW(rightCell, RIGHT_W);
+
+            // ── 5. Left cell: 根苗花果 + 比印陣 + 命宮身宮胎元 + 大運 ───────────
+            {
+                var p0 = leftCell.Paragraphs.Count > 0 ? leftCell.Paragraphs[0] : leftCell.AddParagraph();
+                p0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.LEFT;
+                var r0 = p0.CreateRun();
+                r0.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r0.FontSize = FS_HEADER; r0.IsBold = true; r0.SetColor("8B0000");
+                r0.SetText("一、根苗花果");
+            }
+            AddNestedTable(leftCell, rootsData, FS_TABLE);
+            if (!string.IsNullOrEmpty(biJiLine))
+                AddCellPara(leftCell, biJiLine, FS_TEXT, false, "444444");
+            foreach (var ml in mingShenLines)
+                AddCellPara(leftCell, ml, FS_TEXT, false, "444444");
+            if (dayunData.Count > 0)
+            {
+                AddCellPara(leftCell, "四、大運排列", FS_HEADER, true, "8B0000");
+                if (!string.IsNullOrEmpty(dayunAgeLine))
+                    AddCellPara(leftCell, dayunAgeLine, FS_TEXT, false, "444444");
+                AddNestedTable(leftCell, dayunData, FS_TABLE);
+            }
+
+            // ── 6. Right cell: 格局分析 + 天干十神 + 地支藏神 ─────────────────
+            {
+                var p0 = rightCell.Paragraphs.Count > 0 ? rightCell.Paragraphs[0] : rightCell.AddParagraph();
+                p0.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.LEFT;
+                var r0 = p0.CreateRun();
+                r0.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                r0.FontSize = FS_TEXT; r0.IsBold = false; r0.SetColor("333333");
+                r0.SetText(geJuLine);
+            }
+            AddNestedTable(rightCell, geJuData, FS_TABLE);
+            AddCellPara(rightCell, "二、天干十神", FS_HEADER, true, "8B0000");
+            AddNestedTable(rightCell, stemsData, FS_TABLE);
+            AddCellPara(rightCell, "三、地支藏神十神", FS_HEADER, true, "8B0000");
+            AddNestedTable(rightCell, branchDataT, FS_TABLE);
+
+            doc.CreateParagraph(); // spacing after outer layout table
         }
 
         // Kept for reference — logic moved to Helpers/DocxWatermarkHelper.cs
