@@ -9213,9 +9213,50 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // 格局/用神/忌神（緊湊一行）
-            sb.AppendLine($"格局：【{pattern}】　用神：【{yongShenElem}】{(!string.IsNullOrEmpty(fuYiElem) ? $"　副用：【{fuYiElem}】" : "")}　忌神：【{jiShenElem}】");
-            sb.AppendLine($"身強弱：{bodyLabel}（{bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
+            // 格局 + 五神格局分析表（官殺/財/傷食/比劫/印 × 五行/五常/力量/旺衰/取用神）
+            {
+                string[] wxC5 = { "木", "火", "土", "金", "水" };
+                int dmIdx5 = Array.IndexOf(wxC5, dmElem);
+                string guanShaEl  = wxC5[(dmIdx5 + 3) % 5];
+                string caiEl      = wxC5[(dmIdx5 + 2) % 5];
+                string shiSangEl  = wxC5[(dmIdx5 + 1) % 5];
+                string biJieEl    = dmElem;
+                string yinEl      = wxC5[(dmIdx5 + 4) % 5];
+
+                var wuChangMap5 = new Dictionary<string, string>
+                    { {"木","仁"}, {"火","禮"}, {"土","信"}, {"金","義"}, {"水","智"} };
+
+                var (wxW5, wxXi5, wxXu5, wxQ5, wxS5) = LfGetWangXiang(mBranch);
+                var wxStat5 = new Dictionary<string, string>
+                    { {wxW5,"旺"}, {wxXi5,"相"}, {wxXu5,"休"}, {wxQ5,"囚"}, {wxS5,"死"} };
+
+                int yongIdx5 = Array.IndexOf(wxC5, yongShenElem);
+                int jiIdx5   = Array.IndexOf(wxC5, jiShenElem);
+                string xiShenEl5   = wxC5[(yongIdx5 + 4) % 5];
+                string bingShenEl5 = wxC5[(jiIdx5 + 4) % 5];
+                string chouShenEl5 = wxC5[(Array.IndexOf(wxC5, bingShenEl5) + 4) % 5];
+
+                var wuShenMap5 = new Dictionary<string, string>();
+                void SetWS(string el, string lbl)
+                { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
+                SetWS(yongShenElem, "用神"); SetWS(xiShenEl5,   "喜神");
+                SetWS(jiShenElem,  "忌神"); SetWS(bingShenEl5, "病神");
+                SetWS(chouShenEl5, "仇神");
+
+                var cols5 = new[] {
+                    ("官殺", guanShaEl), ("財", caiEl), ("傷食", shiSangEl),
+                    ("比劫", biJieEl),   ("印", yinEl)
+                };
+
+                sb.AppendLine($"格局：【{pattern}】（{bodyLabel} {bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
+                sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
+                sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
+                sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
+                sb.AppendLine("| 五常 | " + string.Join(" | ", cols5.Select(c => wuChangMap5.GetValueOrDefault(c.Item2, ""))) + " |");
+                sb.AppendLine("| 力量 | " + string.Join(" | ", cols5.Select(c => $"{wuXing.GetValueOrDefault(c.Item2, 0):F0}%")) + " |");
+                sb.AppendLine("| 旺衰 | " + string.Join(" | ", cols5.Select(c => wxStat5.GetValueOrDefault(c.Item2, ""))) + " |");
+                sb.AppendLine("| 用忌 | " + string.Join(" | ", cols5.Select(c => wuShenMap5.GetValueOrDefault(c.Item2, ""))) + " |");
+            }
             sb.AppendLine();
 
             // 命宮·身宮·胎元
