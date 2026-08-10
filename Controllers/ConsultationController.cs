@@ -4440,17 +4440,7 @@ namespace Ecanapi.Controllers
             var geJuData   = ParsePipe(geJuTableLines);
             var dayunData  = ParsePipe(dayunTableLines.Where(l => l.TrimStart().StartsWith("|")).ToList());
 
-            // Transpose 地支藏神: 2 rows × 13 cols → 13 rows × 2 cols
-            var branchDataT = new List<List<string>>();
-            if (rawBranch.Count >= 2)
-            {
-                branchDataT.Add(new List<string> { "地支", "藏神十神" });
-                var bHdr = rawBranch[0]; // ["項目","子","丑",...,"亥"]
-                var bDat = rawBranch[1]; // ["藏神","比壬",...]
-                for (int bi = 1; bi < bHdr.Count && bi < bDat.Count; bi++)
-                    branchDataT.Add(new List<string> { bHdr[bi], bDat[bi] });
-            }
-            else branchDataT = rawBranch;
+            // 地支藏神十神 keep horizontal format (rawBranch), stack multi-stem content vertically in each cell
 
             // ── 3. NPOI helpers ─────────────────────────────────────────────────
             void SetCellW(NPOI.XWPF.UserModel.XWPFTableCell c, int dxa)
@@ -4481,7 +4471,12 @@ namespace Ecanapi.Controllers
                 var tbl = new NPOI.XWPF.UserModel.XWPFTable(ctNestedTbl, c);
                 for (int ri = 0; ri < data.Count; ri++)
                 {
-                    var trow = tbl.CreateRow();
+                    // NPOI may auto-create a first empty row; reuse it for row 0
+                    NPOI.XWPF.UserModel.XWPFTableRow trow;
+                    if (ri == 0 && tbl.NumberOfRows > 0)
+                        trow = tbl.GetRow(0);
+                    else
+                        trow = tbl.CreateRow();
                     while (trow.GetTableCells().Count < data[ri].Count)
                         trow.CreateCell();
                     for (int ci = 0; ci < data[ri].Count; ci++)
@@ -4497,6 +4492,53 @@ namespace Ecanapi.Controllers
                     }
                 }
                 c.AddParagraph(); // required blank para after nested table in Word
+            }
+
+            // 地支藏神十神: horizontal 2-row table; cells with multiple stems stack them vertically
+            void AddBranchTableHorizontal(NPOI.XWPF.UserModel.XWPFTableCell c, List<List<string>> data, int fs)
+            {
+                if (data.Count == 0) return;
+                int cols = data.Max(r => r.Count);
+                var ctNestedTbl = c.GetCTTc().AddNewTbl();
+                var tbl = new NPOI.XWPF.UserModel.XWPFTable(ctNestedTbl, c);
+                for (int ri = 0; ri < data.Count; ri++)
+                {
+                    NPOI.XWPF.UserModel.XWPFTableRow trow;
+                    if (ri == 0 && tbl.NumberOfRows > 0) trow = tbl.GetRow(0);
+                    else trow = tbl.CreateRow();
+                    while (trow.GetTableCells().Count < data[ri].Count)
+                        trow.CreateCell();
+                    for (int ci = 0; ci < data[ri].Count; ci++)
+                    {
+                        var tc = trow.GetCell(ci);
+                        string cellText = ci < data[ri].Count ? data[ri][ci] : "";
+                        var p = tc.Paragraphs.Count > 0 ? tc.Paragraphs[0] : tc.AddParagraph();
+                        p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
+                        // Data row: split 藏神 into 2-char pairs, stack with carriage returns
+                        if (ri == 1 && cellText.Length > 2)
+                        {
+                            bool firstPair = true;
+                            for (int si = 0; si + 1 < cellText.Length; si += 2)
+                            {
+                                if (!firstPair) p.CreateRun().AddCarriageReturn();
+                                var r = p.CreateRun();
+                                r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                                r.FontSize = fs;
+                                r.SetText(cellText.Substring(si, 2));
+                                firstPair = false;
+                            }
+                        }
+                        else
+                        {
+                            var r = p.CreateRun();
+                            r.SetFontFamily("標楷體", NPOI.XWPF.UserModel.FontCharRange.None);
+                            r.FontSize = fs;
+                            if (ri == 0) r.IsBold = true;
+                            r.SetText(cellText);
+                        }
+                    }
+                }
+                c.AddParagraph();
             }
 
             // ── 4. Create outer 1x2 layout table (no visible borders) ───────────
@@ -4550,7 +4592,7 @@ namespace Ecanapi.Controllers
             AddCellPara(rightCell, "二、天干十神", FS_HEADER, true, "8B0000");
             AddNestedTable(rightCell, stemsData, FS_TABLE);
             AddCellPara(rightCell, "三、地支藏神十神", FS_HEADER, true, "8B0000");
-            AddNestedTable(rightCell, branchDataT, FS_TABLE);
+            AddBranchTableHorizontal(rightCell, rawBranch, FS_TABLE - 1); // 7pt to fit 13 cols
 
             doc.CreateParagraph(); // spacing after outer layout table
         }
