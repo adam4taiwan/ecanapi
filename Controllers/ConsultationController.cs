@@ -12280,6 +12280,57 @@ namespace Ecanapi.Controllers
             var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
             sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
             sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
+            {
+                // 日空亡（以日柱天干起旬）
+                string[] brArr = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                string[] stArr = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                int dSI = Array.IndexOf(stArr, dStem), dBI = Array.IndexOf(brArr, dBranch);
+                int dSt = (dBI - dSI + 12) % 12;
+                string dE1 = brArr[(dSt + 10) % 12], dE2 = brArr[(dSt + 11) % 12];
+                // 年空亡（以年柱天干起旬，先天空）
+                int ySI = Array.IndexOf(stArr, yStem), yBI = Array.IndexOf(brArr, yBranch);
+                int ySt = (yBI - ySI + 12) % 12;
+                string yE1 = brArr[(ySt + 10) % 12], yE2 = brArr[(ySt + 11) % 12];
+                sb.AppendLine($"| 日空亡 | {dE1}{dE2} | {dE1}{dE2} | {dE1}{dE2} | {dE1}{dE2} |");
+                sb.AppendLine($"| 年空亡 | {yE1}{yE2} | {yE1}{yE2} | {yE1}{yE2} | {yE1}{yE2} |");
+                // 神煞（縮寫：貴=天乙貴人, 文=文昌, 驛=驛馬, 桃=桃花, 刃=羊刃）
+                var ss_tianYiMap = new Dictionary<string,string[]>{
+                    {"甲",new[]{"丑","未"}},{"戊",new[]{"丑","未"}},{"庚",new[]{"丑","未"}},
+                    {"乙",new[]{"子","申"}},{"己",new[]{"子","申"}},
+                    {"丙",new[]{"亥","酉"}},{"丁",new[]{"亥","酉"}},
+                    {"壬",new[]{"卯","巳"}},{"癸",new[]{"卯","巳"}},
+                    {"辛",new[]{"午","寅"}}
+                };
+                var ss_wenChangMap = new Dictionary<string,string>{
+                    {"甲","巳"},{"乙","午"},{"丙","申"},{"丁","酉"},{"戊","申"},
+                    {"己","酉"},{"庚","亥"},{"辛","子"},{"壬","寅"},{"癸","卯"}
+                };
+                var ss_yangRenMap = new Dictionary<string,string>{
+                    {"甲","卯"},{"乙","辰"},{"丙","午"},{"丁","未"},{"戊","午"},
+                    {"己","未"},{"庚","酉"},{"辛","戌"},{"壬","子"},{"癸","丑"}
+                };
+                // 驛馬：申子辰→寅, 巳酉丑→亥, 寅午戌→申, 亥卯未→巳（以年支三合局頭為基準）
+                string yiMaBranch = "申子辰".Contains(yBranch) ? "寅"
+                    : "巳酉丑".Contains(yBranch) ? "亥"
+                    : "寅午戌".Contains(yBranch) ? "申" : "巳";
+                // 桃花：申子辰→酉, 巳酉丑→午, 寅午戌→卯, 亥卯未→子
+                string taoHuaBranch = "申子辰".Contains(yBranch) ? "酉"
+                    : "巳酉丑".Contains(yBranch) ? "午"
+                    : "寅午戌".Contains(yBranch) ? "卯" : "子";
+                var ss_tianYiBranches = ss_tianYiMap.GetValueOrDefault(dStem, Array.Empty<string>());
+                string wcBranch = ss_wenChangMap.GetValueOrDefault(dStem, "");
+                string yrBranch = ss_yangRenMap.GetValueOrDefault(dStem, "");
+                string ShenShaAbbr(string br) {
+                    var hits = new System.Text.StringBuilder();
+                    if (ss_tianYiBranches.Contains(br)) hits.Append("貴");
+                    if (br == wcBranch) hits.Append("文");
+                    if (br == yiMaBranch) hits.Append("驛");
+                    if (br == taoHuaBranch) hits.Append("桃");
+                    if (br == yrBranch) hits.Append("刃");
+                    return hits.Length > 0 ? hits.ToString() : "";
+                }
+                sb.AppendLine($"| 神煞 | {ShenShaAbbr(hBranch)} | {ShenShaAbbr(dBranch)} | {ShenShaAbbr(mBranch)} | {ShenShaAbbr(yBranch)} |");
+            }
             sb.AppendLine();
             sb.AppendLine("二、天干十神");
             string[] allStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
@@ -12332,7 +12383,7 @@ namespace Ecanapi.Controllers
                     ("比劫", biJieEl5),   ("印", yinEl5)
                 };
 
-                sb.AppendLine($"格局：【{pattern}】（{bodyLabel} {bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
+                sb.AppendLine($"格局：【{pattern}】{bodyLabel}{bodyPct:F0}%　{season}　{dStem}{dmElem}");
                 sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
                 sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
                 sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
