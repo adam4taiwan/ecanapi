@@ -4245,12 +4245,12 @@ namespace Ecanapi.Controllers
                 // Non-pipe line: flush any buffered table first
                 FlushPipeTable();
 
-                if (line == "【第二章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
+                if (line == "【第一章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
                     line == "【第四章：命格判定】" || line == "【第五章：用神喜忌】" ||
                     line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】")
                 {
-                    // 第二章表格用18pt，其他章節恢復10pt
-                    curTableFontSize = (line == "【第二章：先天八字依古制定】") ? 18 : 10;
+                    // 第一章表格用18pt，其他章節恢復10pt
+                    curTableFontSize = (line == "【第一章：先天八字依古制定】") ? 18 : 10;
                     AddParaWithPageBreakH1(line, 16, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
                 }
                 else if (line.StartsWith("【第") && line.EndsWith("】"))
@@ -9008,7 +9008,6 @@ namespace Ecanapi.Controllers
             if ("辰戌丑未".Contains(timeBranch))
             {
                 mingshuDetail = "辰戌丑未四時孤，不妨父母少親疏。";
-                mingshuDetail += isUpperFour ? "時初時末先亡母。" : "時正者先亡父。";
                 mingshuDetail += "兄弟無依靠，祖業難守，男宜僧道女宜姑。";
             }
 
@@ -9034,6 +9033,35 @@ namespace Ecanapi.Controllers
                 "偏財" => "才", "正財" => "財", "七殺" => "殺", "正官" => "官",
                 "偏印" => "梟", "正印" => "印", _ => ""
             };
+        }
+
+        // 十二長生：依日主天干 + 地支，回傳長生狀態
+        private static string LfChangSheng(string dStem, string branch)
+        {
+            // 陽干順推，陰干逆推
+            var yangOrder = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            var stages    = new[] { "長生","沐浴","冠帶","臨官","帝旺","衰","病","死","墓","絕","胎","養" };
+            // 各陽干長生起始地支
+            var yangStart = new Dictionary<string,string>
+            {
+                {"甲","亥"},{"丙","寅"},{"戊","寅"},{"庚","巳"},{"壬","申"}
+            };
+            // 各陰干長生起始地支（逆推）
+            var yinStart = new Dictionary<string,string>
+            {
+                {"乙","午"},{"丁","酉"},{"己","酉"},{"辛","子"},{"癸","卯"}
+            };
+            bool isYang = "甲丙戊庚壬".Contains(dStem);
+            string startBranch = isYang
+                ? (yangStart.TryGetValue(dStem, out var ys) ? ys : "子")
+                : (yinStart.TryGetValue(dStem, out var ys2) ? ys2 : "子");
+            int startIdx = Array.IndexOf(yangOrder, startBranch);
+            int branchIdx = Array.IndexOf(yangOrder, branch);
+            if (startIdx < 0 || branchIdx < 0) return "";
+            int stageIdx = isYang
+                ? (branchIdx - startIdx + 12) % 12
+                : (startIdx - branchIdx + 12) % 12;
+            return stages[stageIdx];
         }
 
         // 五行 → 十神群組簡稱（印/比/食/財/官）
@@ -11891,38 +11919,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
-            // === Ch.1 審時聞切（用獨立 StringBuilder，最後 TrimEnd 避免空白頁）===
-            var ch1Sb = new StringBuilder();
-            ch1Sb.AppendLine("【第一章：審時聞切 · 四時定數】");
-            ch1Sb.AppendLine();
-            ch1Sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
-            ch1Sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
-
-            // 中原盲派 - 時支/時干直斷
-            if (zRules.Count > 0)
-            {
-                string hBranchGroup = hBranch is "子" or "午" or "卯" or "酉" ? "子午卯酉"
-                    : hBranch is "寅" or "申" or "巳" or "亥" ? "寅申巳亥"
-                    : hBranch is "辰" or "戌" or "丑" or "未" ? "辰戌丑未" : "";
-                string hStemGroup = hStem is "甲" or "乙" ? "甲乙時干"
-                    : hStem is "丙" or "丁" ? "丙丁時干"
-                    : hStem is "戊" or "己" ? "戊己時干"
-                    : hStem is "庚" or "辛" ? "庚辛時干"
-                    : hStem is "壬" or "癸" ? "壬癸時干" : "";
-                var hBranchRule = zRules.FirstOrDefault(r => r.RuleType == "HourBranch" && r.Condition == hBranchGroup);
-                var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
-                if (hBranchRule != null || hStemRule != null)
-                {
-                    ch1Sb.AppendLine("【時柱印記】");
-                    if (hBranchRule != null) { ch1Sb.AppendLine($"▍時支（{hBranchGroup}）"); ch1Sb.AppendLine(hBranchRule.Content.TrimEnd()); }
-                    if (hStemRule   != null) { ch1Sb.AppendLine($"▍時干（{hStem}）"); ch1Sb.AppendLine(hStemRule.Content.TrimEnd()); }
-                }
-            }
-            // 去除第一章尾部所有空白，確保第二章前不產生空白頁
-            sb.AppendLine(ch1Sb.ToString().TrimEnd());
-
-            // === Ch.2 四柱根苗花果 ===
-            sb.AppendLine("【第二章：先天八字依古制定】");
+            // === Ch.1 先天八字依古制定 ===
+            sb.AppendLine("【第一章：先天八字依古制定】");
             sb.AppendLine();
             sb.AppendLine("一、根苗花果");
             sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
@@ -11934,6 +11932,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
             var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
             sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
+            sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
             sb.AppendLine();
             sb.AppendLine("二、天干十神");
             string[] allStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
@@ -11958,6 +11957,48 @@ namespace Ecanapi.Controllers
                 sb.AppendLine(mingShenTaiYuanYdz);
                 sb.AppendLine();
             }
+
+            // === Ch.1 大運排列 ===
+            if (scored.Count > 0)
+            {
+                sb.AppendLine("四、大運排列");
+                int firstStartAge = scored.Min(c => c.startAge);
+                sb.AppendLine($"出生後 {firstStartAge} 歲起運");
+                sb.AppendLine("| 起運歲 | " + string.Join(" | ", scored.Select(c => c.startAge.ToString())) + " |");
+                sb.AppendLine("|--------" + string.Join("|", scored.Select(_ => "----")) + "|");
+                sb.AppendLine("| 天干   | " + string.Join(" | ", scored.Select(c => c.stem)) + " |");
+                sb.AppendLine("| 地支   | " + string.Join(" | ", scored.Select(c => c.branch)) + " |");
+                sb.AppendLine();
+            }
+
+            // === Ch.2 審時聞切（用獨立 StringBuilder，最後 TrimEnd 避免空白頁）===
+            var ch1Sb = new StringBuilder();
+            ch1Sb.AppendLine("【第二章：審時聞切 · 四時定數】");
+            ch1Sb.AppendLine();
+            ch1Sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
+            ch1Sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
+
+            // 中原盲派 - 時支/時干直斷
+            if (zRules.Count > 0)
+            {
+                string hBranchGroup = hBranch is "子" or "午" or "卯" or "酉" ? "子午卯酉"
+                    : hBranch is "寅" or "申" or "巳" or "亥" ? "寅申巳亥"
+                    : hBranch is "辰" or "戌" or "丑" or "未" ? "辰戌丑未" : "";
+                string hStemGroup = hStem is "甲" or "乙" ? "甲乙時干"
+                    : hStem is "丙" or "丁" ? "丙丁時干"
+                    : hStem is "戊" or "己" ? "戊己時干"
+                    : hStem is "庚" or "辛" ? "庚辛時干"
+                    : hStem is "壬" or "癸" ? "壬癸時干" : "";
+                var hBranchRule = zRules.FirstOrDefault(r => r.RuleType == "HourBranch" && r.Condition == hBranchGroup);
+                var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
+                if (hBranchRule != null || hStemRule != null)
+                {
+                    ch1Sb.AppendLine("【時柱印記】");
+                    if (hBranchRule != null) { ch1Sb.AppendLine($"▍時支（{hBranchGroup}）"); ch1Sb.AppendLine(hBranchRule.Content.TrimEnd()); }
+                    if (hStemRule   != null) { ch1Sb.AppendLine($"▍時干（{hStem}）"); ch1Sb.AppendLine(hStemRule.Content.TrimEnd()); }
+                }
+            }
+            sb.AppendLine(ch1Sb.ToString().TrimEnd());
 
             // === Ch.3 深度論斷 ===
             sb.AppendLine($"【第三章：日柱深度論斷 · {dStem}{dBranch}】");
