@@ -9167,22 +9167,74 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"身強弱：{bodyLabel}（{bodyPct:F0}%）");
             sb.AppendLine();
 
-            // ===== Ch.2 先天八字依古制定（同玉洞子）=====
+            // ===== Ch.2 先天八字依古制定 - 一頁式總覽 =====
             sb.AppendLine("【第二章：先天八字依古制定】");
             sb.AppendLine();
-            sb.AppendLine($"▍格局：【{pattern}】");
-            sb.AppendLine($"▍用神：【{yongShenElem}】（{yongReason}）");
-            if (!string.IsNullOrEmpty(fuYiElem)) sb.AppendLine($"▍副用：【{fuYiElem}】");
-            sb.AppendLine($"▍忌神：【{jiShenElem}】");
-            sb.AppendLine();
-            // 格局說明：傳統月令取格 vs 盲派氣勢
-            if (branchHiddenMap.TryGetValue(mBranch, out var mHidden))
+
+            // 一、根苗花果
+            sb.AppendLine("一、根苗花果");
+            sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
+            sb.AppendLine("|------|------|------|------|------|");
             {
-                sb.AppendLine($"取格依據：月支{mBranch}，藏干{string.Join("、", mHidden)}，依月令司令天干透出定格。");
-                sb.AppendLine("注意：此格局依傳統月令取格法（古制），八字真經以命局整體五行氣勢為主，詳見第三章。");
+                string bjHSS = LfShiShenAbbr(hStem, dStem);
+                string bjMSS = LfShiShenAbbr(mStem, dStem);
+                string bjYSS = LfShiShenAbbr(yStem, dStem);
+                sb.AppendLine($"| 六神 | {bjHSS} | 元神 | {bjMSS} | {bjYSS} |");
+                sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
+                sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
+                sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
+                sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
+                var (wxWang, wxXiang, wxXiu, wxQiu, wxSi) = LfGetWangXiang(mBranch);
+                sb.AppendLine($"| 旺相 | {wxWang}旺 | {wxXiang}相 | {wxXiu}休 | {wxQiu}囚 {wxSi}死 |");
+                sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
             }
             sb.AppendLine();
 
+            // 二、天干十神
+            sb.AppendLine("二、天干十神");
+            {
+                string[] bjStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                sb.AppendLine("| 天干 | " + string.Join(" | ", bjStems10) + " |");
+                sb.AppendLine("|------|" + string.Join("|", bjStems10.Select(_ => "----")) + "|");
+                sb.AppendLine("| 十神 | " + string.Join(" | ", bjStems10.Select(s => LfShiShenAbbr(s, dStem))) + " |");
+            }
+            sb.AppendLine();
+
+            // 三、地支藏神十神
+            sb.AppendLine("三、地支藏神十神");
+            {
+                string[] bjBrs12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                var bjBrSet = new HashSet<string>(allBranches);
+                sb.AppendLine("| 項目 | " + string.Join(" | ", bjBrs12.Select(br => br + (bjBrSet.Contains(br) ? "★" : ""))) + " |");
+                sb.AppendLine("|------" + string.Join("|", bjBrs12.Select(_ => "----")) + "|");
+                sb.AppendLine("| 藏神 | " + string.Join(" | ", bjBrs12.Select(br => LfFmtHidden(br, dStem))) + " |");
+                double bjBiJi = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+                sb.AppendLine($"比印陣計分：{bjBiJi:F0}%");
+            }
+            sb.AppendLine();
+
+            // 格局/用神/忌神（緊湊一行）
+            sb.AppendLine($"格局：【{pattern}】　用神：【{yongShenElem}】{(!string.IsNullOrEmpty(fuYiElem) ? $"　副用：【{fuYiElem}】" : "")}　忌神：【{jiShenElem}】");
+            sb.AppendLine($"身強弱：{bodyLabel}（{bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
+            sb.AppendLine();
+
+            // 命宮·身宮·胎元
+            sb.AppendLine(LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, false));
+            sb.AppendLine();
+
+            // 四、大運排列
+            if (scored.Count > 0)
+            {
+                sb.AppendLine("四、大運排列");
+                sb.AppendLine($"出生後 {scored.Min(c => c.startAge)} 歲起運");
+                sb.AppendLine("| 起運歲 | " + string.Join(" | ", scored.Select(c => c.startAge.ToString())) + " |");
+                sb.AppendLine("|--------" + string.Join("|", scored.Select(_ => "----")) + "|");
+                sb.AppendLine("| 天干   | " + string.Join(" | ", scored.Select(c => c.stem)) + " |");
+                sb.AppendLine("| 地支   | " + string.Join(" | ", scored.Select(c => c.branch)) + " |");
+                sb.AppendLine();
+            }
+
+            // ─── 以下為詳細分析（繼續在後頁展開）───
             // 五行力量表
             sb.AppendLine("▍五行十神力量：");
             foreach (var kv in wuXing.OrderByDescending(x => x.Value))
