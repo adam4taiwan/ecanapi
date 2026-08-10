@@ -4511,6 +4511,8 @@ namespace Ecanapi.Controllers
                     for (int ci = 0; ci < data[ri].Count; ci++)
                     {
                         var tc = trow.GetCell(ci);
+                        // Set column width: right cell is 5200 dxa, 13 cols => 400 dxa each
+                        SetCellW(tc, 400);
                         string cellText = ci < data[ri].Count ? data[ri][ci] : "";
                         var p = tc.Paragraphs.Count > 0 ? tc.Paragraphs[0] : tc.AddParagraph();
                         p.Alignment = NPOI.XWPF.UserModel.ParagraphAlignment.CENTER;
@@ -12291,9 +12293,12 @@ namespace Ecanapi.Controllers
                 int ySI = Array.IndexOf(stArr, yStem), yBI = Array.IndexOf(brArr, yBranch);
                 int ySt = (yBI - ySI + 12) % 12;
                 string yE1 = brArr[(ySt + 10) % 12], yE2 = brArr[(ySt + 11) % 12];
-                sb.AppendLine($"| 日空亡 | {dE1}{dE2} | {dE1}{dE2} | {dE1}{dE2} | {dE1}{dE2} |");
-                sb.AppendLine($"| 年空亡 | {yE1}{yE2} | {yE1}{yE2} | {yE1}{yE2} | {yE1}{yE2} |");
-                // 神煞（縮寫：貴=天乙貴人, 文=文昌, 驛=驛馬, 桃=桃花, 刃=羊刃）
+                // 空亡：各柱地支若落在空亡集合中才顯示「空」，否則空白
+                string DayMark(string br) => (br == dE1 || br == dE2) ? "空" : "";
+                string YearMark(string br) => (br == yE1 || br == yE2) ? "空" : "";
+                sb.AppendLine($"| 日空亡 | {DayMark(hBranch)} | {DayMark(dBranch)} | {DayMark(mBranch)} | {DayMark(yBranch)} |");
+                sb.AppendLine($"| 年空亡 | {YearMark(hBranch)} | {YearMark(dBranch)} | {YearMark(mBranch)} | {YearMark(yBranch)} |");
+                // 神煞：天干系（貴=天乙貴人, 文=文昌, 刃=羊刃）+ 地支系（DiZhiShenShaMap以年支為基準）
                 var ss_tianYiMap = new Dictionary<string,string[]>{
                     {"甲",new[]{"丑","未"}},{"戊",new[]{"丑","未"}},{"庚",new[]{"丑","未"}},
                     {"乙",new[]{"子","申"}},{"己",new[]{"子","申"}},
@@ -12309,24 +12314,22 @@ namespace Ecanapi.Controllers
                     {"甲","卯"},{"乙","辰"},{"丙","午"},{"丁","未"},{"戊","午"},
                     {"己","未"},{"庚","酉"},{"辛","戌"},{"壬","子"},{"癸","丑"}
                 };
-                // 驛馬：申子辰→寅, 巳酉丑→亥, 寅午戌→申, 亥卯未→巳（以年支三合局頭為基準）
-                string yiMaBranch = "申子辰".Contains(yBranch) ? "寅"
-                    : "巳酉丑".Contains(yBranch) ? "亥"
-                    : "寅午戌".Contains(yBranch) ? "申" : "巳";
-                // 桃花：申子辰→酉, 巳酉丑→午, 寅午戌→卯, 亥卯未→子
-                string taoHuaBranch = "申子辰".Contains(yBranch) ? "酉"
-                    : "巳酉丑".Contains(yBranch) ? "午"
-                    : "寅午戌".Contains(yBranch) ? "卯" : "子";
                 var ss_tianYiBranches = ss_tianYiMap.GetValueOrDefault(dStem, Array.Empty<string>());
                 string wcBranch = ss_wenChangMap.GetValueOrDefault(dStem, "");
                 string yrBranch = ss_yangRenMap.GetValueOrDefault(dStem, "");
+                DiZhiShenShaMap.TryGetValue(yBranch, out var ss_dzYearMap);
+                var ss_dzAbbr = new Dictionary<string,string>{
+                    {"將星","將"},{"驛馬","驛"},{"孤辰","孤"},{"紅鸞","鸞"},{"華蓋","華"},
+                    {"劫煞","劫"},{"災煞","災"},{"桃花","桃"},{"天喜","喜"},{"寡宿","寡"},{"亡神","亡"}
+                };
                 string ShenShaAbbr(string br) {
                     var hits = new System.Text.StringBuilder();
                     if (ss_tianYiBranches.Contains(br)) hits.Append("貴");
                     if (br == wcBranch) hits.Append("文");
-                    if (br == yiMaBranch) hits.Append("驛");
-                    if (br == taoHuaBranch) hits.Append("桃");
                     if (br == yrBranch) hits.Append("刃");
+                    if (ss_dzYearMap != null && ss_dzYearMap.TryGetValue(br, out var dzSS))
+                        foreach (var s in dzSS)
+                            if (ss_dzAbbr.TryGetValue(s, out var a)) hits.Append(a);
                     return hits.Length > 0 ? hits.ToString() : "";
                 }
                 sb.AppendLine($"| 神煞 | {ShenShaAbbr(hBranch)} | {ShenShaAbbr(dBranch)} | {ShenShaAbbr(mBranch)} | {ShenShaAbbr(yBranch)} |");
