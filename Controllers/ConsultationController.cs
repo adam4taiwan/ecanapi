@@ -4276,8 +4276,9 @@ namespace Ecanapi.Controllers
                     continue;
                 }
 
-                if (line == "【第一章：先天八字依古制定】" || line.StartsWith("【第三章：日柱深度論斷") || line == "【第三章：深度分析】" ||
-                    line == "【第四章：命格判定】" || line == "【第五章：用神喜忌】" ||
+                if (line == "【第一章：先天八字依古制定】" || line == "【第二章：命格判定】" ||
+                    line == "【第三章：用神喜忌】" || line.StartsWith("【第四章：日柱深度論斷") ||
+                    line == "【第五章：審時聞切 · 四時定數】" ||
                     line == "【第六章：紫微星格】" || line == "【第七章：宮星化象（十二宮）】")
                 {
                     // 第一章表格用18pt，其他章節恢復10pt
@@ -12455,179 +12456,8 @@ namespace Ecanapi.Controllers
                 sb.AppendLine();
             }
 
-            // === Ch.2 審時聞切（用獨立 StringBuilder，最後 TrimEnd 避免空白頁）===
-            var ch1Sb = new StringBuilder();
-            ch1Sb.AppendLine("【第二章：審時聞切 · 四時定數】");
-            ch1Sb.AppendLine();
-            ch1Sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
-            ch1Sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
-
-            // 中原盲派 - 時支/時干直斷
-            if (zRules.Count > 0)
-            {
-                string hBranchGroup = hBranch is "子" or "午" or "卯" or "酉" ? "子午卯酉"
-                    : hBranch is "寅" or "申" or "巳" or "亥" ? "寅申巳亥"
-                    : hBranch is "辰" or "戌" or "丑" or "未" ? "辰戌丑未" : "";
-                string hStemGroup = hStem is "甲" or "乙" ? "甲乙時干"
-                    : hStem is "丙" or "丁" ? "丙丁時干"
-                    : hStem is "戊" or "己" ? "戊己時干"
-                    : hStem is "庚" or "辛" ? "庚辛時干"
-                    : hStem is "壬" or "癸" ? "壬癸時干" : "";
-                var hBranchRule = zRules.FirstOrDefault(r => r.RuleType == "HourBranch" && r.Condition == hBranchGroup);
-                var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
-                if (hBranchRule != null || hStemRule != null)
-                {
-                    ch1Sb.AppendLine("【時柱印記】");
-                    if (hBranchRule != null) { ch1Sb.AppendLine($"▍時支（{hBranchGroup}）"); ch1Sb.AppendLine(hBranchRule.Content.TrimEnd()); }
-                    if (hStemRule   != null) { ch1Sb.AppendLine($"▍時干（{hStem}）"); ch1Sb.AppendLine(hStemRule.Content.TrimEnd()); }
-                }
-            }
-            sb.AppendLine(ch1Sb.ToString().TrimEnd());
-
-            // === Ch.3 深度論斷 ===
-            sb.AppendLine($"【第三章：日柱深度論斷 · {dStem}{dBranch}】");
-            sb.AppendLine();
-            if (kb == null)
-            {
-                sb.AppendLine("（此日柱斷語尚待補充）");
-            }
-            else
-            {
-                void AppKb(string label, string? val)
-                {
-                    if (!string.IsNullOrWhiteSpace(val)) { sb.AppendLine($"▍{label}"); sb.AppendLine(val); sb.AppendLine(); }
-                }
-                AppKb("核心", kb.Overview);
-                AppKb("神殺特質", kb.ShenAnalysis);
-                AppKb("內在特質", kb.InnerTraits);
-                AppKb("事業傾向", kb.Career);
-                AppKb("天生弱點", kb.Weaknesses);
-                string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
-                    : "巳午未".Contains(mBranch) ? "夏"
-                    : "申酉戌".Contains(mBranch) ? "秋" : "冬";
-                AppKb("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
-                AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
-                // 女命：若正官(官殺)屬忌神且日支空亡，KB 通論可能美化婚姻，需加注提醒
-                if (gender == 2)
-                {
-                    string guanElemV2F = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
-                    if (guanElemV2F == jiShenElem)
-                    {
-                        var kongWangV2F = LfCalcDayEmpty(dStem, dBranch);
-                        if (kongWangV2F.Contains(dBranch))
-                            sb.AppendLine("【婚姻提醒】日支空亡且官殺屬忌神，感情婚姻易遇波折，宜謹慎評估對象，等待大運/流年官殺喜化時再定終身。");
-                    }
-                }
-                AppKb("最佳時辰", kb.SpecialHours);
-            }
-            // === 十干象法（千里課堂盲派）===
-            string shiGanQianLiDesc = LfQianLiShiGanXiangFa(dStem, mBranch);
-            if (!string.IsNullOrEmpty(shiGanQianLiDesc))
-            {
-                sb.AppendLine("【十干象法】");
-                sb.AppendLine(shiGanQianLiDesc);
-                sb.AppendLine();
-            }
-
-            // === 納音論斷 ===
-            var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
-            if (!string.IsNullOrEmpty(nayinDesc))
-            {
-                sb.AppendLine("【納音論斷】");
-                sb.AppendLine(nayinDesc);
-                sb.AppendLine();
-            }
-
-            // === 空亡論斷 ===
-            string kongWangDesc = LfKongWang(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
-            if (!string.IsNullOrEmpty(kongWangDesc))
-            {
-                sb.AppendLine("【空亡論斷】");
-                sb.AppendLine(kongWangDesc);
-                sb.AppendLine();
-            }
-
-            // === 四柱神煞 ===
-            string shenShaDesc = LfShenSha(
-                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                yStemSS, mStemSS, hStemSS,
-                yBranchSS, mBranchSS, dBranchSS, hBranchSS);
-            if (!string.IsNullOrEmpty(shenShaDesc))
-            {
-                sb.AppendLine("【四柱神煞】");
-                sb.AppendLine(shenShaDesc);
-                sb.AppendLine();
-            }
-
-            // 中原盲派 - 天干地支重複直斷
-            if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
-            {
-                sb.AppendLine("【四柱干支特徵論斷】");
-                sb.AppendLine();
-                foreach (var stem in repeatedStems)
-                {
-                    var matchKey = $"三{stem}";
-                    var rules = zRules.Where(r => r.RuleType == "StemRepeat" && r.Condition.Contains(stem)).ToList();
-                    if (rules.Count > 0)
-                    {
-                        sb.AppendLine($"▍天干 {stem} 出現三次以上：");
-                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
-                        sb.AppendLine();
-                    }
-                }
-                foreach (var branch in repeatedBranches)
-                {
-                    var rules = zRules.Where(r => r.RuleType == "BranchRepeat" && r.Condition.Contains(branch)).ToList();
-                    if (rules.Count > 0)
-                    {
-                        sb.AppendLine($"▍地支 {branch} 出現三次以上：");
-                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
-                        sb.AppendLine();
-                    }
-                }
-            }
-
-            // === 一柱論命（第三章延伸：日柱定數） ===
-            // 靜態原文（六十甲子 DB，依性別過濾）
-            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender);
-            if (!string.IsNullOrEmpty(yiZhuDesc))
-            {
-                sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
-                sb.AppendLine(yiZhuDesc);
-                sb.AppendLine();
-            }
-            // 六步演算論斷（YiZhuEngine，格局用神覆蓋喜忌）
-            string yiZhuAnalysis = new YiZhuEngine().Analyze(dStem, dBranch, mBranch, gender, yongShenElem);
-            if (!string.IsNullOrEmpty(yiZhuAnalysis))
-            {
-                sb.AppendLine(yiZhuAnalysis);
-                sb.AppendLine();
-            }
-
-            // === 神機妙算一掌經 ===
-            // fallback：若 lunarDay 未傳入，在此直接從 calDb 補查
-            int yzjLunarMonth = lunarMonth;
-            int yzjLunarDay   = lunarDay;
-            if ((yzjLunarMonth <= 0 || yzjLunarDay <= 0) && calDb != null && birthMonth.HasValue && birthDay.HasValue)
-            {
-                var yzjCal = calDb.CalendarEntries
-                    .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={birthMonth.Value} AND \"陽日\"={birthDay.Value} LIMIT 1")
-                    .FirstOrDefault();
-                if (yzjCal != null)
-                {
-                    if (yzjLunarMonth <= 0) yzjLunarMonth = LfParseLunarMonthField(yzjCal.LunarMonth);
-                    if (yzjLunarDay   <= 0) yzjLunarDay   = LfParseLunarDayField(yzjCal.LunarDay);
-                }
-            }
-            string yiZhangJingText = LfBuildYiZhangJing(yBranch, hBranch, yzjLunarMonth, yzjLunarDay, gender);
-            if (!string.IsNullOrEmpty(yiZhangJingText))
-            {
-                sb.AppendLine(yiZhangJingText);
-                sb.AppendLine();
-            }
-
-            // === Ch.4 命局格局判定 ===
-            sb.AppendLine("【第四章：命格判定】");
+            // === Ch.2 命格判定 ===
+            sb.AppendLine("【第二章：命格判定】");
             sb.AppendLine();
             sb.AppendLine("【命局體性（寒暖濕燥）】");
             sb.AppendLine($"月支 {mBranch} 生人，命局屬【{seaLabel}】。");
@@ -12689,8 +12519,8 @@ namespace Ecanapi.Controllers
             }
             sb.AppendLine();
 
-            // === Ch.5 格局與用神判定 ===
-            sb.AppendLine("【第五章：用神喜忌】");
+            // === Ch.3 用神喜忌 ===
+            sb.AppendLine("【第三章：用神喜忌】");
             sb.AppendLine();
             sb.AppendLine($"用神：【{yongShenElem}】（理由：{yongReason}）");
             string yongWeakNote5 = LfYongShenWeakNote(yongShenElem, wuXing);
@@ -12709,13 +12539,185 @@ namespace Ecanapi.Controllers
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemV2, dStem, branches));
             sb.AppendLine();
 
-            // === 生肖分析（Ch4/5/6/7 劉威吾生肖四柱論）===
+            // === 生肖分析（劉威吾生肖四柱論）===
+            // 納音/生肖提前計算，供生肖分析與Ch.4納音論斷共用
+            var (nayinDesc, zodiacDesc) = LfNaYin(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             if (!string.IsNullOrEmpty(zodiacDesc))
             {
                 sb.AppendLine("【生肖分析】");
                 sb.AppendLine(zodiacDesc);
                 sb.AppendLine();
             }
+
+            // === Ch.4 深度論斷 ===
+            sb.AppendLine($"【第四章：日柱深度論斷 · {dStem}{dBranch}】");
+            sb.AppendLine();
+            if (kb == null)
+            {
+                sb.AppendLine("（此日柱斷語尚待補充）");
+            }
+            else
+            {
+                void AppKb(string label, string? val)
+                {
+                    if (!string.IsNullOrWhiteSpace(val)) { sb.AppendLine($"▍{label}"); sb.AppendLine(val); sb.AppendLine(); }
+                }
+                AppKb("核心", kb.Overview);
+                AppKb("神殺特質", kb.ShenAnalysis);
+                AppKb("內在特質", kb.InnerTraits);
+                AppKb("事業傾向", kb.Career);
+                AppKb("天生弱點", kb.Weaknesses);
+                string kbSeasonChar = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋" : "冬";
+                AppKb("月令影響", LfFixBodyStrengthConflict(LfFilterSeasonText(kb.MonthInfluence, kbSeasonChar), bodyPct));
+                AppKb(gender == 1 ? "男命論斷" : "女命論斷", LfFixBodyStrengthConflict(LfFilterSeasonText(gender == 1 ? kb.MaleChart : kb.FemaleChart, kbSeasonChar), bodyPct));
+                // 女命：若正官(官殺)屬忌神且日支空亡，KB 通論可能美化婚姻，需加注提醒
+                if (gender == 2)
+                {
+                    string guanElemV2F = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                    if (guanElemV2F == jiShenElem)
+                    {
+                        var kongWangV2F = LfCalcDayEmpty(dStem, dBranch);
+                        if (kongWangV2F.Contains(dBranch))
+                            sb.AppendLine("【婚姻提醒】日支空亡且官殺屬忌神，感情婚姻易遇波折，宜謹慎評估對象，等待大運/流年官殺喜化時再定終身。");
+                    }
+                }
+                AppKb("最佳時辰", kb.SpecialHours);
+            }
+            // === 十干象法（千里課堂盲派）===
+            string shiGanQianLiDesc = LfQianLiShiGanXiangFa(dStem, mBranch);
+            if (!string.IsNullOrEmpty(shiGanQianLiDesc))
+            {
+                sb.AppendLine("【十干象法】");
+                sb.AppendLine(shiGanQianLiDesc);
+                sb.AppendLine();
+            }
+
+            // === 納音論斷 ===
+            if (!string.IsNullOrEmpty(nayinDesc))
+            {
+                sb.AppendLine("【納音論斷】");
+                sb.AppendLine(nayinDesc);
+                sb.AppendLine();
+            }
+
+            // === 空亡論斷 ===
+            string kongWangDesc = LfKongWang(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+            if (!string.IsNullOrEmpty(kongWangDesc))
+            {
+                sb.AppendLine("【空亡論斷】");
+                sb.AppendLine(kongWangDesc);
+                sb.AppendLine();
+            }
+
+            // === 四柱神煞 ===
+            string shenShaDesc = LfShenSha(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                yStemSS, mStemSS, hStemSS,
+                yBranchSS, mBranchSS, dBranchSS, hBranchSS);
+            if (!string.IsNullOrEmpty(shenShaDesc))
+            {
+                sb.AppendLine("【四柱神煞】");
+                sb.AppendLine(shenShaDesc);
+                sb.AppendLine();
+            }
+
+            // 中原盲派 - 天干地支重複直斷
+            if (zRules.Count > 0 && (repeatedStems.Count > 0 || repeatedBranches.Count > 0))
+            {
+                sb.AppendLine("【四柱干支特徵論斷】");
+                sb.AppendLine();
+                foreach (var stem in repeatedStems)
+                {
+                    var matchKey = $"三{stem}";
+                    var rules = zRules.Where(r => r.RuleType == "StemRepeat" && r.Condition.Contains(stem)).ToList();
+                    if (rules.Count > 0)
+                    {
+                        sb.AppendLine($"▍天干 {stem} 出現三次以上：");
+                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
+                        sb.AppendLine();
+                    }
+                }
+                foreach (var branch in repeatedBranches)
+                {
+                    var rules = zRules.Where(r => r.RuleType == "BranchRepeat" && r.Condition.Contains(branch)).ToList();
+                    if (rules.Count > 0)
+                    {
+                        sb.AppendLine($"▍地支 {branch} 出現三次以上：");
+                        foreach (var r in rules) sb.AppendLine($"• {r.Content}");
+                        sb.AppendLine();
+                    }
+                }
+            }
+
+            // === 一柱論命（第四章延伸：日柱定數） ===
+            // 靜態原文（六十甲子 DB，依性別過濾）
+            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender);
+            if (!string.IsNullOrEmpty(yiZhuDesc))
+            {
+                sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
+                sb.AppendLine(yiZhuDesc);
+                sb.AppendLine();
+            }
+            // 六步演算論斷（YiZhuEngine，格局用神覆蓋喜忌）
+            string yiZhuAnalysis = new YiZhuEngine().Analyze(dStem, dBranch, mBranch, gender, yongShenElem);
+            if (!string.IsNullOrEmpty(yiZhuAnalysis))
+            {
+                sb.AppendLine(yiZhuAnalysis);
+                sb.AppendLine();
+            }
+
+            // === 神機妙算一掌經 ===
+            // fallback：若 lunarDay 未傳入，在此直接從 calDb 補查
+            int yzjLunarMonth = lunarMonth;
+            int yzjLunarDay   = lunarDay;
+            if ((yzjLunarMonth <= 0 || yzjLunarDay <= 0) && calDb != null && birthMonth.HasValue && birthDay.HasValue)
+            {
+                var yzjCal = calDb.CalendarEntries
+                    .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={birthMonth.Value} AND \"陽日\"={birthDay.Value} LIMIT 1")
+                    .FirstOrDefault();
+                if (yzjCal != null)
+                {
+                    if (yzjLunarMonth <= 0) yzjLunarMonth = LfParseLunarMonthField(yzjCal.LunarMonth);
+                    if (yzjLunarDay   <= 0) yzjLunarDay   = LfParseLunarDayField(yzjCal.LunarDay);
+                }
+            }
+            string yiZhangJingText = LfBuildYiZhangJing(yBranch, hBranch, yzjLunarMonth, yzjLunarDay, gender);
+            if (!string.IsNullOrEmpty(yiZhangJingText))
+            {
+                sb.AppendLine(yiZhangJingText);
+                sb.AppendLine();
+            }
+
+            // === Ch.5 審時聞切（用獨立 StringBuilder，最後 TrimEnd 避免空白頁）===
+            var ch1Sb = new StringBuilder();
+            ch1Sb.AppendLine("【第五章：審時聞切 · 四時定數】");
+            ch1Sb.AppendLine();
+            ch1Sb.Append(LfShiWenSection(hBranch, birthHour, birthMinute, gender));
+            ch1Sb.Append(LfBaiShengSections(yBranch, hBranch, birthHour, birthMinute, birthYear, lunarMonth, gender, mBranch, dStem));
+
+            // 中原盲派 - 時支/時干直斷
+            if (zRules.Count > 0)
+            {
+                string hBranchGroup = hBranch is "子" or "午" or "卯" or "酉" ? "子午卯酉"
+                    : hBranch is "寅" or "申" or "巳" or "亥" ? "寅申巳亥"
+                    : hBranch is "辰" or "戌" or "丑" or "未" ? "辰戌丑未" : "";
+                string hStemGroup = hStem is "甲" or "乙" ? "甲乙時干"
+                    : hStem is "丙" or "丁" ? "丙丁時干"
+                    : hStem is "戊" or "己" ? "戊己時干"
+                    : hStem is "庚" or "辛" ? "庚辛時干"
+                    : hStem is "壬" or "癸" ? "壬癸時干" : "";
+                var hBranchRule = zRules.FirstOrDefault(r => r.RuleType == "HourBranch" && r.Condition == hBranchGroup);
+                var hStemRule   = zRules.FirstOrDefault(r => r.RuleType == "HourStem"   && r.Condition == hStemGroup);
+                if (hBranchRule != null || hStemRule != null)
+                {
+                    ch1Sb.AppendLine("【時柱印記】");
+                    if (hBranchRule != null) { ch1Sb.AppendLine($"▍時支（{hBranchGroup}）"); ch1Sb.AppendLine(hBranchRule.Content.TrimEnd()); }
+                    if (hStemRule   != null) { ch1Sb.AppendLine($"▍時干（{hStem}）"); ch1Sb.AppendLine(hStemRule.Content.TrimEnd()); }
+                }
+            }
+            sb.AppendLine(ch1Sb.ToString().TrimEnd());
 
             // === Ch.6 紫微格局論 ===
             sb.AppendLine("【第六章：紫微星格】");
