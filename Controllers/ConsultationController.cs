@@ -9486,18 +9486,27 @@ namespace Ecanapi.Controllers
                 var wxStat5 = new Dictionary<string, string>
                     { {wxW5,"旺"}, {wxXi5,"相"}, {wxXu5,"休"}, {wxQ5,"囚"}, {wxS5,"死"} };
 
-                int yongIdx5 = Array.IndexOf(wxC5, yongShenElem);
-                int jiIdx5   = Array.IndexOf(wxC5, jiShenElem);
-                string xiShenEl5   = wxC5[(yongIdx5 + 4) % 5];
-                string bingShenEl5 = wxC5[(jiIdx5 + 4) % 5];
-                string chouShenEl5 = wxC5[(Array.IndexOf(wxC5, bingShenEl5) + 4) % 5];
-
+                // 五神分配（韋千里運限論則：利用神者善，不利者惡）
+                // Ch.1五神表顯示格局本義，不受tiaoHou調候影響
+                // 身弱：用=印/比劫，喜=印比中非用者（互補）；身強：喜=fuYiElem(生用神)
+                bool isBodyStrong5 = bodyPct >= 50;
+                string xiEl5 = !isBodyStrong5
+                    ? (yongShenElem == biJieEl ? yinEl : biJieEl)  // 身弱：印比互補扶身
+                    : fuYiElem;                                     // 身強：生用神
+                // 外格（從格/化氣格/五行格）直接用fuYiElem（外格喜用規則不同）
+                if (LfHuaQiGeJuSet.Contains(pattern) || LfWuXingGeJuSet.Contains(pattern) ||
+                    pattern is "從財格" or "從殺格" or "從兒格" or "從旺格" or "從強格")
+                    xiEl5 = fuYiElem;
+                var (goodElems5, badElems5) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong5);
                 var wuShenMap5 = new Dictionary<string, string>();
                 void SetWS(string el, string lbl)
                 { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
-                SetWS(yongShenElem, "用神"); SetWS(xiShenEl5,   "喜神");
-                SetWS(jiShenElem,  "忌神"); SetWS(bingShenEl5, "病神");
-                SetWS(chouShenEl5, "仇神");
+                SetWS(yongShenElem, "用神");
+                SetWS(xiEl5,        "喜神");
+                SetWS(jiShenElem,   "病神");
+                foreach (var el5 in badElems5)
+                    if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
+                foreach (var el5 in wxC5) SetWS(el5, "閒神");
 
                 var cols5 = new[] {
                     ("官殺", guanShaEl), ("財", caiEl), ("傷食", shiSangEl),
