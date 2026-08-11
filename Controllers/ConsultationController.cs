@@ -2244,7 +2244,8 @@ namespace Ecanapi.Controllers
                     guoQi: lfGuoQi,
                     astroDescGeJu: bz1AstroGeJu,
                     qiongTongBaoJian: bz1QiongTong,
-                    guFaPoetry: bz1GuFaPoetry);
+                    guFaPoetry: bz1GuFaPoetry,
+                    tiaoHouElem: tiaoHouElem);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2453,7 +2454,8 @@ namespace Ecanapi.Controllers
                     guoQi: bzGuoQi,
                     astroDescGeJu: bz2AstroGeJu,
                     qiongTongBaoJian: bz2QiongTong,
-                    guFaPoetry: bz2GuFaPoetry);
+                    guFaPoetry: bz2GuFaPoetry,
+                    tiaoHouElem: tiaoHouElem);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -3251,7 +3253,8 @@ namespace Ecanapi.Controllers
                     qiongTongBaoJian: ydz1QiongTong,
                     guFaPoetry: ydz1GuFaPoetry,
                     yiZhuData: ydz1YiZhu,
-                    lunarDay: lunarDayYdz);
+                    lunarDay: lunarDayYdz,
+                    tiaoHouElem: tiaoHouElem);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -3439,7 +3442,7 @@ namespace Ecanapi.Controllers
                 string reportText = LfBuildBaZiJingReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     gender, birthYear, bjUserName, bodyPct, bodyLabel, pattern,
-                    yongShenElem, fuYiElem, jiShenElem, yongReason, season,
+                    yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
                     wuXing, scored,
                     LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
                     bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi);
@@ -3543,7 +3546,7 @@ namespace Ecanapi.Controllers
                 string reportText = LfBuildBaZiJingReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     gender, birthYear, bjDocxName, bodyPct, bodyLabel, pattern,
-                    yongShenElem, fuYiElem, jiShenElem, yongReason, season,
+                    yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
                     wuXing, scored,
                     LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
                     bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi);
@@ -3839,7 +3842,8 @@ namespace Ecanapi.Controllers
                     qiongTongBaoJian: ydz2QiongTong,
                     guFaPoetry: ydz2GuFaPoetry,
                     yiZhuData: ydz2YiZhu,
-                    lunarDay: lunarDayDocx);
+                    lunarDay: lunarDayDocx,
+                    tiaoHouElem: tiaoHouElem);
 
                 // === 建立 DOCX ===
                 string wwwroot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
@@ -6182,6 +6186,13 @@ namespace Ecanapi.Controllers
                 fuYiElem = candidates
                     .Where(e => e != yongShenElem && e != tempJiShen)
                     .FirstOrDefault() ?? yongShenElem;
+                // 若無第二候選（fuYiElem==yongShenElem），補預設喜神以防調候覆蓋
+                // 韋千里：身弱逢印比為善→喜=比劫；身強逢財官食為善→喜=食傷
+                if (fuYiElem == yongShenElem)
+                {
+                    string fallback = bodyPct < 45 ? dmElem : LfElemGen.GetValueOrDefault(dmElem, "");
+                    if (!string.IsNullOrEmpty(fallback) && fallback != yongShenElem) fuYiElem = fallback;
+                }
             }
 
             if (string.IsNullOrEmpty(yongShenElem)) yongShenElem = dmElem;
@@ -7797,7 +7808,8 @@ namespace Ecanapi.Controllers
             bool guoQi = false,
             string astroDescGeJu = "",
             string qiongTongBaoJian = "",
-            string guFaPoetry = "")
+            string guFaPoetry = "",
+            string tiaoHouElem = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -9357,7 +9369,7 @@ namespace Ecanapi.Controllers
             string dStem, string dBranch, string hStem, string hBranch,
             int gender, int birthYear, string userName,
             double bodyPct, string bodyLabel, string pattern,
-            string yongShenElem, string fuYiElem, string jiShenElem, string yongReason, string season,
+            string yongShenElem, string fuYiElem, string jiShenElem, string yongReason, string tiaoHouElem, string season,
             Dictionary<string, double> wuXing,
             List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
             string yNaYin, string mNaYin, string dNaYin, string hNaYin,
@@ -9507,6 +9519,9 @@ namespace Ecanapi.Controllers
                 foreach (var el5 in badElems5)
                     if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
                 foreach (var el5 in wxC5) SetWS(el5, "閒神");
+                // 調候：tiaoHouElem 若標為閒神，改標「調候」（夏/冬月額外喜神）
+                if (!string.IsNullOrEmpty(tiaoHouElem) && wuShenMap5.GetValueOrDefault(tiaoHouElem, "") == "閒神")
+                    wuShenMap5[tiaoHouElem] = "調候";
 
                 var cols5 = new[] {
                     ("官殺", guanShaEl), ("財", caiEl), ("傷食", shiSangEl),
@@ -11687,7 +11702,8 @@ namespace Ecanapi.Controllers
             string qiongTongBaoJian = "",
             string guFaPoetry = "",
             YiZhuLunMing? yiZhuData = null,
-            int lunarDay = 0)
+            int lunarDay = 0,
+            string tiaoHouElem = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -12377,18 +12393,30 @@ namespace Ecanapi.Controllers
                 var wxStat5 = new Dictionary<string, string>
                     { {wangYdz,"旺"}, {xiangYdz,"相"}, {xiuYdz,"休"}, {qiuYdz,"囚"}, {siYdz,"死"} };
 
-                int yongIdx5 = Array.IndexOf(wxC5, yongShenElem);
-                int jiIdx5   = Array.IndexOf(wxC5, jiShenElem);
-                string xiShenEl5   = wxC5[(yongIdx5 + 4) % 5];
-                string bingShenEl5 = wxC5[(jiIdx5 + 4) % 5];
-                string chouShenEl5 = wxC5[(Array.IndexOf(wxC5, bingShenEl5) + 4) % 5];
+                // 五神分配（韋千里運限論則：利用神者善，不利者惡）
+                // 身弱：用=印/比劫，喜=印比中非用者（互補）；身強：喜=fuYiElem(生用神)
+                bool isBodyStrong5 = bodyPct >= 50;
+                string xiEl5 = !isBodyStrong5
+                    ? (yongShenElem == biJieEl5 ? yinEl5 : biJieEl5)
+                    : fuYiElem;
+                // 外格（從格/化氣格/五行格）直接用fuYiElem
+                if (LfHuaQiGeJuSet.Contains(pattern) || LfWuXingGeJuSet.Contains(pattern) ||
+                    pattern is "從財格" or "從殺格" or "從兒格" or "從旺格" or "從強格")
+                    xiEl5 = fuYiElem;
+                var (goodElems5, badElems5) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong5);
 
                 var wuShenMap5 = new Dictionary<string, string>();
                 void SetWS5(string el, string lbl)
                 { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
-                SetWS5(yongShenElem, "用神"); SetWS5(xiShenEl5,   "喜神");
-                SetWS5(jiShenElem,  "忌神"); SetWS5(bingShenEl5, "病神");
-                SetWS5(chouShenEl5, "仇神");
+                SetWS5(yongShenElem, "用神");
+                SetWS5(xiEl5,        "喜神");
+                SetWS5(jiShenElem,   "病神");
+                foreach (var el5 in badElems5)
+                    if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
+                foreach (var el5 in wxC5) SetWS5(el5, "閒神");
+                // 調候：tiaoHouElem 若標為閒神，改標「調候」（夏/冬月額外喜神）
+                if (!string.IsNullOrEmpty(tiaoHouElem) && wuShenMap5.GetValueOrDefault(tiaoHouElem, "") == "閒神")
+                    wuShenMap5[tiaoHouElem] = "調候";
 
                 var cols5 = new[] {
                     ("官殺", guanShaEl5), ("財", caiEl5), ("傷食", shiSangEl5),
