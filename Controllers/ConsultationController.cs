@@ -22043,7 +22043,7 @@ namespace Ecanapi.Controllers
                         sb.AppendLine($"  特別提醒：{specialWarn}");
                 }
 
-                string monthJiPal = "", monthLuPal = "", monthQuanPal = "";
+                string monthJiPal = "", monthLuPal = "", monthQuanPal = "", monthKePal = "";
                 if (hasZiwei && YearStemSiHuaMap.TryGetValue(m.mStemM, out var mSiHua))
                 {
                     string[] branchOrd = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
@@ -22057,6 +22057,7 @@ namespace Ecanapi.Controllers
                             ("月化科", mSiHua.ke),
                             ("月化忌", mSiHua.ji)
                         };
+                        var siHuaDisplayParts = new List<string>();
                         foreach (var (siHuaLabel, starAbbr) in siHuaEntries)
                         {
                             if (string.IsNullOrEmpty(starAbbr)) continue;
@@ -22067,11 +22068,15 @@ namespace Ecanapi.Controllers
                             if (starBranchIdx < 0) continue;
                             int offset = (mingIdxM - starBranchIdx + 12) % 12;
                             string monthPalace = palaceOrd[offset];
-                            // 不直接輸出星名與宮位術語，僅記錄供本月機緣/注意生成使用
                             if (siHuaLabel == "月化忌")  monthJiPal   = monthPalace;
                             if (siHuaLabel == "月化祿")  monthLuPal   = monthPalace;
                             if (siHuaLabel == "月化權")  monthQuanPal = monthPalace;
+                            if (siHuaLabel == "月化科")  monthKePal   = monthPalace;
+                            string fullStarName = StarAbbrToFull.TryGetValue(starAbbr, out var fn) ? fn : starAbbr;
+                            siHuaDisplayParts.Add($"{siHuaLabel}({fullStarName})入{monthPalace}");
                         }
+                        if (siHuaDisplayParts.Count > 0)
+                            sb.AppendLine($"  流月四化：{string.Join("、", siHuaDisplayParts)}");
                     }
                 }
                 // 本月機緣/注意/概況（分開顯示，凶月不顯示正面機緣避免矛盾）
