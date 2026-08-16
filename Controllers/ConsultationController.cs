@@ -21661,12 +21661,32 @@ namespace Ecanapi.Controllers
             {
                 string[] shTypes = { "化祿", "化權", "化科", "化忌" };
                 string[] shStars = { siHua.lu, siHua.quan, siHua.ke, siHua.ji };
+                // 預計算大運命宮index，供宮位對映用
+                string[] branchOrd34 = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
+                string[] palaceOrd34 = {"命宮","兄弟宮","夫妻宮","子女宮","財帛宮","疾厄宮","遷移宮","交友宮","官祿宮","田宅宮","福德宮","父母宮"};
+                int dyMingIdx34 = !string.IsNullOrEmpty(daiyunBranch) ? Array.IndexOf(branchOrd34, daiyunBranch) : -1;
+
+                // 取得每個四化星的natal branch，供計算大運宮位
+                string GetDyPalLabel(string starAbbr)
+                {
+                    if (string.IsNullOrEmpty(starAbbr) || dyMingIdx34 < 0) return "";
+                    string natalPal = KbFindPalaceByStarAbbr(palaces, starAbbr);
+                    if (string.IsNullOrEmpty(natalPal)) return "";
+                    string sb2 = KbGetPalaceBranch(palaces, natalPal);
+                    int sbIdx = Array.IndexOf(branchOrd34, sb2);
+                    if (sbIdx < 0) return "";
+                    return $"大運{palaceOrd34[(dyMingIdx34 - sbIdx + 12) % 12]}";
+                }
+
                 if (siHuaDescMap.TryGetValue(flStem, out var flMap))
                 {
                     for (int si = 0; si < shTypes.Length; si++)
                     {
                         var (pal, desc) = flMap.GetValueOrDefault(shTypes[si], ("", ""));
-                        string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : $"入{pal}";
+                        string dyPalStr = GetDyPalLabel(shStars[si]);
+                        string palLabel = string.IsNullOrEmpty(pal) ? "（命盤未含此星）"
+                            : string.IsNullOrEmpty(dyPalStr) ? $"入{pal}"
+                            : $"入{pal}（{dyPalStr}）";
                         // 過濾術語與條件句
                         string cleanedDesc = string.IsNullOrEmpty(desc) ? "" : string.Join("。",
                             desc.Split('。')
@@ -21695,7 +21715,11 @@ namespace Ecanapi.Controllers
                     for (int si = 0; si < shTypes.Length; si++)
                     {
                         string pal = KbGetSiHuaPalace(flStem, shTypes[si], palaces);
-                        sb.AppendLine($"  {shTypes[si]}{(string.IsNullOrEmpty(pal) ? "（命盤未含此星）" : "入" + pal)}");
+                        string dyPalStr = GetDyPalLabel(shStars[si]);
+                        string palDisplay = string.IsNullOrEmpty(pal) ? "（命盤未含此星）"
+                            : string.IsNullOrEmpty(dyPalStr) ? $"入{pal}"
+                            : $"入{pal}（{dyPalStr}）";
+                        sb.AppendLine($"  {shTypes[si]}{palDisplay}");
                     }
                 }
             }
@@ -22048,7 +22072,9 @@ namespace Ecanapi.Controllers
                 {
                     string[] branchOrd = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
                     string[] palaceOrd = {"命宮","兄弟宮","夫妻宮","子女宮","財帛宮","疾厄宮","遷移宮","交友宮","官祿宮","田宅宮","福德宮","父母宮"};
-                    int mingIdxM = Array.IndexOf(branchOrd, m.mBranchM);
+                    int mingIdxM  = Array.IndexOf(branchOrd, m.mBranchM);
+                    int flMingIdx = Array.IndexOf(branchOrd, flBranch);
+                    int dyMingIdx = !string.IsNullOrEmpty(daiyunBranch) ? Array.IndexOf(branchOrd, daiyunBranch) : -1;
                     if (mingIdxM >= 0)
                     {
                         var siHuaEntries = new[] {
@@ -22073,7 +22099,13 @@ namespace Ecanapi.Controllers
                             if (siHuaLabel == "月化權")  monthQuanPal = monthPalace;
                             if (siHuaLabel == "月化科")  monthKePal   = monthPalace;
                             string fullStarName = StarAbbrToFull.TryGetValue(starAbbr, out var fn) ? fn : starAbbr;
-                            siHuaDisplayParts.Add($"{siHuaLabel}({fullStarName})入{monthPalace}");
+                            // 同時顯示流月/流年/大運三層宮位
+                            string flPal = flMingIdx >= 0 ? palaceOrd[(flMingIdx - starBranchIdx + 12) % 12] : "";
+                            string dyPal = dyMingIdx >= 0 ? palaceOrd[(dyMingIdx - starBranchIdx + 12) % 12] : "";
+                            string palDisplay = $"流月{monthPalace}";
+                            if (!string.IsNullOrEmpty(flPal))  palDisplay += $"→流年{flPal}";
+                            if (!string.IsNullOrEmpty(dyPal))  palDisplay += $"→大運{dyPal}";
+                            siHuaDisplayParts.Add($"{siHuaLabel}({fullStarName})入{palDisplay}");
                         }
                         if (siHuaDisplayParts.Count > 0)
                             sb.AppendLine($"  流月四化：{string.Join("、", siHuaDisplayParts)}");
