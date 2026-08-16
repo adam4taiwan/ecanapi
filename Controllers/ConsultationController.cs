@@ -21661,10 +21661,11 @@ namespace Ecanapi.Controllers
             {
                 string[] shTypes = { "化祿", "化權", "化科", "化忌" };
                 string[] shStars = { siHua.lu, siHua.quan, siHua.ke, siHua.ji };
-                // 預計算大運命宮index，供宮位對映用
+                // 預計算大運命宮index，供宮位對映用（紫微大運，從palaces decadeAgeRange取得）
                 string[] branchOrd34 = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
                 string[] palaceOrd34 = {"命宮","兄弟宮","夫妻宮","子女宮","財帛宮","疾厄宮","遷移宮","交友宮","官祿宮","田宅宮","福德宮","父母宮"};
-                int dyMingIdx34 = !string.IsNullOrEmpty(daiyunBranch) ? Array.IndexOf(branchOrd34, daiyunBranch) : -1;
+                string zwDaiyunBranch34 = hasZiwei ? DyGetDecadeMingBranch(palaces, flAge) : "";
+                int dyMingIdx34 = !string.IsNullOrEmpty(zwDaiyunBranch34) ? Array.IndexOf(branchOrd34, zwDaiyunBranch34) : -1;
 
                 // 取得每個四化星的natal branch，供計算大運宮位
                 string GetDyPalLabel(string starAbbr)
@@ -22074,7 +22075,9 @@ namespace Ecanapi.Controllers
                     string[] palaceOrd = {"命宮","兄弟宮","夫妻宮","子女宮","財帛宮","疾厄宮","遷移宮","交友宮","官祿宮","田宅宮","福德宮","父母宮"};
                     int mingIdxM  = Array.IndexOf(branchOrd, m.mBranchM);
                     int flMingIdx = Array.IndexOf(branchOrd, flBranch);
-                    int dyMingIdx = !string.IsNullOrEmpty(daiyunBranch) ? Array.IndexOf(branchOrd, daiyunBranch) : -1;
+                    // 紫微大運：從palaces decadeAgeRange取得，非八字大運
+                    string zwDaiyunBranch = hasZiwei ? DyGetDecadeMingBranch(palaces, flAge) : "";
+                    int dyMingIdx = !string.IsNullOrEmpty(zwDaiyunBranch) ? Array.IndexOf(branchOrd, zwDaiyunBranch) : -1;
                     if (mingIdxM >= 0)
                     {
                         var siHuaEntries = new[] {
