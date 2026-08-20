@@ -4904,6 +4904,8 @@ namespace Ecanapi.Controllers
                     ? $"農曆{dyCalEntry.LunarMonth.TrimEnd('月')}月{dyCalEntry.LunarDay}"
                     : "";
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
+                // NaYin strings for Ch.1 page (computed lazily after pillars are parsed)
+                string dyYNaYin = "", dyMNaYin = "", dyDNaYin = "", dyHNaYin = "";
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
                 var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
@@ -5003,6 +5005,10 @@ namespace Ecanapi.Controllers
                               naYin = LfPillarNaYin(timeP), hiddenPairs = LfPillarHiddenPairs(timeP) },
                     }
                 };
+                dyYNaYin = LfPillarNaYin(yearP);
+                dyMNaYin = LfPillarNaYin(monthP);
+                dyDNaYin = LfPillarNaYin(dayP);
+                dyHNaYin = LfPillarNaYin(timeP);
 
                 // luckCycles（前端大運走勢圖）
                 var scoredCycles = luckCycles.Select(lc => {
@@ -5054,7 +5060,8 @@ namespace Ecanapi.Controllers
                         ziweiFullContent, chartStars, decadeKbMap,
                         gender, birthYear, years, branches, dStem,
                         astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong, guFaPoetry: dyGuFaPoetry,
-                        solarDateStr: dySolarDate, lunarDateStr: dyLunarDate)
+                        solarDateStr: dySolarDate, lunarDateStr: dyLunarDate,
+                        yNaYin: dyYNaYin, mNaYin: dyMNaYin, dNaYin: dyDNaYin, hNaYin: dyHNaYin)
                     : v == 2
                     ? DyBuildReport_V2(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -7831,6 +7838,167 @@ namespace Ecanapi.Controllers
             return sb.ToString().TrimEnd();
         }
 
+        // === 共用：先天八字依古制定（各命書通用第一頁）===
+        private static string LfBuildCh1BaZiPage(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch,
+            string dmElem, Dictionary<string, double> wuXing,
+            double bodyPct, string bodyLabel, string pattern, string season,
+            string yongShenElem, string fuYiElem, string jiShenElem, string tiaoHouElem,
+            IEnumerable<(string stem, string branch, int startAge)> luckCycles,
+            string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "",
+            bool guoQi = false,
+            IList<BaziMingGongStar>? mingGongStars = null,
+            string chapterTitle = "")
+        {
+            var sb = new StringBuilder();
+            var allBranches = new[] { yBranch, mBranch, dBranch, hBranch };
+            string hStemSS = LfShiShenAbbr(hStem, dStem);
+            string mStemSS = LfShiShenAbbr(mStem, dStem);
+            string yStemSS = LfShiShenAbbr(yStem, dStem);
+            if (string.IsNullOrEmpty(tiaoHouElem))
+                tiaoHouElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
+
+            sb.AppendLine(string.IsNullOrEmpty(chapterTitle) ? "【第一章：先天八字依古制定】" : chapterTitle);
+            sb.AppendLine();
+            sb.AppendLine("一、根苗花果");
+            sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
+            sb.AppendLine("|------|------|------|------|------|");
+            sb.AppendLine($"| 六神 | {hStemSS} | 元神 | {mStemSS} | {yStemSS} |");
+            sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
+            sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
+            sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
+            if (!string.IsNullOrEmpty(yNaYin))
+                sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
+            var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
+            sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
+            sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
+            {
+                string[] brArr = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                string[] stArr = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                int dSI = Array.IndexOf(stArr, dStem), dBI = Array.IndexOf(brArr, dBranch);
+                int dSt = (dBI - dSI + 12) % 12;
+                string dE1 = brArr[(dSt + 10) % 12], dE2 = brArr[(dSt + 11) % 12];
+                int ySI = Array.IndexOf(stArr, yStem), yBI = Array.IndexOf(brArr, yBranch);
+                int ySt = (yBI - ySI + 12) % 12;
+                string yE1 = brArr[(ySt + 10) % 12], yE2 = brArr[(ySt + 11) % 12];
+                string DayMark(string br) => (br == dE1 || br == dE2) ? "空" : "";
+                string YearMark(string br) => (br == yE1 || br == yE2) ? "空" : "";
+                sb.AppendLine($"| 日空亡 | {DayMark(hBranch)} | {DayMark(dBranch)} | {DayMark(mBranch)} | {DayMark(yBranch)} |");
+                sb.AppendLine($"| 年空亡 | {YearMark(hBranch)} | {YearMark(dBranch)} | {YearMark(mBranch)} | {YearMark(yBranch)} |");
+                var tianYiMap = new Dictionary<string,string[]>{
+                    {"甲",new[]{"丑","未"}},{"戊",new[]{"丑","未"}},{"庚",new[]{"丑","未"}},
+                    {"乙",new[]{"子","申"}},{"己",new[]{"子","申"}},
+                    {"丙",new[]{"亥","酉"}},{"丁",new[]{"亥","酉"}},
+                    {"壬",new[]{"卯","巳"}},{"癸",new[]{"卯","巳"}},
+                    {"辛",new[]{"午","寅"}}
+                };
+                var wenChangMap = new Dictionary<string,string>{
+                    {"甲","巳"},{"乙","午"},{"丙","申"},{"丁","酉"},{"戊","申"},
+                    {"己","酉"},{"庚","亥"},{"辛","子"},{"壬","寅"},{"癸","卯"}
+                };
+                var yangRenMap = new Dictionary<string,string>{
+                    {"甲","卯"},{"乙","辰"},{"丙","午"},{"丁","未"},{"戊","午"},
+                    {"己","未"},{"庚","酉"},{"辛","戌"},{"壬","子"},{"癸","丑"}
+                };
+                var tianYiBranches = tianYiMap.GetValueOrDefault(dStem, Array.Empty<string>());
+                string wcBr = wenChangMap.GetValueOrDefault(dStem, "");
+                string yrBr = yangRenMap.GetValueOrDefault(dStem, "");
+                DiZhiShenShaMap.TryGetValue(yBranch, out var dzYearMap);
+                var dzAbbr = new Dictionary<string,string>{
+                    {"將星","將"},{"驛馬","驛"},{"孤辰","孤"},{"紅鸞","鸞"},{"華蓋","華"},
+                    {"劫煞","劫"},{"災煞","災"},{"桃花","桃"},{"天喜","喜"},{"寡宿","寡"},{"亡神","亡"}
+                };
+                string ShenSha(string br) {
+                    var h = new System.Text.StringBuilder();
+                    if (tianYiBranches.Contains(br)) h.Append("貴");
+                    if (br == wcBr) h.Append("文");
+                    if (br == yrBr) h.Append("刃");
+                    if (dzYearMap != null && dzYearMap.TryGetValue(br, out var dzSS))
+                        foreach (var s in dzSS)
+                            if (dzAbbr.TryGetValue(s, out var a)) h.Append(a);
+                    return h.Length > 0 ? h.ToString() : "";
+                }
+                sb.AppendLine($"| 神煞 | {ShenSha(hBranch)} | {ShenSha(dBranch)} | {ShenSha(mBranch)} | {ShenSha(yBranch)} |");
+            }
+            sb.AppendLine();
+
+            sb.AppendLine("二、天干十神");
+            string[] stems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+            sb.AppendLine("| 天干 | " + string.Join(" | ", stems10) + " |");
+            sb.AppendLine("|------|" + string.Join("|", stems10.Select(_ => "----")) + "|");
+            sb.AppendLine("| 十神 | " + string.Join(" | ", stems10.Select(s => LfShiShenAbbr(s, dStem).PadLeft(2))) + " |");
+            sb.AppendLine();
+
+            sb.AppendLine("三、地支藏神十神");
+            string[] brs12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            var brSet = new HashSet<string>(allBranches);
+            sb.AppendLine("| 項目 | " + string.Join(" | ", brs12.Select(br => br + (brSet.Contains(br) ? "★" : ""))) + " |");
+            sb.AppendLine("|------" + string.Join("|", brs12.Select(_ => "----")) + "|");
+            sb.AppendLine("| 藏神 | " + string.Join(" | ", brs12.Select(br => LfFmtHidden(br, dStem))) + " |");
+            double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+            sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
+            sb.AppendLine();
+
+            // 格局 + 五神格局分析表
+            {
+                string[] wxC5 = { "木","火","土","金","水" };
+                int di5 = Array.IndexOf(wxC5, dmElem);
+                string guanEl = wxC5[(di5 + 3) % 5], caiEl = wxC5[(di5 + 2) % 5];
+                string shiEl  = wxC5[(di5 + 1) % 5], biEl  = dmElem, yinEl = wxC5[(di5 + 4) % 5];
+                var wuChangMap5 = new Dictionary<string,string>
+                    { {"木","仁"},{"火","禮"},{"土","信"},{"金","義"},{"水","智"} };
+                var (wangW,xiangW,xiuW,qiuW,siW) = LfGetWangXiang(mBranch);
+                var wxStat5 = new Dictionary<string,string>
+                    { {wangW,"旺"},{xiangW,"相"},{xiuW,"休"},{qiuW,"囚"},{siW,"死"} };
+                bool isStrong5 = bodyPct >= 50;
+                string xiEl5 = !isStrong5 ? (yongShenElem == biEl ? yinEl : biEl) : fuYiElem;
+                if (LfHuaQiGeJuSet.Contains(pattern) || LfWuXingGeJuSet.Contains(pattern) ||
+                    pattern is "從財格" or "從殺格" or "從兒格" or "從旺格" or "從強格")
+                    xiEl5 = fuYiElem;
+                var (_, badElems5) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isStrong5);
+                var wuShenMap5 = new Dictionary<string,string>();
+                void SetWS5(string el, string lbl)
+                { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
+                SetWS5(yongShenElem, "用神"); SetWS5(xiEl5, "喜神"); SetWS5(jiShenElem, "病神");
+                foreach (var el5 in badElems5)
+                    if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
+                foreach (var el5 in wxC5) SetWS5(el5, "閒神");
+                if (!string.IsNullOrEmpty(tiaoHouElem) && wuShenMap5.GetValueOrDefault(tiaoHouElem, "") == "閒神")
+                    wuShenMap5[tiaoHouElem] = "調候";
+                var cols5 = new[] { ("官殺",guanEl),("財",caiEl),("傷食",shiEl),("比劫",biEl),("印",yinEl) };
+                sb.AppendLine($"格局：【{pattern}】{bodyLabel}{bodyPct:F0}%　{season}　{dStem}{dmElem}");
+                sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
+                sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
+                sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
+                sb.AppendLine("| 五常 | " + string.Join(" | ", cols5.Select(c => wuChangMap5.GetValueOrDefault(c.Item2,""))) + " |");
+                sb.AppendLine("| 力量 | " + string.Join(" | ", cols5.Select(c => $"{wuXing.GetValueOrDefault(c.Item2,0):F0}%")) + " |");
+                sb.AppendLine("| 旺衰 | " + string.Join(" | ", cols5.Select(c => wxStat5.GetValueOrDefault(c.Item2,""))) + " |");
+                sb.AppendLine("| 用忌 | " + string.Join(" | ", cols5.Select(c => wuShenMap5.GetValueOrDefault(c.Item2,""))) + " |");
+            }
+            sb.AppendLine();
+
+            // 命宮·身宮·胎元
+            sb.AppendLine(LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStars));
+            sb.AppendLine();
+
+            // 四、大運排列
+            var lcList = luckCycles.ToList();
+            if (lcList.Count > 0)
+            {
+                sb.AppendLine("四、大運排列");
+                int firstAge = lcList.Min(c => c.startAge);
+                sb.AppendLine($"出生後 {firstAge} 歲起運");
+                sb.AppendLine("| 起運歲 | " + string.Join(" | ", lcList.Select(c => c.startAge.ToString())) + " |");
+                sb.AppendLine("|--------" + string.Join("|", lcList.Select(_ => "----")) + "|");
+                sb.AppendLine("| 天干   | " + string.Join(" | ", lcList.Select(c => c.stem)) + " |");
+                sb.AppendLine("| 地支   | " + string.Join(" | ", lcList.Select(c => c.branch)) + " |");
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
         private static string LfBuildReport(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
@@ -7898,44 +8066,13 @@ namespace Ecanapi.Controllers
                 sb.AppendLine($"大運起運：{scored[0].startAge} 歲，依虛歲生日後換運為主");
             sb.AppendLine();
 
-            // 根苗花果四柱表（若有納音資料）
-            if (!string.IsNullOrEmpty(yNaYin))
-            {
-                sb.AppendLine("【先天八字四柱排盤】");
-                sb.AppendLine("一、根苗花果");
-                sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
-                sb.AppendLine("|------|------|------|------|------|");
-                sb.AppendLine($"| 六神 | {hStemSS} | 元神 | {mStemSS} | {yStemSS} |");
-                sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
-                sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
-                sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
-                sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
-                var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
-                sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
-                sb.AppendLine();
-                sb.AppendLine("二、天干十神");
-                string[] bz12Stems = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-                sb.AppendLine("| 天干 | " + string.Join(" | ", bz12Stems) + " |");
-                sb.AppendLine("|------|" + string.Join("|", bz12Stems.Select(_ => "----")) + "|");
-                sb.AppendLine("| 十神 | " + string.Join(" | ", bz12Stems.Select(s => LfShiShenAbbr(s, dStem).PadLeft(2))) + " |");
-                sb.AppendLine();
-                sb.AppendLine("三、地支藏神十神");
-                string[] bz12Brs = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-                sb.AppendLine("| 項目 | " + string.Join(" | ", bz12Brs.Select(br => br + (branches.Contains(br) ? "★" : ""))) + " |");
-                sb.AppendLine("|------" + string.Join("|", bz12Brs.Select(_ => "----")) + "|");
-                sb.AppendLine("| 藏神 | " + string.Join(" | ", bz12Brs.Select(br => LfFmtHidden(br, dStem))) + " |");
-                double biJiPct1 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-                sb.AppendLine($"比印陣計分：{biJiPct1:F0}%");
-                sb.AppendLine();
-            }
-
-            // === 命宮 · 身宮 · 胎元 ===
-            string mingShenTaiYuan = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStars);
-            if (!string.IsNullOrEmpty(mingShenTaiYuan))
-            {
-                sb.AppendLine(mingShenTaiYuan);
-                sb.AppendLine();
-            }
+            // === 第一章：先天八字依古制定 ===
+            sb.Append(LfBuildCh1BaZiPage(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
+                yongShenElem, fuYiElem, jiShenElem, tiaoHouElem,
+                scored.Select(c => (c.stem, c.branch, c.startAge)),
+                yNaYin, mNaYin, dNaYin, hNaYin, guoQi, mingGongStars));
 
             // === Ch.2 命局體性 ===
             sb.AppendLine("【第二章：命局體性（寒暖濕燥）】");
@@ -9482,125 +9619,14 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"身強弱：{bodyLabel}（{bodyPct:F0}%）");
             sb.AppendLine();
 
-            // ===== Ch.2 先天八字依古制定 - 一頁式總覽 =====
-            sb.AppendLine("【第二章：先天八字依古制定】");
-            sb.AppendLine();
-
-            // 一、根苗花果
-            sb.AppendLine("一、根苗花果");
-            sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
-            sb.AppendLine("|------|------|------|------|------|");
-            {
-                string bjHSS = LfShiShenAbbr(hStem, dStem);
-                string bjMSS = LfShiShenAbbr(mStem, dStem);
-                string bjYSS = LfShiShenAbbr(yStem, dStem);
-                sb.AppendLine($"| 六神 | {bjHSS} | 元神 | {bjMSS} | {bjYSS} |");
-                sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
-                sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
-                sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
-                sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
-                var (wxWang, wxXiang, wxXiu, wxQiu, wxSi) = LfGetWangXiang(mBranch);
-                sb.AppendLine($"| 旺相 | {wxWang}旺 | {wxXiang}相 | {wxXiu}休 | {wxQiu}囚 {wxSi}死 |");
-                sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
-            }
-            sb.AppendLine();
-
-            // 二、天干十神
-            sb.AppendLine("二、天干十神");
-            {
-                string[] bjStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-                sb.AppendLine("| 天干 | " + string.Join(" | ", bjStems10) + " |");
-                sb.AppendLine("|------|" + string.Join("|", bjStems10.Select(_ => "----")) + "|");
-                sb.AppendLine("| 十神 | " + string.Join(" | ", bjStems10.Select(s => LfShiShenAbbr(s, dStem))) + " |");
-            }
-            sb.AppendLine();
-
-            // 三、地支藏神十神
-            sb.AppendLine("三、地支藏神十神");
-            {
-                string[] bjBrs12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-                var bjBrSet = new HashSet<string>(allBranches);
-                sb.AppendLine("| 項目 | " + string.Join(" | ", bjBrs12.Select(br => br + (bjBrSet.Contains(br) ? "★" : ""))) + " |");
-                sb.AppendLine("|------" + string.Join("|", bjBrs12.Select(_ => "----")) + "|");
-                sb.AppendLine("| 藏神 | " + string.Join(" | ", bjBrs12.Select(br => LfFmtHidden(br, dStem))) + " |");
-                double bjBiJi = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-                sb.AppendLine($"比印陣計分：{bjBiJi:F0}%");
-            }
-            sb.AppendLine();
-
-            // 格局 + 五神格局分析表（官殺/財/傷食/比劫/印 × 五行/五常/力量/旺衰/取用神）
-            {
-                string[] wxC5 = { "木", "火", "土", "金", "水" };
-                int dmIdx5 = Array.IndexOf(wxC5, dmElem);
-                string guanShaEl  = wxC5[(dmIdx5 + 3) % 5];
-                string caiEl      = wxC5[(dmIdx5 + 2) % 5];
-                string shiSangEl  = wxC5[(dmIdx5 + 1) % 5];
-                string biJieEl    = dmElem;
-                string yinEl      = wxC5[(dmIdx5 + 4) % 5];
-
-                var wuChangMap5 = new Dictionary<string, string>
-                    { {"木","仁"}, {"火","禮"}, {"土","信"}, {"金","義"}, {"水","智"} };
-
-                var (wxW5, wxXi5, wxXu5, wxQ5, wxS5) = LfGetWangXiang(mBranch);
-                var wxStat5 = new Dictionary<string, string>
-                    { {wxW5,"旺"}, {wxXi5,"相"}, {wxXu5,"休"}, {wxQ5,"囚"}, {wxS5,"死"} };
-
-                // 五神分配（韋千里運限論則：利用神者善，不利者惡）
-                // Ch.1五神表顯示格局本義，不受tiaoHou調候影響
-                // 身弱：用=印/比劫，喜=印比中非用者（互補）；身強：喜=fuYiElem(生用神)
-                bool isBodyStrong5 = bodyPct >= 50;
-                string xiEl5 = !isBodyStrong5
-                    ? (yongShenElem == biJieEl ? yinEl : biJieEl)  // 身弱：印比互補扶身
-                    : fuYiElem;                                     // 身強：生用神
-                // 外格（從格/化氣格/五行格）直接用fuYiElem（外格喜用規則不同）
-                if (LfHuaQiGeJuSet.Contains(pattern) || LfWuXingGeJuSet.Contains(pattern) ||
-                    pattern is "從財格" or "從殺格" or "從兒格" or "從旺格" or "從強格")
-                    xiEl5 = fuYiElem;
-                var (goodElems5, badElems5) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong5);
-                var wuShenMap5 = new Dictionary<string, string>();
-                void SetWS(string el, string lbl)
-                { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
-                SetWS(yongShenElem, "用神");
-                SetWS(xiEl5,        "喜神");
-                SetWS(jiShenElem,   "病神");
-                foreach (var el5 in badElems5)
-                    if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
-                foreach (var el5 in wxC5) SetWS(el5, "閒神");
-                // 調候：tiaoHouElem 若標為閒神，改標「調候」（夏/冬月額外喜神）
-                if (!string.IsNullOrEmpty(tiaoHouElem) && wuShenMap5.GetValueOrDefault(tiaoHouElem, "") == "閒神")
-                    wuShenMap5[tiaoHouElem] = "調候";
-
-                var cols5 = new[] {
-                    ("官殺", guanShaEl), ("財", caiEl), ("傷食", shiSangEl),
-                    ("比劫", biJieEl),   ("印", yinEl)
-                };
-
-                sb.AppendLine($"格局：【{pattern}】（{bodyLabel} {bodyPct:F0}%）　季節：{season}　日主：{dStem}（{dmElem}）");
-                sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
-                sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
-                sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
-                sb.AppendLine("| 五常 | " + string.Join(" | ", cols5.Select(c => wuChangMap5.GetValueOrDefault(c.Item2, ""))) + " |");
-                sb.AppendLine("| 力量 | " + string.Join(" | ", cols5.Select(c => $"{wuXing.GetValueOrDefault(c.Item2, 0):F0}%")) + " |");
-                sb.AppendLine("| 旺衰 | " + string.Join(" | ", cols5.Select(c => wxStat5.GetValueOrDefault(c.Item2, ""))) + " |");
-                sb.AppendLine("| 用忌 | " + string.Join(" | ", cols5.Select(c => wuShenMap5.GetValueOrDefault(c.Item2, ""))) + " |");
-            }
-            sb.AppendLine();
-
-            // 命宮·身宮·胎元
-            sb.AppendLine(LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, false));
-            sb.AppendLine();
-
-            // 四、大運排列
-            if (scored.Count > 0)
-            {
-                sb.AppendLine("四、大運排列");
-                sb.AppendLine($"出生後 {scored.Min(c => c.startAge)} 歲起運");
-                sb.AppendLine("| 起運歲 | " + string.Join(" | ", scored.Select(c => c.startAge.ToString())) + " |");
-                sb.AppendLine("|--------" + string.Join("|", scored.Select(_ => "----")) + "|");
-                sb.AppendLine("| 天干   | " + string.Join(" | ", scored.Select(c => c.stem)) + " |");
-                sb.AppendLine("| 地支   | " + string.Join(" | ", scored.Select(c => c.branch)) + " |");
-                sb.AppendLine();
-            }
+            // ===== Ch.2 先天八字依古制定（共用方法，含空亡/神煞）=====
+            sb.Append(LfBuildCh1BaZiPage(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
+                yongShenElem, fuYiElem, jiShenElem, tiaoHouElem,
+                scored.Select(c => (c.stem, c.branch, c.startAge)),
+                yNaYin, mNaYin, dNaYin, hNaYin,
+                chapterTitle: "【第二章：先天八字依古制定】"));
 
             // ─── 以下為詳細分析（繼續在後頁展開）───
             // 五行力量表
@@ -12346,167 +12372,13 @@ namespace Ecanapi.Controllers
             sb.AppendLine("-----------------------------------------------------------------");
             sb.AppendLine();
 
-            // === Ch.1 先天八字依古制定 ===
-            sb.AppendLine("【第一章：先天八字依古制定】");
-            sb.AppendLine();
-            sb.AppendLine("一、根苗花果");
-            sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
-            sb.AppendLine("|------|------|------|------|------|");
-            sb.AppendLine($"| 六神 | {hStemSS} | 元神 | {mStemSS} | {yStemSS} |");
-            sb.AppendLine($"| 天干 | {hStem} | {dStem} | {mStem} | {yStem} |");
-            sb.AppendLine($"| 地支 | {hBranch} | {dBranch} | {mBranch} | {yBranch} |");
-            sb.AppendLine($"| 藏神 | {LfFmtHidden(hBranch,dStem)} | {LfFmtHidden(dBranch,dStem)} | {LfFmtHidden(mBranch,dStem)} | {LfFmtHidden(yBranch,dStem)} |");
-            sb.AppendLine($"| 納音 | {hNaYin} | {dNaYin} | {mNaYin} | {yNaYin} |");
-            var (wang, xiang, xiu, qiu, si) = LfGetWangXiang(mBranch);
-            sb.AppendLine($"| 旺相 | {wang}旺 | {xiang}相 | {xiu}休 | {qiu}囚 {si}死 |");
-            sb.AppendLine($"| 長生 | {LfChangSheng(dStem,hBranch)} | {LfChangSheng(dStem,dBranch)} | {LfChangSheng(dStem,mBranch)} | {LfChangSheng(dStem,yBranch)} |");
-            {
-                // 日空亡（以日柱天干起旬）
-                string[] brArr = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-                string[] stArr = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-                int dSI = Array.IndexOf(stArr, dStem), dBI = Array.IndexOf(brArr, dBranch);
-                int dSt = (dBI - dSI + 12) % 12;
-                string dE1 = brArr[(dSt + 10) % 12], dE2 = brArr[(dSt + 11) % 12];
-                // 年空亡（以年柱天干起旬，先天空）
-                int ySI = Array.IndexOf(stArr, yStem), yBI = Array.IndexOf(brArr, yBranch);
-                int ySt = (yBI - ySI + 12) % 12;
-                string yE1 = brArr[(ySt + 10) % 12], yE2 = brArr[(ySt + 11) % 12];
-                // 空亡：各柱地支若落在空亡集合中才顯示「空」，否則空白
-                string DayMark(string br) => (br == dE1 || br == dE2) ? "空" : "";
-                string YearMark(string br) => (br == yE1 || br == yE2) ? "空" : "";
-                sb.AppendLine($"| 日空亡 | {DayMark(hBranch)} | {DayMark(dBranch)} | {DayMark(mBranch)} | {DayMark(yBranch)} |");
-                sb.AppendLine($"| 年空亡 | {YearMark(hBranch)} | {YearMark(dBranch)} | {YearMark(mBranch)} | {YearMark(yBranch)} |");
-                // 神煞：天干系（貴=天乙貴人, 文=文昌, 刃=羊刃）+ 地支系（DiZhiShenShaMap以年支為基準）
-                var ss_tianYiMap = new Dictionary<string,string[]>{
-                    {"甲",new[]{"丑","未"}},{"戊",new[]{"丑","未"}},{"庚",new[]{"丑","未"}},
-                    {"乙",new[]{"子","申"}},{"己",new[]{"子","申"}},
-                    {"丙",new[]{"亥","酉"}},{"丁",new[]{"亥","酉"}},
-                    {"壬",new[]{"卯","巳"}},{"癸",new[]{"卯","巳"}},
-                    {"辛",new[]{"午","寅"}}
-                };
-                var ss_wenChangMap = new Dictionary<string,string>{
-                    {"甲","巳"},{"乙","午"},{"丙","申"},{"丁","酉"},{"戊","申"},
-                    {"己","酉"},{"庚","亥"},{"辛","子"},{"壬","寅"},{"癸","卯"}
-                };
-                var ss_yangRenMap = new Dictionary<string,string>{
-                    {"甲","卯"},{"乙","辰"},{"丙","午"},{"丁","未"},{"戊","午"},
-                    {"己","未"},{"庚","酉"},{"辛","戌"},{"壬","子"},{"癸","丑"}
-                };
-                var ss_tianYiBranches = ss_tianYiMap.GetValueOrDefault(dStem, Array.Empty<string>());
-                string wcBranch = ss_wenChangMap.GetValueOrDefault(dStem, "");
-                string yrBranch = ss_yangRenMap.GetValueOrDefault(dStem, "");
-                DiZhiShenShaMap.TryGetValue(yBranch, out var ss_dzYearMap);
-                var ss_dzAbbr = new Dictionary<string,string>{
-                    {"將星","將"},{"驛馬","驛"},{"孤辰","孤"},{"紅鸞","鸞"},{"華蓋","華"},
-                    {"劫煞","劫"},{"災煞","災"},{"桃花","桃"},{"天喜","喜"},{"寡宿","寡"},{"亡神","亡"}
-                };
-                string ShenShaAbbr(string br) {
-                    var hits = new System.Text.StringBuilder();
-                    if (ss_tianYiBranches.Contains(br)) hits.Append("貴");
-                    if (br == wcBranch) hits.Append("文");
-                    if (br == yrBranch) hits.Append("刃");
-                    if (ss_dzYearMap != null && ss_dzYearMap.TryGetValue(br, out var dzSS))
-                        foreach (var s in dzSS)
-                            if (ss_dzAbbr.TryGetValue(s, out var a)) hits.Append(a);
-                    return hits.Length > 0 ? hits.ToString() : "";
-                }
-                sb.AppendLine($"| 神煞 | {ShenShaAbbr(hBranch)} | {ShenShaAbbr(dBranch)} | {ShenShaAbbr(mBranch)} | {ShenShaAbbr(yBranch)} |");
-            }
-            sb.AppendLine();
-            sb.AppendLine("二、天干十神");
-            string[] allStems10 = { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-            sb.AppendLine("| 天干 | " + string.Join(" | ", allStems10) + " |");
-            sb.AppendLine("|------|" + string.Join("|", allStems10.Select(_ => "----")) + "|");
-            sb.AppendLine("| 十神 | " + string.Join(" | ", allStems10.Select(s => LfShiShenAbbr(s, dStem).PadLeft(2))) + " |");
-            sb.AppendLine();
-            sb.AppendLine("三、地支藏神十神");
-            string[] allBrs12 = { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-            // 橫排：地支為欄
-            sb.AppendLine("| 項目 | " + string.Join(" | ", allBrs12.Select(br => br + (branches.Contains(br) ? "★" : ""))) + " |");
-            sb.AppendLine("|------" + string.Join("|", allBrs12.Select(_ => "----")) + "|");
-            sb.AppendLine("| 藏神 | " + string.Join(" | ", allBrs12.Select(br => LfFmtHidden(br, dStem))) + " |");
-            double biJiPct = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-            sb.AppendLine($"比印陣計分：{biJiPct:F0}%");
-            sb.AppendLine();
-
-            // 格局 + 五神格局分析表（官殺/財/傷食/比劫/印 × 五行/五常/力量/旺衰/取用神）
-            {
-                string[] wxC5 = { "木", "火", "土", "金", "水" };
-                int dmIdx5 = Array.IndexOf(wxC5, dmElem);
-                string guanShaEl5  = wxC5[(dmIdx5 + 3) % 5];
-                string caiEl5      = wxC5[(dmIdx5 + 2) % 5];
-                string shiSangEl5  = wxC5[(dmIdx5 + 1) % 5];
-                string biJieEl5    = dmElem;
-                string yinEl5      = wxC5[(dmIdx5 + 4) % 5];
-
-                var wuChangMap5 = new Dictionary<string, string>
-                    { {"木","仁"}, {"火","禮"}, {"土","信"}, {"金","義"}, {"水","智"} };
-
-                var (wangYdz, xiangYdz, xiuYdz, qiuYdz, siYdz) = LfGetWangXiang(mBranch);
-                var wxStat5 = new Dictionary<string, string>
-                    { {wangYdz,"旺"}, {xiangYdz,"相"}, {xiuYdz,"休"}, {qiuYdz,"囚"}, {siYdz,"死"} };
-
-                // 五神分配（韋千里運限論則：利用神者善，不利者惡）
-                // 身弱：用=印/比劫，喜=印比中非用者（互補）；身強：喜=fuYiElem(生用神)
-                bool isBodyStrong5 = bodyPct >= 50;
-                string xiEl5 = !isBodyStrong5
-                    ? (yongShenElem == biJieEl5 ? yinEl5 : biJieEl5)
-                    : fuYiElem;
-                // 外格（從格/化氣格/五行格）直接用fuYiElem
-                if (LfHuaQiGeJuSet.Contains(pattern) || LfWuXingGeJuSet.Contains(pattern) ||
-                    pattern is "從財格" or "從殺格" or "從兒格" or "從旺格" or "從強格")
-                    xiEl5 = fuYiElem;
-                var (goodElems5, badElems5) = LfGetPatternLuckElems(pattern, yongShenElem, fuYiElem, dmElem, isBodyStrong5);
-
-                var wuShenMap5 = new Dictionary<string, string>();
-                void SetWS5(string el, string lbl)
-                { if (!string.IsNullOrEmpty(el) && !wuShenMap5.ContainsKey(el)) wuShenMap5[el] = lbl; }
-                SetWS5(yongShenElem, "用神");
-                SetWS5(xiEl5,        "喜神");
-                SetWS5(jiShenElem,   "病神");
-                foreach (var el5 in badElems5)
-                    if (!wuShenMap5.ContainsKey(el5)) { wuShenMap5[el5] = "仇神"; break; }
-                foreach (var el5 in wxC5) SetWS5(el5, "閒神");
-                // 調候：tiaoHouElem 若標為閒神，改標「調候」（夏/冬月額外喜神）
-                if (!string.IsNullOrEmpty(tiaoHouElem) && wuShenMap5.GetValueOrDefault(tiaoHouElem, "") == "閒神")
-                    wuShenMap5[tiaoHouElem] = "調候";
-
-                var cols5 = new[] {
-                    ("官殺", guanShaEl5), ("財", caiEl5), ("傷食", shiSangEl5),
-                    ("比劫", biJieEl5),   ("印", yinEl5)
-                };
-
-                sb.AppendLine($"格局：【{pattern}】{bodyLabel}{bodyPct:F0}%　{season}　{dStem}{dmElem}");
-                sb.AppendLine("| 十神 | " + string.Join(" | ", cols5.Select(c => c.Item1)) + " |");
-                sb.AppendLine("|------" + string.Join("|", cols5.Select(_ => "----")) + "|");
-                sb.AppendLine("| 五行 | " + string.Join(" | ", cols5.Select(c => c.Item2)) + " |");
-                sb.AppendLine("| 五常 | " + string.Join(" | ", cols5.Select(c => wuChangMap5.GetValueOrDefault(c.Item2, ""))) + " |");
-                sb.AppendLine("| 力量 | " + string.Join(" | ", cols5.Select(c => $"{wuXing.GetValueOrDefault(c.Item2, 0):F0}%")) + " |");
-                sb.AppendLine("| 旺衰 | " + string.Join(" | ", cols5.Select(c => wxStat5.GetValueOrDefault(c.Item2, ""))) + " |");
-                sb.AppendLine("| 用忌 | " + string.Join(" | ", cols5.Select(c => wuShenMap5.GetValueOrDefault(c.Item2, ""))) + " |");
-            }
-            sb.AppendLine();
-
-            // === 命宮 · 身宮 · 胎元 ===
-            string mingShenTaiYuanYdz = LfBuildMingShenTaiYuan(yStem, mStem, mBranch, hBranch, guoQi, mingGongStarList);
-            if (!string.IsNullOrEmpty(mingShenTaiYuanYdz))
-            {
-                sb.AppendLine(mingShenTaiYuanYdz);
-                sb.AppendLine();
-            }
-
-            // === Ch.1 大運排列 ===
-            if (scored.Count > 0)
-            {
-                sb.AppendLine("四、大運排列");
-                int firstStartAge = scored.Min(c => c.startAge);
-                sb.AppendLine($"出生後 {firstStartAge} 歲起運");
-                sb.AppendLine("| 起運歲 | " + string.Join(" | ", scored.Select(c => c.startAge.ToString())) + " |");
-                sb.AppendLine("|--------" + string.Join("|", scored.Select(_ => "----")) + "|");
-                sb.AppendLine("| 天干   | " + string.Join(" | ", scored.Select(c => c.stem)) + " |");
-                sb.AppendLine("| 地支   | " + string.Join(" | ", scored.Select(c => c.branch)) + " |");
-                sb.AppendLine();
-            }
+            // === Ch.1 先天八字依古制定（共用方法）===
+            sb.Append(LfBuildCh1BaZiPage(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
+                yongShenElem, fuYiElem, jiShenElem, tiaoHouElem,
+                scored.Select(c => (c.stem, c.branch, c.startAge)),
+                yNaYin, mNaYin, dNaYin, hNaYin, guoQi, mingGongStarList));
 
             // === Ch.2 命格判定 ===
             sb.AppendLine("【第二章：命格判定】");
@@ -12523,9 +12395,10 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【日主強弱判定】");
             sb.AppendLine($"日干 {dStem}（{dmElem}），月令 {mBranch}（{season}季）。");
             sb.AppendLine($"五行分布：{wx}");
-            double tiPct2 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0);
+            double biJiPct2 = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
+            double tiPct2 = biJiPct2 + wuXing.GetValueOrDefault(LfElemGen.GetValueOrDefault(dmElem, ""), 0);
             double yongPct2 = wuXing.GetValueOrDefault(LfElemOvercome.GetValueOrDefault(dmElem, ""), 0) + wuXing.GetValueOrDefault(LfElemOvercomeBy.GetValueOrDefault(dmElem, ""), 0);
-            sb.AppendLine($"比印陣：{biJiPct:F0}% | 洩克陣：{100 - biJiPct:F0}%   (印比食)體 {tiPct2:F0}%  (財官)用 {yongPct2:F0}%");
+            sb.AppendLine($"比印陣：{biJiPct2:F0}% | 洩克陣：{100 - biJiPct2:F0}%   (印比食)體 {tiPct2:F0}%  (財官)用 {yongPct2:F0}%");
             sb.AppendLine($"結論：日主【{bodyLabel}】（強弱度：{bodyPct:F0}%）");
             // 節氣司令用事（驗算日主強弱參考）
             if (birthMonth.HasValue && birthDay.HasValue)
@@ -19366,7 +19239,8 @@ namespace Ecanapi.Controllers
             Dictionary<string, string> decadeKbMap,
             int gender, int birthYear, int years, string[] branches, string dStemRef,
             string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "",
-            string solarDateStr = "", string lunarDateStr = "")
+            string solarDateStr = "", string lunarDateStr = "",
+            string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -19381,6 +19255,14 @@ namespace Ecanapi.Controllers
             sb.AppendLine("                         大 運 命 書");
             sb.AppendLine("=================================================================");
             sb.AppendLine();
+
+            // 先天八字依古制定（總覽頁）
+            sb.Append(LfBuildCh1BaZiPage(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
+                yongShenElem, fuYiElem, jiShenElem, "",
+                luckCycles.Select(c => (c.stem, c.branch, c.startAge)),
+                yNaYin, mNaYin, dNaYin, hNaYin));
 
             // 人生指南目錄
             sb.AppendLine("                       人  生  指  南");
@@ -20640,6 +20522,10 @@ namespace Ecanapi.Controllers
                         new { label = "時", stem = hStem, branch = hBranch, stemSS = hStemSS, naYin = LfPillarNaYin(timeP),  hiddenPairs = LfPillarHiddenPairs(timeP) },
                     }
                 };
+                string lnYNaYin = LfPillarNaYin(yearP);
+                string lnMNaYin = LfPillarNaYin(monthP);
+                string lnDNaYin = LfPillarNaYin(dayP);
+                string lnHNaYin = LfPillarNaYin(timeP);
                 var scoredCycles = luckCycles.Select(lc => {
                     int sc = LfCalcLuckScore(lc.stem, lc.branch, pattern, yongShenElem, fuYiElem, jiShenElem,
                         dmElem, bodyPct > 50, tiaoHouElem, season, branches, chartStems4, dStem);
@@ -20682,7 +20568,8 @@ namespace Ecanapi.Controllers
                     shenSha12: lnShenSha12,
                     mingGongChartText: lnMingGongChartText,
                     astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong, guFaPoetry: lnGuFaPoetry,
-                    solarDateStr: lnSolarDate, lunarDateStr: lnLunarDate);
+                    solarDateStr: lnSolarDate, lunarDateStr: lnLunarDate,
+                    yNaYin: lnYNaYin, mNaYin: lnMNaYin, dNaYin: lnDNaYin, hNaYin: lnHNaYin);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -21348,7 +21235,8 @@ namespace Ecanapi.Controllers
             IList<BaziShenSha12>? shenSha12 = null,
             string mingGongChartText = "",
             string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "",
-            string solarDateStr = "", string lunarDateStr = "")
+            string solarDateStr = "", string lunarDateStr = "",
+            string yNaYin = "", string mNaYin = "", string dNaYin = "", string hNaYin = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -21364,6 +21252,14 @@ namespace Ecanapi.Controllers
             sb.AppendLine("                         流 年 命 書");
             sb.AppendLine("=================================================================");
             sb.AppendLine();
+
+            // 先天八字依古制定（總覽頁）
+            sb.Append(LfBuildCh1BaZiPage(
+                yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
+                yongShenElem, fuYiElem, jiShenElem, "",
+                luckCycles.Select(c => (c.stem, c.branch, c.startAge)),
+                yNaYin, mNaYin, dNaYin, hNaYin));
 
             sb.AppendLine();
 
