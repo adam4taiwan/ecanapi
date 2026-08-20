@@ -7859,7 +7859,7 @@ namespace Ecanapi.Controllers
             if (string.IsNullOrEmpty(tiaoHouElem))
                 tiaoHouElem = season == "冬" ? "火" : season == "夏" ? "水" : "";
 
-            sb.AppendLine(string.IsNullOrEmpty(chapterTitle) ? "【第一章：先天八字依古制定】" : chapterTitle);
+            sb.AppendLine(string.IsNullOrEmpty(chapterTitle) ? "【先天八字依古制定】" : chapterTitle);
             sb.AppendLine();
             sb.AppendLine("一、根苗花果");
             sb.AppendLine("| 項目 | 時柱 | 日柱 | 月柱 | 年柱 |");
@@ -12378,7 +12378,8 @@ namespace Ecanapi.Controllers
                 dmElem, wuXing, bodyPct, bodyLabel, pattern, season,
                 yongShenElem, fuYiElem, jiShenElem, tiaoHouElem,
                 scored.Select(c => (c.stem, c.branch, c.startAge)),
-                yNaYin, mNaYin, dNaYin, hNaYin, guoQi, mingGongStarList));
+                yNaYin, mNaYin, dNaYin, hNaYin, guoQi, mingGongStarList,
+                chapterTitle: "【第一章：先天八字依古制定】"));
 
             // === Ch.2 命格判定 ===
             sb.AppendLine("【第二章：命格判定】");
