@@ -2172,13 +2172,20 @@ namespace Ecanapi.Controllers
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
+                CalendarEntry? lfCalEntry = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    lfCalEntry = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = lfCalEntry?.SolarTerm ?? "";
                 }
+                string lfSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string lfLunarDate = lfCalEntry != null && !string.IsNullOrEmpty(lfCalEntry.LunarMonth) && !string.IsNullOrEmpty(lfCalEntry.LunarDay)
+                    ? $"農曆{lfCalEntry.LunarMonth.TrimEnd('月')}月{lfCalEntry.LunarDay}"
+                    : "";
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
@@ -2245,7 +2252,8 @@ namespace Ecanapi.Controllers
                     astroDescGeJu: bz1AstroGeJu,
                     qiongTongBaoJian: bz1QiongTong,
                     guFaPoetry: bz1GuFaPoetry,
-                    tiaoHouElem: tiaoHouElem);
+                    tiaoHouElem: tiaoHouElem,
+                    solarDateStr: lfSolarDate, lunarDateStr: lfLunarDate);
 
                 var cycleData = scored.Select(c => new {
                     stem = c.stem, branch = c.branch, liuShen = c.liuShen,
@@ -2387,13 +2395,20 @@ namespace Ecanapi.Controllers
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
+                CalendarEntry? lfCalEntry = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    lfCalEntry = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = lfCalEntry?.SolarTerm ?? "";
                 }
+                string lfSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string lfLunarDate = lfCalEntry != null && !string.IsNullOrEmpty(lfCalEntry.LunarMonth) && !string.IsNullOrEmpty(lfCalEntry.LunarDay)
+                    ? $"農曆{lfCalEntry.LunarMonth.TrimEnd('月')}月{lfCalEntry.LunarDay}"
+                    : "";
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
@@ -2455,7 +2470,8 @@ namespace Ecanapi.Controllers
                     astroDescGeJu: bz2AstroGeJu,
                     qiongTongBaoJian: bz2QiongTong,
                     guFaPoetry: bz2GuFaPoetry,
-                    tiaoHouElem: tiaoHouElem);
+                    tiaoHouElem: tiaoHouElem,
+                    solarDateStr: lfSolarDate, lunarDateStr: lfLunarDate);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
                 bool bzHasZiwei = root.TryGetProperty("palaces", out var bzPalaces)
@@ -3399,13 +3415,20 @@ namespace Ecanapi.Controllers
                 string bjUserName = !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? "");
 
                 string birthSolarTerm = "";
+                CalendarEntry? bjCalEntry = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    bjCalEntry = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = bjCalEntry?.SolarTerm ?? "";
                 }
+                string bjSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string bjLunarDate = bjCalEntry != null && !string.IsNullOrEmpty(bjCalEntry.LunarMonth) && !string.IsNullOrEmpty(bjCalEntry.LunarDay)
+                    ? $"農曆{bjCalEntry.LunarMonth.TrimEnd('月')}月{bjCalEntry.LunarDay}"
+                    : "";
 
                 string season  = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
@@ -3445,7 +3468,8 @@ namespace Ecanapi.Controllers
                     yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
                     wuXing, scored,
                     LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
-                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi);
+                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi,
+                    solarDateStr: bjSolarDate, lunarDateStr: bjLunarDate);
 
                 return Ok(new { report = reportText, reportType = "八字真經" });
             }
@@ -3505,13 +3529,20 @@ namespace Ecanapi.Controllers
                 string bjDocxName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "命主");
 
                 string birthSolarTerm = "";
+                CalendarEntry? bjCalEntry2 = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    bjCalEntry2 = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = bjCalEntry2?.SolarTerm ?? "";
                 }
+                string bjSolarDate2 = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string bjLunarDate2 = bjCalEntry2 != null && !string.IsNullOrEmpty(bjCalEntry2.LunarMonth) && !string.IsNullOrEmpty(bjCalEntry2.LunarDay)
+                    ? $"農曆{bjCalEntry2.LunarMonth.TrimEnd('月')}月{bjCalEntry2.LunarDay}"
+                    : "";
 
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem    = KbStemToElement(dStem);
@@ -3549,7 +3580,8 @@ namespace Ecanapi.Controllers
                     yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
                     wuXing, scored,
                     LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
-                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi);
+                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi,
+                    solarDateStr: bjSolarDate2, lunarDateStr: bjLunarDate2);
 
                 string wwwroot    = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
                 string coverPath  = Path.Combine(wwwroot, "images", "cover_page.jpg");
@@ -4857,13 +4889,20 @@ namespace Ecanapi.Controllers
                 int gender    = user.BirthGender ?? 1;
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
+                CalendarEntry? dyCalEntry = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    dyCalEntry = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = dyCalEntry?.SolarTerm ?? "";
                 }
+                string dySolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string dyLunarDate = dyCalEntry != null && !string.IsNullOrEmpty(dyCalEntry.LunarMonth) && !string.IsNullOrEmpty(dyCalEntry.LunarDay)
+                    ? $"農曆{dyCalEntry.LunarMonth.TrimEnd('月')}月{dyCalEntry.LunarDay}"
+                    : "";
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
@@ -5014,7 +5053,8 @@ namespace Ecanapi.Controllers
                         luckCycles, annualDetails, hasZiwei, palaces, siHuaDescMap,
                         ziweiFullContent, chartStars, decadeKbMap,
                         gender, birthYear, years, branches, dStem,
-                        astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong, guFaPoetry: dyGuFaPoetry)
+                        astroDescGeJu: dyAstroGeJu, qiongTongBaoJian: dyQiongTong, guFaPoetry: dyGuFaPoetry,
+                        solarDateStr: dySolarDate, lunarDateStr: dyLunarDate)
                     : v == 2
                     ? DyBuildReport_V2(
                         yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
@@ -6135,7 +6175,7 @@ namespace Ecanapi.Controllers
             if (pattern == "從旺格" || LfWuXingGeJuSet.Contains(pattern))
             {
                 yongShenElem = dmElem;
-                fuYiElem     = dmElem;
+                fuYiElem     = LfGenByElem.GetValueOrDefault(dmElem, dmElem); // 印星生旺，從旺格輔助喜神
                 reason       = pattern == "從旺格" ? "從旺格（順旺勢）" : $"{pattern}（五行純粹，順旺勢）";
             }
             // 從強格：取旺勢最強非日主元素
@@ -7810,7 +7850,8 @@ namespace Ecanapi.Controllers
             string astroDescGeJu = "",
             string qiongTongBaoJian = "",
             string guFaPoetry = "",
-            string tiaoHouElem = "")
+            string tiaoHouElem = "",
+            string solarDateStr = "", string lunarDateStr = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -7848,8 +7889,10 @@ namespace Ecanapi.Controllers
             // === Ch.1 命盤基本資訊 ===
             sb.AppendLine("【第一章：命盤基本資訊】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
+            if (!string.IsNullOrEmpty(solarDateStr))
+                sb.AppendLine($"西元：{solarDateStr}  農曆：{lunarDateStr}");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
-            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
+            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 日干（元神） 日支{SS(dBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
             sb.AppendLine($"日主：{dStem}（{dmElem}）");
             if (scored.Count > 0)
                 sb.AppendLine($"大運起運：{scored[0].startAge} 歲，依虛歲生日後換運為主");
@@ -9380,7 +9423,8 @@ namespace Ecanapi.Controllers
             List<BaziJingShenSha> bjShenSha,
             List<BaziJingKouJue> bjKouJue,
             List<BaziJingLiuQin> bjLiuQin,
-            List<BaziJingYunShi> bjYunShi)
+            List<BaziJingYunShi> bjYunShi,
+            string solarDateStr = "", string lunarDateStr = "")
         {
             var sb = new StringBuilder();
             var allStems    = new[] { yStem, mStem, dStem, hStem };
@@ -9430,6 +9474,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第一章：審時聞切·四時定數】");
             sb.AppendLine();
             sb.AppendLine($"命主：{(string.IsNullOrEmpty(userName) ? genderLabel : userName + "（" + genderLabel + "）")}");
+            if (!string.IsNullOrEmpty(solarDateStr))
+                sb.AppendLine($"西元：{solarDateStr}  農曆：{lunarDateStr}");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
             sb.AppendLine($"納音：{yNaYin} / {mNaYin} / {dNaYin} / {hNaYin}");
             sb.AppendLine($"季節：{season}　日主五行：{dmElem}");
@@ -12266,6 +12312,12 @@ namespace Ecanapi.Controllers
             sb.AppendLine("                   玉 洞 子 傳 家 寶 典");
             sb.AppendLine("=================================================================");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年  虛齡：{currentAge} 歲{curCycleNote}");
+            if (birthMonth.HasValue && birthDay.HasValue)
+            {
+                string ydzSolar = $"{birthYear}年{birthMonth}月{birthDay}日{(birthHour.HasValue ? birthHour + "時" : "")}";
+                string ydzLunar = (lunarMonth > 0 && lunarDay > 0) ? $"農曆{lunarMonth}月{lunarDay}日" : "";
+                sb.AppendLine(!string.IsNullOrEmpty(ydzLunar) ? $"西元：{ydzSolar}  農曆：{ydzLunar}" : $"西元：{ydzSolar}");
+            }
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
             sb.AppendLine();
             sb.AppendLine("  時辰恐有錯  陰騭最難憑");
@@ -19313,7 +19365,8 @@ namespace Ecanapi.Controllers
             string ziweiFullContent, HashSet<string> chartStars,
             Dictionary<string, string> decadeKbMap,
             int gender, int birthYear, int years, string[] branches, string dStemRef,
-            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "")
+            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "",
+            string solarDateStr = "", string lunarDateStr = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -19386,8 +19439,10 @@ namespace Ecanapi.Controllers
             string SS3(string ss) => string.IsNullOrEmpty(ss) ? "" : $"（{ss}）";
             string wx3 = $"木{wuXing["木"]:F0}% 火{wuXing["火"]:F0}% 土{wuXing["土"]:F0}% 金{wuXing["金"]:F0}% 水{wuXing["水"]:F0}%";
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年");
+            if (!string.IsNullOrEmpty(solarDateStr))
+                sb.AppendLine($"西元：{solarDateStr}  農曆：{lunarDateStr}");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
-            sb.AppendLine($"十神：年干{SS3(yStemSS)} 年支{SS3(yBranchSS)} 月干{SS3(mStemSS)} 月支{SS3(mBranchSS)} 時干{SS3(hStemSS)} 時支{SS3(hBranchSS)}");
+            sb.AppendLine($"十神：年干{SS3(yStemSS)} 年支{SS3(yBranchSS)} 月干{SS3(mStemSS)} 月支{SS3(mBranchSS)} 日干（元神） 日支{SS3(dBranchSS)} 時干{SS3(hStemSS)} 時支{SS3(hBranchSS)}");
             sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}  日主{bodyLabel}（{bodyPct:F0}%）");
             sb.AppendLine($"用神：{yongShenElem}  忌神：{jiShenElem}  五行：{wx3}");
             sb.AppendLine($"分析期間：{startYear} 至 {endYear} 年（{yearsLabel}大運命書）");
@@ -20375,13 +20430,20 @@ namespace Ecanapi.Controllers
                 int gender    = user.BirthGender ?? 1;
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
+                CalendarEntry? lnCalEntry = null;
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
                 {
-                    var stEntry = _calendarDb.CalendarEntries
+                    lnCalEntry = _calendarDb.CalendarEntries
                         .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
                         .FirstOrDefault();
-                    birthSolarTerm = stEntry?.SolarTerm ?? "";
+                    birthSolarTerm = lnCalEntry?.SolarTerm ?? "";
                 }
+                string lnSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    : "";
+                string lnLunarDate = lnCalEntry != null && !string.IsNullOrEmpty(lnCalEntry.LunarMonth) && !string.IsNullOrEmpty(lnCalEntry.LunarDay)
+                    ? $"農曆{lnCalEntry.LunarMonth.TrimEnd('月')}月{lnCalEntry.LunarDay}"
+                    : "";
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
@@ -20619,7 +20681,8 @@ namespace Ecanapi.Controllers
                     branches, dStem,
                     shenSha12: lnShenSha12,
                     mingGongChartText: lnMingGongChartText,
-                    astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong, guFaPoetry: lnGuFaPoetry);
+                    astroDescGeJu: lnAstroGeJu, qiongTongBaoJian: lnQiongTong, guFaPoetry: lnGuFaPoetry,
+                    solarDateStr: lnSolarDate, lunarDateStr: lnLunarDate);
 
                 // 九星氣學加成（純 KB，流年版：命×運 + 命×流年）
                 string lnNsSection = await LnNsBuildSection(
@@ -21284,7 +21347,8 @@ namespace Ecanapi.Controllers
             string[] branches, string dStemRef,
             IList<BaziShenSha12>? shenSha12 = null,
             string mingGongChartText = "",
-            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "")
+            string astroDescGeJu = "", string qiongTongBaoJian = "", string guFaPoetry = "",
+            string solarDateStr = "", string lunarDateStr = "")
         {
             var sb = new StringBuilder();
             string genderText = gender == 1 ? "男（乾造）" : "女（坤造）";
@@ -21306,10 +21370,20 @@ namespace Ecanapi.Controllers
             // Ch.1 命主資料 + 流年概況
             sb.AppendLine("【第一章：命主資料與流年概況】");
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年（生肖屬{shengXiaoBranch}）");
+            if (!string.IsNullOrEmpty(solarDateStr))
+                sb.AppendLine($"西元：{solarDateStr}  農曆：{lunarDateStr}");
             sb.AppendLine($"四柱：{yStem}{yBranch} {mStem}{mBranch} {dStem}{dBranch} {hStem}{hBranch}");
-            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
+            sb.AppendLine($"十神：年干{SS(yStemSS)} 年支{SS(yBranchSS)} 月干{SS(mStemSS)} 月支{SS(mBranchSS)} 日干（元神） 日支{SS(dBranchSS)} 時干{SS(hStemSS)} 時支{SS(hBranchSS)}");
             sb.AppendLine($"日主：{dStem}（{dmElem}）  格局：{pattern}  日主{bodyLabel}（{bodyPct:F0}%）");
-            sb.AppendLine($"用神：{yongShenElem}  忌神：{jiShenElem}  五行：{wx}");
+            sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）  忌神：{jiShenElem}  五行：{wx}");
+            sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
+            if (fuYiElem != yongShenElem)
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+            if (!string.IsNullOrEmpty(tuneElem) && tuneElem != yongShenElem && tuneElem != fuYiElem)
+                sb.AppendLine($"調候喜神：【{tuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
+            sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
+            if (!string.IsNullOrEmpty(jiYongElem) && jiYongElem != jiShenElem)
+                sb.AppendLine($"次忌(△忌)：{jiYongElem}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine();
             sb.AppendLine($"分析年份：{year} 年  流年：{flStem}{flBranch}（天干{flStemSS}·地支{flBranchSS}）  年齡：{flAge} 歲");
             sb.AppendLine($"流年整體：八字 {flBaziScore} 分  紫微 {flZiweiScore} 分  綜合：【{flCrossClass}】");
