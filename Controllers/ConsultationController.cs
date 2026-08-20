@@ -3594,7 +3594,7 @@ namespace Ecanapi.Controllers
 
                 byte[] docxBytes = LfBuildYudongziDocxBytes(
                     reportText, coverBytes, chartImgBytes, sealBytes,
-                    bjDocxName, "八字真經命書", "八字真經命書", true);
+                    bjDocxName, "八字真經命書", "八字真經命書", true, useTwoColumnCh1: true);
 
                 string fileName = $"{bjDocxName}_八字真經命書.docx";
                 return File(docxBytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
@@ -4257,7 +4257,7 @@ namespace Ecanapi.Controllers
                 int ch1FIdx = -1, ch2FIdx = filteredLines.Count;
                 for (int fi = 0; fi < filteredLines.Count; fi++)
                 {
-                    if (filteredLines[fi] == "【第一章：先天八字依古制定】") { ch1FIdx = fi; }
+                    if (filteredLines[fi].Contains("先天八字依古制定")) { ch1FIdx = fi; }
                     else if (ch1FIdx >= 0 && filteredLines[fi].StartsWith("【第") && filteredLines[fi].EndsWith("】"))
                     { ch2FIdx = fi; break; }
                 }
@@ -4300,7 +4300,7 @@ namespace Ecanapi.Controllers
                 FlushPipeTable();
 
                 // Two-column Ch.1 handling (new rendering path)
-                if (useTwoColumnCh1 && line == "【第一章：先天八字依古制定】" && ch1ExtractedLines != null)
+                if (useTwoColumnCh1 && line.Contains("先天八字依古制定") && ch1ExtractedLines != null)
                 {
                     curTableFontSize = 10;
                     AddParaWithPageBreakH1(line, 14, true, "8B0000", NPOI.XWPF.UserModel.ParagraphAlignment.LEFT);
@@ -4820,7 +4820,7 @@ namespace Ecanapi.Controllers
                 string bookTitle  = !string.IsNullOrEmpty(request.BookTitle)  ? request.BookTitle  : "命書";
 
                 string skipTitle = !string.IsNullOrEmpty(request.SkipTitle) ? request.SkipTitle : bookTitle;
-                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle, skipTitle, request.AddWatermark);
+                byte[] docxBytes = LfBuildYudongziDocxBytes(request.ReportText, coverBytes, chartImgBytes, sealBytes, personName, bookTitle, skipTitle, request.AddWatermark, useTwoColumnCh1: true);
 
                 string safeTitle = bookTitle.Replace(" ", "");
                 string fileName  = $"{personName}_{safeTitle}.docx";
