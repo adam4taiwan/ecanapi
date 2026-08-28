@@ -5786,6 +5786,17 @@ namespace Ecanapi.Controllers
             return false;
         }
 
+        // 輔助喜神描述文字：依格局類型區分（外格用旺勢邏輯，一般格用扶抑邏輯）
+        private static string LfFuYiDesc(string pattern, double bodyPct)
+        {
+            if (pattern == "從旺格") return "印生比旺，助順旺勢";
+            if (pattern is "從財格" or "從殺格" or "從兒格") return "流通旺氣，助格而成";
+            if (pattern == "從強格") return "同旺助勢，扶強旺格";
+            if (LfWuXingGeJuSet.Contains(pattern)) return "五行同心，生旺助格";
+            if (LfHuaQiGeJuSet.Contains(pattern)) return "化氣生旺，助格而成";
+            return bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡";
+        }
+
         private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct, string pattern = "")
         {
             // 化氣格：忌神=克化神之元素（yongShenElem已為化神五行）
@@ -5834,9 +5845,11 @@ namespace Ecanapi.Controllers
             // Count how many branches from a given set appear in the chart
             int CountBranches(string[] set) => branches.Count(b => set.Contains(b));
             // Check if any forbidden stem appears as a hidden stem (藏干) in any branch
+            // 藏干禁忌需中根以上（ratio>=0.3）才算破格，餘氣弱根（<0.3）不足破純粹格
+            // 天干透出 + 地支本身（fBranches）仍直接算，藏干才有門檻
             bool HasForbiddenHidden(string[] fStems) =>
                 branches.Any(b => LfBranchHiddenRatio.TryGetValue(b, out var h)
-                               && h.Any(hh => fStems.Contains(hh.stem)));
+                               && h.Any(hh => fStems.Contains(hh.stem) && hh.ratio >= 0.3));
             // Check if any forbidden stem/branch appears in the chart (including hidden stems)
             bool HasForbidden(string[] fStems, string[] fBranches) =>
                 stems.Any(s => fStems.Contains(s))
@@ -6072,9 +6085,11 @@ namespace Ecanapi.Controllers
             if (string.IsNullOrEmpty(pattern) && !isJianLuMonth && bodyPct <= 20)
             {
                 // 従格前置條件：日主在四柱地支中無比印通根（完全無根才能從）
+                // 比印需中根以上（ratio>=0.3）才算真正有根，餘氣弱根（<0.3）力薄，不足阻止從格
                 bool dayMasterHasRoot = allBranches.Any(b =>
                     LfBranchHiddenRatio.TryGetValue(b, out var h) &&
-                    h.Any(hh => LfStemShiShen(hh.stem, dStem) is "比肩" or "劫財" or "正印" or "偏印"));
+                    h.Any(hh => LfStemShiShen(hh.stem, dStem) is "比肩" or "劫財" or "正印" or "偏印"
+                              && hh.ratio >= 0.3));
 
                 if (!dayMasterHasRoot)
                 {
@@ -6096,7 +6111,21 @@ namespace Ecanapi.Controllers
             if (string.IsNullOrEmpty(pattern) && !isJianLuMonth && bodyPct >= 80)
             {
                 double sameElem = wuXing.GetValueOrDefault(dmElem, 0) + wuXing.GetValueOrDefault(LfGenByElem.GetValueOrDefault(dmElem, ""), 0);
-                if (sameElem >= 75) pattern = "從旺格";
+                if (sameElem >= 75)
+                {
+                    // 從旺格破格條件：官殺/財/食傷透干，且在地支有中根以上（ratio>=0.3）才算破格
+                    // 弱根（餘氣<0.3）或虛透（無根）→ 力薄，不足撼動壓倒性旺勢，從旺格仍成立
+                    bool hasStrongBreakingStem = allHeavenStems.Any(s =>
+                    {
+                        string ss = LfStemShiShen(s, dStem);
+                        if (ss is not ("正官" or "七殺" or "正財" or "偏財" or "食神" or "傷官")) return false;
+                        string sElem = KbStemToElement(s);
+                        return allBranches.Any(b =>
+                            LfBranchHiddenRatio.TryGetValue(b, out var hid) &&
+                            hid.Any(h => KbStemToElement(h.stem) == sElem && h.ratio >= 0.3));
+                    });
+                    if (!hasStrongBreakingStem) pattern = "從旺格";
+                }
             }
 
             // Step 2 & 3: 外格未成立 → 建祿格/月刃格 or 內格
@@ -8180,7 +8209,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(yongWeakNote4)) sb.AppendLine(yongWeakNote4);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             string tuneElemDisp = season == "冬" ? "火" : season == "夏" ? "水" : "";
             if (!string.IsNullOrEmpty(tuneElemDisp) && tuneElemDisp != yongShenElem && tuneElemDisp != fuYiElem)
                 sb.AppendLine($"調候喜神：【{tuneElemDisp}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
@@ -12453,7 +12482,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(yongWeakNote5)) sb.AppendLine(yongWeakNote5);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             string tuneElemV2 = season == "冬" ? "火" : season == "夏" ? "水" : "";
             if (!string.IsNullOrEmpty(tuneElemV2) && tuneElemV2 != yongShenElem && tuneElemV2 != fuYiElem)
                 sb.AppendLine($"調候喜神：【{tuneElemV2}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
@@ -18536,7 +18565,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(yongWeakNoteDy2)) sb.AppendLine(yongWeakNoteDy2);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             if (!string.IsNullOrEmpty(v2TuneElem) && v2TuneElem != yongShenElem && v2TuneElem != fuYiElem)
                 sb.AppendLine($"調候喜神：【{v2TuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
@@ -19288,7 +19317,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(yongWeakNoteDy3)) sb.AppendLine(yongWeakNoteDy3);
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             if (!string.IsNullOrEmpty(v3TuneElem) && v3TuneElem != yongShenElem && v3TuneElem != fuYiElem)
                 sb.AppendLine($"調候喜神：【{v3TuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
@@ -19724,7 +19753,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）");
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             if (!string.IsNullOrEmpty(tuneElemDisp2) && tuneElemDisp2 != yongShenElem && tuneElemDisp2 != fuYiElem)
                 sb.AppendLine($"調候喜神：【{tuneElemDisp2}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
@@ -21275,7 +21304,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"用神：【{yongShenElem}】（{yongReason}）  忌神：{jiShenElem}  五行：{wx}");
             sb.AppendLine($"喜用：天干 {LfElemStems(yongShenElem)}，地支 {LfElemBranches(yongShenElem)}");
             if (fuYiElem != yongShenElem)
-                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{(bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡")}）");
+                sb.AppendLine($"輔助喜神：【{fuYiElem}】（{LfFuYiDesc(pattern, bodyPct)}）");
             if (!string.IsNullOrEmpty(tuneElem) && tuneElem != yongShenElem && tuneElem != fuYiElem)
                 sb.AppendLine($"調候喜神：【{tuneElem}】（{(season == "冬" ? "冬月寒凍，喜火暖局" : "夏月炎熱，喜水消暑")}）");
             sb.AppendLine($"大忌(X)：{jiShenElem}，天干 {LfElemStems(jiShenElem)}，地支 {LfElemBranches(jiShenElem)}");
