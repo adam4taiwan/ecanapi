@@ -22987,6 +22987,91 @@ namespace Ecanapi.Controllers
             }
         }
 
+        // 八字科學計量分析 - 返回命盤基礎資料供前端計量引擎使用（管理員專用）
+        [HttpGet("jiliang-bazi-data")]
+        [Authorize]
+        public async Task<IActionResult> GetJiLiangBaziData()
+        {
+            var identity = User.FindFirstValue(ClaimTypes.Email)
+                        ?? User.FindFirstValue(ClaimTypes.Name)
+                        ?? User.FindFirst("unique_name")?.Value;
+            if (string.IsNullOrEmpty(identity)) return Unauthorized();
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == identity || u.UserName == identity);
+            if (user == null) return NotFound(new { error = "找不到使用者" });
+
+            bool isAdmin = string.Equals(user.Email, _config["Admin:Email"], StringComparison.OrdinalIgnoreCase);
+            if (!isAdmin) return StatusCode(403, new { error = "僅限管理員使用" });
+
+            var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+            if (userChart == null || string.IsNullOrEmpty(userChart.ChartJson))
+                return BadRequest(new { error = "no_chart" });
+
+            try
+            {
+                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
+                    return BadRequest(new { error = "命盤資料格式錯誤" });
+
+                var yearP  = LfGetPillar(bazi, "yearPillar");
+                var monthP = LfGetPillar(bazi, "monthPillar");
+                var dayP   = LfGetPillar(bazi, "dayPillar");
+                var timeP  = LfGetPillar(bazi, "timePillar");
+
+                string yStem = LfPillarStem(yearP);   string yBranch = LfPillarBranch(yearP);
+                string mStem = LfPillarStem(monthP);  string mBranch = LfPillarBranch(monthP);
+                string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
+                string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
+
+                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
+                int gender    = user.BirthGender ?? 1;
+                var luckCycles = LfExtractLuckCycles(root);
+
+                string birthSolarTerm = "";
+                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                {
+                    var calEntry = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    birthSolarTerm = calEntry?.SolarTerm ?? "";
+                }
+
+                string season  = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
+                string dmElem  = KbStemToElement(dStem);
+                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+
+                string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
+                var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
+                    yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
+                    dmElem, wuXing, bodyPct, season, siLingStem);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+
+                return Ok(new {
+                    pillars = new {
+                        year  = new { stem = yStem,  branch = yBranch },
+                        month = new { stem = mStem,  branch = mBranch },
+                        day   = new { stem = dStem,  branch = dBranch },
+                        hour  = new { stem = hStem,  branch = hBranch }
+                    },
+                    yongShenElem,
+                    fuYiElem,
+                    jiShenElem,
+                    pattern,
+                    bodyPct = Math.Round(bodyPct, 1),
+                    gender,
+                    birthYear,
+                    name = user.UserName ?? "",
+                    luckCycles = luckCycles.Select(lc => new { lc.stem, lc.branch, lc.startAge, lc.endAge }).ToList()
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "JiLiangBaziData failed User={User}", identity);
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         private static string MingGongBuildChart(
             List<(string palName, string branch, string dir, string starChar, string goodStar, string badStar, string yearGod)> palaces,
             string mgBranch, string mgStarName, string flowYear, int year, string userName, int birthYear)
