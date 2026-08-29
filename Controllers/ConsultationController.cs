@@ -2189,8 +2189,9 @@ namespace Ecanapi.Controllers
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
@@ -2198,7 +2199,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>
@@ -2412,8 +2413,9 @@ namespace Ecanapi.Controllers
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
@@ -2421,7 +2423,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>
@@ -3028,8 +3030,9 @@ namespace Ecanapi.Controllers
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
@@ -3037,7 +3040,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var chartStems2 = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>
@@ -3432,15 +3435,16 @@ namespace Ecanapi.Controllers
 
                 string season  = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
 
                 string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var luckCycles = LfExtractLuckCycles(root);
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
@@ -3546,15 +3550,16 @@ namespace Ecanapi.Controllers
 
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem    = KbStemToElement(dStem);
-                var wuXing       = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
 
                 string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var luckCycles   = LfExtractLuckCycles(root);
                 var chartStems   = new[] { yStem, mStem, dStem, hStem };
@@ -3684,8 +3689,9 @@ namespace Ecanapi.Controllers
                 string season = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem  = KbStemToElement(dStem);
                 var branches   = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel = LfGetSeasonLabel(mBranch);
 
@@ -3693,7 +3699,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var chartStems2 = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>
@@ -4908,8 +4914,9 @@ namespace Ecanapi.Controllers
                 string dyYNaYin = "", dyMNaYin = "", dyDNaYin = "", dyHNaYin = "";
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
 
@@ -4917,7 +4924,7 @@ namespace Ecanapi.Controllers
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 var luckCycles = LfExtractLuckCycles(root);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
@@ -5498,6 +5505,363 @@ namespace Ecanapi.Controllers
             return Math.Min(total, 2.0);
         }
 
+        // ============================================================
+        // 統一四階梯五行計分引擎（Unified 4-Tier WuXing Engine）
+        // Tier1: 天干+10 / Tier2: 地支本氣+15,藏干+5 / Tier3: 相鄰拱合+12 / Tier4: 月令×1.3
+        // 返回原始分數 dict（非百分比），與前端 calculator.ts 完全對齊
+        // ============================================================
+        private static Dictionary<string, double> LfCalcWuXing4Tier(
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch)
+        {
+            var scores = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
+            var stems    = new[] { yStem, mStem, dStem, hStem };
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+
+            // Tier 1: 天干透干 +10/干
+            foreach (var s in stems)
+            {
+                var e = KbStemToElement(s);
+                if (!string.IsNullOrEmpty(e)) scores[e] += 10;
+            }
+
+            // Tier 2: 地支本氣+15，餘氣藏干+5 each
+            // hiddenStems[0]=本氣干, hiddenStems[1+]=餘氣干
+            // hiddenElements[0+] = 餘氣五行（對應 hiddenStems[1+]）
+            foreach (var b in branches)
+            {
+                if (!LfBranchHiddenRatio.TryGetValue(b, out var hidden) || hidden.Count == 0) continue;
+                // 本氣
+                var mainElem = KbStemToElement(hidden[0].stem);
+                if (!string.IsNullOrEmpty(mainElem)) scores[mainElem] += 15;
+                // 餘氣藏干
+                for (int i = 1; i < hidden.Count; i++)
+                {
+                    var hidElem = KbStemToElement(hidden[i].stem);
+                    if (!string.IsNullOrEmpty(hidElem)) scores[hidElem] += 5;
+                }
+            }
+
+            // Tier 3: 相鄰地支拱合/半三合（僅相鄰柱，+12）
+            // 對照 calculator.ts applyStaticGongHui
+            void AddGongHui(string b1, string b2, string el, string b1t, string b2t)
+            {
+                if ((b1 == b1t && b2 == b2t) || (b1 == b2t && b2 == b1t))
+                    scores[el] += 12;
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                var b1 = branches[i]; var b2 = branches[i + 1];
+                AddGongHui(b1, b2, "土", "子", "寅");   // 子寅拱丑土
+                AddGongHui(b1, b2, "木", "寅", "辰");   // 寅辰半三合拱卯木
+                AddGongHui(b1, b2, "木", "亥", "未");   // 亥未半三合拱卯木
+                AddGongHui(b1, b2, "火", "巳", "未");   // 巳未拱午火
+                AddGongHui(b1, b2, "火", "寅", "戌");   // 寅戌半三合拱午火
+                AddGongHui(b1, b2, "金", "申", "戌");   // 申戌拱酉金
+                AddGongHui(b1, b2, "金", "巳", "丑");   // 巳丑半三合拱酉金
+                AddGongHui(b1, b2, "水", "申", "辰");   // 申辰半三合拱子水
+                AddGongHui(b1, b2, "水", "亥", "丑");   // 亥丑拱子水
+            }
+
+            // Tier 4: 月令司令加成（月支本氣五行 ×1.3）
+            if (LfBranchHiddenRatio.TryGetValue(mBranch, out var mHidden) && mHidden.Count > 0)
+            {
+                var monthMainElem = KbStemToElement(mHidden[0].stem);
+                if (!string.IsNullOrEmpty(monthMainElem))
+                    scores[monthMainElem] = Math.Round(scores[monthMainElem] * 1.3, 1);
+            }
+
+            return scores; // 原始分數，不轉百分比
+        }
+
+        // 原始分數 → 百分比 dict（供格局/用神函數使用）
+        private static Dictionary<string, double> LfScoresToPct(Dictionary<string, double> raw)
+        {
+            double total = raw.Values.Sum();
+            var pct = new Dictionary<string, double>();
+            foreach (var kv in raw)
+                pct[kv.Key] = total > 0 ? Math.Round(kv.Value / total * 100, 1) : 0;
+            return pct;
+        }
+
+        // ============================================================
+        // 刑沖合害修正（C# 版，對齊 calculator.ts applyXingChongHeHai）
+        // 輸入：原始分數 dict + 四地支；返回修正後分數 + 說明條目
+        // ============================================================
+        public record XCHHEntry(string Type, string[] Branches, string[] PillarLabels, string Description, string Severity, Dictionary<string, double> Deltas);
+
+        private static (Dictionary<string, double> scores, List<XCHHEntry> entries) LfApplyXingChongHeHai(
+            Dictionary<string, double> inputScores,
+            string yBranch, string mBranch, string dBranch, string hBranch)
+        {
+            var scores = new Dictionary<string, double>(inputScores);
+            var entries = new List<XCHHEntry>();
+            var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+            var pillarLabels = new[] { "年支", "月支", "日支", "時支" };
+
+            void Clamp()
+            {
+                foreach (var k in scores.Keys.ToList())
+                    scores[k] = Math.Max(0, Math.Round(scores[k] * 10) / 10.0);
+            }
+            int FindIdx(string b) => Array.IndexOf(branches, b);
+
+            // ---------- 六沖 ----------
+            // [b1, b2, 克方El, 被克方El]
+            var sixClash = new (string b1, string b2, string strong, string weak)[]
+            {
+                ("子","午","水","火"), ("丑","未","土","土"),
+                ("寅","申","金","木"), ("卯","酉","金","木"),
+                ("辰","戌","土","土"), ("巳","亥","水","火"),
+            };
+            foreach (var (b1, b2, strong, weak) in sixClash)
+            {
+                int i1 = FindIdx(b1); int i2 = FindIdx(b2);
+                if (i1 == -1 || i2 == -1) continue;
+                var deltas = new Dictionary<string, double>();
+                bool same = strong == weak;
+                if (same)
+                {
+                    double d = -(15 * 0.35);
+                    scores[strong] += d * 2; deltas[strong] = d * 2;
+                }
+                else
+                {
+                    double ds = -(15 * 0.30), dw = -(15 * 0.60);
+                    scores[strong] += ds; scores[weak] += dw;
+                    deltas[strong] = ds; deltas[weak] = dw;
+                }
+                Clamp();
+                entries.Add(new XCHHEntry("六沖", new[]{b1,b2}, new[]{pillarLabels[i1],pillarLabels[i2]},
+                    same ? $"【{b1}{b2}沖】土土互沖，兩方各掃35%承裝"
+                         : $"【{b1}{b2}沖】{strong}克{weak}，{b2}被克方損60%，{b1}克方自傷30%",
+                    "major", deltas));
+            }
+
+            // ---------- 三刑 ----------
+            var threeP = new string[][] { new[]{"寅","巳","申"}, new[]{"丑","戌","未"} };
+            foreach (var trio in threeP)
+            {
+                int ia = FindIdx(trio[0]), ib = FindIdx(trio[1]), ic = FindIdx(trio[2]);
+                var presentIdxs = new[]{ia,ib,ic}.Where(x => x != -1).ToList();
+                if (presentIdxs.Count < 2) continue;
+                var presentBranches = trio.Where((_, k) => new[]{ia,ib,ic}[k] != -1).ToArray();
+                var deltas = new Dictionary<string, double>();
+                foreach (var br in presentBranches)
+                {
+                    if (!LfBranchHiddenRatio.TryGetValue(br, out var hid) || hid.Count == 0) continue;
+                    var el = KbStemToElement(hid[0].stem);
+                    if (string.IsNullOrEmpty(el)) continue;
+                    double d = -(15 * 0.35);
+                    scores[el] += d;
+                    deltas[el] = deltas.GetValueOrDefault(el, 0) + d;
+                }
+                Clamp();
+                string suffix = presentBranches.Length == 3 ? "全刑" : "半刑";
+                entries.Add(new XCHHEntry("三刑", presentBranches,
+                    presentBranches.Select((br, k) => pillarLabels[new[]{ia,ib,ic}[k]]).ToArray(),
+                    $"【{string.Join("",presentBranches)}三刑{suffix}】為持勢之刑，各方減損35%能量",
+                    "moderate", deltas));
+            }
+
+            // ---------- 子卯相刑 ----------
+            {
+                int ia = FindIdx("子"), ib = FindIdx("卯");
+                if (ia != -1 && ib != -1)
+                {
+                    var deltas = new Dictionary<string, double>();
+                    foreach (var br in new[]{"子","卯"})
+                    {
+                        if (!LfBranchHiddenRatio.TryGetValue(br, out var hid) || hid.Count == 0) continue;
+                        var el = KbStemToElement(hid[0].stem);
+                        if (string.IsNullOrEmpty(el)) continue;
+                        double d = -(15 * 0.30);
+                        scores[el] += d;
+                        deltas[el] = deltas.GetValueOrDefault(el, 0) + d;
+                    }
+                    Clamp();
+                    entries.Add(new XCHHEntry("子卯刑", new[]{"子","卯"}, new[]{pillarLabels[ia],pillarLabels[ib]},
+                        "【子卯相刑】無禮之刑，水木互刑，各減30%能量", "moderate", deltas));
+                }
+            }
+
+            // ---------- 六合 ----------
+            // [b1, b2, 化神El]，距離=|i1-i2|-1：0相鄰/1隔1/2隔2
+            var sixCombo = new (string b1, string b2, string huaEl)[]
+            {
+                ("子","丑","土"), ("寅","亥","木"), ("卯","戌","火"),
+                ("辰","酉","金"), ("巳","申","水"), ("午","未","火"),
+            };
+            var comboSupport = new Dictionary<string, string[]>
+            {
+                {"土", new[]{"辰","戌","丑","未"}}, {"木", new[]{"寅","卯","辰"}},
+                {"火", new[]{"巳","午","未"}},       {"金", new[]{"申","酉","戌"}},
+                {"水", new[]{"亥","子","丑"}},
+            };
+            foreach (var (b1, b2, huaEl) in sixCombo)
+            {
+                int i1 = FindIdx(b1); int i2 = FindIdx(b2);
+                if (i1 == -1 || i2 == -1) continue;
+                if (!LfBranchHiddenRatio.TryGetValue(b1, out var hid1) || hid1.Count == 0) continue;
+                if (!LfBranchHiddenRatio.TryGetValue(b2, out var hid2) || hid2.Count == 0) continue;
+                string el1 = KbStemToElement(hid1[0].stem);
+                string el2 = KbStemToElement(hid2[0].stem);
+                bool canHua = comboSupport.TryGetValue(huaEl, out var sup) && sup.Contains(mBranch);
+                int dist = Math.Abs(i1 - i2) - 1; // 0=相鄰 1=隔1 2=隔2
+                var deltas = new Dictionary<string, double>();
+
+                if (canHua)
+                {
+                    double injectMult = dist == 0 ? 1.35 : dist == 1 ? 1.00 : 0.70;
+                    double reducePct  = dist == 0 ? 0.80  : dist == 1 ? 0.50  : 0.30;
+                    double inject = 30.0 * injectMult;
+                    if (el1 != huaEl) { double d = -(15 * reducePct); scores[el1] += d; deltas[el1] = deltas.GetValueOrDefault(el1,0)+d; }
+                    if (el2 != huaEl) { double d = -(15 * reducePct); scores[el2] += d; deltas[el2] = deltas.GetValueOrDefault(el2,0)+d; }
+                    scores[huaEl] += inject;
+                    deltas[huaEl] = deltas.GetValueOrDefault(huaEl,0) + inject;
+                    Clamp();
+                    string distLabel = dist == 0 ? "相鄰柱" : dist == 1 ? "隔1柱" : "隔2柱";
+                    entries.Add(new XCHHEntry("六合(化)", new[]{b1,b2}, new[]{pillarLabels[i1],pillarLabels[i2]},
+                        $"【{b1}{b2}合化{huaEl}】月令支持化神，合化成功({distLabel})！注入{huaEl}大軍(+{inject:F1})",
+                        "major", deltas));
+                }
+                else
+                {
+                    double disc = dist == 0 ? 0.80 : dist == 1 ? 0.90 : 0.95;
+                    double d1 = -(scores[el1] * (1 - disc));
+                    scores[el1] *= disc;
+                    deltas[el1] = deltas.GetValueOrDefault(el1,0) + d1;
+                    if (el1 != el2)
+                    {
+                        double d2 = -(scores[el2] * (1 - disc));
+                        scores[el2] *= disc;
+                        deltas[el2] = deltas.GetValueOrDefault(el2,0) + d2;
+                    }
+                    Clamp();
+                    entries.Add(new XCHHEntry("六合(絆住)", new[]{b1,b2}, new[]{pillarLabels[i1],pillarLabels[i2]},
+                        $"【{b1}{b2}合而不化】月令不支持，互相牽絆越勢各打{disc*100:F0}折",
+                        "moderate", deltas));
+                }
+            }
+
+            // ---------- 六害 ----------
+            // 只傷藏干餘氣（hiddenElements ×-25%）
+            var sixHarm = new (string a, string b)[]
+            {
+                ("子","未"),("丑","午"),("寅","巳"),("卯","辰"),("申","亥"),("酉","戌"),
+            };
+            foreach (var (a, b2) in sixHarm)
+            {
+                int ia = FindIdx(a); int ib = FindIdx(b2);
+                if (ia == -1 || ib == -1) continue;
+                var deltas = new Dictionary<string, double>();
+                foreach (var br in new[]{a,b2})
+                {
+                    if (!LfBranchHiddenRatio.TryGetValue(br, out var hid) || hid.Count <= 1) continue;
+                    for (int i = 1; i < hid.Count; i++)
+                    {
+                        var el = KbStemToElement(hid[i].stem);
+                        if (string.IsNullOrEmpty(el)) continue;
+                        double d = -(5 * 0.25);
+                        scores[el] += d;
+                        deltas[el] = deltas.GetValueOrDefault(el,0) + d;
+                    }
+                }
+                Clamp();
+                entries.Add(new XCHHEntry("六害", new[]{a,b2}, new[]{pillarLabels[ia],pillarLabels[ib]},
+                    $"【{a}{b2}相害】藏干中餘氣話損25%，小人暗中消耗", "minor", deltas));
+            }
+
+            return (scores, entries);
+        }
+
+        // ============================================================
+        // 財官格局等級計算（對齊 FortuneTab 財官分數公式）
+        // ============================================================
+        private static (int wealthLevel, int govLevel, double wealthScore, double govScore)
+            LfCalcFortuneLevel(string dmElem, Dictionary<string, double> rawScores, double bodyPct)
+        {
+            string inElem   = LfGenByElem.GetValueOrDefault(dmElem, "");
+            string biElem   = dmElem;
+            string shiElem  = LfElemGen.GetValueOrDefault(dmElem, "");
+            string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+            string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+
+            double selfScore     = rawScores.GetValueOrDefault(biElem, 0);
+            double resourceScore = rawScores.GetValueOrDefault(inElem, 0);
+            double outputScore   = rawScores.GetValueOrDefault(shiElem, 0);
+            double wealthRaw     = rawScores.GetValueOrDefault(caiElem, 0);
+            double govRaw        = rawScores.GetValueOrDefault(guanElem, 0);
+
+            double wealthScore, govScore;
+            bool isStrong = bodyPct >= 50.0;
+            if (isStrong)
+            {
+                wealthScore = wealthRaw * 0.75 + outputScore * 0.25;
+                govScore    = govRaw    * 0.75 + wealthRaw  * 0.25;
+            }
+            else
+            {
+                wealthScore = wealthRaw  * 0.60 + resourceScore * 0.25 + selfScore * 0.15;
+                govScore    = govRaw     * 0.60 + resourceScore * 0.40;
+            }
+
+            int ScoreToLevel(double s) =>
+                s >= 80 ? 9 : s >= 60 ? 7 : s >= 40 ? 5 : s >= 20 ? 3 : 1;
+
+            return (ScoreToLevel(wealthScore), ScoreToLevel(govScore),
+                    Math.Round(wealthScore, 1), Math.Round(govScore, 1));
+        }
+
+        // 財官等級 → 命書文字
+        private static string LfFortuneLevel_WealthDesc(int level) => level switch
+        {
+            9 => "頂級財富（資產達數百億至千億新台幣，全球富豪榜）",
+            7 => "特級財富（資產億至數十億，地方大實業家）",
+            5 => "高級財富（財務自由，具多處房產或豐厚被動收益）",
+            3 => "中級財富（穩定中產，財務健全無負擔，退休金與授課推廣收入兼備）",
+            _ => "初級財富（小康自足，收入平實，財務健全無負擔）",
+        };
+        private static string LfFortuneLevel_GovDesc(int level) => level switch
+        {
+            9 => "國家元首、國際領袖層級",
+            7 => "部會首長、地方諸侯、百億企業董事核心",
+            5 => "中高階主管、公協理事、專業領域名師",
+            3 => "專業講師、基層幹部、受人尊敬之文化教育工作者",
+            _ => "平民百姓、自由發展、安享退休清福",
+        };
+        private static string LfFortuneLevel_WealthStatus(int level) => level switch
+        {
+            9 => "富可敵國、全球富豪榜",
+            7 => "巨富、地方大實業家",
+            5 => "大富、企業主、資深投資顧問",
+            3 => "穩定中產、樂活退休、專業自營",
+            _ => "小康、自給自足、清閒無債",
+        };
+        private static string LfFortuneLevel_GovStatus(int level) => level switch
+        {
+            9 => "國家元首、國際領袖",
+            7 => "部會首長、地方諸侯、大型機構決策者",
+            5 => "機關科處長、企業高管、專業領域名師",
+            3 => "自由培訓師、基層主管、社團推廣骨幹",
+            _ => "自由發展、自立工作者、安享退休清福",
+        };
+
+        // 財官格局等級文字區塊（共用，各命書格局章節呼叫）
+        private static string LfBuildFortuneLevelBlock(
+            string dmElem, double bodyPct,
+            string yStem, string yBranch, string mStem, string mBranch,
+            string dStem, string dBranch, string hStem, string hBranch)
+        {
+            var raw = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+            var (wl, gl, ws, gs) = LfCalcFortuneLevel(dmElem, raw, bodyPct);
+            var sb2 = new StringBuilder();
+            sb2.AppendLine("【財官格局等級】");
+            sb2.AppendLine($"財富格局：{wl}級（評分 {ws:F0}）─ {LfFortuneLevel_WealthDesc(wl)}");
+            sb2.AppendLine($"官貴格局：{gl}級（評分 {gs:F0}）─ {LfFortuneLevel_GovDesc(gl)}");
+            return sb2.ToString();
+        }
+
         private static Dictionary<string, double> LfCalcWuXingMatrix(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
@@ -5558,9 +5922,11 @@ namespace Ecanapi.Controllers
             return total == 0 ? 50 : Math.Round(biJi / total * 100, 1);
         }
 
+        // 統一身強弱閾值（規格 unified-bazi-engine-spec.md §二）
+        // >=65極強 / 50-64偏強 / 35-49偏弱 / <35身弱
         private static string LfGetBodyStrengthLabel(double pct) => pct switch
         {
-            >= 70 => "身強（極強）", >= 60 => "身強", >= 45 => "中和", >= 30 => "身弱", _ => "身弱（極弱）"
+            >= 65 => "身強（極強）", >= 50 => "偏強", >= 35 => "偏弱", _ => "身弱"
         };
 
         // 依格局 x 日主強弱 x 命局組合，取古文用神候選清單（優先序由前到後）
@@ -5797,7 +6163,7 @@ namespace Ecanapi.Controllers
             return bodyPct <= 40 ? "印比互補扶身" : "官財互補制衡";
         }
 
-        private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct, string pattern = "")
+        private static string LfGetJiShenElem(string yongShenElem, string dmElem, double bodyPct, string pattern = "", Dictionary<string, double>? wuXing = null)
         {
             // 化氣格：忌神=克化神之元素（yongShenElem已為化神五行）
             if (LfHuaQiGeJuSet.Contains(pattern))
@@ -5811,11 +6177,21 @@ namespace Ecanapi.Controllers
             // 從殺/從財/從兒格：忌神=印（生日主使其有力量對抗旺勢，破格之神）
             if (pattern is "從殺格" or "從財格" or "從兒格")
                 return LfGenByElem.GetValueOrDefault(dmElem, "");  // 印星（最大破格威脅）
-            // 身弱（<45%）：大忌 = 克我（官殺），直接傷身
-            // 身強（>=45%）：大忌 = 印星（生我讓身更旺，反被騙）
-            // 中和（45-60%）：大忌依月令而定，暫以克身為主
-            if (bodyPct < 45)
+            // 統一閾值（unified-bazi-engine-spec.md §六）
+            // 身弱（<35%）：大忌 = 官殺（克身）
+            // 偏弱（35-49%）：依格局最重負面元素決定（官殺分 vs 印分，取較重者為忌）
+            // 身強（>=50%）：大忌 = 印（生身使更旺）
+            if (bodyPct < 35)
                 return LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            if (bodyPct < 50)
+            {
+                // 中和偏弱：官殺分 vs 印分，誰重誰為大忌
+                string guanE = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+                string inE   = LfGenByElem.GetValueOrDefault(dmElem, "");
+                if (wuXing != null)
+                    return wuXing.GetValueOrDefault(guanE, 0) >= wuXing.GetValueOrDefault(inE, 0) ? guanE : inE;
+                return guanE; // 無 wuXing 時保守取官殺
+            }
             return LfGenByElem.GetValueOrDefault(dmElem, "");
         }
 
@@ -6259,7 +6635,7 @@ namespace Ecanapi.Controllers
                 reason = $"古文格局法（{(bodyPct >= 60 ? "身強" : bodyPct < 45 ? "身弱" : "")}{pattern}，{lfYongRole}）";
 
                 // fuYiElem：候選清單第二位（排除主用神與忌神）
-                string tempJiShen = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string tempJiShen = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 fuYiElem = candidates
                     .Where(e => e != yongShenElem && e != tempJiShen)
                     .FirstOrDefault() ?? yongShenElem;
@@ -6296,7 +6672,7 @@ namespace Ecanapi.Controllers
             // 調候共用（夏巳午未 / 冬亥子丑二季優先，春秋補注）
             if (!string.IsNullOrEmpty(tiaoHouElem))
             {
-                string jiShenForTiao = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenForTiao = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 bool isSummerWinter  = new[] { "巳","午","未","亥","子","丑" }.Contains(mBranch);
                 if (tiaoHouElem == yongShenElem)
                     reason += "（扶抑調候同功）";
@@ -8218,6 +8594,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(jiYongElemDisp) && jiYongElemDisp != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp}，天干 {LfElemStems(jiYongElemDisp)}，地支 {LfElemBranches(jiYongElemDisp)}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -10134,6 +10511,7 @@ namespace Ecanapi.Controllers
                 sb.AppendLine("▍財官格局論斷");
                 sb.AppendLine(pursuitDesc);
                 sb.AppendLine(chengDanDesc);
+                sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
                 sb.AppendLine();
             }
 
@@ -12490,6 +12868,7 @@ namespace Ecanapi.Controllers
             string jiYongElemV2 = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
             if (!string.IsNullOrEmpty(jiYongElemV2) && jiYongElemV2 != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemV2}（克用神 {yongShenElem}）");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemV2, dStem, branches));
             sb.AppendLine();
@@ -18572,6 +18951,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(v2JiYongElem) && v2JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v2JiYongElem}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v2TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
@@ -19324,6 +19704,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(v3JiYongElem) && v3JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v3JiYongElem}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v3TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -19760,6 +20141,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(jiYongElemDisp2) && jiYongElemDisp2 != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp2}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp2, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
@@ -20359,15 +20741,16 @@ namespace Ecanapi.Controllers
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string seaLabel  = LfGetSeasonLabel(mBranch);
                 string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 var chartStems4   = new[] { yStem, mStem, dStem, hStem };
 
                 var luckCycles = LfExtractLuckCycles(root);
@@ -21420,6 +21803,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}  天干 {LfElemStems(jiShenElem)}  地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(jiYongElem) && jiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElem}（克用神{yongShenElem}）");
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -22483,14 +22867,15 @@ namespace Ecanapi.Controllers
                 string season    = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string dmElem = KbStemToElement(dStem);
                 var branches  = new[] { yBranch, mBranch, dBranch, hBranch };
-                var wuXing    = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct   = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
                 string bodyLabel = LfGetBodyStrengthLabel(bodyPct);
                 string siLingStem5 = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, _, tiaoHouElem5) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem5);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 var chartStems5   = new[] { yStem, mStem, dStem, hStem };
 
                 var luckCycles = LfExtractLuckCycles(root);
@@ -23036,16 +23421,18 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = calEntry?.SolarTerm ?? "";
                 }
 
-                string season  = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
+                // 統一四階梯引擎（unified-bazi-engine-spec.md）
                 string dmElem  = KbStemToElement(dStem);
-                var wuXing     = LfCalcWuXingMatrix(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, season);
-                double bodyPct = LfGetBodyStrengthPct(dmElem, wuXing);
+                var rawScores  = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
+                var wuXing     = LfScoresToPct(rawScores);
+                double bodyPct = LfGetBodyStrengthPct(dmElem, rawScores);
 
+                string season     = LfGetSeasonFromSolarTerm(mBranch, birthSolarTerm);
                 string siLingStem = LfGetSiLingStem(mBranch, LfParseDayInTerm(birthSolarTerm));
                 var (pattern, yongShenElem, fuYiElem, yongReason, tiaoHouElem) = LfDetectGeJuAndYongShen(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
-                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern);
+                string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
                 return Ok(new {
                     pillars = new {
