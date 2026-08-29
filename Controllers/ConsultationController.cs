@@ -3489,6 +3489,13 @@ namespace Ecanapi.Controllers
         {
             public string? PersonName { get; set; }
             public string? ChartImageBase64 { get; set; }
+            public string? ChartJson { get; set; }    // 客人命盤 JSON（避免誤用 admin 自己的 userChart）
+            public int? BirthYear   { get; set; }
+            public int? BirthMonth  { get; set; }
+            public int? BirthDay    { get; set; }
+            public int? BirthHour   { get; set; }
+            public int? BirthMinute { get; set; }
+            public int? Gender      { get; set; }
         }
 
         [HttpPost("export-bazijing-docx")]
@@ -3514,7 +3521,11 @@ namespace Ecanapi.Controllers
 
             try
             {
-                var root = JsonDocument.Parse(userChart.ChartJson).RootElement;
+                // 優先使用前端傳入的客人命盤 JSON，否則 fallback 到 admin 自己的 DB 資料
+                string bjChartJson = !string.IsNullOrEmpty(request?.ChartJson)
+                    ? request.ChartJson
+                    : userChart.ChartJson;
+                var root = JsonDocument.Parse(bjChartJson).RootElement;
                 if (!root.TryGetProperty("bazi", out var bazi) && !root.TryGetProperty("baziInfo", out bazi))
                     return BadRequest(new { error = "命盤資料格式錯誤" });
 
@@ -3528,21 +3539,25 @@ namespace Ecanapi.Controllers
                 string dStem = LfPillarStem(dayP);    string dBranch = LfPillarBranch(dayP);
                 string hStem = LfPillarStem(timeP);   string hBranch = LfPillarBranch(timeP);
 
-                int birthYear    = user.BirthYear ?? (DateTime.Today.Year - 30);
-                int gender       = user.BirthGender ?? 1;
+                // 優先使用前端傳入的客人出生資料，避免誤用 admin 自己的 BirthYear/Month/Day
+                int birthYear  = request?.BirthYear  ?? user.BirthYear  ?? (DateTime.Today.Year - 30);
+                int gender     = request?.Gender     ?? user.BirthGender ?? 1;
+                int? reqMonth  = (request?.BirthMonth).HasValue ? request!.BirthMonth : user.BirthMonth;
+                int? reqDay    = (request?.BirthDay).HasValue   ? request!.BirthDay   : user.BirthDay;
+                int? reqHour   = (request?.BirthHour).HasValue  ? request!.BirthHour  : user.BirthHour;
                 string bjDocxName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "命主");
 
                 string birthSolarTerm = "";
                 CalendarEntry? bjCalEntry2 = null;
-                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                if (reqMonth.HasValue && reqDay.HasValue)
                 {
                     bjCalEntry2 = _calendarDb.CalendarEntries
-                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={reqMonth.Value} AND \"陽日\"={reqDay.Value} LIMIT 1")
                         .FirstOrDefault();
                     birthSolarTerm = bjCalEntry2?.SolarTerm ?? "";
                 }
-                string bjSolarDate2 = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                string bjSolarDate2 = reqMonth.HasValue && reqDay.HasValue
+                    ? $"{birthYear}年{reqMonth}月{reqDay}日{(reqHour.HasValue ? reqHour + "時" : "")}"
                     : "";
                 string bjLunarDate2 = bjCalEntry2 != null && !string.IsNullOrEmpty(bjCalEntry2.LunarMonth) && !string.IsNullOrEmpty(bjCalEntry2.LunarDay)
                     ? $"農曆{bjCalEntry2.LunarMonth.TrimEnd('月')}月{bjCalEntry2.LunarDay}"
