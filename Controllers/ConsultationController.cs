@@ -3618,6 +3618,12 @@ namespace Ecanapi.Controllers
             public string? ChartImageBase64 { get; set; }
             public string? ChartJson { get; set; }   // 前端 Astrology/calculate 回傳的完整命盤 JSON
             public string? PersonName { get; set; }  // 客人姓名
+            public int? BirthYear   { get; set; }    // 客人出生年（用於 DOCX 顯示，避免誤用 admin 資料）
+            public int? BirthMonth  { get; set; }
+            public int? BirthDay    { get; set; }
+            public int? BirthHour   { get; set; }
+            public int? BirthMinute { get; set; }
+            public int? Gender      { get; set; }    // 1=男 2=女
         }
 
         [HttpPost("export-yudongzi-docx")]
@@ -3672,17 +3678,22 @@ namespace Ecanapi.Controllers
                 string dBranchSS = LfPillarBranchMainSS(dayP);
                 string hBranchSS = LfPillarBranchMainSS(timeP);
 
-                int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
-                int gender    = user.BirthGender ?? 1;
+                // 優先使用前端傳入的客人出生資料，避免誤用 admin 自己的 BirthYear/Month/Day
+                int birthYear  = request.BirthYear  ?? user.BirthYear  ?? (DateTime.Today.Year - 30);
+                int gender     = request.Gender     ?? user.BirthGender ?? 1;
+                int? reqMonth  = request.BirthMonth.HasValue ? request.BirthMonth : user.BirthMonth;
+                int? reqDay    = request.BirthDay.HasValue   ? request.BirthDay   : user.BirthDay;
+                int? reqHour   = request.BirthHour.HasValue  ? request.BirthHour  : user.BirthHour;
+                int? reqMinute = request.BirthMinute.HasValue ? request.BirthMinute : user.BirthMinute;
                 string docxUserName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
-                if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                if (reqMonth.HasValue && reqDay.HasValue)
                 {
                     var stEntry = _calendarDb.CalendarEntries
-                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={user.BirthMonth.Value} AND \"陽日\"={user.BirthDay.Value} LIMIT 1")
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={reqMonth.Value} AND \"陽日\"={reqDay.Value} LIMIT 1")
                         .FirstOrDefault();
                     birthSolarTerm = stEntry?.SolarTerm ?? "";
                 }
@@ -3859,7 +3870,7 @@ namespace Ecanapi.Controllers
                     yNaYin, mNaYin, dNaYin, hNaYin,
                     dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
                     pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear, user.BirthMonth, user.BirthDay, user.BirthHour, user.BirthMinute, lunarMonthDocx,
+                    scored, gender, birthYear, reqMonth, reqDay, reqHour, reqMinute, lunarMonthDocx,
                     hasZiwei, palacesYdz, mingGongStarsYdz, mingZhuYdz, shenZhuYdz, wuXingJuTextYdz,
                     ziweiMingYdz, starDescMingYdz, ziweiFullContentYdz, chartStarsYdz,
                     ziweiOffYdz, offStarsYdz, ziweiWltYdz, wltStarsYdz,
@@ -3895,11 +3906,11 @@ namespace Ecanapi.Controllers
 
                 // 九星氣學加成（純 KB，append 至 reportText）
                 string docxNsSection = await NsBuildBirthSection(
-                    user.BirthYear ?? birthYear,
-                    user.BirthMonth ?? 1,
-                    user.BirthDay ?? 1,
-                    user.BirthHour ?? 0,
-                    user.BirthGender ?? gender);
+                    birthYear,
+                    reqMonth ?? 1,
+                    reqDay ?? 1,
+                    reqHour ?? 0,
+                    gender);
                 if (!string.IsNullOrEmpty(docxNsSection)) reportText += docxNsSection;
 
                 // 古法提要
@@ -3912,8 +3923,8 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(ancientLawDocx)) reportText += ancientLawDocx;
 
                 // 星平大限秘訣
-                bool docxGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
+                bool docxGuoQi = reqMonth.HasValue && reqDay.HasValue
+                    && LfCheckGuoQi(birthYear, reqMonth.Value, reqDay.Value, mBranch, _calendarDb);
                 int docxStartAge = luckCycles.Count > 0 ? luckCycles[0].startAge : 3;
                 int docxCurrentAge = DateTime.Today.Year - birthYear + 1;
                 string starPingDxDocx = LfBuildStarPingDaXian(
@@ -3927,10 +3938,10 @@ namespace Ecanapi.Controllers
                 if (lunarMonthDocx <= 0 || docxLunarDay <= 0)
                 {
                     // fallback：查 calendar DB
-                    if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
+                    if (reqMonth.HasValue && reqDay.HasValue)
                     {
                         var calEntry = _calendarDb.CalendarEntries.FirstOrDefault(
-                            c => c.Year == birthYear && c.SolarMonth == user.BirthMonth.Value && c.SolarDay == user.BirthDay.Value);
+                            c => c.Year == birthYear && c.SolarMonth == reqMonth.Value && c.SolarDay == reqDay.Value);
                         if (calEntry != null)
                         {
                             if (lunarMonthDocx <= 0) lunarMonthDocx = LfParseLunarMonthField(calEntry.LunarMonth);
