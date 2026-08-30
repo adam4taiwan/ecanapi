@@ -5860,7 +5860,7 @@ namespace Ecanapi.Controllers
             9 => "頂級財富（資產達數百億至千億新台幣，全球富豪榜）",
             7 => "特級財富（資產億至數十億，地方大實業家）",
             5 => "高級財富（財務自由，具多處房產或豐厚被動收益）",
-            3 => "中級財富（穩定中產，財務健全無負擔，退休金與授課推廣收入兼備）",
+            3 => "中級財富（穩定中產，財務健全，生活無虞）",
             _ => "初級財富（小康自足，收入平實，財務健全無負擔）",
         };
         private static string LfFortuneLevel_GovDesc(int level) => level switch
@@ -5869,14 +5869,14 @@ namespace Ecanapi.Controllers
             7 => "部會首長、地方諸侯、百億企業董事核心",
             5 => "中高階主管、公協理事、專業領域名師",
             3 => "專業講師、基層幹部、受人尊敬之文化教育工作者",
-            _ => "平民百姓、自由發展、安享退休清福",
+            _ => "平民百姓、自由發展、安居樂業",
         };
         private static string LfFortuneLevel_WealthStatus(int level) => level switch
         {
             9 => "富可敵國、全球富豪榜",
             7 => "巨富、地方大實業家",
             5 => "大富、企業主、資深投資顧問",
-            3 => "穩定中產、樂活退休、專業自營",
+            3 => "穩定中產、財務自主、專業自營",
             _ => "小康、自給自足、清閒無債",
         };
         private static string LfFortuneLevel_GovStatus(int level) => level switch
@@ -5885,7 +5885,7 @@ namespace Ecanapi.Controllers
             7 => "部會首長、地方諸侯、大型機構決策者",
             5 => "機關科處長、企業高管、專業領域名師",
             3 => "自由培訓師、基層主管、社團推廣骨幹",
-            _ => "自由發展、自立工作者、安享退休清福",
+            _ => "自由發展、自立工作者、安居樂業",
         };
 
         // 財官格局等級文字區塊（共用，各命書格局章節呼叫）
@@ -5903,12 +5903,12 @@ namespace Ecanapi.Controllers
             sb2.AppendLine();
             sb2.AppendLine("財富等級對照：");
             sb2.AppendLine("  1等│小康自足（收入平實，財務健全無負擔）");
-            sb2.AppendLine("  3等│中級財富（穩定中產，財務健全，退休金與副業兼備）");
+            sb2.AppendLine("  3等│中級財富（穩定中產，財務健全，生活無虞）");
             sb2.AppendLine("  5等│高級財富（財務自由，具多處房產或豐厚被動收益）");
             sb2.AppendLine("  7等│特級財富（資產億至數十億，地方大實業家）");
             sb2.AppendLine("  9等│頂級財富（資產數百億以上，全球富豪榜）");
             sb2.AppendLine("官貴等級對照：");
-            sb2.AppendLine("  1等│平民百姓，自由發展，安享退休清福");
+            sb2.AppendLine("  1等│平民百姓，自由發展，安居樂業");
             sb2.AppendLine("  3等│專業講師、基層幹部、受人尊敬之文化教育工作者");
             sb2.AppendLine("  5等│中高階主管、公協理事、專業領域名師");
             sb2.AppendLine("  7等│部會首長、地方諸侯、百億企業董事核心");
