@@ -5897,9 +5897,22 @@ namespace Ecanapi.Controllers
             var raw = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             var (wl, gl, ws, gs) = LfCalcFortuneLevel(dmElem, raw, bodyPct);
             var sb2 = new StringBuilder();
-            sb2.AppendLine("【財官格局等級】");
-            sb2.AppendLine($"財富格局：{wl}級（評分 {ws:F0}）─ {LfFortuneLevel_WealthDesc(wl)}");
-            sb2.AppendLine($"官貴格局：{gl}級（評分 {gs:F0}）─ {LfFortuneLevel_GovDesc(gl)}");
+            sb2.AppendLine("【財官格局論斷】");
+            sb2.AppendLine($"財富（第{wl}等）：{LfFortuneLevel_WealthDesc(wl)}");
+            sb2.AppendLine($"官貴（第{gl}等）：{LfFortuneLevel_GovDesc(gl)}");
+            sb2.AppendLine();
+            sb2.AppendLine("財富等級對照：");
+            sb2.AppendLine("  1等│小康自足（收入平實，財務健全無負擔）");
+            sb2.AppendLine("  3等│中級財富（穩定中產，財務健全，退休金與副業兼備）");
+            sb2.AppendLine("  5等│高級財富（財務自由，具多處房產或豐厚被動收益）");
+            sb2.AppendLine("  7等│特級財富（資產億至數十億，地方大實業家）");
+            sb2.AppendLine("  9等│頂級財富（資產數百億以上，全球富豪榜）");
+            sb2.AppendLine("官貴等級對照：");
+            sb2.AppendLine("  1等│平民百姓，自由發展，安享退休清福");
+            sb2.AppendLine("  3等│專業講師、基層幹部、受人尊敬之文化教育工作者");
+            sb2.AppendLine("  5等│中高階主管、公協理事、專業領域名師");
+            sb2.AppendLine("  7等│部會首長、地方諸侯、百億企業董事核心");
+            sb2.AppendLine("  9等│國家元首、國際領袖層級");
             return sb2.ToString();
         }
 
@@ -5963,11 +5976,11 @@ namespace Ecanapi.Controllers
             return total == 0 ? 50 : Math.Round(biJi / total * 100, 1);
         }
 
-        // 統一身強弱閾值（規格 unified-bazi-engine-spec.md §二）
-        // >=65極強 / 50-64偏強 / 35-49偏弱 / <35身弱
+        // 統一身強弱閾值（六級制）
+        // >=70極強 / 55-69偏強 / 45-54中和 / 30-44偏弱 / 20-29身弱 / <20極弱
         private static string LfGetBodyStrengthLabel(double pct) => pct switch
         {
-            >= 65 => "身強（極強）", >= 50 => "偏強", >= 35 => "偏弱", _ => "身弱"
+            >= 70 => "極強", >= 55 => "偏強", >= 45 => "中和", >= 30 => "偏弱", >= 20 => "身弱", _ => "極弱"
         };
 
         // 依格局 x 日主強弱 x 命局組合，取古文用神候選清單（優先序由前到後）
@@ -5982,8 +5995,8 @@ namespace Ecanapi.Controllers
             string caiElem  = LfElemOvercome.GetValueOrDefault(dmElem, "");   // 財
             string guanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, ""); // 官殺
 
-            bool isStrong = bodyPct >= 60;
-            bool isWeak   = bodyPct < 45;
+            bool isStrong = bodyPct >= 55;  // 偏強以上（六級制）
+            bool isWeak   = bodyPct < 45;   // 中和以下（偏弱/身弱/極弱）
 
             bool caiHeavy  = wuXing.GetValueOrDefault(caiElem, 0)  >= 15;
             bool shiHeavy  = wuXing.GetValueOrDefault(shiElem, 0)  >= 15;
@@ -6218,15 +6231,15 @@ namespace Ecanapi.Controllers
             // 從殺/從財/從兒格：忌神=印（生日主使其有力量對抗旺勢，破格之神）
             if (pattern is "從殺格" or "從財格" or "從兒格")
                 return LfGenByElem.GetValueOrDefault(dmElem, "");  // 印星（最大破格威脅）
-            // 統一閾值（unified-bazi-engine-spec.md §六）
-            // 身弱（<35%）：大忌 = 官殺（克身）
-            // 偏弱（35-49%）：依格局最重負面元素決定（官殺分 vs 印分，取較重者為忌）
-            // 身強（>=50%）：大忌 = 印（生身使更旺）
-            if (bodyPct < 35)
+            // 統一閾值（六級制）
+            // 偏弱/身弱/極弱（<45%）：大忌 = 官殺（克身，日主需要支援）
+            // 中和（45-54%）：依格局最重負面元素決定（官殺分 vs 印分，取較重者為忌）
+            // 偏強/極強（>=55%）：大忌 = 印（生身使更旺，宜洩制）
+            if (bodyPct < 45)
                 return LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
-            if (bodyPct < 50)
+            if (bodyPct < 55)
             {
-                // 中和偏弱：官殺分 vs 印分，誰重誰為大忌
+                // 中和：官殺分 vs 印分，誰重誰為大忌（格局需就重論斷）
                 string guanE = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
                 string inE   = LfGenByElem.GetValueOrDefault(dmElem, "");
                 if (wuXing != null)
