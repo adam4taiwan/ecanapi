@@ -2181,7 +2181,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = lfCalEntry?.SolarTerm ?? "";
                 }
                 string lfSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}{(user.BirthMinute.HasValue && user.BirthMinute > 0 ? user.BirthMinute + "分" : "")}"
                     : "";
                 string lfLunarDate = lfCalEntry != null && !string.IsNullOrEmpty(lfCalEntry.LunarMonth) && !string.IsNullOrEmpty(lfCalEntry.LunarDay)
                     ? $"農曆{lfCalEntry.LunarMonth.TrimEnd('月')}月{lfCalEntry.LunarDay}"
@@ -2405,7 +2405,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = lfCalEntry?.SolarTerm ?? "";
                 }
                 string lfSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}{(user.BirthMinute.HasValue && user.BirthMinute > 0 ? user.BirthMinute + "分" : "")}"
                     : "";
                 string lfLunarDate = lfCalEntry != null && !string.IsNullOrEmpty(lfCalEntry.LunarMonth) && !string.IsNullOrEmpty(lfCalEntry.LunarDay)
                     ? $"農曆{lfCalEntry.LunarMonth.TrimEnd('月')}月{lfCalEntry.LunarDay}"
@@ -3427,7 +3427,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = bjCalEntry?.SolarTerm ?? "";
                 }
                 string bjSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}{(user.BirthMinute.HasValue && user.BirthMinute > 0 ? user.BirthMinute + "分" : "")}"
                     : "";
                 string bjLunarDate = bjCalEntry != null && !string.IsNullOrEmpty(bjCalEntry.LunarMonth) && !string.IsNullOrEmpty(bjCalEntry.LunarDay)
                     ? $"農曆{bjCalEntry.LunarMonth.TrimEnd('月')}月{bjCalEntry.LunarDay}"
@@ -3545,6 +3545,7 @@ namespace Ecanapi.Controllers
                 int? reqMonth  = (request?.BirthMonth).HasValue ? request!.BirthMonth : user.BirthMonth;
                 int? reqDay    = (request?.BirthDay).HasValue   ? request!.BirthDay   : user.BirthDay;
                 int? reqHour   = (request?.BirthHour).HasValue  ? request!.BirthHour  : user.BirthHour;
+                int? reqMinute = (request?.BirthMinute).HasValue ? request!.BirthMinute : user.BirthMinute;
                 string bjDocxName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "命主");
 
                 string birthSolarTerm = "";
@@ -3557,7 +3558,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = bjCalEntry2?.SolarTerm ?? "";
                 }
                 string bjSolarDate2 = reqMonth.HasValue && reqDay.HasValue
-                    ? $"{birthYear}年{reqMonth}月{reqDay}日{(reqHour.HasValue ? reqHour + "時" : "")}"
+                    ? $"{birthYear}年{reqMonth}月{reqDay}日{(reqHour.HasValue ? reqHour + "時" : "")}{(reqMinute.HasValue && reqMinute > 0 ? reqMinute + "分" : "")}"
                     : "";
                 string bjLunarDate2 = bjCalEntry2 != null && !string.IsNullOrEmpty(bjCalEntry2.LunarMonth) && !string.IsNullOrEmpty(bjCalEntry2.LunarDay)
                     ? $"農曆{bjCalEntry2.LunarMonth.TrimEnd('月')}月{bjCalEntry2.LunarDay}"
@@ -4944,7 +4945,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = dyCalEntry?.SolarTerm ?? "";
                 }
                 string dySolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}{(user.BirthMinute.HasValue && user.BirthMinute > 0 ? user.BirthMinute + "分" : "")}"
                     : "";
                 string dyLunarDate = dyCalEntry != null && !string.IsNullOrEmpty(dyCalEntry.LunarMonth) && !string.IsNullOrEmpty(dyCalEntry.LunarDay)
                     ? $"農曆{dyCalEntry.LunarMonth.TrimEnd('月')}月{dyCalEntry.LunarDay}"
@@ -20773,7 +20774,7 @@ namespace Ecanapi.Controllers
                     birthSolarTerm = lnCalEntry?.SolarTerm ?? "";
                 }
                 string lnSolarDate = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}"
+                    ? $"{birthYear}年{user.BirthMonth}月{user.BirthDay}日{(user.BirthHour.HasValue ? user.BirthHour + "時" : "")}{(user.BirthMinute.HasValue && user.BirthMinute > 0 ? user.BirthMinute + "分" : "")}"
                     : "";
                 string lnLunarDate = lnCalEntry != null && !string.IsNullOrEmpty(lnCalEntry.LunarMonth) && !string.IsNullOrEmpty(lnCalEntry.LunarDay)
                     ? $"農曆{lnCalEntry.LunarMonth.TrimEnd('月')}月{lnCalEntry.LunarDay}"
