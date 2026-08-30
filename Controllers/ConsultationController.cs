@@ -3676,6 +3676,7 @@ namespace Ecanapi.Controllers
                 int lunarDayDocx   = LfParseLunarDay(lunarRawDocx);
 
                 var yearP  = LfGetPillar(bazi, "yearPillar");
+
                 var monthP = LfGetPillar(bazi, "monthPillar");
                 var dayP   = LfGetPillar(bazi, "dayPillar");
                 var timeP  = LfGetPillar(bazi, "timePillar");
@@ -3702,6 +3703,19 @@ namespace Ecanapi.Controllers
                 int? reqMinute = request.BirthMinute.HasValue ? request.BirthMinute : user.BirthMinute;
                 string docxUserName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "");
                 var luckCycles = LfExtractLuckCycles(root);
+
+                // fallback：lunarBirthDate 為空時，查 calendar DB（必須用 FromSqlInterpolated，EF Core LINQ 有 null 回傳 bug）
+                if ((lunarMonthDocx <= 0 || lunarDayDocx <= 0) && reqMonth.HasValue && reqDay.HasValue)
+                {
+                    var calFb = _calendarDb.CalendarEntries
+                        .FromSqlInterpolated($"SELECT * FROM calendar WHERE \"西元年\"={birthYear} AND \"陽月\"={reqMonth.Value} AND \"陽日\"={reqDay.Value} LIMIT 1")
+                        .FirstOrDefault();
+                    if (calFb != null)
+                    {
+                        if (lunarMonthDocx <= 0) lunarMonthDocx = LfParseLunarMonthField(calFb.LunarMonth);
+                        if (lunarDayDocx   <= 0) lunarDayDocx   = LfParseLunarDayField(calFb.LunarDay);
+                    }
+                }
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
@@ -12773,7 +12787,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"性別：{genderText}  出生年：{birthYear} 年  虛齡：{currentAge} 歲{curCycleNote}");
             if (birthMonth.HasValue && birthDay.HasValue)
             {
-                string ydzSolar = $"{birthYear}年{birthMonth}月{birthDay}日{(birthHour.HasValue ? birthHour + "時" : "")}";
+                string ydzSolar = $"{birthYear}年{birthMonth}月{birthDay}日{(birthHour.HasValue ? birthHour + "時" : "")}{(birthMinute.HasValue && birthMinute > 0 ? birthMinute + "分" : "")}";
                 string ydzLunar = (lunarMonth > 0 && lunarDay > 0) ? $"農曆{lunarMonth}月{lunarDay}日" : "";
                 sb.AppendLine(!string.IsNullOrEmpty(ydzLunar) ? $"西元：{ydzSolar}  農曆：{ydzLunar}" : $"西元：{ydzSolar}");
             }
