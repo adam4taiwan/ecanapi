@@ -10004,7 +10004,276 @@ namespace Ecanapi.Controllers
             );
         }
 
-        // === 八字真經命書（十章版，Admin Only）===
+        // ============================================================
+        // === 大運流年斷驗工具方法群（供所有命書共用）=================
+        // ============================================================
+
+        // 格局類型：吉神格（穩健型）/ 凶神格（震盪型）/ 中性
+        private static string LfGetPatternType(string pattern)
+        {
+            var jiShenKeys = new[] { "七殺", "傷官", "偏印", "梟神", "羊刃", "月刃" };
+            var xiangKeys  = new[] { "正官", "正財", "食神", "正印", "建祿" };
+            if (jiShenKeys.Any(k => pattern.Contains(k))) return "凶神格";
+            if (xiangKeys.Any(k => pattern.Contains(k)))  return "吉神格";
+            return "中性";
+        }
+
+        // 羊刃位（以日干查）
+        private static string LfGetYangRenBranch(string dayStem) => dayStem switch
+        {
+            "甲" => "卯", "乙" => "寅",
+            "丙" => "午", "丁" => "巳",
+            "戊" => "午", "己" => "巳",
+            "庚" => "酉", "辛" => "申",
+            "壬" => "子", "癸" => "亥",
+            _ => ""
+        };
+
+        // 桃花位（以日支三合查）
+        private static string LfGetPeachBranch(string dayBranch)
+        {
+            if (new[] { "申", "子", "辰" }.Contains(dayBranch)) return "酉";
+            if (new[] { "寅", "午", "戌" }.Contains(dayBranch)) return "卯";
+            if (new[] { "亥", "卯", "未" }.Contains(dayBranch)) return "子";
+            if (new[] { "巳", "酉", "丑" }.Contains(dayBranch)) return "午";
+            return "";
+        }
+
+        // 驛馬位（以日支三合查）
+        private static string LfGetYiMaBranch(string dayBranch)
+        {
+            if (new[] { "申", "子", "辰" }.Contains(dayBranch)) return "寅";
+            if (new[] { "寅", "午", "戌" }.Contains(dayBranch)) return "申";
+            if (new[] { "亥", "卯", "未" }.Contains(dayBranch)) return "巳";
+            if (new[] { "巳", "酉", "丑" }.Contains(dayBranch)) return "亥";
+            return "";
+        }
+
+        // 大運旺/平/逆 評等（以天干+地支五行對照喜忌評分）
+        // 天干權重2，地支權重1；用神+2/喜神+1/忌神-2/-1
+        private static string LfGetDaYunRating(
+            string dyStem, string dyBranch, string yong, string fuyi, string ji,
+            bool hasChong = false)
+        {
+            string stemElem  = KbStemToElement(dyStem);
+            string brElem    = LfBranchElem.GetValueOrDefault(dyBranch, "土");
+            double score = 0;
+            score += stemElem == yong ? 2 : stemElem == fuyi ? 1 : stemElem == ji ? -2 : 0;
+            score += brElem   == yong ? 1 : brElem   == fuyi ? 0.5 : brElem   == ji ? -1 : 0;
+            if (hasChong) score -= 0.5;
+            if (score >= 1.5)  return "旺運";
+            if (score <= -0.5) return "逆運";
+            return "平運";
+        }
+
+        // 十二長生 死/墓/絕 地支（以五行查）
+        private static readonly Dictionary<string, string[]> LfDeathVoidBranches = new()
+        {
+            ["木"] = new[] { "午", "未", "申" },
+            ["火"] = new[] { "酉", "戌", "亥" },
+            ["土"] = new[] { "酉", "戌", "亥" },  // 戊己土同火
+            ["金"] = new[] { "子", "丑", "寅" },
+            ["水"] = new[] { "卯", "辰", "巳" },
+        };
+
+        // 六親對應五行（以日主五行推算）
+        private static string LfGetLiuQinElem(string liuQin, string dmElem)
+        {
+            // 五行生克循環：木→火→土→金→水→木
+            var cycle = new[] { "木", "火", "土", "金", "水" };
+            int i = Array.IndexOf(cycle, dmElem);
+            if (i < 0) return "";
+            return liuQin switch
+            {
+                "父"  => cycle[(i + 2) % 5], // 父=偏財（日主克之）
+                "母"  => cycle[(i + 4) % 5], // 母=正印（生日主之）
+                "配偶男" => cycle[(i + 2) % 5], // 男命配偶=正財（同偏財五行）
+                "配偶女" => cycle[(i + 1) % 5], // 女命配偶=正官（克日主之）
+                "子女" => cycle[(i + 3) % 5], // 子女=食傷（日主生之）
+                _ => ""
+            };
+        }
+
+        // ── 主方法：流年觸發事件（返回所有命中提示，依優先序排列）──
+        // category: 事業 / 婚姻 / 學業 / 疾病 / 感情
+        // isCaution: true=警示（紅），false=機會（綠/藍）
+        private static List<(string category, string hint, bool isCaution)> LfGetLiuNianEventHints(
+            string lnStem, string lnBranch,
+            string dStem, string dBranch, string mBranch,
+            int age, int gender,
+            string yong, string fuyi, string ji, string pattern,
+            string[] natalStems, string[] natalBranches)
+        {
+            var results = new List<(string, string, bool)>();
+
+            string dmElem    = KbStemToElement(dStem);
+            string lnStemEl  = KbStemToElement(lnStem);
+            string lnBrEl    = LfBranchElem.GetValueOrDefault(lnBranch, "土");
+            string lnTenGod  = LfStemShiShen(lnStem, dStem);
+
+            bool stemFavor = lnStemEl == yong || lnStemEl == fuyi;
+            bool stemJi    = lnStemEl == ji;
+            bool brFavor   = lnBrEl == yong || lnBrEl == fuyi;
+            bool brJi      = lnBrEl == ji;
+
+            bool brVsDay   = LfBranchChongOf.GetValueOrDefault(lnBranch, "") == dBranch;
+            bool brVsMonth = LfBranchChongOf.GetValueOrDefault(lnBranch, "") == mBranch;
+            bool brHeDay   = LfHe.TryGetValue(lnBranch, out var heDay) && heDay.partner == dBranch;
+            bool brHeMonth = LfHe.TryGetValue(lnBranch, out var heMonth) && heMonth.partner == mBranch;
+
+            string yangRen = LfGetYangRenBranch(dStem);
+            string peach   = LfGetPeachBranch(dBranch);
+            string yiMa    = LfGetYiMaBranch(dBranch);
+
+            // 命局天干十神集合
+            var natalTgs = natalStems.Select((s, i) => i == 2 ? "" : LfStemShiShen(s, dStem)).ToArray();
+            bool hasNatalOfficer = natalTgs.Any(t => t == "正官" || t == "七殺");
+            bool hasNatalWealth  = natalTgs.Any(t => t == "正財" || t == "偏財");
+            bool hasNatalPrint   = natalTgs.Any(t => t == "正印" || t == "偏印");
+            bool hasNatalFoodGod = natalTgs.Any(t => t == "食神");
+
+            bool isMale = gender == 1;
+
+            // ── 衝（突發性，最高優先）──
+            if (brVsDay)
+            {
+                if (age <= 55) results.Add(("婚姻", "地支衝日支，婚姻波折或居所突變", true));
+                else           results.Add(("疾病", "地支衝日支，健康留意勿輕忽", true));
+            }
+            if (brVsMonth)
+                results.Add(("事業", "月令受衝，工作/家庭突然變動", true));
+
+            // 羊刃逢衝
+            if (!string.IsNullOrEmpty(yangRen) && LfBranchChongOf.GetValueOrDefault(lnBranch, "") == yangRen)
+                results.Add(("疾病", "羊刃逢衝，突發血光/車禍/手術留意", true));
+
+            // 桃花逢衝
+            if (!string.IsNullOrEmpty(peach) && LfBranchChongOf.GetValueOrDefault(lnBranch, "") == peach)
+                results.Add(("感情", "桃花受衝，感情驟變/外遇/奔波", true));
+
+            // ── 合（計畫性）──
+            if (brHeDay && age >= 20 && age <= 55)
+            {
+                if (isMale && (lnTenGod == "正財" || lnTenGod == "偏財"))
+                    results.Add(("感情", "財星合日支，感情婚姻緣分到位", false));
+                else if (!isMale && (lnTenGod == "正官" || lnTenGod == "七殺"))
+                    results.Add(("感情", "官星合日支，婚緣成熟宜把握", false));
+                else
+                    results.Add(("感情", "日支逢合，合夥或感情有緣", false));
+            }
+            if (brHeMonth)
+                results.Add(("事業", "月令逢合，工作計畫有進展", false));
+
+            // 驛馬逢合（計畫遷移/留學）
+            if (!string.IsNullOrEmpty(yiMa) && lnBranch == yiMa
+                && LfHe.TryGetValue(lnBranch, out var yiMaHe)
+                && (natalBranches.Contains(yiMaHe.partner) || new[] { dBranch, mBranch }.Contains(yiMaHe.partner)))
+                results.Add(("學業", "驛馬逢合，計畫遷移/出境/留學", false));
+
+            // ── 事業財富（十神組合）──
+            if (lnTenGod == "正官" || lnTenGod == "七殺")
+            {
+                if (stemFavor && hasNatalPrint && age >= 20)
+                    results.Add(("事業", "官印相生，職務升遷機會", false));
+                else if (stemFavor && age >= 20 && age <= 60)
+                    results.Add(("事業", "官星旺+喜，升遷貴人機會", false));
+                else if (stemJi && age >= 20 && age <= 60)
+                    results.Add(("事業", "官殺+忌，壓力增大防官非", true));
+                // 官殺交戰（命局已有官殺 + 流年又來 + 忌）
+                if (stemJi && hasNatalOfficer && age >= 40)
+                    results.Add(("疾病", "官殺交戰，重病/官司風險，不可輕忽", true));
+                if (stemJi && age > 55)
+                    results.Add(("疾病", "官殺+忌，年長者健康優先留意", true));
+            }
+
+            if (lnTenGod == "傷官")
+            {
+                if (hasNatalOfficer && stemJi)
+                    results.Add(("事業", "傷官見官，職場衝突/官非風險", true));
+                else if (stemFavor)
+                    results.Add(("事業", "傷官+喜，才藝突出口才佳，展現時機", false));
+                else if (stemJi)
+                    results.Add(("事業", "傷官+忌，口舌是非防言多失", true));
+                // 傷官+夫星被合（女命離婚風險）
+                if (!isMale && natalStems.Any(s => LfStemShiShen(s, dStem) == "正官")
+                    && LfHe.TryGetValue(lnBranch, out var injuryHe)
+                    && natalBranches.Any(b => b == injuryHe.partner))
+                    results.Add(("婚姻", "傷官見官+夫星被合，婚姻挑剔冷戰", true));
+            }
+
+            if (lnTenGod == "正財" || lnTenGod == "偏財")
+            {
+                // 財破印
+                if (stemJi && hasNatalPrint)
+                    results.Add(("事業", "財破印，因錢財/異性引發糾紛", true));
+                else if (stemFavor && age >= 20)
+                    results.Add(("財富", isMale ? "財星+喜，財運/感情雙動" : "財星+喜，財運主動把握", false));
+                else if (stemJi)
+                    results.Add(("財富", "財星+忌，財來財去防破財", true));
+                // 偏財+合日主（男命外遇）
+                if (isMale && lnTenGod == "偏財" && brHeDay && age >= 25)
+                    results.Add(("感情", "偏財合身，異性糾纏/外遇機率升", true));
+            }
+
+            if (lnTenGod == "比肩" || lnTenGod == "劫財")
+            {
+                if (stemJi && hasNatalWealth)
+                    results.Add(("財富", "比劫奪財+忌，防破財合夥糾紛", true));
+                else if (stemFavor)
+                    results.Add(("事業", "比劫+喜，社交活躍貴人助力", false));
+            }
+
+            if (lnTenGod == "食神")
+            {
+                // 煞神奪食
+                if (stemJi && hasNatalOfficer)
+                    results.Add(("疾病", "煞神奪食，精神壓力/神經耗損", true));
+                else if (stemFavor)
+                    results.Add(("事業", "食神+喜，口才事業口碑佳", false));
+                else if (stemJi)
+                    results.Add(("事業", "食神+忌，才能發揮受阻", true));
+            }
+
+            if (lnTenGod == "正印" || lnTenGod == "偏印")
+            {
+                // 梟神逢重（偏印+命局已有偏印+忌）
+                if (lnTenGod == "偏印" && stemJi && natalTgs.Any(t => t == "偏印"))
+                    results.Add(("疾病", "梟神逢重，身體重創/骨折留意", true));
+                else if (age >= 14 && age <= 25)
+                    results.Add(("學業", "印星年，利升學考試/資格取得", false));
+                else if (stemFavor && hasNatalOfficer)
+                    results.Add(("事業", "官印相生，升遷/文書簽約佳", false));
+                else if (stemFavor)
+                    results.Add(("事業", "印星+喜，貴人相助/名聲提升", false));
+                else if (stemJi)
+                    results.Add(("事業", "印星+忌，資源受阻/謀事不順", true));
+            }
+
+            // 六親星死絕（父/母/配偶/子女對應五行在死/墓/絕位）
+            string parentElem  = LfGetLiuQinElem("父", dmElem);
+            string motherElem  = LfGetLiuQinElem("母", dmElem);
+            string spouseElem  = LfGetLiuQinElem(isMale ? "配偶男" : "配偶女", dmElem);
+            string childElem   = LfGetLiuQinElem("子女", dmElem);
+
+            if (!string.IsNullOrEmpty(parentElem) && LfDeathVoidBranches.TryGetValue(parentElem, out var pdv)
+                && pdv.Contains(lnBranch) && brJi)
+                results.Add(("六親", "流年落父星死絕，長輩健康多留意", true));
+            if (!string.IsNullOrEmpty(motherElem) && LfDeathVoidBranches.TryGetValue(motherElem, out var mdv)
+                && mdv.Contains(lnBranch) && brJi)
+                results.Add(("六親", "流年落母星死絕，母親/印緣留意", true));
+            if (!string.IsNullOrEmpty(spouseElem) && LfDeathVoidBranches.TryGetValue(spouseElem, out var sdv)
+                && sdv.Contains(lnBranch) && (brJi || brVsDay) && age >= 20)
+                results.Add(("婚姻", "配偶星死絕，感情/婚姻需多關心", true));
+            if (!string.IsNullOrEmpty(childElem) && LfDeathVoidBranches.TryGetValue(childElem, out var cdv)
+                && cdv.Contains(lnBranch) && brJi && age >= 25)
+                results.Add(("六親", "子女星死絕，子女健康/緣份留意", true));
+
+            return results;
+        }
+
+        // ============================================================
+        // === 八字真經命書（十章版，Admin Only）=================
+        // ============================================================
         private static string LfBuildBaZiJingReport(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch,
@@ -23488,6 +23757,22 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
+                // 大運流年斷驗工具欄位
+                string patternType   = LfGetPatternType(pattern);
+                string yangRenBranch = LfGetYangRenBranch(dStem);
+                string peachBranch   = LfGetPeachBranch(dBranch);
+                string yiMaBranch    = LfGetYiMaBranch(dBranch);
+
+                // 各大運旺/平/逆評等（含日支沖判斷）
+                var daYunRatings = luckCycles.Select(lc => {
+                    bool hasChong = LfBranchChongOf.GetValueOrDefault(lc.branch, "") == dBranch;
+                    string rating = LfGetDaYunRating(lc.stem, lc.branch, yongShenElem, fuYiElem, jiShenElem, hasChong);
+                    return new { lc.stem, lc.branch, lc.startAge, lc.endAge, rating };
+                }).ToList();
+
+                string[] natalStems    = new[] { yStem, mStem, dStem, hStem };
+                string[] natalBranches = new[] { yBranch, mBranch, dBranch, hBranch };
+
                 return Ok(new {
                     pillars = new {
                         year  = new { stem = yStem,  branch = yBranch },
@@ -23499,11 +23784,17 @@ namespace Ecanapi.Controllers
                     fuYiElem,
                     jiShenElem,
                     pattern,
+                    patternType,
                     bodyPct = Math.Round(bodyPct, 1),
                     gender,
                     birthYear,
                     name = user.UserName ?? "",
-                    luckCycles = luckCycles.Select(lc => new { lc.stem, lc.branch, lc.startAge, lc.endAge }).ToList()
+                    yangRenBranch,
+                    peachBranch,
+                    yiMaBranch,
+                    luckCycles = daYunRatings,
+                    natalStems,
+                    natalBranches
                 });
             }
             catch (Exception ex)
