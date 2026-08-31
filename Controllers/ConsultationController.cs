@@ -8871,6 +8871,33 @@ namespace Ecanapi.Controllers
                 string curPalaceEvents = LfBranchEventsPalace(curCycleBz.branch, curBrSS, branches, branchSSArr, curCycleBz.startAge);
                 if (!string.IsNullOrEmpty(curPalaceEvents))
                     sb.AppendLine($"  地支六親事項：{curPalaceEvents}");
+
+                // 目前行運：旺/平/逆評等 + 格局類型
+                string curDyRating = LfGetDaYunRating(curCycleBz.stem, curCycleBz.branch, yongShenElem, fuYiElem, jiShenElem,
+                    LfBranchChongOf.GetValueOrDefault(curCycleBz.branch, "") == dBranch);
+                string curPatType  = LfGetPatternType(pattern);
+                sb.AppendLine($"  運勢評等：{curDyRating}（{curPatType}）");
+
+                // 今年流年觸發事件
+                {
+                    var branches12Bz = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                    var stems10Bz    = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                    string[] natalStemsBz    = new[] { yStem, mStem, dStem, hStem };
+                    string[] natalBranchesBz = new[] { yBranch, mBranch, dBranch, hBranch };
+                    int curYrBz = DateTime.Today.Year;
+                    int brIdxBz = ((curYrBz - 4) % 12 + 12) % 12;
+                    int stIdxBz = ((curYrBz - 4) % 10 + 10) % 10;
+                    string curYrBrBz = branches12Bz[brIdxBz];
+                    string curYrStBz = stems10Bz[stIdxBz];
+                    var curYrHintsBz = LfGetLiuNianEventHints(curYrStBz, curYrBrBz, dStem, dBranch, mBranch,
+                        currentAge, gender, yongShenElem, fuYiElem, jiShenElem, pattern, natalStemsBz, natalBranchesBz);
+                    if (curYrHintsBz.Any())
+                    {
+                        sb.AppendLine($"  今年（{curYrBz}年 {curYrStBz}{curYrBrBz}）流年觸發：");
+                        foreach (var (cat, hint, _) in curYrHintsBz.Take(3))
+                            sb.AppendLine($"    [{cat}] {hint}");
+                    }
+                }
                 sb.AppendLine();
             }
 
@@ -11329,6 +11356,23 @@ namespace Ecanapi.Controllers
 
                     sb.AppendLine(mechanism9);
 
+                    // 大運旺/平/逆評等 + 格局成就曲線（LfGetDaYunRating + LfGetPatternType）
+                    bool hasChong9 = IsSanChong(lc.branch, dBranch);
+                    string dyRating9 = LfGetDaYunRating(lc.stem, lc.branch, yongShenElem, fuYiElem, jiShenElem, hasChong9);
+                    string patType9  = LfGetPatternType(pattern);
+                    string curveDesc9 = (patType9, dyRating9) switch {
+                        ("吉神格", "旺運") => "穩健型旺運：踏實積累，收益確實，宜全力投入",
+                        ("吉神格", "逆運") => "穩健型逆運：小波折守成即可，不傷根基",
+                        ("吉神格", _)      => "穩健型平運：按部就班，穩中求進",
+                        ("凶神格", "旺運") => "震盪型旺運：爆發機會強，需大膽把握，但成果不持久",
+                        ("凶神格", "逆運") => "震盪型逆運：大震盪嚴防大失，情緒起伏劇烈",
+                        ("凶神格", _)      => "震盪型平運：看似平靜實則暗流，謹慎行事",
+                        (_, "旺運")        => "旺運期：積極把握",
+                        (_, "逆運")        => "逆運期：守成待時",
+                        _                  => "平運期：穩健耕耘"
+                    };
+                    sb.AppendLine($"【運勢評等】{dyRating9}（{patType9}）　{curveDesc9}");
+
                     // 八字真經 DB 大運批斷
                     {
                         string bjTitle9 = (stemGood && brGood) ? "人生最佳大運"
@@ -11490,6 +11534,40 @@ namespace Ecanapi.Controllers
                     sb.AppendLine($"• {row.Title}{yearHintF}：{row.Content}");
                 }
                 sb.AppendLine();
+            }
+
+            // 近期流年觸發事件分析（LfGetLiuNianEventHints，四大領域：事業/婚姻/學業/疾病）
+            sb.AppendLine("▍近期流年觸發事件分析（本年起5年）");
+            {
+                var branches12Ln = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                var stems10Ln    = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                string[] natalStemsLn    = new[] { yStem, mStem, dStem, hStem };
+                string[] natalBranchesLn = new[] { yBranch, mBranch, dBranch, hBranch };
+                int curYrLn = DateTime.Today.Year;
+                bool anyLnHints = false;
+                for (int yr = curYrLn; yr <= curYrLn + 5; yr++)
+                {
+                    int brIdxLn = ((yr - 4) % 12 + 12) % 12;
+                    int stIdxLn = ((yr - 4) % 10 + 10) % 10;
+                    string yrBrLn = branches12Ln[brIdxLn];
+                    string yrStLn = stems10Ln[stIdxLn];
+                    int ageLn = yr - birthYear;
+                    var hintsLn = LfGetLiuNianEventHints(yrStLn, yrBrLn, dStem, dBranch, mBranch,
+                        ageLn, gender, yongShenElem, fuYiElem, jiShenElem, pattern, natalStemsLn, natalBranchesLn);
+                    if (hintsLn.Any())
+                    {
+                        anyLnHints = true;
+                        sb.AppendLine($"【{yr}年 {yrStLn}{yrBrLn}　虛歲{ageLn}歲】");
+                        foreach (var (cat, hint, isCaution) in hintsLn.Take(3))
+                            sb.AppendLine($"  [{cat}] {hint}");
+                        sb.AppendLine();
+                    }
+                }
+                if (!anyLnHints)
+                {
+                    sb.AppendLine("未來5年無特別觸發事件，以大運喜忌為主要參考依據。");
+                    sb.AppendLine();
+                }
             }
 
             // ===== Ch.11 玉洞子命評 =====
@@ -19945,6 +20023,17 @@ namespace Ecanapi.Controllers
                 {
                     sb.AppendLine($"    此年八字與紫微均屬平穩，按部就班推進既有計畫，靜待黃金年份再大舉展開。");
                 }
+                // 四大領域流年事件觸發提示
+                var evHints6 = LfGetLiuNianEventHints(
+                    d.flStem, d.flBranch, dStem, dBranch, branches[1],
+                    d.age, gender, yongShenElem, fuYiElem, jiShenElem, pattern,
+                    chartStems, branches);
+                if (evHints6.Count > 0)
+                {
+                    sb.AppendLine("  ▍ 四大領域提示");
+                    foreach (var (evCat, evHint, evIsC) in evHints6)
+                        sb.AppendLine($"    [{evCat}] {(evIsC ? "[注意] " : "")}{evHint}");
+                }
                 sb.AppendLine();
                 sb.AppendLine("  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -");
                 sb.AppendLine();
@@ -22115,6 +22204,20 @@ namespace Ecanapi.Controllers
                 sb.AppendLine(dualDesc);
                 sb.AppendLine($"最需把握的月份：{bestStr}；最需留意的月份：{cautStr}。");
                 sb.AppendLine();
+
+                // 四大領域流年事件觸發提示
+                string[] lnChartStems0 = { yStem, mStem, dStemRef, hStem };
+                var lnEvHints0 = LfGetLiuNianEventHints(
+                    flStem, flBranch, dStem, dBranch, mBranch,
+                    flAge, gender, yongShenElem, fuYiElem, jiShenElem, pattern,
+                    lnChartStems0, branches);
+                if (lnEvHints0.Count > 0)
+                {
+                    sb.AppendLine("【四大領域觸發提示】");
+                    foreach (var (lnCat, lnHint, lnIsC) in lnEvHints0)
+                        sb.AppendLine($"  [{lnCat}] {(lnIsC ? "[注意] " : "")}{lnHint}");
+                    sb.AppendLine();
+                }
             }
 
             // Ch.2 格局用神 + 流年八字分析
