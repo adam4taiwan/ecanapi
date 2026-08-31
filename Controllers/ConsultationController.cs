@@ -8872,11 +8872,20 @@ namespace Ecanapi.Controllers
                 if (!string.IsNullOrEmpty(curPalaceEvents))
                     sb.AppendLine($"  地支六親事項：{curPalaceEvents}");
 
-                // 目前行運：旺/平/逆評等 + 格局類型
+                // 目前行運：旺/平/逆評等 + 格局類型 + 成就曲線詮釋
                 string curDyRating = LfGetDaYunRating(curCycleBz.stem, curCycleBz.branch, yongShenElem, fuYiElem, jiShenElem,
                     LfBranchChongOf.GetValueOrDefault(curCycleBz.branch, "") == dBranch);
                 string curPatType  = LfGetPatternType(pattern);
-                sb.AppendLine($"  運勢評等：{curDyRating}（{curPatType}）");
+                string curCurveDesc = (curPatType, curDyRating) switch {
+                    ("吉神格", "旺運") => "穩健收成，努力必有結果",
+                    ("吉神格", "平運") => "平穩耕耘，不急不徐",
+                    ("吉神格", "逆運") => "小波折，守成即可，不傷根基",
+                    ("凶神格", "旺運") => "爆發機會強，需大膽把握，但不持久",
+                    ("凶神格", "平運") => "看似平靜實則暗流，謹慎行事",
+                    ("凶神格", "逆運") => "大震盪，防大失，情緒起伏劇烈",
+                    _                  => "按部就班，順勢而為"
+                };
+                sb.AppendLine($"  運勢評等：{curDyRating}（{curPatType}）　{curCurveDesc}");
 
                 // 今年流年觸發事件
                 {
