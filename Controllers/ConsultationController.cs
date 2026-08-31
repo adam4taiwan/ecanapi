@@ -8800,29 +8800,52 @@ namespace Ecanapi.Controllers
                 }
             }
 
-            // === Ch.10 大運逐運（全部大運，管理員玉洞子專用）===
-            sb.AppendLine("【第十章：大運逐運論斷】");
-            sb.AppendLine($"格局類型：{LfGetPatternType(pattern)}　用神：{yongShenElem}　忌神：{jiShenElem}");
-            sb.AppendLine();
+            // === Ch.10 目前行運（終身命書）===
+            sb.AppendLine("【第十章：目前行運】");
             string[] branchSSArr = { yBranchSS, mBranchSS, dBranchSS, hBranchSS };
-            string[] natalStemsBz    = { yStem, mStem, dStem, hStem };
-            string[] natalBranchesBz = { yBranch, mBranch, dBranch, hBranch };
-            var branches12Bz = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
-            var stems10Bz    = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
-            int curYrBzAll = DateTime.Today.Year;
-            string curYrBrBzAll = branches12Bz[((curYrBzAll - 4) % 12 + 12) % 12];
-            string curYrStBzAll = stems10Bz[((curYrBzAll - 4) % 10 + 10) % 10];
-            string patTypeBzAll = LfGetPatternType(pattern);
-
-            foreach (var c in scored)
+            var curCycleBz = scored.FirstOrDefault(c => currentAge >= c.startAge && currentAge <= c.endAge);
+            if (!string.IsNullOrEmpty(curCycleBz.stem))
             {
-                bool isCurrent = currentAge >= c.startAge && currentAge <= c.endAge;
-                string lcSS = LfStemShiShen(c.stem, dStem);
-                string lcBranchMs = LfBranchHiddenRatio.TryGetValue(c.branch, out var lcBH) && lcBH.Count > 0 ? lcBH[0].stem : "";
-                string lcBranchSS = !string.IsNullOrEmpty(lcBranchMs) ? LfStemShiShen(lcBranchMs, dStem) : "";
-                bool hasChongC = LfBranchChongOf.GetValueOrDefault(c.branch, "") == dBranch;
-                string dyRatingC = LfGetDaYunRating(c.stem, c.branch, yongShenElem, fuYiElem, jiShenElem, hasChongC);
-                string curveDescC = (patTypeBzAll, dyRatingC) switch {
+                sb.AppendLine($"【目前行運（{curCycleBz.startAge}-{curCycleBz.endAge} 歲  {curCycleBz.stem}{curCycleBz.branch}）】");
+                string curStemSS = LfStemShiShen(curCycleBz.stem, dStem);
+                string curBrMs = LfBranchHiddenRatio.TryGetValue(curCycleBz.branch, out var curBH) && curBH.Count > 0 ? curBH[0].stem : "";
+                string curBrSS = !string.IsNullOrEmpty(curBrMs) ? LfStemShiShen(curBrMs, dStem) : "";
+                string curStemElem = KbStemToElement(curCycleBz.stem);
+                bool curStemGood = curStemElem == yongShenElem || curStemElem == fuYiElem;
+                bool curStemBad  = curStemElem == jiShenElem;
+                string curStemTrend = curStemGood ? "屬喜用五行，天干助力" : curStemBad ? "屬忌神五行，天干帶阻" : "屬中性五行";
+                string curStemEventDesc = curStemSS switch
+                {
+                    "比肩" => curStemGood ? "自立奮發，同輩互助，合夥共事有利。" : "競爭耗力，同輩牽制，宜各自獨立、防糾紛。",
+                    "劫財" => curStemGood ? "積極進取，破舊立新，有偏財機遇。" : "財務競爭激烈，宜防破財耗損、合夥是非。",
+                    "食神" => curStemGood ? "才藝展現，口福豐盛，子女緣佳，事業創作機會多。" : "耗洩過度，精力分散，需節制。",
+                    "傷官" => curStemGood ? "才華外露，技術精進，適合創業突破舊局。" : "口舌是非多，易與上司對立，宜修身謙遜。",
+                    "偏財" => curStemGood ? "偏財運旺，父緣異性緣佳，廣結善緣有助財源。" : "財來財去，易衝動破財，宜謹慎理財。",
+                    "正財" => curStemGood ? "財運穩固，努力必有回報，婚姻穩定。" : "財庫受壓，勞而收穫有限，宜節流保守。",
+                    "七殺" => curStemGood ? "壓力化為動力，可建功立業，適合競爭激烈的環境。" : "官非壓力大，健康情緒易受損，宜守成防意外。",
+                    "正官" => curStemGood ? "名聲地位提升，升遷機會大，婚緣顯現。" : "規範束縛感強，職場壓力重，宜守紀律防小人。",
+                    "偏印" => curStemGood ? "偏門學習進修，貴人助力，靈感豐富。" : "思路偏執，食傷受制，宜廣納意見防孤立。",
+                    "正印" => curStemGood ? "印綬護身，學業晉升，長輩庇蔭，心靈沉穩。" : "依賴心重，行動力不足，宜主動出擊。",
+                    _ => ""
+                };
+                sb.AppendLine($"  天干 {curCycleBz.stem}（{curStemSS}）{curStemTrend}：{curStemEventDesc}");
+                if (!string.IsNullOrEmpty(curBrSS))
+                {
+                    string curBrElem = !string.IsNullOrEmpty(curBrMs) ? KbStemToElement(curBrMs) : "";
+                    bool curBrGood = curBrElem == yongShenElem || curBrElem == fuYiElem;
+                    bool curBrBad  = curBrElem == jiShenElem;
+                    string curBrTrend = curBrGood ? "屬喜用五行，地支助力" : curBrBad ? "屬忌神五行，地支帶阻" : "屬中性五行";
+                    sb.AppendLine($"  地支 {curCycleBz.branch}（{curBrSS}）{curBrTrend}");
+                }
+                sb.AppendLine($"  綜合評估：{LfLuckDesc(curCycleBz.score, curCycleBz.level)}");
+                string curPalaceEvents = LfBranchEventsPalace(curCycleBz.branch, curBrSS, branches, branchSSArr, curCycleBz.startAge);
+                if (!string.IsNullOrEmpty(curPalaceEvents))
+                    sb.AppendLine($"  地支六親事項：{curPalaceEvents}");
+                // 旺/平/逆評等 + 格局成就曲線
+                string curDyRating = LfGetDaYunRating(curCycleBz.stem, curCycleBz.branch, yongShenElem, fuYiElem, jiShenElem,
+                    LfBranchChongOf.GetValueOrDefault(curCycleBz.branch, "") == dBranch);
+                string curPatType  = LfGetPatternType(pattern);
+                string curCurveDesc = (curPatType, curDyRating) switch {
                     ("吉神格", "旺運") => "穩健收成，努力必有結果",
                     ("吉神格", "平運") => "平穩耕耘，不急不徐",
                     ("吉神格", "逆運") => "小波折，守成即可，不傷根基",
@@ -8831,52 +8854,23 @@ namespace Ecanapi.Controllers
                     ("凶神格", "逆運") => "大震盪，防大失，情緒起伏劇烈",
                     _                  => "按部就班，順勢而為"
                 };
-                string currentMark = isCurrent ? "★ " : "  ";
-                sb.AppendLine($"{currentMark}{c.startAge}-{c.endAge} 歲  {c.stem}{c.branch}（天干{lcSS}·地支{lcBranchSS}）  [{dyRatingC}]（{patTypeBzAll}）　{curveDescC}");
-                sb.AppendLine($"    {LfLuckDesc(c.score, c.level)}");
-                string eventsC = LfBranchEventsPalace(c.branch, lcBranchSS, branches, branchSSArr, c.startAge);
-                if (!string.IsNullOrEmpty(eventsC))
-                    sb.AppendLine($"    地支事項：{eventsC}");
-
-                // 目前行運：詳細天干地支分析 + 今年流年觸發
-                if (isCurrent)
+                sb.AppendLine($"  運勢評等：{curDyRating}（{curPatType}）　{curCurveDesc}");
+                // 今年流年觸發事件
                 {
-                    string curStemElem = KbStemToElement(c.stem);
-                    bool curStemGood = curStemElem == yongShenElem || curStemElem == fuYiElem;
-                    bool curStemBad  = curStemElem == jiShenElem;
-                    string curStemTrend = curStemGood ? "屬喜用五行，天干助力" : curStemBad ? "屬忌神五行，天干帶阻" : "屬中性五行";
-                    string curStemEventDesc = lcSS switch
+                    var branches12Lf = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+                    var stems10Lf    = new[] { "甲","乙","丙","丁","戊","己","庚","辛","壬","癸" };
+                    string[] natalStemsLf    = { yStem, mStem, dStem, hStem };
+                    string[] natalBranchesLf = { yBranch, mBranch, dBranch, hBranch };
+                    int curYrLf  = DateTime.Today.Year;
+                    string curYrBrLf = branches12Lf[((curYrLf - 4) % 12 + 12) % 12];
+                    string curYrStLf = stems10Lf[((curYrLf - 4) % 10 + 10) % 10];
+                    var curYrHintsLf = LfGetLiuNianEventHints(curYrStLf, curYrBrLf, dStem, dBranch, mBranch,
+                        currentAge, gender, yongShenElem, fuYiElem, jiShenElem, pattern, natalStemsLf, natalBranchesLf);
+                    if (curYrHintsLf.Any())
                     {
-                        "比肩" => curStemGood ? "自立奮發，同輩互助，合夥共事有利。" : "競爭耗力，同輩牽制，宜各自獨立、防糾紛。",
-                        "劫財" => curStemGood ? "積極進取，破舊立新，有偏財機遇。" : "財務競爭激烈，宜防破財耗損、合夥是非。",
-                        "食神" => curStemGood ? "才藝展現，口福豐盛，子女緣佳，事業創作機會多。" : "耗洩過度，精力分散，需節制。",
-                        "傷官" => curStemGood ? "才華外露，技術精進，適合創業突破舊局。" : "口舌是非多，易與上司對立，宜修身謙遜。",
-                        "偏財" => curStemGood ? "偏財運旺，父緣異性緣佳，廣結善緣有助財源。" : "財來財去，易衝動破財，宜謹慎理財。",
-                        "正財" => curStemGood ? "財運穩固，努力必有回報，婚姻穩定。" : "財庫受壓，勞而收穫有限，宜節流保守。",
-                        "七殺" => curStemGood ? "壓力化為動力，可建功立業，適合競爭激烈的環境。" : "官非壓力大，健康情緒易受損，宜守成防意外。",
-                        "正官" => curStemGood ? "名聲地位提升，升遷機會大，婚緣顯現。" : "規範束縛感強，職場壓力重，宜守紀律防小人。",
-                        "偏印" => curStemGood ? "偏門學習進修，貴人助力，靈感豐富。" : "思路偏執，食傷受制，宜廣納意見防孤立。",
-                        "正印" => curStemGood ? "印綬護身，學業晉升，長輩庇蔭，心靈沉穩。" : "依賴心重，行動力不足，宜主動出擊。",
-                        _ => ""
-                    };
-                    sb.AppendLine($"    天干 {c.stem}（{lcSS}）{curStemTrend}：{curStemEventDesc}");
-                    if (!string.IsNullOrEmpty(lcBranchSS))
-                    {
-                        string curBrElem = !string.IsNullOrEmpty(lcBranchMs) ? KbStemToElement(lcBranchMs) : "";
-                        bool curBrGood = curBrElem == yongShenElem || curBrElem == fuYiElem;
-                        bool curBrBad  = curBrElem == jiShenElem;
-                        string curBrTrend = curBrGood ? "屬喜用五行，地支助力" : curBrBad ? "屬忌神五行，地支帶阻" : "屬中性五行";
-                        sb.AppendLine($"    地支 {c.branch}（{lcBranchSS}）{curBrTrend}");
-                    }
-                    // 今年流年觸發
-                    int ageForHints = c.startAge + (curYrBzAll - birthYear - c.startAge);
-                    var curYrHintsBz = LfGetLiuNianEventHints(curYrStBzAll, curYrBrBzAll, dStem, dBranch, mBranch,
-                        currentAge, gender, yongShenElem, fuYiElem, jiShenElem, pattern, natalStemsBz, natalBranchesBz);
-                    if (curYrHintsBz.Any())
-                    {
-                        sb.AppendLine($"    今年（{curYrBzAll}年 {curYrStBzAll}{curYrBrBzAll}）流年觸發：");
-                        foreach (var (cat, hint, _) in curYrHintsBz.Take(3))
-                            sb.AppendLine($"      [{cat}] {hint}");
+                        sb.AppendLine($"  今年（{curYrLf}年 {curYrStLf}{curYrBrLf}）流年觸發：");
+                        foreach (var (cat, hint, _) in curYrHintsLf.Take(3))
+                            sb.AppendLine($"    [{cat}] {hint}");
                     }
                 }
                 sb.AppendLine();
