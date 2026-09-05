@@ -61,9 +61,21 @@ namespace Ecanapi.Services
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
                 var pushDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)); // 台灣時間日期
 
-                // Block 1：LineUsers 九星推播（已在 LINE Bot 設定本命星的用戶）
+                // 先取得有效訂閱且已綁 LINE 的會員 LineUserId（Block 2 優先，排除在 Block 1 外）
+                var subscriberLineIds = await context.UserSubscriptions
+                    .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
+                    .Join(context.Users, s => s.UserId, u => u.Id, (s, u) => u)
+                    .Where(u => u.LineUserId != null
+                             && u.BirthYear != null && u.BirthMonth != null
+                             && u.BirthDay != null)
+                    .Select(u => u.LineUserId!)
+                    .Distinct()
+                    .ToListAsync();
+
+                // Block 1：LineUsers 九星推播（已在 LINE Bot 設定本命星的用戶，但排除有效訂閱會員）
                 var nineStarUsers = await context.LineUsers
-                    .Where(u => u.NotifyEnabled && u.NatalStar > 0)
+                    .Where(u => u.NotifyEnabled && u.NatalStar > 0
+                             && !subscriberLineIds.Contains(u.LineUserId))
                     .ToListAsync();
 
                 _logger.LogInformation("LineBotDailyPush 九星用戶推播 {Count} 位", nineStarUsers.Count);

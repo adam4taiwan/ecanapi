@@ -256,9 +256,21 @@ namespace Ecanapi.Controllers
             var pushed = new List<object>();
             var errors = new List<object>();
 
-            // Block 1：九星推播
+            // 先取得有效訂閱且已綁 LINE 的會員 LineUserId（Block 2 優先，排除在 Block 1 外）
+            var subscriberLineIds = await _context.UserSubscriptions
+                .Where(s => s.Status == "active" && s.ExpiryDate > DateTime.UtcNow)
+                .Join(_context.Users, s => s.UserId, u => u.Id, (s, u) => u)
+                .Where(u => u.LineUserId != null
+                         && u.BirthYear != null && u.BirthMonth != null
+                         && u.BirthDay != null && u.BirthHour != null)
+                .Select(u => u.LineUserId!)
+                .Distinct()
+                .ToListAsync();
+
+            // Block 1：九星推播（排除有效訂閱會員，由 Block 2 發送個人化版本）
             var nineStarUsers = await _context.LineUsers
-                .Where(u => u.NotifyEnabled && u.NatalStar > 0)
+                .Where(u => u.NotifyEnabled && u.NatalStar > 0
+                         && !subscriberLineIds.Contains(u.LineUserId))
                 .ToListAsync();
 
             foreach (var lu in nineStarUsers)
