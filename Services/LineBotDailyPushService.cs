@@ -56,6 +56,7 @@ namespace Ecanapi.Services
                 using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var nineStarController = scope.ServiceProvider.GetRequiredService<NineStarController>();
+                var fortuneController = scope.ServiceProvider.GetRequiredService<Controllers.FortuneController>();
 
                 string accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
                 var pushDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8)); // 台灣時間日期
@@ -88,6 +89,7 @@ namespace Ecanapi.Services
                     {
                         LineUserId = lu.LineUserId,
                         PushType = "ninestar",
+                        ContentCategory = "ninestar-only",
                         NatalStar = lu.NatalStar,
                         BirthYear = lu.BirthYear > 0 ? lu.BirthYear : null,
                         PushDate = pushDate,
@@ -131,12 +133,31 @@ namespace Ecanapi.Services
                     string status = "success";
                     string? errorMsg = null;
                     int natalStar = 0;
+                    string? shenShaHit = null;
                     try
                     {
                         string gender = subUser.BirthGender == 2 ? "F" : "M";
                         natalStar = NineStarController.NsCalcNatalStarStatic(
                             subUser.BirthYear!.Value, subUser.BirthMonth!.Value, subUser.BirthDay!.Value, gender);
-                        message = await nineStarController.NsBuildDailyFortune(natalStar);
+
+                        // 優先使用八字個人化運勢（含喜用神、十神、神煞）
+                        string? baziMsg = await fortuneController.BuildDailyPersonalFortuneText(subUser.Id);
+                        if (!string.IsNullOrEmpty(baziMsg))
+                        {
+                            message = baziMsg;
+                        }
+                        else
+                        {
+                            // 無命盤資料時回退至九星運勢
+                            message = await nineStarController.NsBuildDailyFortune(natalStar);
+                        }
+
+                        // 計算神煞（供日誌記錄）
+                        var birthDt = new DateTime(subUser.BirthYear!.Value, subUser.BirthMonth!.Value, subUser.BirthDay!.Value);
+                        string riZhu = GetGanZhiStem(birthDt);
+                        string todayDiZhi = GetGanZhiBranch(DateTime.UtcNow.Date);
+                        shenShaHit = Controllers.FortuneController.CalcShenSha(riZhu, todayDiZhi);
+
                         await PushMessageAsync(accessToken, subUser.LineUserId!, message);
                         await Task.Delay(100);
                     }
@@ -152,8 +173,10 @@ namespace Ecanapi.Services
                         UserId = subUser.Id,
                         UserEmail = subUser.Email,
                         PushType = "subscriber",
+                        ContentCategory = "bazi-enhanced",
                         NatalStar = natalStar,
                         BirthYear = subUser.BirthYear,
+                        ShenShaHit = shenShaHit,
                         PushDate = pushDate,
                         Message = message,
                         SentAt = DateTime.UtcNow,
@@ -169,6 +192,23 @@ namespace Ecanapi.Services
             {
                 _logger.LogError(ex, "LineBotDailyPush 整批推播失敗");
             }
+        }
+
+        // 天干地支計算（同 FortuneController，避免跨 scope 呼叫副作用）
+        private static readonly string[] Gan10 = {"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
+        private static readonly string[] Zhi12 = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
+        private static readonly DateTime GanZhiEpoch = new DateTime(1900, 1, 31); // 庚子日
+
+        private static string GetGanZhiStem(DateTime date)
+        {
+            int days = (int)(date.Date - GanZhiEpoch.Date).TotalDays;
+            return Gan10[((days % 10) + 10) % 10];
+        }
+
+        private static string GetGanZhiBranch(DateTime date)
+        {
+            int days = (int)(date.Date - GanZhiEpoch.Date).TotalDays;
+            return Zhi12[((days % 12) + 12) % 12];
         }
 
         private async Task PushMessageAsync(string accessToken, string lineUserId, string text)

@@ -50,5 +50,24 @@ namespace Ecanapi.Models
 
         /// <summary>失敗原因（失敗時記錄）</summary>
         public string? ErrorMessage { get; set; }
+
+        /// <summary>推播內容分類：ninestar-only / bazi-enhanced</summary>
+        [MaxLength(20)]
+        public string? ContentCategory { get; set; }
+
+        /// <summary>推播當日干支（e.g., 甲子）</summary>
+        [MaxLength(4)]
+        public string? TodayGanZhi { get; set; }
+
+        /// <summary>今日十神（vs 日主）</summary>
+        [MaxLength(6)]
+        public string? ShiShen { get; set; }
+
+        /// <summary>喜忌：true=喜用神當令, false=忌神飛臨, null=中和/未計算</summary>
+        public bool? IsShun { get; set; }
+
+        /// <summary>今日觸發神煞（天乙貴人/文昌/祿神）</summary>
+        [MaxLength(50)]
+        public string? ShenShaHit { get; set; }
     }
 }

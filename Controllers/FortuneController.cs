@@ -392,6 +392,15 @@ namespace Ecanapi.Controllers
                          : gan.TryGetValue("提醒", out var gr) ? gr : null;
             if (reminder != null) sb.AppendLine($"【今日提醒】{reminder}");
 
+            // 神煞（依日主天干 × 今日地支，無需命盤即可計算）
+            string? shenShaHit = CalcShenSha(riZhu, todayDiZhi);
+            if (shenShaHit != null)
+            {
+                var descParts = shenShaHit.Split('、')
+                    .Select(s => $"{s}（{ShenShaDesc(s)}）");
+                sb.AppendLine($"【神煞】今日逢 {string.Join("、", descParts)}。");
+            }
+
             // === 載入命盤（供 Phase 2/4/5 共用）===
             var userChart = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == userId);
 
@@ -448,32 +457,76 @@ namespace Ecanapi.Controllers
                 catch { /* ChartJson 解析失敗時靜默跳過 */ }
             }
 
+            // === 八字流日分析（喜用神 + 身強弱，命盤可用時才顯示）===
+            string baziBodyLabel = "";
+            bool? baziIsShun = null;
+            if (!string.IsNullOrEmpty(chartMonthBranch))
+            {
+                int bsScore = CalcBodyStrength(riZhu, chartMonthBranch, chartStems, chartBranches);
+                if (bsScore >= 5)
+                {
+                    baziBodyLabel = "身強";
+                    baziIsShun = StrongYongShen.Contains(shiShen);
+                }
+                else if (bsScore <= 2)
+                {
+                    baziBodyLabel = "身弱";
+                    baziIsShun = WeakYongShen.Contains(shiShen);
+                }
+                else
+                {
+                    baziBodyLabel = "中和";
+                    baziIsShun = null;
+                }
+            }
+
+            // 喜用神五行指引（優先用 UserCharts 存儲的 YongShenElem，其次由身強弱+十神推算）
+            string todayElem = StemElement.GetValueOrDefault(todayTianGan, "");
+            string storedYong = userChart?.YongShenElem ?? "";
+            string storedJi   = userChart?.JiShenElem   ?? "";
+
+            if (!string.IsNullOrEmpty(todayElem) && !string.IsNullOrEmpty(chartMonthBranch))
+            {
+                string yongElem = storedYong;
+                string jiElem   = storedJi;
+                // 若無存儲，從十神推算五行再判喜忌
+                if (string.IsNullOrEmpty(yongElem) && string.IsNullOrEmpty(jiElem))
+                {
+                    string shiShenElem = ShiShenToElem(riZhu, shiShen);
+                    if (!string.IsNullOrEmpty(shiShenElem))
+                    {
+                        yongElem = baziIsShun == true  ? shiShenElem : "";
+                        jiElem   = baziIsShun == false ? shiShenElem : "";
+                    }
+                }
+
+                string flowAdvice;
+                if (!string.IsNullOrEmpty(yongElem) && todayElem == yongElem)
+                    flowAdvice = $"今日{todayTianGan}屬{todayElem}，用神當令，宜積極行動";
+                else if (!string.IsNullOrEmpty(jiElem) && todayElem == jiElem)
+                    flowAdvice = $"今日{todayTianGan}屬{todayElem}，忌神飛臨，宜謹慎守靜";
+                else if (baziIsShun == null && !string.IsNullOrEmpty(baziBodyLabel))
+                    flowAdvice = $"今日{todayTianGan}屬{todayElem}，中和之氣，平穩應對";
+                else if (baziIsShun == true)
+                    flowAdvice = $"今日{todayTianGan}屬{todayElem}，順勢之氣，可積極推進";
+                else if (baziIsShun == false)
+                    flowAdvice = $"今日{todayTianGan}屬{todayElem}，逆勢之氣，謹慎為宜";
+                else
+                    flowAdvice = "";
+
+                if (!string.IsNullOrEmpty(flowAdvice))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"--- 八字流日（日主 {riZhu} | {baziBodyLabel} | 今日十神：{shiShen}）---");
+                    sb.AppendLine($"【用忌】{flowAdvice}。");
+                }
+            }
+
             // === 個人命主加成（十神 + 身強弱）===
             if (shiShenRules.Any())
             {
-                // 計算身強弱
-                string bodyLabel = "";
-                bool? isShun = null; // null = 中和（顯示兩者）
-
-                if (!string.IsNullOrEmpty(chartMonthBranch))
-                {
-                    int score = CalcBodyStrength(riZhu, chartMonthBranch, chartStems, chartBranches);
-                    if (score >= 5)
-                    {
-                        bodyLabel = "身強";
-                        isShun = StrongYongShen.Contains(shiShen);
-                    }
-                    else if (score <= 2)
-                    {
-                        bodyLabel = "身弱";
-                        isShun = WeakYongShen.Contains(shiShen);
-                    }
-                    else
-                    {
-                        bodyLabel = "中和";
-                        isShun = null;
-                    }
-                }
+                bool? isShun = baziIsShun;
+                string bodyLabel = baziBodyLabel;
 
                 sb.AppendLine();
                 string headerLabel = bodyLabel != "" ? $" | {bodyLabel}" : "";
@@ -636,6 +689,43 @@ namespace Ecanapi.Controllers
         private static readonly HashSet<string> WeakYongShen = new()
             { "比肩","劫財","偏印","正印" };
 
+        // 天乙貴人：依日主天干 → 對應吉支（今日地支命中即觸發）
+        private static readonly Dictionary<string, string[]> TianYiGuiRen = new()
+        {
+            {"甲", new[]{"丑","未"}}, {"乙", new[]{"子","申"}},
+            {"丙", new[]{"亥","酉"}}, {"丁", new[]{"亥","酉"}},
+            {"戊", new[]{"丑","未"}}, {"己", new[]{"子","申"}},
+            {"庚", new[]{"丑","未"}}, {"辛", new[]{"午","寅"}},
+            {"壬", new[]{"卯","巳"}}, {"癸", new[]{"卯","巳"}}
+        };
+
+        // 文昌：依日主天干 → 對應地支
+        private static readonly Dictionary<string, string> WenChang = new()
+        {
+            {"甲","巳"},{"乙","午"},{"丙","申"},{"丁","酉"},
+            {"戊","申"},{"己","酉"},{"庚","亥"},{"辛","子"},{"壬","寅"},{"癸","卯"}
+        };
+
+        // 祿神：日干對應祿支
+        private static readonly Dictionary<string, string> RiLu = new()
+        {
+            {"甲","寅"},{"乙","卯"},{"丙","巳"},{"丁","午"},
+            {"戊","巳"},{"己","午"},{"庚","申"},{"辛","酉"},{"壬","亥"},{"癸","子"}
+        };
+
+        // 五行元素陣列（固定順序）
+        private static readonly string[] FiveElems = { "木", "火", "土", "金", "水" };
+
+        // 十神 → 偏移量（相對日主五行，五行循環 木火土金水）
+        private static readonly Dictionary<string, int> ShiShenElemOffset = new()
+        {
+            {"比肩",0},{"劫財",0},   // 同五行
+            {"食神",1},{"傷官",1},   // 日主所生
+            {"偏財",2},{"正財",2},   // 日主所剋
+            {"七殺",3},{"正官",3},   // 剋日主
+            {"偏印",4},{"正印",4}    // 生日主
+        };
+
         // 六沖組合（雙向）
         private static readonly HashSet<string> ChongPairs = new()
             { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
@@ -690,6 +780,37 @@ namespace Ecanapi.Controllers
                 if (g.Count(x => branches.Contains(x)) >= 2) score -= 1;
 
             return score;
+        }
+
+        /// <summary>計算今日神煞：天乙貴人 / 文昌 / 祿神（依日主天干 × 今日地支）</summary>
+        internal static string? CalcShenSha(string riZhu, string todayDiZhi)
+        {
+            var hits = new List<string>();
+            if (TianYiGuiRen.TryGetValue(riZhu, out var tyArr) && tyArr.Contains(todayDiZhi))
+                hits.Add("天乙貴人");
+            if (WenChang.TryGetValue(riZhu, out var wc) && wc == todayDiZhi)
+                hits.Add("文昌");
+            if (RiLu.TryGetValue(riZhu, out var lu) && lu == todayDiZhi)
+                hits.Add("祿神");
+            return hits.Any() ? string.Join("、", hits) : null;
+        }
+
+        private static string ShenShaDesc(string shenSha) => shenSha switch
+        {
+            "天乙貴人" => "貴人扶助，宜洽談合作、求助解難",
+            "文昌" => "思維敏銳，宜學習考試、文書簽約",
+            "祿神" => "祿位臨身，宜財務收益、正當收入",
+            _ => ""
+        };
+
+        /// <summary>依日主五行 + 十神名稱推算該十神對應五行元素</summary>
+        private static string ShiShenToElem(string riZhu, string shiShen)
+        {
+            if (!StemElement.TryGetValue(riZhu, out var dmElem)) return "";
+            int dmIdx = Array.IndexOf(FiveElems, dmElem);
+            if (dmIdx < 0) return "";
+            if (!ShiShenElemOffset.TryGetValue(shiShen, out int offset)) return "";
+            return FiveElems[(dmIdx + offset) % 5];
         }
 
         /// <summary>從 baziInfo JSON 元素中取出單柱天干地支</summary>

@@ -2201,6 +2201,21 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
+                // 回填用神忌神至 UserCharts 供每日推播喜忌判定
+                try
+                {
+                    var ucToUpdate = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+                    if (ucToUpdate != null && (ucToUpdate.YongShenElem != yongShenElem || ucToUpdate.JiShenElem != jiShenElem))
+                    {
+                        ucToUpdate.YongShenElem = yongShenElem;
+                        ucToUpdate.JiShenElem = jiShenElem;
+                        ucToUpdate.Pattern = pattern;
+                        ucToUpdate.BodyPct = (int)Math.Round(bodyPct);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                catch { /* non-critical, skip */ }
+
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>
                 {
@@ -2424,6 +2439,21 @@ namespace Ecanapi.Controllers
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
+
+                // 回填用神忌神至 UserCharts 供每日推播喜忌判定
+                try
+                {
+                    var ucToUpdate2 = await _context.UserCharts.FirstOrDefaultAsync(c => c.UserId == user.Id);
+                    if (ucToUpdate2 != null && (ucToUpdate2.YongShenElem != yongShenElem || ucToUpdate2.JiShenElem != jiShenElem))
+                    {
+                        ucToUpdate2.YongShenElem = yongShenElem;
+                        ucToUpdate2.JiShenElem = jiShenElem;
+                        ucToUpdate2.Pattern = pattern;
+                        ucToUpdate2.BodyPct = (int)Math.Round(bodyPct);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                catch { /* non-critical, skip */ }
 
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
                 var scored = luckCycles.Select(lc =>

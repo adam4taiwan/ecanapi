@@ -563,13 +563,56 @@ namespace Ecanapi.Controllers
                 .Select(u => u.LineUserId)
                 .Distinct()
                 .CountAsync();
+
+            // 最近 7 天推播分類統計
+            var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-7));
+            var recentLogs = await _context.LinePushLogs
+                .Where(l => l.PushDate >= cutoff)
+                .GroupBy(l => l.ContentCategory ?? l.PushType)
+                .Select(g => new { category = g.Key, count = g.Count(), success = g.Count(x => x.Status == "success") })
+                .ToListAsync();
+
+            // 神煞命中統計（近 7 天）
+            var shenShaCount = await _context.LinePushLogs
+                .Where(l => l.PushDate >= cutoff && l.ShenShaHit != null)
+                .CountAsync();
+
+            // 最近一次推播日期
+            var lastPushDate = await _context.LinePushLogs
+                .OrderByDescending(l => l.SentAt)
+                .Select(l => (DateOnly?)l.PushDate)
+                .FirstOrDefaultAsync();
+
             return Ok(new
             {
                 totalLineUsers    = total,
                 notifyEnabled     = enabled,
                 notifyDisabled    = total - enabled,
-                subscribersBound  = subscribers
+                subscribersBound  = subscribers,
+                recentByCategory  = recentLogs,
+                shenShaHitCount   = shenShaCount,
+                lastPushDate      = lastPushDate?.ToString("yyyy-MM-dd")
             });
+        }
+
+        // GET /api/Admin/line-push/logs?days=7
+        [HttpGet("line-push/logs")]
+        public async Task<IActionResult> GetLinePushLogs([FromQuery] int days = 7)
+        {
+            if (!IsAdmin()) return Forbid();
+            var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-days));
+            var logs = await _context.LinePushLogs
+                .Where(l => l.PushDate >= cutoff)
+                .OrderByDescending(l => l.SentAt)
+                .Take(100)
+                .Select(l => new
+                {
+                    l.Id, l.PushDate, l.PushType, l.ContentCategory,
+                    l.UserEmail, l.NatalStar, l.ShiShen, l.IsShun, l.ShenShaHit,
+                    l.Status, l.ErrorMessage
+                })
+                .ToListAsync();
+            return Ok(logs);
         }
 
         // ─── Booking request management ───────────────────────────────────────
