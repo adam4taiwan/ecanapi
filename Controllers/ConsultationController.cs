@@ -6643,12 +6643,12 @@ namespace Ecanapi.Controllers
                             }
                             else
                             {
-                                // Rule 3: 皆不透，月內人元輕重較量
-                                // 得令（siLingStem）最重，次以 ratio（月支藏干比例）
-                                var silingCand = candidates.FirstOrDefault(h => h.stem == siLingStem);
-                                chosenStem = !string.IsNullOrEmpty(silingCand.stem)
-                                    ? silingCand.stem
-                                    : candidates.OrderByDescending(h => h.ratio).First().stem;
+                                // Rule 3: 皆不透 → 取月支本氣（ratio最高之非比劫藏干）
+                                // 傳統子平法：皆不透時以月支本氣（主氣）為格
+                                // siLingStem 僅用於 Rule 2（多透干時得令優先），不覆蓋本氣
+                                // 修正：四庫月（辰戌丑未）SilingTable 初氣≠本氣，若用 siLingStem
+                                //        會誤取初氣（如戌月辛=七殺）而非本氣（戊=正財）
+                                chosenStem = candidates.OrderByDescending(h => h.ratio).First().stem;
                             }
                         }
                     }
