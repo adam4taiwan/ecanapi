@@ -13394,7 +13394,8 @@ namespace Ecanapi.Controllers
             // === 一柱論命（第四章延伸：日柱定數） ===
             // 靜態原文（六十甲子 DB，依性別過濾）
             string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender,
-                new[] { yBranch, mBranch, dBranch, hBranch }, dBranch);
+                new[] { yBranch, mBranch, dBranch, hBranch }, dBranch,
+                new[] { yStem, mStem, dStem, hStem }, dStem);
             if (!string.IsNullOrEmpty(yiZhuDesc))
             {
                 sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
@@ -17507,7 +17508,8 @@ namespace Ecanapi.Controllers
         }
 
         private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch, int gender = 1,
-            string[]? chartBranches = null, string dBranch = "")
+            string[]? chartBranches = null, string dBranch = "",
+            string[]? chartStems = null, string dStem = "")
         {
             if (data == null) return "";
             var sb = new StringBuilder();
@@ -17529,7 +17531,7 @@ namespace Ecanapi.Controllers
             {
                 string filtered = LfYiZhuFilterXiJiHang(LfYiZhuFilterByGender(data.Personality, gender));
                 if (chartBranches != null && !string.IsNullOrEmpty(dBranch))
-                    filtered = LfYiZhuFilterByChartBranches(filtered, chartBranches, dBranch);
+                    filtered = LfYiZhuFilterByChart(filtered, dStem, dBranch, chartStems ?? Array.Empty<string>(), chartBranches);
                 if (!string.IsNullOrWhiteSpace(filtered))
                 {
                     sb.AppendLine("▍性格特質");
@@ -17565,36 +17567,68 @@ namespace Ecanapi.Controllers
         }
 
         /// <summary>
-        /// 依四柱地支過濾性格特質：每行若包含外部地支（非日支），
-        /// 只保留至少一個外部地支出現在客戶命局中的行；
-        /// 不含外部地支的行（日柱通則描述）一律保留。
+        /// 依四柱干支 + 十神過濾性格特質：
+        /// 保留通則描述（無外部干支/十神引用），及至少一個引用符合客戶命局的行。
+        /// 外部 = 非日柱干支本身。十神範圍取全四柱天干 + 各柱藏干。
         /// </summary>
-        private static string LfYiZhuFilterByChartBranches(string text, string[] chartBranches, string dBranch)
+        private static string LfYiZhuFilterByChart(
+            string text, string dStem, string dBranch,
+            string[] chartStems, string[] chartBranches)
         {
             if (string.IsNullOrWhiteSpace(text)) return text;
-            var allBranchChars = new HashSet<char>("子丑寅卯辰巳午未申酉戌亥");
-            var chartSet = new HashSet<char>(string.Concat(chartBranches).Where(c => allBranchChars.Contains(c)));
-            char dayBr = dBranch.Length > 0 ? dBranch[0] : '\0';
 
-            var lines = text.Split('\n');
+            var allBranchChars = new HashSet<char>("子丑寅卯辰巳午未申酉戌亥");
+            var allStemChars   = new HashSet<char>("甲乙丙丁戊己庚辛壬癸");
+            var allTenGods     = new[] { "比肩", "劫財", "食神", "傷官", "偏財", "正財", "七殺", "正官", "偏印", "正印" };
+
+            char dayBr   = dBranch.Length > 0 ? dBranch[0] : '\0';
+            char daySt   = dStem.Length   > 0 ? dStem[0]   : '\0';
+
+            // 外部地支集合（排除日支）
+            var chartBranchSet = new HashSet<char>(
+                chartBranches.Where(s => s.Length > 0).Select(s => s[0]).Where(c => c != dayBr));
+
+            // 外部天干集合（排除日干）
+            var chartStemSet = new HashSet<char>(
+                chartStems.Where(s => s.Length > 0).Select(s => s[0]).Where(c => c != daySt));
+
+            // 命局十神集合：四柱天干 + 各柱藏干的十神
+            var chartTenGodSet = new HashSet<string>();
+            foreach (var s in chartStems.Where(s => !string.IsNullOrEmpty(s)))
+            {
+                string ss = LfStemShiShen(s, dStem);
+                if (!string.IsNullOrEmpty(ss)) chartTenGodSet.Add(ss);
+            }
+            foreach (var br in chartBranches.Where(b => !string.IsNullOrEmpty(b)))
+            {
+                if (LfBranchHiddenRatio.TryGetValue(br, out var hidden))
+                    foreach (var h in hidden)
+                    {
+                        string ss = LfStemShiShen(h.stem, dStem);
+                        if (!string.IsNullOrEmpty(ss)) chartTenGodSet.Add(ss);
+                    }
+            }
+
+            var lines  = text.Split('\n');
             var result = new List<string>();
             foreach (var rawLine in lines)
             {
                 string t = rawLine.Trim();
                 if (t.Length == 0) { result.Add(rawLine); continue; }
 
-                // 找出行中出現的外部地支（排除日支本身）
-                var externalBrs = t.Where(c => allBranchChars.Contains(c) && c != dayBr).ToList();
+                var extBrs   = t.Where(c => allBranchChars.Contains(c) && c != dayBr).ToList();
+                var extStems = t.Where(c => allStemChars.Contains(c)   && c != daySt).ToList();
+                var extTGs   = allTenGods.Where(tg => t.Contains(tg)).ToList();
 
-                if (externalBrs.Count == 0)
-                {
-                    result.Add(rawLine); // 無外部地支 → 通則描述，保留
-                }
-                else if (externalBrs.Any(c => chartSet.Contains(c)))
-                {
-                    result.Add(rawLine); // 至少一個外部地支在命局中 → 保留
-                }
-                // 否則：所提及地支皆不在命局中 → 略去
+                bool hasExtRef = extBrs.Count > 0 || extStems.Count > 0 || extTGs.Count > 0;
+
+                if (!hasExtRef)
+                    result.Add(rawLine); // 無外部引用 → 通則描述，保留
+                else if (extBrs.Any(c => chartBranchSet.Contains(c))
+                      || extStems.Any(c => chartStemSet.Contains(c))
+                      || extTGs.Any(tg => chartTenGodSet.Contains(tg)))
+                    result.Add(rawLine); // 至少一個引用符合命局 → 保留
+                // 否則：所有引用均不在命局中 → 略去
             }
             return string.Join("\n", result);
         }
