@@ -17522,17 +17522,9 @@ namespace Ecanapi.Controllers
                 }
             }
 
-            // 2. 性格特質（依性別過濾）
-            if (!string.IsNullOrWhiteSpace(data.Personality))
-            {
-                string filtered = LfYiZhuFilterXiJiHang(LfYiZhuFilterByGender(data.Personality, gender));
-                if (!string.IsNullOrWhiteSpace(filtered))
-                {
-                    sb.AppendLine("▍性格特質");
-                    sb.AppendLine(filtered.Trim());
-                    sb.AppendLine();
-                }
-            }
+            // 2. 性格特質（靜態 Personality 欄位已移除）
+            // 原欄位列出日柱所有可能互動組合，未依客戶四柱過濾，易誤導閱讀者
+            // 個人化性格分析改由後方 YiZhuEngine.Analyze() 動態演算提供
 
             // 3. 詩句
             if (!string.IsNullOrWhiteSpace(data.Poem))
