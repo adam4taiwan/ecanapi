@@ -13393,7 +13393,8 @@ namespace Ecanapi.Controllers
 
             // === 一柱論命（第四章延伸：日柱定數） ===
             // 靜態原文（六十甲子 DB，依性別過濾）
-            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender);
+            string yiZhuDesc = LfBuildYiZhu(yiZhuData, mBranch, gender,
+                new[] { yBranch, mBranch, dBranch, hBranch }, dBranch);
             if (!string.IsNullOrEmpty(yiZhuDesc))
             {
                 sb.AppendLine($"【一柱論命 · {dStem}{dBranch}日定數】");
@@ -17505,7 +17506,8 @@ namespace Ecanapi.Controllers
             return string.Join("\n", result);
         }
 
-        private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch, int gender = 1)
+        private static string LfBuildYiZhu(YiZhuLunMing? data, string mBranch, int gender = 1,
+            string[]? chartBranches = null, string dBranch = "")
         {
             if (data == null) return "";
             var sb = new StringBuilder();
@@ -17522,9 +17524,19 @@ namespace Ecanapi.Controllers
                 }
             }
 
-            // 2. 性格特質（靜態 Personality 欄位已移除）
-            // 原欄位列出日柱所有可能互動組合，未依客戶四柱過濾，易誤導閱讀者
-            // 個人化性格分析改由後方 YiZhuEngine.Analyze() 動態演算提供
+            // 2. 性格特質（依性別過濾 + 依四柱地支過濾：只保留與客戶命局相關的行）
+            if (!string.IsNullOrWhiteSpace(data.Personality))
+            {
+                string filtered = LfYiZhuFilterXiJiHang(LfYiZhuFilterByGender(data.Personality, gender));
+                if (chartBranches != null && !string.IsNullOrEmpty(dBranch))
+                    filtered = LfYiZhuFilterByChartBranches(filtered, chartBranches, dBranch);
+                if (!string.IsNullOrWhiteSpace(filtered))
+                {
+                    sb.AppendLine("▍性格特質");
+                    sb.AppendLine(filtered.Trim());
+                    sb.AppendLine();
+                }
+            }
 
             // 3. 詩句
             if (!string.IsNullOrWhiteSpace(data.Poem))
@@ -17550,6 +17562,41 @@ namespace Ecanapi.Controllers
             }
 
             return sb.ToString().Trim();
+        }
+
+        /// <summary>
+        /// 依四柱地支過濾性格特質：每行若包含外部地支（非日支），
+        /// 只保留至少一個外部地支出現在客戶命局中的行；
+        /// 不含外部地支的行（日柱通則描述）一律保留。
+        /// </summary>
+        private static string LfYiZhuFilterByChartBranches(string text, string[] chartBranches, string dBranch)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            var allBranchChars = new HashSet<char>("子丑寅卯辰巳午未申酉戌亥");
+            var chartSet = new HashSet<char>(string.Concat(chartBranches).Where(c => allBranchChars.Contains(c)));
+            char dayBr = dBranch.Length > 0 ? dBranch[0] : '\0';
+
+            var lines = text.Split('\n');
+            var result = new List<string>();
+            foreach (var rawLine in lines)
+            {
+                string t = rawLine.Trim();
+                if (t.Length == 0) { result.Add(rawLine); continue; }
+
+                // 找出行中出現的外部地支（排除日支本身）
+                var externalBrs = t.Where(c => allBranchChars.Contains(c) && c != dayBr).ToList();
+
+                if (externalBrs.Count == 0)
+                {
+                    result.Add(rawLine); // 無外部地支 → 通則描述，保留
+                }
+                else if (externalBrs.Any(c => chartSet.Contains(c)))
+                {
+                    result.Add(rawLine); // 至少一個外部地支在命局中 → 保留
+                }
+                // 否則：所提及地支皆不在命局中 → 略去
+            }
+            return string.Join("\n", result);
         }
 
         /// <summary>
