@@ -5954,7 +5954,8 @@ namespace Ecanapi.Controllers
             string dStem, string dBranch, string hStem, string hBranch)
         {
             var raw = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
-            var (wl, gl, ws, gs) = LfCalcFortuneLevel(dmElem, raw, bodyPct);
+            var pct = LfScoresToPct(raw);
+            var (wl, gl, ws, gs) = LfCalcFortuneLevel(dmElem, pct, bodyPct);
             var sb2 = new StringBuilder();
             sb2.AppendLine("【財官格局論斷】");
             sb2.AppendLine($"財富（第{wl}等）：{LfFortuneLevel_WealthDesc(wl)}");
