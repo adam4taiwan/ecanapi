@@ -5877,8 +5877,21 @@ namespace Ecanapi.Controllers
                 govScore    = govRaw     * 0.60 + resourceScore * 0.40;
             }
 
-            int ScoreToLevel(double s) =>
-                s >= 80 ? 9 : s >= 60 ? 7 : s >= 40 ? 5 : s >= 20 ? 3 : 1;
+            // 以五行平均值(20%)為基準，用相對倍數決定九等
+            const double avg = 20.0;
+            int ScoreToLevel(double s)
+            {
+                double r = s / avg;
+                if (r >= 2.8) return 9;
+                if (r >= 2.2) return 8;
+                if (r >= 1.8) return 7;
+                if (r >= 1.5) return 6;
+                if (r >= 1.2) return 5;
+                if (r >= 0.9) return 4;
+                if (r >= 0.6) return 3;
+                if (r >= 0.3) return 2;
+                return 1;
+            }
 
             return (ScoreToLevel(wealthScore), ScoreToLevel(govScore),
                     Math.Round(wealthScore, 1), Math.Round(govScore, 1));
@@ -5887,35 +5900,51 @@ namespace Ecanapi.Controllers
         // 財官等級 → 命書文字
         private static string LfFortuneLevel_WealthDesc(int level) => level switch
         {
-            9 => "頂級財富（資產達數百億至千億新台幣，全球富豪榜）",
-            7 => "特級財富（資產億至數十億，地方大實業家）",
-            5 => "高級財富（財務自由，具多處房產或豐厚被動收益）",
-            3 => "中級財富（穩定中產，財務健全，生活無虞）",
-            _ => "初級財富（小康自足，收入平實，財務健全無負擔）",
+            9 => "頂級財富（資產百億以上，全球富豪等級）",
+            8 => "巨富（資產十億以上，區域頂尖實業家）",
+            7 => "大富（資產億元級，成功企業主或大投資人）",
+            6 => "富裕（財務自由，被動收入豐厚，具多處房產或資產）",
+            5 => "財務自主（具副業或投資收益，生活品質佳）",
+            4 => "中產置產（資產數百萬，有房有車，生活無虞）",
+            3 => "小有積蓄（存款數十萬，生活穩定但財富有限）",
+            2 => "收支平衡（勉強持平，幾乎無積蓄，抗風險能力低）",
+            _ => "財星極薄（長期財務壓力，宜守本業穩健為上）",
         };
         private static string LfFortuneLevel_GovDesc(int level) => level switch
         {
             9 => "國家元首、國際領袖、劃時代影響力人物",
+            8 => "國家級決策者、院級首長、跨國機構要員",
             7 => "部會首長、地方諸侯、大型機構核心決策者",
-            5 => "中高階主管、縣市級以下官員、中型機構決策層、區域名望",
+            6 => "地方領袖、機關首長、具區域影響力",
+            5 => "高階主管、縣市級幹部、中型機構決策層",
+            4 => "中階主管、掌管部門、具一定決策權",
             3 => "基層主管、地方社群領袖、小型組織負責人、鄰里有名望",
+            2 => "基層員工、職場有口碑、受同儕認可",
             _ => "平民百姓、無特定官職、自立工作、生活安穩",
         };
         private static string LfFortuneLevel_WealthStatus(int level) => level switch
         {
-            9 => "富可敵國、全球富豪榜",
-            7 => "巨富、地方大實業家",
-            5 => "大富、企業主、資深投資顧問",
-            3 => "穩定中產、財務自主、專業自營",
-            _ => "小康、自給自足、清閒無債",
+            9 => "頂級富豪、資產百億以上",
+            8 => "巨富、資產十億以上",
+            7 => "大富、億元企業主",
+            6 => "富裕、財務自由",
+            5 => "財務自主、有投資收益",
+            4 => "中產置產、生活無虞",
+            3 => "小有積蓄、生活穩定",
+            2 => "收支平衡、積蓄有限",
+            _ => "財星薄弱、宜守穩健",
         };
         private static string LfFortuneLevel_GovStatus(int level) => level switch
         {
             9 => "國家元首、國際領袖",
-            7 => "部會首長、地方諸侯、大型機構決策者",
-            5 => "機關科處長、縣市級幹部、企業高管、區域決策層",
-            3 => "基層主管、地方有名望、小型組織負責人",
-            _ => "自由發展、自立工作者、安居樂業",
+            8 => "國家級決策者、院級首長",
+            7 => "部會首長、地方諸侯",
+            6 => "地方領袖、機關首長",
+            5 => "高階主管、縣市級幹部",
+            4 => "中階主管、部門主管",
+            3 => "基層主管、地方有名望",
+            2 => "基層員工、職場有口碑",
+            _ => "平民百姓、自立工作",
         };
 
         // 財官格局等級文字區塊（共用，各命書格局章節呼叫）
@@ -5932,17 +5961,25 @@ namespace Ecanapi.Controllers
             sb2.AppendLine($"官貴（第{gl}等）：{LfFortuneLevel_GovDesc(gl)}");
             sb2.AppendLine();
             sb2.AppendLine("財富等級對照：");
-            sb2.AppendLine("  1等│小康自足（收入平實，財務健全無負擔）");
-            sb2.AppendLine("  3等│中級財富（穩定中產，財務健全，生活無虞）");
-            sb2.AppendLine("  5等│高級財富（財務自由，具多處房產或豐厚被動收益）");
-            sb2.AppendLine("  7等│特級財富（資產億至數十億，地方大實業家）");
-            sb2.AppendLine("  9等│頂級財富（資產數百億以上，全球富豪榜）");
+            sb2.AppendLine("  1等│財星極薄，長期財務壓力，宜守本業穩健為上");
+            sb2.AppendLine("  2等│收支平衡，幾乎無積蓄，抗風險能力低");
+            sb2.AppendLine("  3等│小有積蓄，生活穩定但財富積累慢");
+            sb2.AppendLine("  4等│中產置產，資產數百萬，有房有車，生活無虞");
+            sb2.AppendLine("  5等│財務自主，具副業或投資收益，生活品質佳");
+            sb2.AppendLine("  6等│富裕，財務自由，被動收入豐厚，具多處房產");
+            sb2.AppendLine("  7等│大富，資產億元級，成功企業主或大投資人");
+            sb2.AppendLine("  8等│巨富，資產十億以上，區域頂尖實業家");
+            sb2.AppendLine("  9等│頂級財富，資產百億以上，全球富豪等級");
             sb2.AppendLine("官貴等級對照：");
             sb2.AppendLine("  1等│平民百姓，無特定官職，自立工作，生活安穩");
-            sb2.AppendLine("  3等│基層主管、地方社群領袖、小型組織負責人、鄰里有名望");
-            sb2.AppendLine("  5等│中高階主管、縣市級以下官員、中型機構決策層、區域名望");
-            sb2.AppendLine("  7等│部會首長、地方諸侯、大型機構核心決策者");
-            sb2.AppendLine("  9等│國家元首、國際領袖、劃時代影響力人物");
+            sb2.AppendLine("  2等│基層員工，職場有口碑，受同儕認可");
+            sb2.AppendLine("  3等│基層主管，地方社群領袖，小型組織負責人");
+            sb2.AppendLine("  4等│中階主管，掌管部門，具一定決策權");
+            sb2.AppendLine("  5等│高階主管，縣市級幹部，中型機構決策層");
+            sb2.AppendLine("  6等│地方領袖，機關首長，具區域影響力");
+            sb2.AppendLine("  7等│部會首長，地方諸侯，大型機構核心決策者");
+            sb2.AppendLine("  8等│國家級決策者，院級首長，跨國機構要員");
+            sb2.AppendLine("  9等│國家元首，國際領袖，劃時代影響力人物");
             return sb2.ToString();
         }
 
