@@ -9939,9 +9939,9 @@ namespace Ecanapi.Controllers
                 // 辰戌丑未
                 group9Name = "四時孤（辰戌丑未）";
                 group9Common = "兄弟無依靠，祖業不守，受奔波命。";
-                string group9Parent = (timeSection == "中") ? "先克父。" : "先亡母。";
+                // 先克父/先亡母 準確度不足，暫不輸出
                 string group9OutHome = (gender == 1) ? "男命有出家或學道傾向。" : "女命有出家為尼傾向。";
-                group9TimeSect = group9Parent + group9OutHome;
+                group9TimeSect = group9OutHome;
             }
 
             sb.AppendLine(group9Common);
