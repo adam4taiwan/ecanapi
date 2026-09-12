@@ -157,16 +157,17 @@ namespace Ecanapi.Services
                 string branch  = xunMap[stem];
                 string tenGod  = GetTenGodName(dayStem, stem);
                 string relative = GetRelativeName(tenGod, gender);
-                string stage    = GetLifeStage(stem, branch);
-                string dayRel   = GetBranchRelation(dayBranch, branch);
-                bool isKong     = kongWang.Contains(branch);
+                string stage        = GetLifeStage(stem, branch);
+                string dayBranchStage = GetLifeStage(stem, dayBranch); // 六親干在日支的長生
+                string dayRel       = GetBranchRelation(dayBranch, branch);
+                bool isKong         = kongWang.Contains(branch);
                 // 喜忌判斷：優先用格局用神覆蓋值，否則用月令計算值
                 int stemEl = StemElement[Array.IndexOf(Stems, stem)];
                 string stemFe = Fe(stemEl);
                 bool isXi = (xiOverride != null) ? xiOverride.Contains(stemFe) : xiElements.Contains(stemFe);
                 string nonRelMeaning = GetTenGodNonRelMeaning(tenGod, stage, isXi);
 
-                sb.AppendLine(BuildRelativeLine(relative, tenGod, stem, branch, stage, dayRel, isKong, nonRelMeaning));
+                sb.AppendLine(BuildRelativeLine(relative, tenGod, stem, branch, stage, dayRel, isKong, nonRelMeaning, dayBranch, dayBranchStage));
             }
             sb.AppendLine();
 
@@ -307,7 +308,8 @@ namespace Ecanapi.Services
 
         private static string BuildRelativeLine(
             string relative, string tenGod, string stem, string branch,
-            string stage, string dayRel, bool isKong, string nonRelMeaning)
+            string stage, string dayRel, bool isKong, string nonRelMeaning,
+            string dayBranch = "", string dayBranchStage = "")
         {
             string strength = ClassifyStrength(stage);
             string kongNote = isKong ? "【空亡】" : "";
@@ -338,7 +340,23 @@ namespace Ecanapi.Services
             // 非六親象意
             string nonRelNote = !string.IsNullOrEmpty(nonRelMeaning) ? $"　{nonRelMeaning}" : "";
 
-            return $"· {relative}（{tenGod}{stem} · {branch}{kongNote} · {stage}）{dayRelNote}：{relDesc}。{nonRelNote}";
+            string mainLine = $"· {relative}（{tenGod}{stem} · {branch}{kongNote} · {stage}）{dayRelNote}：{relDesc}。{nonRelNote}";
+
+            // 六親干在日支的長生補充
+            string dayBranchLine = "";
+            if (!string.IsNullOrEmpty(dayBranch) && !string.IsNullOrEmpty(dayBranchStage))
+            {
+                string dayBranchStrengthDesc = ClassifyStrength(dayBranchStage) switch
+                {
+                    "旺"  => "與命主本人緣份深厚",
+                    "中"  => "與命主本人緣份尚可",
+                    "弱"  => "與命主本人緣份稍淺",
+                    _     => "與命主本人緣份薄"
+                };
+                dayBranchLine = $"\n  └ {relative}星（{stem}）居日支（{dayBranch}），得（{dayBranchStage}），{dayBranchStrengthDesc}。";
+            }
+
+            return mainLine + dayBranchLine;
         }
 
         // ==========================================
