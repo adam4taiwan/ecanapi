@@ -5956,10 +5956,36 @@ namespace Ecanapi.Controllers
             var raw = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             var pct = LfScoresToPct(raw);
             var (wl, gl, ws, gs) = LfCalcFortuneLevel(dmElem, pct, bodyPct);
+
+            string inElem2   = LfGenByElem.GetValueOrDefault(dmElem, "");
+            string shiElem2  = LfElemGen.GetValueOrDefault(dmElem, "");
+            string caiElem2  = LfElemOvercome.GetValueOrDefault(dmElem, "");
+            string guanElem2 = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            double caiPct  = pct.GetValueOrDefault(caiElem2, 0);
+            double guanPct = pct.GetValueOrDefault(guanElem2, 0);
+            double inPct   = pct.GetValueOrDefault(inElem2, 0);
+            double shiPct  = pct.GetValueOrDefault(shiElem2, 0);
+            double biPct   = pct.GetValueOrDefault(dmElem, 0);
+            bool isStr     = bodyPct >= 50.0;
+            string bodyLabel2 = bodyPct >= 70 ? "極強" : bodyPct >= 55 ? "偏強" : bodyPct >= 45 ? "中和" : bodyPct >= 30 ? "偏弱" : bodyPct >= 20 ? "身弱" : "極弱";
+
             var sb2 = new StringBuilder();
             sb2.AppendLine("【財官格局論斷】");
             sb2.AppendLine($"財富（第{wl}等）：{LfFortuneLevel_WealthDesc(wl)}");
             sb2.AppendLine($"官貴（第{gl}等）：{LfFortuneLevel_GovDesc(gl)}");
+            sb2.AppendLine();
+            sb2.AppendLine($"計算依據（{bodyLabel2}，身強弱{bodyPct:F0}%）：");
+            sb2.AppendLine($"  財星[{caiElem2}]={caiPct:F1}%  官殺[{guanElem2}]={guanPct:F1}%  印星[{inElem2}]={inPct:F1}%  食傷[{shiElem2}]={shiPct:F1}%  比劫[{dmElem}]={biPct:F1}%");
+            if (isStr)
+            {
+                sb2.AppendLine($"  財富分數 = {caiPct:F1}×0.75 + {shiPct:F1}×0.25 = {ws:F1}%  → 比值{ws/20:F2} → 第{wl}等");
+                sb2.AppendLine($"  官貴分數 = {guanPct:F1}×0.75 + {caiPct:F1}×0.25 = {gs:F1}%  → 比值{gs/20:F2} → 第{gl}等");
+            }
+            else
+            {
+                sb2.AppendLine($"  財富分數 = {caiPct:F1}×0.60 + {inPct:F1}×0.25 + {biPct:F1}×0.15 = {ws:F1}%  → 比值{ws/20:F2} → 第{wl}等");
+                sb2.AppendLine($"  官貴分數 = {guanPct:F1}×0.60 + {inPct:F1}×0.40 = {gs:F1}%  → 比值{gs/20:F2} → 第{gl}等");
+            }
             sb2.AppendLine();
             sb2.AppendLine("財富等級對照：");
             sb2.AppendLine("  1等│財星極薄，長期財務壓力，宜守本業穩健為上");

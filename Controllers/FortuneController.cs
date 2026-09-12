@@ -314,7 +314,7 @@ namespace Ecanapi.Controllers
             var user = await _context.Users.FindAsync(userId);
             if (user == null || !user.HasBirthData) return null;
 
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.UtcNow.AddHours(8).Date; // 台灣時間日期（UTC+8）
             int currentAge = today.Year - user.BirthYear!.Value;
 
             // 檢查今日是否已有快取（personal 版用不同 key 避免與 daily-kb 快取衝突）
