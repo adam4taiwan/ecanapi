@@ -50,6 +50,14 @@ namespace Ecanapi.Controllers
         private static readonly DateTime NsEpochDate = new DateTime(2000, 1, 1);
         private const int NsEpochCycleIndex = 10; // Jan 1, 2000 = 甲戌 (60-cycle index 10)
 
+        private static readonly string[] TianGan10 = {"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
+
+        private static string NsGetDayStem(DateTime date)
+        {
+            int idx = NsGet60CycleIndex(date);
+            return TianGan10[idx % 10];
+        }
+
         // ============================================================
         //  建構子
         // ============================================================
@@ -256,13 +264,15 @@ namespace Ecanapi.Controllers
             int dayStar   = NsCalcDayStar(now);
             int yearStar  = NsCalcYearStar(now.Year);
             int monthStar = NsCalcMonthStar(now);
+            string dayStem = NsGetDayStem(now);
 
             var results = new List<object>();
             for (int natal = 1; natal <= 9; natal++)
             {
                 var existing = await _context.NineStarDailyRules
                     .FirstOrDefaultAsync(r => r.NatalStar == natal
-                        && r.YearStar == yearStar && r.MonthStar == monthStar && r.FlowStar == dayStar);
+                        && r.YearStar == yearStar && r.MonthStar == monthStar
+                        && r.FlowStar == dayStar && r.DayStem == dayStem);
                 if (existing != null && !string.IsNullOrEmpty(existing.FortuneText))
                 {
                     results.Add(new { natalStar = natal, status = "already_exists" });
@@ -270,10 +280,10 @@ namespace Ecanapi.Controllers
                 }
                 try
                 {
-                    var gen = await NsGeminiGenDailyAdvice(natal, yearStar, monthStar, dayStar);
+                    var gen = await NsGeminiGenDailyAdvice(natal, yearStar, monthStar, dayStar, dayStem);
                     if (existing == null)
                     {
-                        existing = new NineStarDailyRule { NatalStar = natal, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar };
+                        existing = new NineStarDailyRule { NatalStar = natal, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar, DayStem = dayStem };
                         _context.NineStarDailyRules.Add(existing);
                     }
                     existing.FortuneText = gen.FortuneText; existing.Auspicious = gen.Auspicious;
@@ -519,17 +529,19 @@ namespace Ecanapi.Controllers
             int dayStar   = NsCalcDayStar(now);
             int yearStar  = NsCalcYearStar(now.Year);
             int monthStar = NsCalcMonthStar(now);
+            string dayStem = NsGetDayStem(now);
 
-            // 以流年×流月×流日三層為 key，確保同一日星在不同年月有不同解讀
+            // 以流年×流月×流日×日天干五層為 key，避免同月同流日星重複同一內容
             var rule = await _context.NineStarDailyRules
                 .FirstOrDefaultAsync(r => r.NatalStar == natalStar
-                    && r.YearStar == yearStar && r.MonthStar == monthStar && r.FlowStar == dayStar);
+                    && r.YearStar == yearStar && r.MonthStar == monthStar
+                    && r.FlowStar == dayStar && r.DayStem == dayStem);
             if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
             {
-                var gen = await NsGeminiGenDailyAdvice(natalStar, yearStar, monthStar, dayStar);
+                var gen = await NsGeminiGenDailyAdvice(natalStar, yearStar, monthStar, dayStar, dayStem);
                 if (rule == null)
                 {
-                    rule = new NineStarDailyRule { NatalStar = natalStar, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar };
+                    rule = new NineStarDailyRule { NatalStar = natalStar, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar, DayStem = dayStem };
                     _context.NineStarDailyRules.Add(rule);
                 }
                 rule.FortuneText = gen.FortuneText; rule.Auspicious = gen.Auspicious;
@@ -661,17 +673,20 @@ namespace Ecanapi.Controllers
             int currentYun = Ecanapi.Services.NineStarCalcHelper.GetCurrentYun(now.Year);
             var (yunLabel, isProspering) = Ecanapi.Services.NineStarCalcHelper.GetStarYunStatus(natalStar, currentYun);
 
-            // 查 KB（本命星×流年×流月×流日），確保不同年月有不同解讀
+            string dayStemChart = NsGetDayStem(now);
+
+            // 查 KB（本命星×流年×流月×流日×日天干五維），避免同月同流日重複同一內容
             var rule = await _context.NineStarDailyRules
                 .FirstOrDefaultAsync(r => r.NatalStar == natalStar
-                    && r.YearStar == yearStar && r.MonthStar == monthStar && r.FlowStar == dayStar);
+                    && r.YearStar == yearStar && r.MonthStar == monthStar
+                    && r.FlowStar == dayStar && r.DayStem == dayStemChart);
 
             if (rule == null || string.IsNullOrEmpty(rule.FortuneText))
             {
-                var generated = await NsGeminiGenDailyAdvice(natalStar, yearStar, monthStar, dayStar);
+                var generated = await NsGeminiGenDailyAdvice(natalStar, yearStar, monthStar, dayStar, dayStemChart);
                 if (rule == null)
                 {
-                    rule = new NineStarDailyRule { NatalStar = natalStar, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar };
+                    rule = new NineStarDailyRule { NatalStar = natalStar, YearStar = yearStar, MonthStar = monthStar, FlowStar = dayStar, DayStem = dayStemChart };
                     _context.NineStarDailyRules.Add(rule);
                 }
                 rule.FortuneText = generated.FortuneText;
@@ -681,7 +696,7 @@ namespace Ecanapi.Controllers
                 rule.Color = generated.Color;
                 rule.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("NineStar daily rule {Natal}x{Year}x{Month}x{Day} generated by Gemini and saved to KB", natalStar, yearStar, monthStar, dayStar);
+                _logger.LogInformation("NineStar daily rule {Natal}x{Year}x{Month}x{Day}x{Stem} generated by Gemini and saved to KB", natalStar, yearStar, monthStar, dayStar, dayStemChart);
             }
 
             // 九宮飛星五層組合分析
@@ -1046,14 +1061,16 @@ namespace Ecanapi.Controllers
         }
 
         private async Task<(string FortuneText, string Auspicious, string Avoid, string Direction, string Color)>
-            NsGeminiGenDailyAdvice(int natalStar, int yearStar, int monthStar, int dayStar)
+            NsGeminiGenDailyAdvice(int natalStar, int yearStar, int monthStar, int dayStar, string dayStem = "")
         {
+            string dayStemPart = string.IsNullOrEmpty(dayStem) ? "" : $"日干【{dayStem}】，";
             string prompt = $"九星氣學今日開運建議：" +
                             $"本命星【{StarNames[natalStar]}】，" +
                             $"流年星【{StarNames[yearStar]}】，" +
                             $"流月星【{StarNames[monthStar]}】，" +
-                            $"流日星【{StarNames[dayStar]}】。" +
-                            $"請結合流年、流月、流日三層能量對本命星的交叉影響，" +
+                            $"流日星【{StarNames[dayStar]}】，" +
+                            dayStemPart +
+                            $"請結合流年、流月、流日三層能量與日干特性對本命星的交叉影響，" +
                             $"以繁體中文輸出 JSON，包含以下欄位：" +
                             $"fortune_text（今日整體運勢，約150字，須體現年月日三層疊加效果），" +
                             $"auspicious（今日宜做的事，20字內），" +

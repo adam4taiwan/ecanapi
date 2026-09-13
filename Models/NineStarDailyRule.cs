@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Ecanapi.Models
 {
-    /// <summary>九星每日建議 KB（本命星×流年×流月×流日，Gemini 自動補充）</summary>
+    /// <summary>九星每日建議 KB（本命星×流年×流月×流日×日天干，Gemini 自動補充）</summary>
     public class NineStarDailyRule
     {
         public int Id { get; set; }
@@ -20,6 +20,9 @@ namespace Ecanapi.Models
         /// <summary>流日星 1-9</summary>
         [Required]
         public int FlowStar { get; set; }
+
+        /// <summary>日柱天干（甲~癸，空字串=舊版紀錄）</summary>
+        public string DayStem { get; set; } = "";
 
         /// <summary>運勢說明（空則由 Gemini 生成後回填）</summary>
         public string? FortuneText { get; set; }
