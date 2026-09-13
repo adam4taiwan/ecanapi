@@ -902,11 +902,12 @@ namespace Ecanapi.Controllers
 
         private string GetGanZhi(DateTime date)
         {
-            // 以1900年1月31日（甲子日）為基準計算日柱干支
+            // 以1900年1月31日（甲辰日）為基準計算日柱干支
+            // 天干從 index 0（甲）正確，地支需 +4 修正（辰=4，非子=0）
             var baseDate = new DateTime(1900, 1, 31);
             int days = (int)(date - baseDate).TotalDays;
             int ganIndex = ((days % 10) + 10) % 10;
-            int zhiIndex = ((days % 12) + 12) % 12;
+            int zhiIndex = (((days + 4) % 12) + 12) % 12;
             return TianGan[ganIndex] + DiZhi[zhiIndex];
         }
 

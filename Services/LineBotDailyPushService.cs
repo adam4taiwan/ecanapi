@@ -193,7 +193,7 @@ namespace Ecanapi.Services
         // 天干地支計算（同 FortuneController，避免跨 scope 呼叫副作用）
         private static readonly string[] Gan10 = {"甲","乙","丙","丁","戊","己","庚","辛","壬","癸"};
         private static readonly string[] Zhi12 = {"子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"};
-        private static readonly DateTime GanZhiEpoch = new DateTime(1900, 1, 31); // 庚子日
+        private static readonly DateTime GanZhiEpoch = new DateTime(1900, 1, 31); // 甲辰日（地支辰=4，+4 修正）
 
         private static string GetGanZhiStem(DateTime date)
         {
@@ -204,7 +204,7 @@ namespace Ecanapi.Services
         private static string GetGanZhiBranch(DateTime date)
         {
             int days = (int)(date.Date - GanZhiEpoch.Date).TotalDays;
-            return Zhi12[((days % 12) + 12) % 12];
+            return Zhi12[(((days + 4) % 12) + 12) % 12]; // +4 修正地支偏移
         }
 
         private async Task PushMessageAsync(string accessToken, string lineUserId, string text)
