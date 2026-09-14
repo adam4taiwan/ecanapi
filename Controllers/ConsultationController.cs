@@ -8720,7 +8720,7 @@ namespace Ecanapi.Controllers
             string ch3QianLiXiang = LfQianLiShiGanXiangFa(dStem, mBranch);
             if (!string.IsNullOrEmpty(ch3QianLiXiang))
             {
-                sb.AppendLine("【盲派十干象法】");
+                sb.AppendLine("【十干象法】");
                 sb.AppendLine(ch3QianLiXiang);
                 sb.AppendLine();
             }
@@ -11011,7 +11011,7 @@ namespace Ecanapi.Controllers
             }
 
             // ===== Ch.7 盲派口訣精華 =====
-            sb.AppendLine("【第七章：盲派口訣精華】");
+            sb.AppendLine("【第七章：口訣精華】");
             sb.AppendLine();
 
             // 四柱干支口訣
@@ -11096,6 +11096,13 @@ namespace Ecanapi.Controllers
             sb.AppendLine("【第八章：六親緣分】");
             sb.AppendLine();
 
+            // 六親星五行（相對日主）
+            string caiStarElem   = LfElemOvercome.GetValueOrDefault(dmElem, "");    // 財星（我克）
+            string inStarElem    = dmElem switch { "木"=>"水","火"=>"木","土"=>"火","金"=>"土","水"=>"金",_=>"" }; // 印星（生我）
+            string guanStarElem  = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");  // 官殺（克我）
+            string shishangElem  = LfElemSheng.GetValueOrDefault(dmElem, "");       // 食傷（我生）
+            string JiYong8(string e) => e == yongShenElem ? "喜" : e == jiShenElem ? "忌" : "";
+
             // 父親（偏財論父）
             {
                 double fStr8 = SSElemStr9("財");
@@ -11110,6 +11117,11 @@ namespace Ecanapi.Controllers
                     fatherDesc8 = $"命局財星（父星）力量{fStr8:F0}%，父親緣分普通，父親盡力給予支持，但資源有限。";
                 else
                     fatherDesc8 = $"命局財星（父星）力量偏弱，父親對命主影響力有限，宜早自立，勿過度依賴父親資源。";
+                string fJiYong8 = JiYong8(caiStarElem);
+                if (hasFatherStar && fJiYong8 == "喜")
+                    fatherDesc8 += "財星為喜用，父親資源是命主重要助力，善用父緣可事半功倍。";
+                else if (hasFatherStar && fJiYong8 == "忌")
+                    fatherDesc8 += "財星為忌，財旺剋身，父親的期望有時形成壓力，宜保持適當自主性。";
 
                 sb.AppendLine("▍父親緣分");
                 sb.AppendLine(fatherDesc8);
@@ -11134,6 +11146,11 @@ namespace Ecanapi.Controllers
                     motherDesc8 = $"命局印星（母星）力量{mStr8:F0}%充足，母親緣分深厚，母親對命主關愛有加，早年受母親庇護，是人生重要的精神依靠。";
                 else
                     motherDesc8 = $"命局印星（母星）力量{mStr8:F0}%，與母親有緣，母親溫柔慈愛，給予命主適度支持與關懷。";
+                string mJiYong8 = JiYong8(inStarElem);
+                if (hasMotherStar && mJiYong8 == "喜")
+                    motherDesc8 += "印星為喜用，母親是命主精神支柱，母恩深厚，母親的庇護對命主發展有正面推動。";
+                else if (hasMotherStar && mJiYong8 == "忌")
+                    motherDesc8 += "印星為忌，母親關愛有時過度，或造成命主依賴，宜適時培養獨立自主。";
 
                 sb.AppendLine("▍母親緣分");
                 sb.AppendLine(motherDesc8);
@@ -11181,6 +11198,14 @@ namespace Ecanapi.Controllers
                         ? $"財星力量{pStr8:F0}%，配偶緣分普通，婚姻以平和為主，宜彼此扶持共同經營。"
                         : $"官殺力量{pStr8:F0}%，夫緣普通，丈夫踏實可靠，婚姻生活平實，宜重視日常相處的點滴。";
 
+                // 配偶星喜忌
+                string spouseStarElem8 = gender == 1 ? caiStarElem : guanStarElem;
+                string pJiYong8 = JiYong8(spouseStarElem8);
+                if (pCount8 > 0 && pJiYong8 == "喜")
+                    spouseDesc8 += "配偶星為喜用，婚後對命主有助益，婚姻是命主人生重要的助緣。";
+                else if (pCount8 > 0 && pJiYong8 == "忌")
+                    spouseDesc8 += "配偶星為忌，感情雖深但對方有時帶來壓力，婚姻中需相互包容，注意主導權平衡。";
+
                 sb.AppendLine(gender == 1 ? "▍妻緣（財星論妻）" : "▍夫緣（官殺論夫）");
                 sb.AppendLine(spouseDesc8);
                 if (spouseInDayBranch8)
@@ -11223,6 +11248,14 @@ namespace Ecanapi.Controllers
                     childDesc8 = $"命局{cStarName8}力量{cStr8:F0}%充足，子女緣分豐厚，子女聰明活潑，親子關係融洽，為人生重要的快樂來源。";
                 else
                     childDesc8 = $"命局{cStarName8}力量{cStr8:F0}%，有子女之緣，子女乖巧懂事，宜多用心陪伴，親子情深。";
+
+                // 子女星喜忌
+                string childStarElem8 = gender == 1 ? shishangElem : guanStarElem;
+                string cJiYong8 = JiYong8(childStarElem8);
+                if (cCount8 > 0 && cJiYong8 == "喜")
+                    childDesc8 += "子女星為喜用，子女是命主的福澤來源，子孝親慰，晚年有所依靠。";
+                else if (cCount8 > 0 && cJiYong8 == "忌")
+                    childDesc8 += "子女星為忌，愛子之心深，但子女有時令命主操勞費心，宜放手讓子女自主發展。";
 
                 sb.AppendLine("▍子女緣分");
                 sb.AppendLine(childDesc8);
@@ -11803,7 +11836,7 @@ namespace Ecanapi.Controllers
 
             // （五）盲派口訣·鐵口直斷
             {
-                sb.AppendLine("（五）盲派口訣·鐵口直斷");
+                sb.AppendLine("（五）口訣·鐵口直斷");
 
                 // 四柱干支口訣（年月日時逐柱）
                 string[] colLbl11 = { "年", "月", "日", "時" };
@@ -11893,7 +11926,7 @@ namespace Ecanapi.Controllers
             }
 
             // ─── 二、民間盲派八字批命方法與步驟 ───
-            sb.AppendLine("二、民間盲派八字批命方法與步驟");
+            sb.AppendLine("二、民間八字批命方法與步驟");
             sb.AppendLine();
 
             // （一）命局透析
@@ -11940,7 +11973,7 @@ namespace Ecanapi.Controllers
             }
 
             // ─── 三、民間盲派八字命理實戰 ───
-            sb.AppendLine("三、民間盲派八字命理實戰");
+            sb.AppendLine("三、民間八字命理實戰");
             sb.AppendLine();
 
             // （一）學歷
@@ -12483,12 +12516,37 @@ namespace Ecanapi.Controllers
                                 if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"日干{dStem}查表得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
                         }
                     }
-                    else if (sha.LookupBase == "年支" || sha.LookupBase == "年支或日支三合組")
+                    else if (sha.LookupBase == "年支或日支三合組")
                     {
-                        if (map.TryGetValue(yBranch, out var val))
+                        // map key 為三合組字串（申子辰/寅午戌/巳酉丑/亥卯未），需先找出年支所屬組
+                        var sanHeGroups = new[] {"申子辰","寅午戌","巳酉丑","亥卯未"};
+                        string yGroup = sanHeGroups.FirstOrDefault(g => g.Contains(yBranch)) ?? "";
+                        if (!string.IsNullOrEmpty(yGroup) && map.TryGetValue(yGroup, out var val))
                         {
                             for (int i = 0; i < allBr.Length; i++)
-                                if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"年支{yBranch}查表得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
+                                if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"年支{yBranch}（{yGroup}組）查得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
+                        }
+                        // 年支找不到時改用日支三合組
+                        if (!found)
+                        {
+                            string dGroup = sanHeGroups.FirstOrDefault(g => g.Contains(dBranch)) ?? "";
+                            if (!string.IsNullOrEmpty(dGroup) && map.TryGetValue(dGroup, out var val2))
+                            {
+                                for (int i = 0; i < allBr.Length; i++)
+                                    if (val2.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"日支{dBranch}（{dGroup}組）查得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
+                            }
+                        }
+                    }
+                    else if (sha.LookupBase == "年支")
+                    {
+                        // map key 為四季組字串（亥子丑/寅卯辰/巳午未/申酉戌），需先找出年支所屬組
+                        var siJiGroups = new[] {"亥子丑","寅卯辰","巳午未","申酉戌"};
+                        string yGroup = siJiGroups.FirstOrDefault(g => g.Contains(yBranch)) ?? "";
+                        if (!string.IsNullOrEmpty(yGroup) && map.TryGetValue(yGroup, out var val))
+                        {
+                            // 孤辰/寡宿見於月日時支（排除年支自身 i=0）
+                            for (int i = 1; i < allBr.Length; i++)
+                                if (val.Contains(allBr[i])) { found = true; resultBrOrSt = allBr[i]; foundDesc = $"年支{yBranch}（{yGroup}組）查得{allBr[i]}，{pillarBrLabels[i]}{allBr[i]}符合"; break; }
                         }
                     }
                     else if (sha.LookupBase == "月支")
