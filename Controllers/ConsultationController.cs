@@ -5961,12 +5961,51 @@ namespace Ecanapi.Controllers
             2 => "基層員工、職場有口碑",
             _ => "平民百姓、自立工作",
         };
+        // 印星等級 → 學貴/貴人緣命書文字
+        private static string LfFortuneLevel_InDesc(int level, string jiYong = "")
+        {
+            string desc = level switch
+            {
+                9 => "印星至強，學問宗師，萬人景仰，名垂青史",
+                8 => "印星極旺，一代名師或學術權威，受人敬仰，地位崇高",
+                7 => "印星強旺，學術成就出眾，名聲遠播，深受貴人賞識提攜",
+                6 => "印星旺盛，學術有成，社會聲望佳，屢獲上位者賞識，易得官方認可",
+                5 => "印星有力，文憑學識兼備，貴人頻現，社交圈中具一定名望",
+                4 => "印星尚可，學識根基穩固，受主管賞識，職場多有貴人相助",
+                3 => "印星普通，有一定學識，職場中偶有師長或長輩提攜",
+                2 => "印星略薄，貴人緣薄，學識靠自身努力積累，偶有提攜",
+                _ => "印星極薄，學緣薄弱，讀書辛苦，缺乏貴人助力，凡事靠自己打拼",
+            };
+            if (jiYong == "喜") desc += "（印為喜用，學識與貴人緣是命主最大助力）";
+            else if (jiYong == "忌") desc += "（印為忌，學識雖豐卻易過度依賴師長，宜多實踐而非空學）";
+            return desc;
+        }
+        // 食傷等級 → 才藝/創意命書文字
+        private static string LfFortuneLevel_ShiDesc(int level, string jiYong = "")
+        {
+            string desc = level switch
+            {
+                9 => "食傷至強，曠世奇才，藝術或技術頂峰，千古留名",
+                8 => "食傷極旺，一代宗師，藝術或技術巨匠，引領業界潮流",
+                7 => "食傷強旺，才華橫溢，行業翹楚，創作能力卓越，著作等身",
+                6 => "食傷旺盛，才藝超群，在某領域成就顯著，受人賞識，創意無限",
+                5 => "食傷有力，才華出眾，創業能力強，口才出眾，適合創意或教學領域",
+                4 => "食傷尚可，才藝不錯，創意思維活躍，口才流暢，適合溝通協調職位",
+                3 => "食傷一般，具基本才藝與表達能力，職場中可穩定發揮",
+                2 => "食傷略薄，才藝普通，執行力尚可，但創意與口才略顯不足",
+                _ => "食傷極薄，才藝平平，表達力不強，宜選擇按部就班的工作，穩中求進",
+            };
+            if (jiYong == "喜") desc += "（食傷為喜用，才華是命主最大優勢，宜從事創意或技術領域）";
+            else if (jiYong == "忌") desc += "（食傷為忌，才藝雖豐卻易耗散財氣，需收斂鋒芒）";
+            return desc;
+        }
 
-        // 財官格局等級文字區塊（共用，各命書格局章節呼叫）
+        // 命局四星格局等級文字區塊（共用，各命書格局章節呼叫）
         private static string LfBuildFortuneLevelBlock(
             string dmElem, double bodyPct,
             string yStem, string yBranch, string mStem, string mBranch,
-            string dStem, string dBranch, string hStem, string hBranch)
+            string dStem, string dBranch, string hStem, string hBranch,
+            string yongShenElem = "", string jiShenElem = "")
         {
             var raw = LfCalcWuXing4Tier(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch);
             var pct = LfScoresToPct(raw);
@@ -5983,11 +6022,17 @@ namespace Ecanapi.Controllers
             double biPct   = pct.GetValueOrDefault(dmElem, 0);
             bool isStr     = bodyPct >= 50.0;
             string bodyLabel2 = bodyPct >= 70 ? "極強" : bodyPct >= 55 ? "偏強" : bodyPct >= 45 ? "中和" : bodyPct >= 30 ? "偏弱" : bodyPct >= 20 ? "身弱" : "極弱";
+            int inLevel  = LfPctToLevel(inPct);
+            int shiLevel = LfPctToLevel(shiPct);
+            string inJiYong  = !string.IsNullOrEmpty(yongShenElem) ? (inElem2 == yongShenElem ? "喜" : inElem2 == jiShenElem ? "忌" : "") : "";
+            string shiJiYong = !string.IsNullOrEmpty(yongShenElem) ? (shiElem2 == yongShenElem ? "喜" : shiElem2 == jiShenElem ? "忌" : "") : "";
 
             var sb2 = new StringBuilder();
-            sb2.AppendLine("【財官格局論斷】");
+            sb2.AppendLine("【命局四星論斷】");
             sb2.AppendLine($"財富（第{wl}等）：{LfFortuneLevel_WealthDesc(wl)}");
             sb2.AppendLine($"官貴（第{gl}等）：{LfFortuneLevel_GovDesc(gl)}");
+            sb2.AppendLine($"學貴（第{inLevel}等）：{LfFortuneLevel_InDesc(inLevel, inJiYong)}");
+            sb2.AppendLine($"才藝（第{shiLevel}等）：{LfFortuneLevel_ShiDesc(shiLevel, shiJiYong)}");
             sb2.AppendLine();
             sb2.AppendLine($"計算依據（{bodyLabel2}，身強弱{bodyPct:F0}%）：");
             sb2.AppendLine($"  財星[{caiElem2}]={caiPct:F1}%  官殺[{guanElem2}]={guanPct:F1}%  印星[{inElem2}]={inPct:F1}%  食傷[{shiElem2}]={shiPct:F1}%  比劫[{dmElem}]={biPct:F1}%");
@@ -6022,6 +6067,26 @@ namespace Ecanapi.Controllers
             sb2.AppendLine("  7等│部會首長，地方諸侯，大型機構核心決策者");
             sb2.AppendLine("  8等│國家級決策者，院級首長，跨國機構要員");
             sb2.AppendLine("  9等│國家元首，國際領袖，劃時代影響力人物");
+            sb2.AppendLine("學貴等級對照（印星·學識貴人緣）：");
+            sb2.AppendLine("  1等│印星極薄，學緣薄弱，讀書辛苦，貴人少，凡事靠自己");
+            sb2.AppendLine("  2等│印星略薄，偶有提攜，學識靠努力積累");
+            sb2.AppendLine("  3等│印星普通，有師長提攜，職場有一定貴人緣");
+            sb2.AppendLine("  4等│印星尚可，受主管賞識，學識根基穩固");
+            sb2.AppendLine("  5等│印星有力，貴人多助，文憑學識兼備，社會有名望");
+            sb2.AppendLine("  6等│印星旺盛，學術有成，聲望佳，易得官方認可");
+            sb2.AppendLine("  7等│印星強旺，學術成就出眾，名聲遠播，貴人多助");
+            sb2.AppendLine("  8等│印星極旺，一代名師，受人敬仰，地位崇高");
+            sb2.AppendLine("  9等│印星至強，學問宗師，萬人景仰，名垂青史");
+            sb2.AppendLine("才藝等級對照（食傷·才華創意表達）：");
+            sb2.AppendLine("  1等│食傷極薄，才藝平平，宜按部就班，穩中求進");
+            sb2.AppendLine("  2等│食傷略薄，才藝普通，執行力尚可，創意略不足");
+            sb2.AppendLine("  3等│食傷一般，具基本才藝與表達，職場中可穩定發揮");
+            sb2.AppendLine("  4等│食傷尚可，才藝不錯，創意活躍，口才流暢");
+            sb2.AppendLine("  5等│食傷有力，才華出眾，創業能力強，適合創意或教學");
+            sb2.AppendLine("  6等│食傷旺盛，才藝超群，在某領域成就顯著，受人賞識");
+            sb2.AppendLine("  7等│食傷強旺，才華橫溢，行業翹楚，著作等身");
+            sb2.AppendLine("  8等│食傷極旺，一代宗師，藝術巨匠，引領業界潮流");
+            sb2.AppendLine("  9等│食傷至強，曠世奇才，藝術頂峰，千古留名");
             return sb2.ToString();
         }
 
@@ -8757,7 +8822,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(jiYongElemDisp) && jiYongElemDisp != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp}，天干 {LfElemStems(jiYongElemDisp)}，地支 {LfElemBranches(jiYongElemDisp)}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.Append(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp, dStem, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -10942,10 +11007,10 @@ namespace Ecanapi.Controllers
                 else
                     chengDanDesc = $"財官承擔均衡：日主{dStem}（{bodyPct:F0}%）與財官力量相對均衡，命局流通順暢，逢用神方向大運則財官齊發。";
 
-                sb.AppendLine("▍財官格局論斷");
+                sb.AppendLine("▍命局四星論斷");
                 sb.AppendLine(pursuitDesc);
                 sb.AppendLine(chengDanDesc);
-                sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+                sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
                 sb.AppendLine();
             }
 
@@ -13427,7 +13492,7 @@ namespace Ecanapi.Controllers
             string jiYongElemV2 = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
             if (!string.IsNullOrEmpty(jiYongElemV2) && jiYongElemV2 != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemV2}（克用神 {yongShenElem}）");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemV2, dStem, branches));
             sb.AppendLine();
@@ -19583,7 +19648,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(v2JiYongElem) && v2JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v2JiYongElem}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v2TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
@@ -20347,7 +20412,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(v3JiYongElem) && v3JiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{v3JiYongElem}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, v3TuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
@@ -20784,7 +20849,7 @@ namespace Ecanapi.Controllers
             if (!string.IsNullOrEmpty(jiYongElemDisp2) && jiYongElemDisp2 != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElemDisp2}（克用神{yongShenElem}，力道較輕）");
             sb.AppendLine($"格局說明：{LfPatternDesc(pattern, bodyPct)}");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElemDisp2, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(guFaPoetry))
@@ -22460,7 +22525,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine($"大忌(X)：{jiShenElem}  天干 {LfElemStems(jiShenElem)}  地支 {LfElemBranches(jiShenElem)}");
             if (!string.IsNullOrEmpty(jiYongElem) && jiYongElem != jiShenElem)
                 sb.AppendLine($"次忌(△忌)：{jiYongElem}（克用神{yongShenElem}）");
-            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch));
+            sb.Append(LfBuildFortuneLevelBlock(dmElem, bodyPct, yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, yongShenElem, jiShenElem));
             sb.AppendLine();
             sb.AppendLine(LfBuildYongJiTable(yongShenElem, fuYiElem, jiShenElem, tuneElem, dStemRef, branches));
             if (!string.IsNullOrWhiteSpace(astroDescGeJu))
