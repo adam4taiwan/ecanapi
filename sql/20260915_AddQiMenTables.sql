@@ -2,6 +2,33 @@
 -- 包含：九星/八門/八神/六儀三奇/地盤天干/節氣元局 共6張表
 -- 注意：QiMenJuConfig 節氣元局依標準時家奇門公式填入，妙派驗證後可按需調整
 
+-- ===== 建表（生產環境手動執行用，EF Migration 同步執行）=====
+CREATE TABLE IF NOT EXISTS "QiMenJiuXings" (
+    "Id" SERIAL PRIMARY KEY, "Name" text NOT NULL, "DefaultGong" integer NOT NULL,
+    "WuXing" text NOT NULL, "JiXiong" text NOT NULL, "Desc" text NOT NULL, "SortOrder" integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "QiMenBaMens" (
+    "Id" SERIAL PRIMARY KEY, "Name" text NOT NULL, "DefaultGong" integer NOT NULL,
+    "WuXing" text NOT NULL, "JiXiong" text NOT NULL, "Desc" text NOT NULL, "SortOrder" integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "QiMenBaShens" (
+    "Id" SERIAL PRIMARY KEY, "Name" text NOT NULL, "JiXiong" text NOT NULL,
+    "Desc" text NOT NULL, "SortOrder" integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "QiMenTianGans" (
+    "Id" SERIAL PRIMARY KEY, "TianGan" text NOT NULL, "Type" text NOT NULL,
+    "JiXiong" text NOT NULL, "Desc" text NOT NULL, "SortOrder" integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "QiMenDiPanMaps" (
+    "Id" SERIAL PRIMARY KEY, "YinYang" text NOT NULL, "JuShu" integer NOT NULL,
+    "GongWei" integer NOT NULL, "TianGan" text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "QiMenJuConfigs" (
+    "Id" SERIAL PRIMARY KEY, "YinYang" text NOT NULL, "JieQi" text NOT NULL,
+    "JieQiOrder" integer NOT NULL, "Yuan" text NOT NULL, "JuShu" integer NOT NULL
+);
+ALTER TABLE "NineStarDailyRules" ADD COLUMN IF NOT EXISTS "DayStem" text NOT NULL DEFAULT '';
+
 -- ===== 九星 =====
 INSERT INTO "QiMenJiuXings" ("Name","DefaultGong","WuXing","JiXiong","Desc","SortOrder") VALUES
 ('天蓬',1,'水','凶','統轄天地，主謀略兵戈；入吉門逢三奇可用，否則主破敗',1),
