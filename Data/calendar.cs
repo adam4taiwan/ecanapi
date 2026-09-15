@@ -11,8 +11,17 @@ public class CalendarDbContext : DbContext
 {
     public CalendarDbContext(DbContextOptions<CalendarDbContext> options) : base(options) { }
 
-    // 這個 DbSet<CalendarEntry> 就代表了您的 public.calendar 資料表
     public DbSet<CalendarEntry> CalendarEntries { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<CalendarEntry>()
+            .HasKey(c => new { c.Year, c.SolarMonth, c.SolarDay });
+        // Id 欄位不存在於 calendar 表，需明確排除
+        modelBuilder.Entity<CalendarEntry>()
+            .Ignore(c => c.Id);
+    }
 }
 
 

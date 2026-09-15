@@ -1983,6 +1983,10 @@ namespace Ecanapi.Migrations
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
+                    b.Property<string>("DayStem")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Direction")
                         .HasColumnType("text");
 
@@ -2099,6 +2103,194 @@ namespace Ecanapi.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenBaMen", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DefaultGong")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Desc")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("JiXiong")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WuXing")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenBaMens");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenBaShen", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Desc")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("JiXiong")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenBaShens");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenDiPanMap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("GongWei")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("JuShu")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TianGan")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("YinYang")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenDiPanMaps");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenJiuXing", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DefaultGong")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Desc")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("JiXiong")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WuXing")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenJiuXings");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenJuConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("JieQi")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("JieQiOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("JuShu")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("YinYang")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Yuan")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenJuConfigs");
+                });
+
+            modelBuilder.Entity("Ecanapi.Models.QiMenTianGan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Desc")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("JiXiong")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TianGan")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("QiMenTianGans");
                 });
 
             modelBuilder.Entity("Ecanapi.Models.StudentWhiteList", b =>
