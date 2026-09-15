@@ -84,7 +84,7 @@ namespace Ecanapi.Controllers
         //  GET /api/QiMen/paipan?date=2024-09-15&hour=14
         // ============================================================
 
-        /// <summary>奇門遁甲排盤（妙派標準）</summary>
+        /// <summary>奇門遁甲排盤（玉洞子標準）</summary>
         [HttpGet("paipan")]
         public async Task<IActionResult> PaiPan(
             [FromQuery] string date,
