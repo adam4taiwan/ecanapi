@@ -106,6 +106,14 @@ namespace Ecanapi.Data
         public DbSet<BaziJingLiuQin> BaziJingLiuQins { get; set; }
         public DbSet<BaziJingYunShi> BaziJingYunShis { get; set; }
 
+        // 奇門遁甲基礎知識庫
+        public DbSet<QiMenJiuXing> QiMenJiuXings { get; set; }
+        public DbSet<QiMenBaMen> QiMenBaMens { get; set; }
+        public DbSet<QiMenBaShen> QiMenBaShens { get; set; }
+        public DbSet<QiMenTianGan> QiMenTianGans { get; set; }
+        public DbSet<QiMenDiPanMap> QiMenDiPanMaps { get; set; }
+        public DbSet<QiMenJuConfig> QiMenJuConfigs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
