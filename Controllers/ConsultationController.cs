@@ -2463,46 +2463,24 @@ namespace Ecanapi.Controllers
                     return (lc.stem, lc.branch, lc.liuShen, lc.startAge, lc.endAge, score: sc, level: LfLuckLevel(sc));
                 }).ToList();
 
-                // === 日柱深度論斷 KB + 納音（供 LfBuildReport 使用）===
-                var bzDayKb = await _context.BaziDayPillarReadings
-                    .FirstOrDefaultAsync(r => r.DayPillar == dStem + dBranch);
-                string bzYNaYin = LfPillarNaYin(yearP);
-                string bzMNaYin = LfPillarNaYin(monthP);
-                string bzDNaYin = LfPillarNaYin(dayP);
-                string bzHNaYin = LfPillarNaYin(timeP);
+                // === 載入八字真經 KB 資料 ===
+                var bjConfigs  = await _context.BaziJingConfigs.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjCaiGuan  = await _context.BaziJingCaiGuans.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjXiang    = await _context.BaziJingXiangs.ToListAsync();
+                var bjShenSha  = await _context.BaziJingShenShas.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjKouJue   = await _context.BaziJingKouJues.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjLiuQin   = await _context.BaziJingLiuQins.OrderBy(x => x.SortOrder).ToListAsync();
+                var bjYunShi   = await _context.BaziJingYunShis.OrderBy(x => x.SortOrder).ToListAsync();
 
-                // === 六神四柱口訣 KB（Ch.5 六親論斷用）===
-                var bzPillarFormulas = (await _context.BaziPillarFormulas.ToListAsync())
-                    .Where(x => !string.IsNullOrEmpty(x.Position))
-                    .ToDictionary(x => x.Position!, x => x.NewDesc ?? x.Gd ?? "");
-
-                // === 八字主體 ===
-                bool bzGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
-                    && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
-
-                var bzBaziMingGongStars = await _context.BaziMingGongStars.ToListAsync();
-
-                string bz2AstroGeJu = await KbQuery($"SELECT COALESCE(\"Des1\",'') AS \"Value\" FROM ASTRO_DESC WHERE \"TYPE\"='格局' AND \"DS\"='{dStem}' AND \"MF\"='{mBranch}'");
-                string bz2QiongTong = await KbQuery($"SELECT COALESCE(content,'') AS \"Value\" FROM public.\"窮通寶鑑\" WHERE tg='{dStem}' AND dz='{mBranch}'");
-                string bz2GuFaTitle   = await KbQuery($"SELECT COALESCE(\"N\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string bz2GuFaContent = await KbQuery($"SELECT COALESCE(\"M\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string bz2GuFaHour    = await KbQuery($"SELECT COALESCE(\"{KbBranchToHourCol(hBranch)}\",'') AS \"Value\" FROM astro_twoheader WHERE trim(\"A\")='{yStem + hStem}'");
-                string bz2GuFaPoetry  = (string.IsNullOrWhiteSpace(bz2GuFaTitle) ? KbStripHtml(bz2GuFaContent) : $"《{bz2GuFaTitle}》\n{KbStripHtml(bz2GuFaContent)}")
-                                      + (string.IsNullOrWhiteSpace(bz2GuFaHour) ? "" : $"\n【時辰論斷】{KbStripHtml(bz2GuFaHour)}");
-                string report = LfBuildReport(
+                // === 八字真經主體（第一章~第十一章）===
+                string report = LfBuildBaZiJingReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    yStemSS, mStemSS, hStemSS, yBranchSS, mBranchSS, dBranchSS, hBranchSS,
-                    dmElem, wuXing, bodyPct, bodyLabel, season, seaLabel,
-                    pattern, yongShenElem, fuYiElem, yongReason, jiShenElem,
-                    scored, gender, birthYear,
-                    bzYNaYin, bzMNaYin, bzDNaYin, bzHNaYin, bzDayKb,
-                    bzPillarFormulas,
-                    mingGongStars: bzBaziMingGongStars,
-                    guoQi: bzGuoQi,
-                    astroDescGeJu: bz2AstroGeJu,
-                    qiongTongBaoJian: bz2QiongTong,
-                    guFaPoetry: bz2GuFaPoetry,
-                    tiaoHouElem: tiaoHouElem,
+                    gender, birthYear, user.Name ?? "",
+                    bodyPct, bodyLabel, pattern,
+                    yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
+                    wuXing, scored,
+                    LfPillarNaYin(yearP), LfPillarNaYin(monthP), LfPillarNaYin(dayP), LfPillarNaYin(timeP),
+                    bjConfigs, bjCaiGuan, bjXiang, bjShenSha, bjKouJue, bjLiuQin, bjYunShi,
                     solarDateStr: lfSolarDate, lunarDateStr: lfLunarDate);
 
                 // === 紫微斗數補充（從完整 JSON 讀取 palaces）===
@@ -2669,7 +2647,7 @@ namespace Ecanapi.Controllers
 
                     var bzSb = new System.Text.StringBuilder();
                     bzSb.AppendLine("=================================================================");
-                    bzSb.AppendLine("【第十一章：紫微星盤鑑定】");
+                    bzSb.AppendLine("【第十二章：紫微星盤鑑定】");
                     bzSb.AppendLine("=================================================================");
                     if (!string.IsNullOrEmpty(bzMingGongStars)) bzSb.AppendLine($"命宮主星：{bzMingGongStars}");
                     if (!string.IsNullOrEmpty(bzMingZhu))       bzSb.AppendLine($"命主：{bzMingZhu}");
@@ -2821,6 +2799,8 @@ namespace Ecanapi.Controllers
                 try
                 {
                     int mgYear = DateTime.Today.Year;
+                    bool bzGuoQi = user.BirthMonth.HasValue && user.BirthDay.HasValue
+                        && LfCheckGuoQi(birthYear, user.BirthMonth.Value, user.BirthDay.Value, mBranch, _calendarDb);
                     string mgBranchBz = LfCalcMingGongBranch(mBranch, hBranch, bzGuoQi);
                     if (!string.IsNullOrEmpty(mgBranchBz))
                     {
@@ -2860,7 +2840,7 @@ namespace Ecanapi.Controllers
                         var mgSb = new System.Text.StringBuilder();
                         mgSb.AppendLine();
                         mgSb.AppendLine("=================================================================");
-                        mgSb.AppendLine("【第十二章：流年歲星臨命圖】");
+                        mgSb.AppendLine("【第十三章：流年歲星臨命圖】");
                         mgSb.AppendLine("=================================================================");
                         mgSb.AppendLine($"（{mgYear}年 {flYearStem}{flYearBranch}）命宮在{mgBranchBz}（{mgStarNameBz}），小限臨命宮");
                         mgSb.AppendLine();
