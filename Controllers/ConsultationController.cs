@@ -8661,7 +8661,7 @@ namespace Ecanapi.Controllers
             sb.AppendLine("  健康壽元");
             sb.AppendLine("  生肖本命特性");
             sb.AppendLine("  目前行運");
-            sb.AppendLine("  人生警示事項");
+            sb.AppendLine("  人生警示事項（含小兒關煞）");
             sb.AppendLine("  適合行業建議");
             sb.AppendLine("  居家風水開運");
             sb.AppendLine("-----------------------------------------------------------------");
@@ -9048,6 +9048,65 @@ namespace Ecanapi.Controllers
             // === 人生警示事項 ===
             sb.AppendLine("【人生警示事項】");
             sb.AppendLine();
+
+            // 小兒關煞
+            sb.AppendLine("▍ 小兒關煞");
+            {
+                string season5bz = "寅卯辰".Contains(mBranch) ? "春"
+                    : "巳午未".Contains(mBranch) ? "夏"
+                    : "申酉戌".Contains(mBranch) ? "秋"
+                    : "冬";
+
+                var keShaTableBz = new List<(string season, string branches, string name)>
+                {
+                    ("春","巳丑","四季關"), ("夏","申辰","四季關"), ("秋","亥未","四季關"), ("冬","寅戌","四季關"),
+                    ("春","丑未","閻王關"), ("夏","辰戌","閻王關"), ("秋","子午","閻王關"), ("冬","寅卯","閻王關"),
+                    ("春","酉戌辰","將軍箭"),("夏","子卯未","將軍箭"),("秋","午寅丑","將軍箭"),("冬","亥申巳","將軍箭"),
+                    ("春","寅申","深水關"), ("夏","丑未","深水關"), ("秋","亥酉","深水關"), ("冬","丑未","深水關"),
+                    ("春","未戌","水火關"), ("夏","丑辰","水火關"), ("秋","丑戌","水火關"), ("冬","辰未","水火關"),
+                    ("春","午","夜啼關"),   ("夏","酉","夜啼關"),   ("秋","子","夜啼關"),   ("冬","卯","夜啼關"),
+                    ("春","亥子","急腳關"), ("夏","卯未","急腳關"), ("秋","寅戌","急腳關"), ("冬","丑辰","急腳關"),
+                    ("春","寅子","無情關"), ("夏","巳亥","無情關"), ("秋","申丑","無情關"), ("冬","子午","無情關"),
+                };
+
+                var foundBz = keShaTableBz
+                    .Where(r => r.season == season5bz && r.branches.Contains(hBranch))
+                    .Select(r => r.name)
+                    .ToList();
+
+                var keShaTable2Bz = new Dictionary<string, List<(string branches, string name)>>
+                {
+                    ["甲"] = new() { ("午辰","千日關"), ("巳","落井關"), ("酉","白虎關"), ("辰","鐵蛇關"), ("巳","雞飛關"), ("申","取命關") },
+                    ["乙"] = new() { ("午","千日關"),   ("子","落井關"), ("酉","白虎關"), ("辰","鐵蛇關"), ("子","雞飛關"), ("子","取命關") },
+                    ["丙"] = new() { ("申酉","千日關"), ("申","落井關"), ("子","白虎關"), ("未","鐵蛇關"), ("子","雞飛關"), ("辰","取命關") },
+                    ["丁"] = new() { ("申","千日關"),   ("戌","落井關"), ("子","白虎關"), ("未","鐵蛇關"), ("子","雞飛關"), ("申","取命關") },
+                    ["戊"] = new() { ("巳戌","千日關"), ("卯","落井關"), ("午","白虎關"), ("寅","鐵蛇關"), ("酉","雞飛關"), ("卯","取命關") },
+                    ["己"] = new() { ("巳","千日關"),   ("巳","落井關"), ("午","白虎關"), ("寅","鐵蛇關"), ("酉","雞飛關"), ("未","取命關") },
+                    ["庚"] = new() { ("寅","千日關"),   ("子","落井關"), ("卯","白虎關"), ("戌","鐵蛇關"), ("卯","雞飛關"), ("亥","取命關") },
+                    ["辛"] = new() { ("寅","千日關"),   ("申","落井關"), ("卯","白虎關"), ("戌","鐵蛇關"), ("戌","雞飛關"), ("寅","取命關") },
+                    ["壬"] = new() { ("丑亥","千日關"), ("戌","落井關"), ("午","白虎關"), ("丑","鐵蛇關"), ("午","雞飛關"), ("午","取命關") },
+                    ["癸"] = new() { ("丑亥","千日關"), ("卯","落井關"), ("午","白虎關"), ("丑","鐵蛇關"), ("寅","雞飛關"), ("戌","取命關") },
+                };
+
+                if (keShaTable2Bz.TryGetValue(dStem, out var stemEntriesBz))
+                {
+                    foreach (var (branches2, name2) in stemEntriesBz)
+                        if (branches2.Contains(hBranch))
+                            foundBz.Add(name2);
+                }
+
+                if (foundBz.Count > 0)
+                {
+                    string shaNamesBz = string.Join("、", foundBz.Distinct());
+                    sb.AppendLine($"命帶：{shaNamesBz}。幼年需多加注意身體平安，宜適時化解。");
+                }
+                else
+                {
+                    sb.AppendLine("幼年平順，無小兒關煞。");
+                }
+            }
+            sb.AppendLine();
+
             sb.AppendLine("▍ 小人防範");
             sb.AppendLine(LfXiaoRenAnalysis(yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch, jiShenElem, dmElem));
             sb.AppendLine();
