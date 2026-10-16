@@ -14085,7 +14085,8 @@ namespace Ecanapi.Controllers
             sb.AppendLine(KbSanmenHealthLongevity(
                 yStem, mStem, hStem, yBranch, mBranch, dBranch, hBranch,
                 dStem, dmElem, bodyPct, yongShenElem, jiShenElem,
-                wuXing, season, seaLabel, scored, currentAge));
+                wuXing, season, seaLabel, scored, currentAge,
+                yzjLunarMonth, yzjLunarDay, gender));
             // 紫微疾厄宮補充
             if (hasZiwei)
             {
@@ -15524,7 +15525,8 @@ namespace Ecanapi.Controllers
             string yongShenElem, string jiShenElem,
             Dictionary<string, double> wuXing, string season, string seaLabel,
             List<(string stem, string branch, string liuShen, int startAge, int endAge, int score, string level)> scored,
-            int currentAge = 0)
+            int currentAge = 0,
+            int lunarMonth = 0, int lunarDay = 0, int gender = 1)
         {
             var sb = new StringBuilder();
 
@@ -15534,16 +15536,38 @@ namespace Ecanapi.Controllers
             double jiPct   = wuXing.GetValueOrDefault(jiShenElem, 0);
             double zhiPct  = wuXing.GetValueOrDefault(zhiShenElem, 0);
 
+            // 一掌經時宮位置（男順女逆，依年支+農曆月日時推算）
+            var yzjBr = new[] { "子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥" };
+            int y0yzj = Array.IndexOf(yzjBr, yBranch);
+            int h0yzj = Array.IndexOf(yzjBr, hBranch);
+            int hPyzj = -1;
+            if (y0yzj >= 0 && h0yzj >= 0 && lunarMonth > 0 && lunarDay > 0)
+            {
+                if (gender == 1) // 男順
+                {
+                    int mPyzj = (y0yzj + lunarMonth - 1) % 12;
+                    int dPyzj = (mPyzj + lunarDay   - 1) % 12;
+                    hPyzj = (dPyzj + h0yzj) % 12;
+                }
+                else // 女逆
+                {
+                    int mPyzj = ((y0yzj - (lunarMonth - 1)) % 12 + 12) % 12;
+                    int dPyzj = ((mPyzj - (lunarDay   - 1)) % 12 + 12) % 12;
+                    hPyzj = ((dPyzj - h0yzj) % 12 + 12) % 12;
+                }
+            }
+            string hPBranch = hPyzj >= 0 ? yzjBr[hPyzj] : "";
+
             // === 長壽標誌總覽 ===
             var longevityMarkers = new List<string>();
 
-            // 天壽宮（一掌經，時支居亥）
-            if (hBranch == "亥")
-                longevityMarkers.Add("天壽宮（時支居亥，一掌經天壽之位，主長壽）");
+            // 天壽宮（一掌經時宮落亥，天壽星）
+            if (hPBranch == "亥")
+                longevityMarkers.Add("天壽宮（一掌經時宮落亥，天壽星入位，主長壽）");
 
-            // 仙道命格（時支巳或亥）
-            if (hBranch == "巳" || hBranch == "亥")
-                longevityMarkers.Add("仙道命格（時支居巳亥，主超凡延壽，常見百歲高壽之人）");
+            // 仙道命格（一掌經時宮落巳或亥）
+            if (hPBranch == "巳" || hPBranch == "亥")
+                longevityMarkers.Add("仙道命格（一掌經時宮落巳亥仙道，主超凡延壽，常見百歲高壽之人）");
 
             // 元神充足
             if (bodyPct >= 55)
