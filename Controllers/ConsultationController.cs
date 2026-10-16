@@ -2168,7 +2168,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
@@ -2407,7 +2407,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
@@ -3026,7 +3026,7 @@ namespace Ecanapi.Controllers
                     }
                 }
                 string ydzUserName = !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? "");
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
 
                 // 四立前18天才土旺，其他依季節（秋金/冬水/春木/夏火）
                 string birthSolarTerm = "";
@@ -3456,7 +3456,7 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
                 var chartStems = new[] { yStem, mStem, dStem, hStem };
                 var chartBranches = new[] { yBranch, mBranch, dBranch, hBranch };
 
@@ -3587,7 +3587,7 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
-                var luckCycles   = LfExtractLuckCycles(root);
+                var luckCycles   = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
                 var chartStems   = new[] { yStem, mStem, dStem, hStem };
                 var chartBranches = new[] { yBranch, mBranch, dBranch, hBranch };
 
@@ -3713,7 +3713,7 @@ namespace Ecanapi.Controllers
                 int? reqHour   = request.BirthHour.HasValue  ? request.BirthHour  : user.BirthHour;
                 int? reqMinute = request.BirthMinute.HasValue ? request.BirthMinute : user.BirthMinute;
                 string docxUserName = !string.IsNullOrEmpty(request?.PersonName) ? request.PersonName : (user.Name ?? "");
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
 
                 // fallback：lunarBirthDate 為空時，查 calendar DB（必須用 FromSqlInterpolated，EF Core LINQ 有 null 回傳 bug）
                 if ((lunarMonthDocx <= 0 || lunarDayDocx <= 0) && reqMonth.HasValue && reqDay.HasValue)
@@ -4977,7 +4977,7 @@ namespace Ecanapi.Controllers
                     dmElem, wuXing, bodyPct, season, siLingStem);
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
 
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
 
                 int startYear = DateTime.Today.Year;
@@ -5338,6 +5338,51 @@ namespace Ecanapi.Controllers
         private static readonly List<string[]> LfXing = new()
             { new[] { "寅","巳","申" }, new[] { "丑","戌","未" }, new[] { "子","卯" } };
 
+        // 六十甲子順序（用於大運延伸 & 納音計算）
+        private static readonly string[] LfJiazi60 = {
+            "甲子","乙丑","丙寅","丁卯","戊辰","己巳","庚午","辛未","壬申","癸酉",
+            "甲戌","乙亥","丙子","丁丑","戊寅","己卯","庚辰","辛巳","壬午","癸未",
+            "甲申","乙酉","丙戌","丁亥","戊子","己丑","庚寅","辛卯","壬辰","癸巳",
+            "甲午","乙未","丙申","丁酉","戊戌","己亥","庚子","辛丑","壬寅","癸卯",
+            "甲辰","乙巳","丙午","丁未","戊申","己酉","庚戌","辛亥","壬子","癸丑",
+            "甲寅","乙卯","丙辰","丁巳","戊午","己未","庚申","辛酉","壬戌","癸亥"
+        };
+
+        // 六十甲子納音（用於大運壽元納音分析）
+        private static readonly Dictionary<string, string> LfNaYin60 = new()
+        {
+            ["甲子"]="海中金",["乙丑"]="海中金", ["丙寅"]="爐中火",["丁卯"]="爐中火",
+            ["戊辰"]="大林木",["己巳"]="大林木", ["庚午"]="路旁土",["辛未"]="路旁土",
+            ["壬申"]="劍鋒金",["癸酉"]="劍鋒金", ["甲戌"]="山頭火",["乙亥"]="山頭火",
+            ["丙子"]="澗下水",["丁丑"]="澗下水", ["戊寅"]="城頭土",["己卯"]="城頭土",
+            ["庚辰"]="白蠟金",["辛巳"]="白蠟金", ["壬午"]="楊柳木",["癸未"]="楊柳木",
+            ["甲申"]="泉中水",["乙酉"]="泉中水", ["丙戌"]="屋上土",["丁亥"]="屋上土",
+            ["戊子"]="霹靂火",["己丑"]="霹靂火", ["庚寅"]="松柏木",["辛卯"]="松柏木",
+            ["壬辰"]="長流水",["癸巳"]="長流水", ["甲午"]="沙中金",["乙未"]="沙中金",
+            ["丙申"]="山下火",["丁酉"]="山下火", ["戊戌"]="平地木",["己亥"]="平地木",
+            ["庚子"]="壁上土",["辛丑"]="壁上土", ["壬寅"]="金箔金",["癸卯"]="金箔金",
+            ["甲辰"]="覆燈火",["乙巳"]="覆燈火", ["丙午"]="天河水",["丁未"]="天河水",
+            ["戊申"]="大驛土",["己酉"]="大驛土", ["庚戌"]="釵釧金",["辛亥"]="釵釧金",
+            ["壬子"]="桑柘木",["癸丑"]="桑柘木", ["甲寅"]="大溪水",["乙卯"]="大溪水",
+            ["丙辰"]="沙中土",["丁巳"]="沙中土", ["戊午"]="天上火",["己未"]="天上火",
+            ["庚申"]="石榴木",["辛酉"]="石榴木", ["壬戌"]="大海水",["癸亥"]="大海水",
+        };
+
+        // 取干支納音名稱
+        private static string LfGetNaYin(string stem, string branch)
+            => LfNaYin60.TryGetValue(stem + branch, out var v) ? v : "";
+
+        // 取納音五行（末字判斷）
+        private static string LfGetNaYinElem(string nayin)
+        {
+            if (nayin.EndsWith("金")) return "金";
+            if (nayin.EndsWith("木")) return "木";
+            if (nayin.EndsWith("水")) return "水";
+            if (nayin.EndsWith("火")) return "火";
+            if (nayin.EndsWith("土")) return "土";
+            return "";
+        }
+
         // 二十四節氣人元司令用事表：月支 → [(藏干, 累積天數上限), ...]
         private static readonly Dictionary<string, (string stem, int endDay)[]> LfSilingTable = new()
         {
@@ -5448,9 +5493,10 @@ namespace Ecanapi.Controllers
             return "";
         }
 
-        private static List<(string stem, string branch, string liuShen, int startAge, int endAge)> LfExtractLuckCycles(JsonElement root)
+        private static List<(string stem, string branch, string liuShen, int startAge, int endAge)> LfExtractLuckCycles(
+            JsonElement root, int currentAge = 0)
         {
-            var list = new List<(string, string, string, int, int)>();
+            var list = new List<(string stem, string branch, string liuShen, int startAge, int endAge)>();
             if (!root.TryGetProperty("baziLuckCycles", out var cycles) || cycles.ValueKind != JsonValueKind.Array)
                 return list;
             foreach (var c in cycles.EnumerateArray())
@@ -5461,6 +5507,28 @@ namespace Ecanapi.Controllers
                 int sa    = c.TryGetProperty("startAge",      out var sa2) ? sa2.GetInt32() : 0;
                 int ea    = c.TryGetProperty("endAge",        out var ea2) ? ea2.GetInt32() : 0;
                 if (!string.IsNullOrEmpty(s)) list.Add((s, b, ls, sa, ea));
+            }
+            // 自動延伸大運：若命主年齡超出已有大運範圍，依順/逆規律延伸至涵蓋當前年齡
+            if (currentAge > 0 && list.Count >= 2 && list.Last().endAge < currentAge)
+            {
+                var last       = list[list.Count - 1];
+                var secondLast = list[list.Count - 2];
+                int posLast       = Array.IndexOf(LfJiazi60, last.stem + last.branch);
+                int posSecondLast = Array.IndexOf(LfJiazi60, secondLast.stem + secondLast.branch);
+                if (posLast >= 0 && posSecondLast >= 0)
+                {
+                    int diff      = (posLast - posSecondLast + 60) % 60;
+                    int direction = diff == 1 ? 1 : -1; // +1=順行, -1=逆行
+                    int curPos    = posLast;
+                    while (list.Last().endAge < currentAge)
+                    {
+                        curPos = (curPos + direction + 60) % 60;
+                        string gz      = LfJiazi60[curPos];
+                        int newStart   = list.Last().endAge + 1;
+                        int newEnd     = newStart + 9;
+                        list.Add((gz[..1], gz[1..], "", newStart, newEnd));
+                    }
+                }
             }
             return list;
         }
@@ -14147,6 +14215,46 @@ namespace Ecanapi.Controllers
                     if (interParts14.Count > 0)
                         sb.AppendLine($"干支互動：{string.Join("；", interParts14)}");
 
+                    // 返吟/伏吟/刑沖月支日支/納音相剋
+                    var fuyinParts14 = new List<string>();
+                    var stemClashPairs14 = new HashSet<string> { "甲庚","庚甲","乙辛","辛乙","丙壬","壬丙","丁癸","癸丁" };
+                    // 天干返吟（大運天干沖月干/日干）
+                    if (stemClashPairs14.Contains(lc.stem + mStem))
+                        fuyinParts14.Add($"天干返吟月干（{lc.stem}沖{mStem}），原局月柱天干被沖，計劃易遇波折阻力");
+                    if (stemClashPairs14.Contains(lc.stem + dStem))
+                        fuyinParts14.Add($"天干返吟日干（{lc.stem}沖{dStem}），元神天干受沖，健康能量消耗偏大，宜謹慎保養");
+                    // 地支返吟（大運地支沖月支/日支）
+                    if (LfChong.Contains(lc.branch + mBranch))
+                        fuyinParts14.Add($"地支返吟月支（{lc.branch}沖{mBranch}），原局月柱地支被沖，家庭根基動盪，青年格局受衝擊");
+                    if (LfChong.Contains(lc.branch + dBranch))
+                        fuyinParts14.Add($"地支返吟日支（{lc.branch}沖{dBranch}），日支宮被沖，婚姻家宅不安，元神損耗較大");
+                    // 地支伏吟（大運地支同月支/日支）
+                    if (lc.branch == mBranch)
+                        fuyinParts14.Add($"地支伏吟月支（{lc.branch}疊{mBranch}），月柱鬱滯重疊，事業方向易原地打轉");
+                    if (lc.branch == dBranch)
+                        fuyinParts14.Add($"地支伏吟日支（{lc.branch}疊{dBranch}），日支鬱滯重疊，婚姻感情易停滯壓抑");
+                    // 地支刑月支/日支（LfXing 為分組三刑/相刑）
+                    bool xingMBranch14 = lc.branch != mBranch && LfXing.Any(grp => grp.Contains(lc.branch) && grp.Contains(mBranch));
+                    bool xingDBranch14 = lc.branch != dBranch && LfXing.Any(grp => grp.Contains(lc.branch) && grp.Contains(dBranch));
+                    if (xingMBranch14)
+                        fuyinParts14.Add($"大運地支{lc.branch}刑月支{mBranch}，月柱遭刑，工作環境波折，宜防突發意外");
+                    if (xingDBranch14)
+                        fuyinParts14.Add($"大運地支{lc.branch}刑日支{dBranch}，日支遭刑，健康與感情宜加強保護");
+                    // 納音相剋：大運納音五行克年柱納音五行
+                    string lcNaYin14  = LfGetNaYin(lc.stem, lc.branch);
+                    string lcNaElem14 = LfGetNaYinElem(lcNaYin14);
+                    string yrNaYin14  = LfGetNaYin(yStem, yBranch);
+                    string yrNaElem14 = LfGetNaYinElem(yrNaYin14);
+                    if (!string.IsNullOrEmpty(lcNaElem14) && !string.IsNullOrEmpty(yrNaElem14)
+                        && LfElemOvercome.GetValueOrDefault(lcNaElem14, "") == yrNaElem14)
+                        fuyinParts14.Add($"納音相剋（大運納音{lcNaYin14}·{lcNaElem14} 克 年柱納音{yrNaYin14}·{yrNaElem14}），壽元根基受克，此運健康宜特別留意");
+                    if (fuyinParts14.Count > 0)
+                    {
+                        sb.AppendLine("返吟伏吟刑沖納音：");
+                        foreach (var fp in fuyinParts14)
+                            sb.AppendLine($"  ▲ {fp}");
+                    }
+
                     // 紫微大限命宮分析
                     if (hasZiwei && palacesYdz.ValueKind == JsonValueKind.Array)
                     {
@@ -15425,6 +15533,104 @@ namespace Ecanapi.Controllers
             double yongPct = wuXing.GetValueOrDefault(yongShenElem, 0);
             double jiPct   = wuXing.GetValueOrDefault(jiShenElem, 0);
             double zhiPct  = wuXing.GetValueOrDefault(zhiShenElem, 0);
+
+            // === 長壽標誌總覽 ===
+            var longevityMarkers = new List<string>();
+
+            // 天壽宮（一掌經，時支居亥）
+            if (hBranch == "亥")
+                longevityMarkers.Add("天壽宮（時支居亥，一掌經天壽之位，主長壽）");
+
+            // 仙道命格（時支巳或亥）
+            if (hBranch == "巳" || hBranch == "亥")
+                longevityMarkers.Add("仙道命格（時支居巳亥，主超凡延壽，常見百歲高壽之人）");
+
+            // 元神充足
+            if (bodyPct >= 55)
+                longevityMarkers.Add($"元神旺（{bodyPct:F0}%），先天體質充沛，生命力強韌");
+
+            // 印星護身（生我之五行為用神）
+            string yinStarElem = LfGenByElem.GetValueOrDefault(dmElem, "");
+            double yinPct = wuXing.GetValueOrDefault(yinStarElem, 0);
+            if (yinStarElem == yongShenElem && yinPct >= 15)
+                longevityMarkers.Add($"印星護身（印星{yinStarElem}為用神，占{yinPct:F0}%，母蔭護命主壽）");
+
+            // 食神主福壽（我生之五行，非忌神）
+            string shishenElem = LfElemGen.GetValueOrDefault(dmElem, "");
+            double shishenPct  = wuXing.GetValueOrDefault(shishenElem, 0);
+            if (shishenPct >= 15 && shishenElem != jiShenElem)
+                longevityMarkers.Add($"食神主福壽（食傷{shishenElem}占{shishenPct:F0}%，非忌神，主福壽綿長）");
+
+            // 食神制殺（七殺被食神制住）
+            string qishaElem = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
+            double qishaPct  = wuXing.GetValueOrDefault(qishaElem, 0);
+            if (qishaPct >= 20 && shishenPct >= 10)
+                longevityMarkers.Add($"食神制殺（七殺{qishaElem}旺{qishaPct:F0}%，食神{shishenElem}制之，格局反貴，有延壽之象）");
+
+            // 命局無六沖
+            var bcPairsLong = new HashSet<string> { "子午","午子","丑未","未丑","寅申","申寅","卯酉","酉卯","辰戌","戌辰","巳亥","亥巳" };
+            var br4Long = new[] { yBranch, mBranch, dBranch, hBranch };
+            bool noClashLong = true;
+            for (int i = 0; i < br4Long.Length && noClashLong; i++)
+                for (int j = i + 1; j < br4Long.Length && noClashLong; j++)
+                    if (bcPairsLong.Contains(br4Long[i] + br4Long[j])) noClashLong = false;
+            if (noClashLong)
+                longevityMarkers.Add("命局無六沖，氣機和諧，臟腑能量穩定，有益壽元");
+
+            // 五行均衡（全部 >= 8%）
+            if (wuXing.Values.All(v => v >= 8))
+                longevityMarkers.Add("五行分布均衡，五臟全面滋養，長壽體質");
+
+            // 月德貴人（逢凶化吉）
+            var yueDeStemMap = new Dictionary<string, string>
+            {
+                ["寅"]="丙", ["午"]="丙", ["戌"]="丙",
+                ["申"]="壬", ["子"]="壬", ["辰"]="壬",
+                ["巳"]="庚", ["酉"]="庚", ["丑"]="庚",
+                ["亥"]="甲", ["卯"]="甲", ["未"]="甲"
+            };
+            var allStemsLong = new[] { yStem, mStem, dStem, hStem };
+            if (yueDeStemMap.TryGetValue(mBranch, out string yueDeGan) &&
+                allStemsLong.Contains(yueDeGan))
+                longevityMarkers.Add($"月德貴人（月支{mBranch}對應月德干{yueDeGan}，命局天干有{yueDeGan}），逢凶化吉，一生受護");
+
+            // 天乙貴人（日干對應命局地支）
+            var tianYiMap = new Dictionary<string, List<string>>
+            {
+                ["甲"] = new(){"丑","未"}, ["戊"] = new(){"丑","未"}, ["庚"] = new(){"丑","未"},
+                ["乙"] = new(){"子","申"}, ["己"] = new(){"子","申"},
+                ["丙"] = new(){"亥","酉"}, ["丁"] = new(){"亥","酉"},
+                ["壬"] = new(){"卯","巳"}, ["癸"] = new(){"卯","巳"},
+                ["辛"] = new(){"午","寅"}
+            };
+            if (tianYiMap.TryGetValue(dStem, out var tianYiBrs))
+            {
+                var matchedBr = br4Long.FirstOrDefault(b => tianYiBrs.Contains(b));
+                if (matchedBr != null)
+                    longevityMarkers.Add($"天乙貴人（日干{dStem}，命局含貴人地支{matchedBr}），一生逢難得助，吉護有緣");
+            }
+
+            // 時柱喜用（晚年氣場有利）
+            string hStemElemLong   = KbStemToElement(hStem);
+            string hBranchElemLong = LfBranchElem.GetValueOrDefault(hBranch, "");
+            if (hStemElemLong == yongShenElem || hBranchElemLong == yongShenElem)
+                longevityMarkers.Add($"時柱喜用（時柱{hStem}{hBranch}含用神{yongShenElem}），晚年氣場有利，有善終長壽之象");
+
+            // 輸出長壽標誌
+            sb.AppendLine("【長壽標誌總覽】");
+            if (longevityMarkers.Count == 0)
+            {
+                sb.AppendLine("  本命未見明顯長壽標誌，壽元以元神強弱及大運流年吉凶為主要判斷依據。");
+            }
+            else
+            {
+                sb.AppendLine($"  本命具備以下 {longevityMarkers.Count} 項長壽象徵：");
+                foreach (var marker in longevityMarkers)
+                    sb.AppendLine($"  ★ {marker}");
+                if (longevityMarkers.Count >= 3)
+                    sb.AppendLine("  多項長壽標誌共現，先天壽元充厚，有高壽之質。");
+            }
+            sb.AppendLine();
 
             // === 元神/扶神/制神/壞神 ===
             sb.AppendLine("【元神·扶神·制神·壞神 四象定位】");
@@ -21514,7 +21720,7 @@ namespace Ecanapi.Controllers
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 var chartStems4   = new[] { yStem, mStem, dStem, hStem };
 
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
 
                 var (flStem, flBranch) = DyGetYearStemBranch(year);
@@ -23653,7 +23859,7 @@ namespace Ecanapi.Controllers
                 string jiShenElem = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
                 var chartStems5   = new[] { yStem, mStem, dStem, hStem };
 
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
                 bool hasZiwei  = root.TryGetProperty("palaces", out var palaces) && palaces.ValueKind == JsonValueKind.Array;
 
                 // 當前大運
@@ -24185,7 +24391,7 @@ namespace Ecanapi.Controllers
 
                 int birthYear = user.BirthYear ?? (DateTime.Today.Year - 30);
                 int gender    = user.BirthGender ?? 1;
-                var luckCycles = LfExtractLuckCycles(root);
+                var luckCycles = LfExtractLuckCycles(root, DateTime.Today.Year - birthYear);
 
                 string birthSolarTerm = "";
                 if (user.BirthMonth.HasValue && user.BirthDay.HasValue)
