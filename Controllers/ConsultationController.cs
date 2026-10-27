@@ -6283,13 +6283,15 @@ namespace Ecanapi.Controllers
                 "正財格" or "偏財格" when isWeak              => new[] { biElem, inElem },
                 "正財格" or "偏財格" when isStrong && biHeavy  => new[] { shiElem, guanElem },
                 "正財格" or "偏財格" when isStrong && inHeavy  => new[] { caiElem },
-                "正財格" or "偏財格"                           => new[] { guanElem, shiElem },
+                // 身強默認：官殺制衡旺身，財生官為輔（食傷為次忌克官殺，不可列為輔助）
+                "正財格" or "偏財格"                           => new[] { guanElem, caiElem },
 
                 "正印格" or "偏印格" when isWeak && guanHeavy => new[] { inElem },
                 "正印格" or "偏印格" when isWeak && shiHeavy  => new[] { inElem },
                 "正印格" or "偏印格" when isWeak && caiHeavy  => new[] { biElem, inElem },
                 "正印格" or "偏印格" when isWeak              => new[] { inElem, biElem },
-                "正印格" or "偏印格" when isStrong && biHeavy  => new[] { guanElem, shiElem },
+                // 身強比劫重：官殺制衡，財生官為輔（食傷克官殺，不可為輔）
+                "正印格" or "偏印格" when isStrong && biHeavy  => new[] { guanElem, caiElem },
                 "正印格" or "偏印格" when isStrong && inHeavy  => new[] { caiElem },
                 "正印格" or "偏印格" when isStrong && caiHeavy => new[] { guanElem },
                 "正印格" or "偏印格"                           => new[] { guanElem, caiElem },
@@ -6319,8 +6321,10 @@ namespace Ecanapi.Controllers
                 "建祿格" when isStrong && biHeavy  => new[] { guanElem, caiElem },  // 官無根時降到財
                 "建祿格" when isStrong && inHeavy  => new[] { caiElem },
                 "建祿格" when isStrong && shiHeavy => new[] { caiElem },         // 古文：傷食多身強→財
-                "建祿格" when isStrong && caiHeavy => new[] { guanElem, shiElem },
-                "建祿格"                           => new[] { guanElem, shiElem },
+                // 財重取官殺馭財，財生官為輔（食傷克官殺，不可為輔）
+                "建祿格" when isStrong && caiHeavy => new[] { guanElem, caiElem },
+                // 身強默認：官殺制身，財生官為輔
+                "建祿格"                           => new[] { guanElem, caiElem },
 
                 "月刃格" when isWeak && caiHeavy  => new[] { inElem, biElem },  // 財重身弱→印比生扶
                 "月刃格" when isWeak && guanHeavy => new[] { inElem },          // 官殺重身弱→印護身
@@ -6940,10 +6944,12 @@ namespace Ecanapi.Controllers
                 }
                 reason = $"古文格局法（{(bodyPct >= 60 ? "身強" : bodyPct < 45 ? "身弱" : "")}{pattern}，{lfYongRole}）";
 
-                // fuYiElem：候選清單第二位（排除主用神與忌神）
+                // fuYiElem：候選清單第二位（排除主用神、忌神、次忌）
+                // 次忌=克用神的五行，不可同時列為輔助喜神
                 string tempJiShen = LfGetJiShenElem(yongShenElem, dmElem, bodyPct, pattern, wuXing);
+                string tempCiJi   = LfElemOvercomeBy.GetValueOrDefault(yongShenElem, "");
                 fuYiElem = candidates
-                    .Where(e => e != yongShenElem && e != tempJiShen)
+                    .Where(e => e != yongShenElem && e != tempJiShen && e != tempCiJi)
                     .FirstOrDefault() ?? yongShenElem;
                 // 若無第二候選（fuYiElem==yongShenElem），補預設喜神以防調候覆蓋
                 // 韋千里：身弱逢印比為善→喜=比劫；身強逢財官食為善→喜=食傷
