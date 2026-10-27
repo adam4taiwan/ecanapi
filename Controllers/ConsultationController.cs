@@ -6269,9 +6269,13 @@ namespace Ecanapi.Controllers
                 "七殺格" when isStrong && biHeavy  => new[] { guanElem },
                 "七殺格" when isStrong && inHeavy  => new[] { caiElem },
                 "七殺格" when isStrong && guanHeavy => new[] { shiElem, caiElem },
-                // 中和（45-54%）：七殺已得月令，不再取七殺為用；取食神制殺或印化殺
-                "七殺格" when !isStrong && !isWeak => new[] { shiElem, inElem },
-                "七殺格"                            => new[] { guanElem, shiElem },
+                // 中和偏弱（45-49%）：日主力量不足駕馭七殺 → 食傷制殺，財為輔
+                "七殺格" when !isStrong && !isWeak && bodyPct < 50 => new[] { shiElem, caiElem },
+                // 中和偏強（50-54%）：日主有一定力量 → 用殺（同身強方向），財生殺為輔
+                // 食傷在用殺格局中反為次忌（克用神土），故輔助取財不取食傷
+                "七殺格" when !isStrong && !isWeak => new[] { guanElem, caiElem },
+                // 身強默認：用殺，財生殺格局更純（食傷為次忌，克用神官殺）
+                "七殺格"                            => new[] { guanElem, caiElem },
 
                 "正財格" or "偏財格" when isWeak && shiHeavy  => new[] { inElem, biElem },
                 "正財格" or "偏財格" when isWeak && caiHeavy  => new[] { biElem, inElem },
