@@ -2356,7 +2356,7 @@ namespace Ecanapi.Controllers
 
         [HttpGet("analyze-bazi-ziwei")]
         [Authorize]
-        public async Task<IActionResult> GetBaziZiweiAnalysis()
+        public async Task<IActionResult> GetBaziZiweiAnalysis([FromQuery] string? personName = null)
         {
             var identity = User.FindFirstValue(ClaimTypes.Email)
                          ?? User.FindFirstValue(ClaimTypes.Name)
@@ -2475,7 +2475,7 @@ namespace Ecanapi.Controllers
                 // === 八字真經主體（第一章~第十一章）===
                 string report = LfBuildBaZiJingReport(
                     yStem, yBranch, mStem, mBranch, dStem, dBranch, hStem, hBranch,
-                    gender, birthYear, user.Name ?? "",
+                    gender, birthYear, !string.IsNullOrEmpty(personName) ? personName : (user.Name ?? ""),
                     bodyPct, bodyLabel, pattern,
                     yongShenElem, fuYiElem, jiShenElem, yongReason, tiaoHouElem, season,
                     wuXing, scored,
