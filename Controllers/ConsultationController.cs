@@ -6269,6 +6269,8 @@ namespace Ecanapi.Controllers
                 "七殺格" when isStrong && biHeavy  => new[] { guanElem },
                 "七殺格" when isStrong && inHeavy  => new[] { caiElem },
                 "七殺格" when isStrong && guanHeavy => new[] { shiElem, caiElem },
+                // 中和（45-54%）：七殺已得月令，不再取七殺為用；取食神制殺或印化殺
+                "七殺格" when !isStrong && !isWeak => new[] { shiElem, inElem },
                 "七殺格"                            => new[] { guanElem, shiElem },
 
                 "正財格" or "偏財格" when isWeak && shiHeavy  => new[] { inElem, biElem },
@@ -6483,9 +6485,14 @@ namespace Ecanapi.Controllers
                 // 中和：官殺分 vs 印分，誰重誰為大忌（格局需就重論斷）
                 string guanE = LfElemOvercomeBy.GetValueOrDefault(dmElem, "");
                 string inE   = LfGenByElem.GetValueOrDefault(dmElem, "");
+                string ji;
                 if (wuXing != null)
-                    return wuXing.GetValueOrDefault(guanE, 0) >= wuXing.GetValueOrDefault(inE, 0) ? guanE : inE;
-                return guanE; // 無 wuXing 時保守取官殺
+                    ji = wuXing.GetValueOrDefault(guanE, 0) >= wuXing.GetValueOrDefault(inE, 0) ? guanE : inE;
+                else
+                    ji = guanE;
+                // 忌神不可等於用神（安全保護，防止邏輯矛盾）
+                if (ji == yongShenElem) ji = (ji == guanE) ? inE : guanE;
+                return ji;
             }
             return LfGenByElem.GetValueOrDefault(dmElem, "");
         }
