@@ -5628,36 +5628,55 @@ namespace Ecanapi.Controllers
         // 統一四階梯五行計分引擎（Unified 4-Tier WuXing Engine）
         // Tier1: 天干+10 / Tier2: 地支本氣+15,藏干+5 / Tier3: 相鄰拱合+12 / Tier4: 月令×1.3
         // 返回原始分數 dict（非百分比），與前端 calculator.ts 完全對齊
+        // 2026-10-27 優化：方案A 月干/時干緊鄰生克調整 + 方案B 日支通根+20、餘氣+3
         // ============================================================
         private static Dictionary<string, double> LfCalcWuXing4Tier(
             string yStem, string yBranch, string mStem, string mBranch,
             string dStem, string dBranch, string hStem, string hBranch)
         {
             var scores = new Dictionary<string, double> { {"木",0},{"火",0},{"土",0},{"金",0},{"水",0} };
-            var stems    = new[] { yStem, mStem, dStem, hStem };
             var branches = new[] { yBranch, mBranch, dBranch, hBranch };
+            string dmElem4 = KbStemToElement(dStem);
 
-            // Tier 1: 天干透干 +10/干
-            foreach (var s in stems)
+            // Tier 1: 天干透干
+            // 年干、日干各 +10，不額外調整
+            foreach (var s in new[] { yStem, dStem })
             {
                 var e = KbStemToElement(s);
                 if (!string.IsNullOrEmpty(e)) scores[e] += 10;
             }
-
-            // Tier 2: 地支本氣+15，餘氣藏干+5 each
-            // hiddenStems[0]=本氣干, hiddenStems[1+]=餘氣干
-            // hiddenElements[0+] = 餘氣五行（對應 hiddenStems[1+]）
-            foreach (var b in branches)
+            // 月干、時干：+10 基礎，再依與日干生克關係額外加減（方案A）
+            // 印星/比劫(生我/同我) +10，食傷(我生,洩身) -5，官殺(克我) -10，財星(我克) 不動
+            string t1InElem   = LfGenByElem.GetValueOrDefault(dmElem4, "");
+            string t1ShiElem  = LfElemGen.GetValueOrDefault(dmElem4, "");
+            string t1GuanElem = LfElemOvercomeBy.GetValueOrDefault(dmElem4, "");
+            foreach (var s in new[] { mStem, hStem })
             {
+                var e = KbStemToElement(s);
+                if (string.IsNullOrEmpty(e)) continue;
+                scores[e] += 10; // 基礎分
+                if      (e == dmElem4 || e == t1InElem) scores[e] += 10; // 比劫/印星 緊鄰加分
+                else if (e == t1ShiElem)                scores[e] -= 5;  // 食傷 緊鄰洩身扣分
+                else if (e == t1GuanElem)               scores[e] -= 10; // 官殺 緊鄰克身扣分
+                if (scores[e] < 0) scores[e] = 0;
+            }
+
+            // Tier 2: 地支本氣分層（方案B）
+            // 日支本氣 +20（通根日支最重要），其餘 +15；餘氣統一 +3（原+5）
+            // branches index: 0=年支 1=月支 2=日支 3=時支
+            var branchBase = new[] { 15, 15, 20, 15 };
+            for (int bi = 0; bi < 4; bi++)
+            {
+                var b = branches[bi];
                 if (!LfBranchHiddenRatio.TryGetValue(b, out var hidden) || hidden.Count == 0) continue;
                 // 本氣
                 var mainElem = KbStemToElement(hidden[0].stem);
-                if (!string.IsNullOrEmpty(mainElem)) scores[mainElem] += 15;
-                // 餘氣藏干
+                if (!string.IsNullOrEmpty(mainElem)) scores[mainElem] += branchBase[bi];
+                // 餘氣藏干 +3（原+5）
                 for (int i = 1; i < hidden.Count; i++)
                 {
                     var hidElem = KbStemToElement(hidden[i].stem);
-                    if (!string.IsNullOrEmpty(hidElem)) scores[hidElem] += 5;
+                    if (!string.IsNullOrEmpty(hidElem)) scores[hidElem] += 3;
                 }
             }
 
