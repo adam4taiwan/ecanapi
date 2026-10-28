@@ -17,9 +17,14 @@ namespace Ecanapi.Controllers
     public class NineStarController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly CalendarDbContext _calendarDb;
         private readonly IConfiguration _config;
         private readonly ILogger<NineStarController> _logger;
         private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
+
+        // 節氣日期快取（年份 → 節氣名稱 → 日期），避免重複查 DB
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, Dictionary<string, DateTime>>
+            _solarTermCache = new();
 
         // ============================================================
         //  靜態資料表
@@ -62,9 +67,11 @@ namespace Ecanapi.Controllers
         // ============================================================
         //  建構子
         // ============================================================
-        public NineStarController(ApplicationDbContext context, IConfiguration config, ILogger<NineStarController> logger)
+        public NineStarController(ApplicationDbContext context, CalendarDbContext calendarDb,
+            IConfiguration config, ILogger<NineStarController> logger)
         {
             _context = context;
+            _calendarDb = calendarDb;
             _config = config;
             _logger = logger;
         }
@@ -93,12 +100,12 @@ namespace Ecanapi.Controllers
 
         /// <summary>取得今日年/月/日/時四星（公開）</summary>
         [HttpGet("stars/today")]
-        public IActionResult GetTodayStars()
+        public async Task<IActionResult> GetTodayStars()
         {
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow.AddHours(8);
             int yearStar = NsCalcYearStar(now.Year);
             int monthStar = NsCalcMonthStar(now);
-            int dayStar = NsCalcDayStar(now);
+            int dayStar = await NsCalcDayStarAsync(now); // 精確版
             int hourStar = NsCalcHourStar(now);
 
             return Ok(new
@@ -262,7 +269,7 @@ namespace Ecanapi.Controllers
                 return Forbid();
 
             var now = DateTime.UtcNow.AddHours(8);
-            int dayStar   = NsCalcDayStar(now);
+            int dayStar   = await NsCalcDayStarAsync(now); // 精確版
             int yearStar  = NsCalcYearStar(now.Year);
             int monthStar = NsCalcMonthStar(now);
             string dayStem = NsGetDayStem(now);
@@ -623,7 +630,7 @@ namespace Ecanapi.Controllers
         internal async Task<string> NsBuildDailyFortune(int natalStar)
         {
             var now = DateTime.UtcNow.AddHours(8); // Taiwan time
-            int dayStar   = NsCalcDayStar(now);
+            int dayStar   = await NsCalcDayStarAsync(now); // 精確版（CalendarDB 節氣）
             int yearStar  = NsCalcYearStar(now.Year);
             int monthStar = NsCalcMonthStar(now);
             string dayStem = NsGetDayStem(now);
@@ -762,8 +769,8 @@ namespace Ecanapi.Controllers
 
             if (natalStar == 0) return BadRequest("找不到本命星資料，請先登記生辰");
 
-            var now = DateTime.Now;
-            int dayStar   = NsCalcDayStar(now);
+            var now = DateTime.UtcNow.AddHours(8); // 統一台灣時間
+            int dayStar   = await NsCalcDayStarAsync(now); // 精確版
             int monthStar = NsCalcMonthStar(now);
             int yearStar  = NsCalcYearStar(now.Year);
             int hourStar  = NsCalcHourStar(now);
@@ -958,6 +965,65 @@ namespace Ecanapi.Controllers
             // 每月遞減（月星逆排）
             int star = ((startStar - solarMonth + 1) % 9 + 9) % 9;
             return star == 0 ? 9 : star;
+        }
+
+        // ── 精確節氣查詢（從 CalendarDB 取得真實日期）──────────────────────
+
+        /// <summary>從 CalendarDB 取得指定年份的節氣日期，帶靜態快取</summary>
+        private async Task<Dictionary<string, DateTime>> GetSolarTermDatesAsync(int year)
+        {
+            if (_solarTermCache.TryGetValue(year, out var cached))
+                return cached;
+
+            string[] needed = ["雨水", "穀雨", "夏至", "處暑", "霜降", "冬至"];
+            var entries = await _calendarDb.CalendarEntries
+                .Where(c => c.Year == year && c.SolarTerm != null && needed.Contains(c.SolarTerm))
+                .ToListAsync();
+
+            var dict = entries
+                .Where(e => e.SolarTerm != null)
+                .ToDictionary(e => e.SolarTerm!, e => new DateTime(e.Year, e.SolarMonth, e.SolarDay));
+
+            _solarTermCache[year] = dict;
+            _logger.LogInformation("NineStar 節氣快取 {Year}: {Count} 筆", year, dict.Count);
+            return dict;
+        }
+
+        /// <summary>精確版日飛星計算（依 CalendarDB 節氣日期）</summary>
+        private async Task<int> NsCalcDayStarAsync(DateTime date)
+        {
+            var (startStar, forward, periodStart) = await NsGetDayStarPeriodAsync(date);
+            DateTime jiazi = NsGetLastJiaZiDay(periodStart);
+            int daysDiff = (int)(date.Date - jiazi).TotalDays;
+            int star = forward
+                ? ((startStar - 1 + daysDiff) % 9 + 9) % 9 + 1
+                : ((startStar - 1 - daysDiff) % 9 + 9) % 9 + 1;
+            return star;
+        }
+
+        /// <summary>精確版節氣區間判斷（CalendarDB，fallback 到固定日期）</summary>
+        private async Task<(int startStar, bool forward, DateTime periodStart)> NsGetDayStarPeriodAsync(DateTime date)
+        {
+            int year = date.Year;
+            var termsThis = await GetSolarTermDatesAsync(year);
+            var termsPrev = await GetSolarTermDatesAsync(year - 1);
+
+            DateTime yuShui      = termsThis.GetValueOrDefault("雨水",      new DateTime(year, 2, 19));
+            DateTime guYu        = termsThis.GetValueOrDefault("穀雨",      new DateTime(year, 4, 20));
+            DateTime xiaZhi      = termsThis.GetValueOrDefault("夏至",      new DateTime(year, 6, 21));
+            DateTime chuShu      = termsThis.GetValueOrDefault("處暑",      new DateTime(year, 8, 23));
+            DateTime shuangJiang = termsThis.GetValueOrDefault("霜降",      new DateTime(year, 10, 23));
+            DateTime dongZhi     = termsThis.GetValueOrDefault("冬至",      new DateTime(year, 12, 22));
+            DateTime prevDongZhi = termsPrev.GetValueOrDefault("冬至",      new DateTime(year - 1, 12, 22));
+
+            var d = date.Date;
+            if (d < yuShui)      return (1, true,  prevDongZhi);
+            if (d < guYu)        return (7, true,  yuShui);
+            if (d < xiaZhi)      return (4, true,  guYu);
+            if (d < chuShu)      return (9, false, xiaZhi);
+            if (d < shuangJiang) return (3, false, chuShu);
+            if (d < dongZhi)     return (6, false, shuangJiang);
+            return (1, true, dongZhi);
         }
 
         /// <summary>計算流日星（依節氣區間 + 甲子日順逆行）</summary>
