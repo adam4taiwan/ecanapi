@@ -247,6 +247,17 @@ namespace Ecanapi.Services
             return Zhi12[(((days + 4) % 12) + 12) % 12]; // +4 修正地支偏移
         }
 
+        // 天乙貴人時（依日干推算吉時）
+        private static string GetAlmanacJiShi(string? dayTianGan) => dayTianGan switch
+        {
+            "甲" or "戊" or "庚" => "丑時(01-03)、未時(13-15)",
+            "乙" or "己"         => "子時(23-01)、申時(15-17)",
+            "丙" or "丁"         => "亥時(21-23)、酉時(17-19)",
+            "壬" or "癸"         => "卯時(05-07)、巳時(09-11)",
+            "辛"                 => "午時(11-13)、寅時(03-05)",
+            _                    => "子時(23-01)、午時(11-13)"
+        };
+
         // ── 農民曆推播 ──────────────────────────────────────────────────────
 
         private async Task<string> BuildAlmanacMessageAsync(DateOnly pushDate)
@@ -265,11 +276,19 @@ namespace Ecanapi.Services
                 string yiji = await CallGeminiForYiJiAsync(cal);
                 string solarTermLine = string.IsNullOrEmpty(cal.SolarTerm) ? "" : $"節氣：{cal.SolarTerm}\n";
 
+                var today = new DateTime(pushDate.Year, pushDate.Month, pushDate.Day);
+                int dayStar = NineStarCalcHelper.CalcDayStar(today);
+                string dayStarName = NineStarCalcHelper.StarNames[dayStar];
+                string dayStarDir = NineStarCalcHelper.StarDirections[dayStar];
+                string jiShi = GetAlmanacJiShi(cal.DayTianGan);
+
                 return $"【今日農民曆 {pushDate.Month}/{pushDate.Day}（{cal.WeekDay}）】\n\n" +
-                       $"農曆 {cal.LunarMonth}{cal.LunarDay}\n" +
+                       $"農曆 {cal.LunarMonth}月{cal.LunarDay}日\n" +
                        $"干支：{cal.YearGanzhi}年 {cal.MonthGanzhi}月 {cal.DayGanzhi}日\n" +
                        solarTermLine +
-                       $"\n{yiji}\n\n" +
+                       $"今日九星：{dayStarName}（{dayStarDir}）\n\n" +
+                       $"{yiji}\n" +
+                       $"吉時：{jiShi}\n\n" +
                        $"── 玉洞子星相古學堂";
             }
             catch (Exception ex)
