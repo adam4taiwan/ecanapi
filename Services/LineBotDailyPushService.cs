@@ -182,6 +182,46 @@ namespace Ecanapi.Services
                 }
                 await context.SaveChangesAsync();
 
+                // Block 3：農民曆推播（所有開啟通知的用戶，不針對個人）
+                string almanacMsg = await BuildAlmanacMessageAsync(pushDate);
+                if (!string.IsNullOrEmpty(almanacMsg))
+                {
+                    var almanacUsers = await context.LineUsers
+                        .Where(u => u.NotifyEnabled)
+                        .ToListAsync();
+
+                    _logger.LogInformation("LineBotDailyPush 農民曆推播 {Count} 位", almanacUsers.Count);
+
+                    foreach (var lu in almanacUsers)
+                    {
+                        string almStatus = "success";
+                        string? almError = null;
+                        try
+                        {
+                            await PushMessageAsync(accessToken, lu.LineUserId, almanacMsg);
+                            await Task.Delay(100);
+                        }
+                        catch (Exception ex)
+                        {
+                            almStatus = "failed";
+                            almError = ex.Message;
+                            _logger.LogError(ex, "LineBotDailyPush 農民曆推播 {LineUserId} 失敗", lu.LineUserId);
+                        }
+                        context.LinePushLogs.Add(new LinePushLog
+                        {
+                            LineUserId = lu.LineUserId,
+                            PushType = "almanac",
+                            ContentCategory = "almanac-daily",
+                            PushDate = pushDate,
+                            Message = almanacMsg,
+                            SentAt = DateTime.UtcNow,
+                            Status = almStatus,
+                            ErrorMessage = almError
+                        });
+                    }
+                    await context.SaveChangesAsync();
+                }
+
                 _logger.LogInformation("LineBotDailyPush 推播完成");
             }
             catch (Exception ex)
@@ -205,6 +245,68 @@ namespace Ecanapi.Services
         {
             int days = (int)(date.Date - GanZhiEpoch.Date).TotalDays;
             return Zhi12[(((days + 4) % 12) + 12) % 12]; // +4 修正地支偏移
+        }
+
+        // ── 農民曆推播 ──────────────────────────────────────────────────────
+
+        private async Task<string> BuildAlmanacMessageAsync(DateOnly pushDate)
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var calendarService = scope.ServiceProvider.GetRequiredService<ICalendarService>();
+                var cal = await calendarService.GetCalendarDataAsync(pushDate.Year, pushDate.Month, pushDate.Day);
+                if (cal == null)
+                {
+                    _logger.LogWarning("BuildAlmanacMessage: 找不到 {Date} 農民曆資料", pushDate);
+                    return "";
+                }
+
+                string yiji = await CallGeminiForYiJiAsync(cal);
+                string solarTermLine = string.IsNullOrEmpty(cal.SolarTerm) ? "" : $"節氣：{cal.SolarTerm}\n";
+
+                return $"【今日農民曆 {pushDate.Month}/{pushDate.Day}（{cal.WeekDay}）】\n\n" +
+                       $"農曆 {cal.LunarMonth}{cal.LunarDay}\n" +
+                       $"干支：{cal.YearGanzhi}年 {cal.MonthGanzhi}月 {cal.DayGanzhi}日\n" +
+                       solarTermLine +
+                       $"\n{yiji}\n\n" +
+                       $"── 玉洞子星相古學堂";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BuildAlmanacMessage 失敗");
+                return "";
+            }
+        }
+
+        private async Task<string> CallGeminiForYiJiAsync(CalendarEntry cal)
+        {
+            string prompt =
+                $"今日干支：{cal.YearGanzhi}年 {cal.MonthGanzhi}月 {cal.DayGanzhi}日，" +
+                $"農曆{cal.LunarMonth}{cal.LunarDay}。\n" +
+                "請依傳統農民曆宜忌，給出今日宜做3件事、忌做3件事。\n" +
+                "只輸出以下兩行，不加任何說明：\n" +
+                "宜：A、B、C\n" +
+                "忌：D、E、F";
+
+            var apiKey = _config["Gemini:ApiKey"];
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+            var payload = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
+            var response = await _httpClient.PostAsJsonAsync(url, payload);
+            var rawJson = await response.Content.ReadAsStringAsync();
+
+            _logger.LogInformation("CallGeminiForYiJi {Status}: {Preview}",
+                (int)response.StatusCode, rawJson.Length > 200 ? rawJson[..200] : rawJson);
+
+            var json = JsonSerializer.Deserialize<JsonElement>(rawJson);
+            if (!json.TryGetProperty("candidates", out var candidates))
+            {
+                _logger.LogWarning("CallGeminiForYiJi 回傳異常，使用預設宜忌");
+                return "宜：祭祀、求財、出行\n忌：動土、嫁娶、開倉";
+            }
+            return candidates[0].GetProperty("content").GetProperty("parts")[0]
+                       .GetProperty("text").GetString()?.Trim()
+                   ?? "宜：祭祀、求財、出行\n忌：動土、嫁娶、開倉";
         }
 
         private async Task PushMessageAsync(string accessToken, string lineUserId, string text)

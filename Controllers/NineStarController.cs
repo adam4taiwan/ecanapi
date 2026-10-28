@@ -1,5 +1,6 @@
 using Ecanapi.Data;
 using Ecanapi.Models;
+using Ecanapi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -387,6 +388,83 @@ namespace Ecanapi.Controllers
                 pushed,
                 errors
             });
+        }
+
+        // POST /api/NineStar/push-almanac-now  (管理員手動觸發農民曆推播)
+        [HttpPost("push-almanac-now")]
+        [Authorize]
+        public async Task<IActionResult> PushAlmanacNow()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _context.Users.FindAsync(userId);
+            var adminEmail = _config["Admin:Email"];
+            if (user == null || !string.Equals(user.Email, adminEmail, StringComparison.OrdinalIgnoreCase))
+                return Forbid();
+
+            var accessToken = _config["LineBot:ChannelAccessToken"] ?? "";
+            var pushDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+
+            // 取得農民曆資料
+            var calendarService = HttpContext.RequestServices.GetRequiredService<ICalendarService>();
+            var cal = await calendarService.GetCalendarDataAsync(pushDate.Year, pushDate.Month, pushDate.Day);
+            if (cal == null)
+                return BadRequest(new { message = $"找不到 {pushDate} 農民曆資料" });
+
+            // 呼叫 Gemini 生成宜忌
+            string yiji = await NsCallGeminiForYiJi(cal);
+            string solarTermLine = string.IsNullOrEmpty(cal.SolarTerm) ? "" : $"節氣：{cal.SolarTerm}\n";
+            string almanacMsg =
+                $"【今日農民曆 {pushDate.Month}/{pushDate.Day}（{cal.WeekDay}）】\n\n" +
+                $"農曆 {cal.LunarMonth}{cal.LunarDay}\n" +
+                $"干支：{cal.YearGanzhi}年 {cal.MonthGanzhi}月 {cal.DayGanzhi}日\n" +
+                solarTermLine +
+                $"\n{yiji}\n\n" +
+                $"── 玉洞子星相古學堂";
+
+            // 推播給所有開啟通知的用戶
+            var almanacUsers = await _context.LineUsers
+                .Where(u => u.NotifyEnabled)
+                .ToListAsync();
+
+            var pushed = new List<object>();
+            var errors = new List<object>();
+
+            foreach (var lu in almanacUsers)
+            {
+                try
+                {
+                    await NsPushMessage(accessToken, lu.LineUserId, almanacMsg);
+                    pushed.Add(new { lineUserId = lu.LineUserId, name = lu.DisplayName });
+                    await Task.Delay(100);
+                }
+                catch (Exception ex)
+                {
+                    errors.Add(new { lineUserId = lu.LineUserId, error = ex.Message });
+                }
+            }
+
+            return Ok(new
+            {
+                pushedCount = pushed.Count,
+                errorCount = errors.Count,
+                message = almanacMsg,
+                pushed,
+                errors
+            });
+        }
+
+        private async Task<string> NsCallGeminiForYiJi(CalendarEntry cal)
+        {
+            string prompt =
+                $"今日干支：{cal.YearGanzhi}年 {cal.MonthGanzhi}月 {cal.DayGanzhi}日，" +
+                $"農曆{cal.LunarMonth}{cal.LunarDay}。\n" +
+                "請依傳統農民曆宜忌，給出今日宜做3件事、忌做3件事。\n" +
+                "只輸出以下兩行，不加任何說明：\n" +
+                "宜：A、B、C\n" +
+                "忌：D、E、F";
+
+            string yiji = await NsCallGemini(prompt);
+            return yiji.Trim();
         }
 
         private async Task NsPushMessage(string accessToken, string lineUserId, string text)
